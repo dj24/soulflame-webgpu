@@ -1,10 +1,8 @@
 // We use webpack to package our shaders as string resources that we can import
 import shaderCode from "./triangle.wgsl";
 
-(async () => {
+const renderLoop = async () => {
     if (navigator.gpu === undefined) {
-        document.getElementById("webgpu-canvas").setAttribute("style", "display:none;");
-        document.getElementById("no-webgpu").setAttribute("style", "display:block;");
         return;
     }
 
@@ -18,6 +16,8 @@ import shaderCode from "./triangle.wgsl";
 
     // Setup shader modules
     var shaderModule = device.createShaderModule({code: shaderCode});
+    
+    // Handle compilation errors
     var compilationInfo = await shaderModule.getCompilationInfo();
     if (compilationInfo.messages.length > 0) {
         var hadError = false;
@@ -36,80 +36,60 @@ import shaderCode from "./triangle.wgsl";
     // Specify vertex data
     // Allocate room for the vertex data: 3 vertices, each with 2 float4's
     var dataBuf = device.createBuffer(
-        {size: 3 * 2 * 4 * 4, usage: GPUBufferUsage.VERTEX, mappedAtCreation: true});
+        {size: 6 * 2 * 4 * 4, usage: GPUBufferUsage.VERTEX, mappedAtCreation: true});
 
     // Interleaved positions and colors
     new Float32Array(dataBuf.getMappedRange()).set([
-        1, -1, 0, 1,  // position
+        -1, -1, 0, 1,  // position
         1, 0, 0, 1,  // color
+        -1, 1, 0, 1,  // position
+        1, 0, 0, 1,  // color
+        1, 1, 0, 1,  // position
+        1, 0, 0, 1,  // color
+
         -1, -1, 0, 1,  // position
         0, 1, 0, 1,  // color
-        0, 1, 0, 1,  // position
-        0, 0, 1, 1,  // color
+        1, 1, 0, 1,  // position
+        0, 1, 0, 1,  // color
+        1, -1, 0, 1,  // position
+        0, 1, 0, 1,  // color
     ]);
     dataBuf.unmap();
-
-    // Vertex attribute state and shader stage
-    var vertexState = {
-        // Shader stage info
-        module: shaderModule,
-        entryPoint: "vertex_main",
-        // Vertex buffer info
-        buffers: [{
-            arrayStride: 2 * 4 * 4,
-            attributes: [
-                {format: "float32x4", offset: 0, shaderLocation: 0},
-                {format: "float32x4", offset: 4 * 4, shaderLocation: 1}
-            ]
-        }]
-    };
-
+    
     // Setup render outputs
     var swapChainFormat = "bgra8unorm";
     context.configure(
         {device: device, format: swapChainFormat, usage: GPUTextureUsage.RENDER_ATTACHMENT});
 
-    var depthFormat = "depth24plus-stencil8";
-    var depthTexture = device.createTexture({
-        size: {width: canvas.width, height: canvas.height, depth: 1},
-        format: depthFormat,
-        usage: GPUTextureUsage.RENDER_ATTACHMENT
-    });
-
-    var fragmentState = {
-        // Shader info
-        module: shaderModule,
-        entryPoint: "fragment_main",
-        // Output render target info
-        targets: [{format: swapChainFormat}]
-    };
-
     // Create render pipeline
-    var layout = device.createPipelineLayout({bindGroupLayouts: []});
-
     var renderPipeline = device.createRenderPipeline({
-        layout: layout,
-        vertex: vertexState,
-        fragment: fragmentState,
-        depthStencil: {format: depthFormat, depthWriteEnabled: true, depthCompare: "less"}
+        layout: 'auto',
+        vertex: {
+            module: shaderModule,
+            entryPoint: "vertex_main",
+            // Vertex buffer info
+            buffers: [{
+                arrayStride: 2 * 4 * 4,
+                attributes: [
+                    {format: "float32x4", offset: 0, shaderLocation: 0},
+                    {format: "float32x4", offset: 4 * 4, shaderLocation: 1}
+                ]
+            }]
+        },
+        fragment: {
+            module: shaderModule,
+            entryPoint: "fragment_main",
+            targets: [{format: swapChainFormat}]
+        },
     });
 
     var renderPassDesc = {
         colorAttachments: [{
-            view: undefined,
+            view: context.getCurrentTexture().createView(),
             loadOp: "clear",
             clearValue: [0.3, 0.3, 0.3, 1],
             storeOp: "store"
-        }],
-        depthStencilAttachment: {
-            view: depthTexture.createView(),
-            depthLoadOp: "clear",
-            depthClearValue: 1.0,
-            depthStoreOp: "store",
-            stencilLoadOp: "clear",
-            stencilClearValue: 0,
-            stencilStoreOp: "store"
-        }
+        }]
     };
 
     var animationFrame = function () {
@@ -123,18 +103,14 @@ import shaderCode from "./triangle.wgsl";
     // Render!
     while (true) {
         await animationFrame();
-
-        renderPassDesc.colorAttachments[0].view = context.getCurrentTexture().createView();
-
-        var commandEncoder = device.createCommandEncoder();
-
-        var renderPass = commandEncoder.beginRenderPass(renderPassDesc);
-
+        const commandEncoder = device.createCommandEncoder();
+        const renderPass = commandEncoder.beginRenderPass(renderPassDesc);
         renderPass.setPipeline(renderPipeline);
         renderPass.setVertexBuffer(0, dataBuf);
-        renderPass.draw(3, 1, 0, 0);
-
+        renderPass.draw(6);
         renderPass.end();
         device.queue.submit([commandEncoder.finish()]);
     }
-})();
+};
+
+renderLoop();
