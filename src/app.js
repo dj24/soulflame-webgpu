@@ -5,6 +5,7 @@ class RenderLoop {
     device;
     renderPipeline;
     context;
+    bindGroup;
     constructor() {
         this.start().then(() => {
             requestAnimationFrame(this.frame.bind(this));
@@ -50,9 +51,9 @@ class RenderLoop {
         const response = await fetch('./paris.jpg');
         const imageBitmap = await createImageBitmap(await response.blob());
 
-        const [srcWidth, srcHeight] = [imageBitmap.width, imageBitmap.height];
+        const {width, height} = imageBitmap;
         const cubeTexture = this.device.createTexture({
-            size: [srcWidth, srcHeight, 1],
+            size: [width, width, 1],
             format: 'rgba8unorm',
             usage:
                 GPUTextureUsage.TEXTURE_BINDING |
@@ -62,12 +63,31 @@ class RenderLoop {
         this.device.queue.copyExternalImageToTexture(
             { source: imageBitmap },
             { texture: cubeTexture },
-            [imageBitmap.width, imageBitmap.height]
+            [width, height]
         );
+
+        const bindGroupLayout = this.device.createBindGroupLayout({
+            entries: [{
+                binding: 0, // texture sampler
+                visibility: GPUShaderStage.FRAGMENT,
+                sampler: {},
+            }, {
+                binding: 1, // model uniform
+                visibility: GPUShaderStage.FRAGMENT,
+                texture: {},
+            }]
+        });
+
+        const pipelineLayout = this.device.createPipelineLayout({
+            bindGroupLayouts: [
+                bindGroupLayout, // @group(0)
+            ]
+        });
+
 
         // Create render pipeline
         this.renderPipeline = this.device.createRenderPipeline({
-            layout: 'auto',
+            layout: pipelineLayout,
             vertex: {
                 module: this.shaderModule,
                 entryPoint: "vertex_main",
@@ -79,22 +99,24 @@ class RenderLoop {
             },
         });
 
-        // TODO: add bind group to shader for sampling
-        // const bindGroup = device.createBindGroup({
-        //     layout: blurPipeline.getBindGroupLayout(0),
-        //     entries: [
-        //         {
-        //             binding: 0,
-        //             resource: sampler,
-        //         },
-        //         {
-        //             binding: 1,
-        //             resource: {
-        //                 buffer: blurParamsBuffer,
-        //             },
-        //         },
-        //     ],
-        // });
+        const sampler = this.device.createSampler({
+            magFilter: 'linear',
+            minFilter: 'linear',
+        });
+
+        this.bindGroup = this.device.createBindGroup({
+            layout: this.renderPipeline.getBindGroupLayout(0),
+            entries: [
+                {
+                    binding: 0,
+                    resource: sampler,
+                },
+                {
+                    binding: 1,
+                    resource: cubeTexture.createView(),
+                },
+            ],
+        });
     }
     async frame() {
         const commandEncoder = this.device.createCommandEncoder();
@@ -107,6 +129,7 @@ class RenderLoop {
             }]
         });
         renderPass.setPipeline(this.renderPipeline);
+        renderPass.setBindGroup(0, this.bindGroup);
         renderPass.draw(6);
         renderPass.end();
         this.device.queue.submit([commandEncoder.finish()]);
