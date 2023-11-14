@@ -1,96 +1,101 @@
 import shaderCode from "./fullscreentexturedquad.wgsl";
 import blurWGSL from "./blur.wgsl";
 
-class RenderLoop {
-    shaderModule;
-    device;
-    renderPipeline;
-    computePipeline;
-    context;
-    bindGroup;
-    computeBindGroup;
-    outputTextureView;
-    constructor() {
-        this.start().then(() => {
-            requestAnimationFrame(this.frame.bind(this));
-        });
-    }
+const startTime = performance.now();
 
-    get timeBuffer() {
-        const timeBuffer = this.device.createBuffer({
-            size: 4,
-            mappedAtCreation: true,
-            usage: GPUBufferUsage.UNIFORM,
-        });
-        new Uint32Array(timeBuffer.getMappedRange())[0] = new Date().getTime();
-        timeBuffer.unmap();
-        return timeBuffer;
-    }
-
-    async start(){
-        if (navigator.gpu === undefined) {
-            throw new Error('WebGPU not supported');
+const handleErrors = async (shaderModule) => {
+    const compilationInfo = await shaderModule.getCompilationInfo();
+    if (compilationInfo.messages.length > 0) {
+        var hadError = false;
+        console.log("Shader compilation log:");
+        for (var i = 0; i < compilationInfo.messages.length; ++i) {
+            var msg = compilationInfo.messages[i];
+            console.log(`${msg.lineNum}:${msg.linePos} - ${msg.message}`);
+            hadError = hadError || msg.type == "error";
         }
-        // Get a GPU device to render with
-        var adapter = await navigator.gpu.requestAdapter();
-        this.device = await adapter.requestDevice();
-
-        this.shaderModule = this.device.createShaderModule({code: shaderCode});
-
-        // Handle compilation errors
-        var compilationInfo = await this.shaderModule.getCompilationInfo();
-        if (compilationInfo.messages.length > 0) {
-            var hadError = false;
-            console.log("Shader compilation log:");
-            for (var i = 0; i < compilationInfo.messages.length; ++i) {
-                var msg = compilationInfo.messages[i];
-                console.log(`${msg.lineNum}:${msg.linePos} - ${msg.message}`);
-                hadError = hadError || msg.type == "error";
-            }
-            if (hadError) {
-                throw new Error("Shader failed to compile");
-            }
+        if (hadError) {
+            throw new Error("Shader failed to compile");
         }
+    }
+}
 
-        // Get a context to display our rendered image on the canvas
-        var canvas = document.getElementById("webgpu-canvas");
-        canvas.width = canvas.parentElement.clientWidth;
-        canvas.height = canvas.parentElement.clientHeight;
-        this.context = canvas.getContext("webgpu");
-
-        // Setup render outputs
-        const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
-        this.context.configure(
-            {device: this.device, format: presentationFormat, usage: GPUTextureUsage.RENDER_ATTACHMENT});
-
-
-        // Create compute pipeline
-        this.computePipeline = this.device.createComputePipeline({
+const createComputePass = (device) => {
+    let computePipeline;
+    const start = () => {
+        computePipeline = device.createComputePipeline({
             layout: 'auto',
             compute: {
-                module: this.device.createShaderModule({
+                module: device.createShaderModule({
                     code: blurWGSL,
                 }),
                 entryPoint: 'main',
             },
         });
-
-        // Create render pipeline
-        this.renderPipeline = this.device.createRenderPipeline({
-            layout: 'auto',
-            vertex: {
-                module: this.shaderModule,
-                entryPoint: "vertex_main",
-            },
-            fragment: {
-                module: this.shaderModule,
-                entryPoint: "fragment_main",
-                targets: [{format: presentationFormat}]
-            },
+    }
+    const render = ({commandEncoder, timeBuffer, outputTextureView}) => {
+        const computePass = commandEncoder.beginComputePass();
+        computePass.setPipeline(computePipeline);
+        const computeBindGroup = device.createBindGroup({
+            layout: computePipeline.getBindGroupLayout(0),
+            entries: [
+                {
+                    binding: 0,
+                    resource: outputTextureView,
+                },
+                {
+                    binding: 1,
+                    resource: {
+                        buffer: timeBuffer
+                    }
+                }
+            ],
         });
+        computePass.setBindGroup(0, computeBindGroup);
+        computePass.dispatchWorkgroups(
+            128,
+            128
+        );
+        computePass.end();
+    }
+    
+    return { start, render }
+}
 
-        const outputTexture = this.device.createTexture({
-            size: [512, 512, 1],
+const renderLoop = (device, computePasses) => {
+    let bindGroup;
+    let outputTextureView;
+    let animationFrameId;
+
+    const canvas = document.getElementById("webgpu-canvas");
+    const context = canvas.getContext("webgpu");
+    const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
+    context.configure({device: device, format: presentationFormat, usage: GPUTextureUsage.RENDER_ATTACHMENT});
+    const shaderModule = device.createShaderModule({code: shaderCode});
+    
+    handleErrors(shaderModule);
+    
+    const renderPipeline = device.createRenderPipeline({
+        layout: 'auto',
+        vertex: {
+            module: shaderModule,
+            entryPoint: "vertex_main",
+        },
+        fragment: {
+            module: shaderModule,
+            entryPoint: "fragment_main",
+            targets: [{format: presentationFormat}]
+        },
+    });
+    const start = () => {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+        
+        computePasses.forEach(computePass => {
+            computePass.start();
+        })
+        
+        const outputTexture = device.createTexture({
+            size: [canvas.width, canvas.height, 1],
             format: 'rgba8unorm',
             usage:
               GPUTextureUsage.TEXTURE_BINDING |
@@ -98,78 +103,71 @@ class RenderLoop {
               GPUTextureUsage.STORAGE_BINDING
         });
 
-        this.outputTextureView = outputTexture.createView();
-
+        outputTextureView = outputTexture.createView();
+        animationFrameId = requestAnimationFrame(frame);
     }
-     async frame() {
-        const commandEncoder = this.device.createCommandEncoder();
-
-        const computePass = commandEncoder.beginComputePass();
-        computePass.setPipeline(this.computePipeline);
-
-
-        this.computeBindGroup = this.device.createBindGroup({
-            layout: this.computePipeline.getBindGroupLayout(0),
-            entries: [
-                {
-                    binding: 0,
-                    resource: this.outputTextureView,
-                },
-                {
-                    binding: 1,
-                    resource: {
-                        buffer: this.timeBuffer
-                    }
-                }
-            ],
+     const frame = async () => {
+        const commandEncoder = device.createCommandEncoder();
+        const timeBuffer = device.createBuffer({
+             size: 4,
+             mappedAtCreation: true,
+             usage: GPUBufferUsage.UNIFORM,
         });
-        computePass.setBindGroup(0, this.computeBindGroup);
-        computePass.dispatchWorkgroups(
-            64,
-            64
-        );
-        computePass.end();
-
+        new Uint32Array(timeBuffer.getMappedRange())[0] = performance.now() - startTime;
+        timeBuffer.unmap();
+        
+        computePasses.forEach(computePass => {
+            computePass.render({commandEncoder, timeBuffer, outputTextureView});
+        })
+        
         const renderPass = commandEncoder.beginRenderPass({
             colorAttachments: [{
-                view: this.context.getCurrentTexture().createView(),
+                view: context.getCurrentTexture().createView(),
                 loadOp: "clear",
                 clearValue: [0.3, 0.3, 0.3, 1],
                 storeOp: "store"
             }]
         });
 
-         this.bindGroup = this.device.createBindGroup({
-             layout: this.renderPipeline.getBindGroupLayout(0),
+         bindGroup = device.createBindGroup({
+             layout: renderPipeline.getBindGroupLayout(0),
              entries: [
                  {
                      binding: 0,
-                     resource: this.device.createSampler({
+                     resource: device.createSampler({
                          magFilter: 'linear',
                          minFilter: 'linear',
                      }),
                  },
                  {
                      binding: 1,
-                     resource: this.outputTextureView,
+                     resource: outputTextureView,
                  },
-                 {
-                     binding: 2,
-                     resource: {
-                         buffer: this.timeBuffer
-                     }
-                 }
              ],
          });
-
-        renderPass.setPipeline(this.renderPipeline);
-        renderPass.setBindGroup(0, this.bindGroup);
+        renderPass.setPipeline(renderPipeline);
+        renderPass.setBindGroup(0, bindGroup);
         renderPass.draw(6);
         renderPass.end();
-        this.device.queue.submit([commandEncoder.finish()]);
-
-        requestAnimationFrame(this.frame.bind(this));
+        device.queue.submit([commandEncoder.finish()]);
+        animationFrameId = requestAnimationFrame(frame);
     };
+    
+    const resizeObserver = new ResizeObserver((entries) => {
+        cancelAnimationFrame(animationFrameId);
+        start();
+    });
+    resizeObserver.observe(canvas.parentElement)
 }
 
-new RenderLoop();
+if (navigator.gpu !== undefined) {
+    navigator.gpu.requestAdapter().then(adapter => {
+        adapter.requestDevice().then(device => {
+            const computePass = createComputePass(device);
+            renderLoop(device, [computePass]);
+        })
+    })
+} else{
+   console.error('WebGPU not supported');
+}
+

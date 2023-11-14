@@ -1,6 +1,5 @@
 @group(0) @binding(0) var mySampler : sampler;
 @group(0) @binding(1) var myTexture : texture_2d<f32>;
-@group(0) @binding(2) var<uniform> time : u32;
 
 struct VertexOutput {
   @builtin(position) Position : vec4<f32>,
@@ -35,6 +34,6 @@ fn vertex_main(@builtin(vertex_index) VertexIndex : u32) -> VertexOutput {
 
 @fragment
 fn fragment_main(@location(0) fragUV : vec2<f32>) -> @location(0) vec4<f32> {
-    return vec4(sin(f32(time) * 0.001), 0, 0, 1);
+//    return vec4(sin(f32(time) * 0.001), 0, 0, 1);
     return textureSample(myTexture, mySampler, fragUV);
 }
