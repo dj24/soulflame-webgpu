@@ -1,25 +1,20 @@
 import shaderCode from "./fullscreentexturedquad.wgsl";
 import blurWGSL from "./blur.wgsl";
 
-const startTime = performance.now();
-
-const handleErrors = async (shaderModule) => {
-    const compilationInfo = await shaderModule.getCompilationInfo();
-    if (compilationInfo.messages.length > 0) {
-        var hadError = false;
-        console.log("Shader compilation log:");
-        for (var i = 0; i < compilationInfo.messages.length; ++i) {
-            var msg = compilationInfo.messages[i];
-            console.log(`${msg.lineNum}:${msg.linePos} - ${msg.message}`);
-            hadError = hadError || msg.type == "error";
-        }
-        if (hadError) {
-            throw new Error("Shader failed to compile");
-        }
+class Vector2 {
+    x;
+    y;
+    constructor(x,y) {
+        this.x = x;
+        this.y = y;
     }
 }
+ 
+let device;
+let resolution = new Vector2(0,0);
+const startTime = performance.now();
 
-const createComputePass = (device) => {
+const createComputePass = () => {
     let computePipeline;
     const start = () => {
         computePipeline = device.createComputePipeline({
@@ -32,7 +27,7 @@ const createComputePass = (device) => {
             },
         });
     }
-    const render = ({commandEncoder, timeBuffer, outputTextureView}) => {
+    const render = ({commandEncoder, timeBuffer, resolutionBuffer, outputTextureView}) => {
         const computePass = commandEncoder.beginComputePass();
         computePass.setPipeline(computePipeline);
         const computeBindGroup = device.createBindGroup({
@@ -47,13 +42,19 @@ const createComputePass = (device) => {
                     resource: {
                         buffer: timeBuffer
                     }
+                },
+                {
+                    binding: 2,
+                    resource: {
+                        buffer: resolutionBuffer
+                    }
                 }
             ],
         });
         computePass.setBindGroup(0, computeBindGroup);
         computePass.dispatchWorkgroups(
-            128,
-            128
+            resolution.x,
+            resolution.y
         );
         computePass.end();
     }
@@ -63,7 +64,7 @@ const createComputePass = (device) => {
 
 const renderLoop = (device, computePasses) => {
     let bindGroup;
-    let outputTextureView;
+    let outputTexture;
     let animationFrameId;
 
     const canvas = document.getElementById("webgpu-canvas");
@@ -71,8 +72,6 @@ const renderLoop = (device, computePasses) => {
     const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
     context.configure({device: device, format: presentationFormat, usage: GPUTextureUsage.RENDER_ATTACHMENT});
     const shaderModule = device.createShaderModule({code: shaderCode});
-    
-    handleErrors(shaderModule);
     
     const renderPipeline = device.createRenderPipeline({
         layout: 'auto',
@@ -87,27 +86,21 @@ const renderLoop = (device, computePasses) => {
         },
     });
     const start = () => {
-        canvas.width = canvas.parentElement.clientWidth;
-        canvas.height = canvas.parentElement.clientHeight;
+        const { clientWidth, clientHeight} = canvas.parentElement;
+        resolution = new Vector2(clientWidth, clientHeight);
+        canvas.width = resolution.x;
+        canvas.height = resolution.y;
+        
         
         computePasses.forEach(computePass => {
             computePass.start();
         })
         
-        const outputTexture = device.createTexture({
-            size: [canvas.width, canvas.height, 1],
-            format: 'rgba8unorm',
-            usage:
-              GPUTextureUsage.TEXTURE_BINDING |
-              GPUTextureUsage.RENDER_ATTACHMENT |
-              GPUTextureUsage.STORAGE_BINDING
-        });
-
-        outputTextureView = outputTexture.createView();
         animationFrameId = requestAnimationFrame(frame);
     }
      const frame = async () => {
         const commandEncoder = device.createCommandEncoder();
+        
         const timeBuffer = device.createBuffer({
              size: 4,
              mappedAtCreation: true,
@@ -115,9 +108,29 @@ const renderLoop = (device, computePasses) => {
         });
         new Uint32Array(timeBuffer.getMappedRange())[0] = performance.now() - startTime;
         timeBuffer.unmap();
+
+         const resolutionBuffer = device.createBuffer({
+             size: 8,
+             mappedAtCreation: true,
+             usage: GPUBufferUsage.UNIFORM,
+         });
+         const foo = new Uint32Array(resolutionBuffer.getMappedRange());
+         foo[0] = resolution.x;
+         foo[1] = resolution.y;
+         resolutionBuffer.unmap();
+         
+         outputTexture = device.createTexture({
+             size: [resolution.x, resolution.y, 1],
+             format: 'rgba8unorm',
+             usage:
+                 GPUTextureUsage.TEXTURE_BINDING |
+                 GPUTextureUsage.RENDER_ATTACHMENT |
+                 GPUTextureUsage.STORAGE_BINDING
+         });
+        const outputTextureView = outputTexture.createView();
         
         computePasses.forEach(computePass => {
-            computePass.render({commandEncoder, timeBuffer, outputTextureView});
+            computePass.render({commandEncoder, timeBuffer, resolutionBuffer, outputTextureView});
         })
         
         const renderPass = commandEncoder.beginRenderPass({
@@ -153,7 +166,7 @@ const renderLoop = (device, computePasses) => {
         animationFrameId = requestAnimationFrame(frame);
     };
     
-    const resizeObserver = new ResizeObserver((entries) => {
+    const resizeObserver = new ResizeObserver(() => {
         cancelAnimationFrame(animationFrameId);
         start();
     });
@@ -162,8 +175,9 @@ const renderLoop = (device, computePasses) => {
 
 if (navigator.gpu !== undefined) {
     navigator.gpu.requestAdapter().then(adapter => {
-        adapter.requestDevice().then(device => {
-            const computePass = createComputePass(device);
+        adapter.requestDevice().then(newDevice => {
+            device = newDevice;
+            const computePass = createComputePass();
             renderLoop(device, [computePass]);
         })
     })
