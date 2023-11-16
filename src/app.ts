@@ -4,6 +4,8 @@ import { createUniformBuffer } from "./buffer-utils";
 import { ComputePass, createComputePass } from "./compute-pass";
 import { Camera } from "./camera";
 import { KeyboardControls } from "./keyboard-controls";
+import { MouseControls } from "./mouse_controls";
+import { Vector3 } from "./vector3";
 
 export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
@@ -12,6 +14,7 @@ const startTime = performance.now();
 export let elapsedTime = startTime;
 
 export const keyboardControls = new KeyboardControls();
+export const mouseControls = new MouseControls();
 export let camera = new Camera(90);
 
 const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
@@ -19,6 +22,9 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
   let outputTexture;
   let animationFrameId: ReturnType<typeof requestAnimationFrame>;
   const canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
+  canvas.addEventListener("click", async () => {
+    await canvas.requestPointerLock();
+  });
   gpuContext = canvas.getContext("webgpu");
   const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
   gpuContext.configure({
@@ -106,18 +112,36 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
   const frame = async () => {
     const newElapsedTime = performance.now() - startTime;
     const deltaTime = newElapsedTime - elapsedTime;
+
+    // TODO: abstract to function or class
+    const speed = 0.005;
     elapsedTime = newElapsedTime;
+    const rotationSpeed = 0.0001;
+    camera.direction = camera.direction.rotateY(
+      -mouseControls.velocity.x * deltaTime * rotationSpeed,
+    );
+    camera.direction = camera.direction.rotateX(
+      mouseControls.velocity.y * deltaTime * rotationSpeed,
+    );
+
+    // TODO: add relative direction vectors to camera
     if (keyboardControls.pressed.a) {
-      camera.position.x -= deltaTime * 0.01;
+      camera.position.x -= deltaTime * speed;
     }
     if (keyboardControls.pressed.d) {
-      camera.position.x += deltaTime * 0.01;
+      camera.position.x += deltaTime * speed;
     }
     if (keyboardControls.pressed.w) {
-      camera.position.z += deltaTime * 0.01;
+      camera.position.z += deltaTime * speed;
     }
     if (keyboardControls.pressed.s) {
-      camera.position.z -= deltaTime * 0.01;
+      camera.position.z -= deltaTime * speed;
+    }
+    if (keyboardControls.pressed[" "]) {
+      camera.position.y += deltaTime * speed;
+    }
+    if (keyboardControls.pressed.Control) {
+      camera.position.y -= deltaTime * speed;
     }
     // camera.fieldOfView = 70 + Math.sin(elapsedTime * 0.001) * 10;
 

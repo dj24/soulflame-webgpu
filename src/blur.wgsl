@@ -2,7 +2,7 @@ struct FrustumCornerDirections {
   topLeft : vec3<f32>,
   topRight : vec3<f32>,
   bottomLeft : vec3<f32>,
-  bottomRight : vec3<f32>,
+  bottomRight : vec3<f32>
 }
 
 fn calculateRayDirection(uv: vec2<f32>, directions: FrustumCornerDirections) -> vec3<f32> {
@@ -80,15 +80,15 @@ let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
 //  let rayOrigin = vec3(timeOffset * 0.5,timeOffset,5.0);
   let rayOrigin = cameraPosition;
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
-  rayDirection = normalize( vec3(p,-2.0) );
+//  rayDirection = normalize( vec3(p,-2.0) );
   
   let spherePos = vec3(0,timeOffset - 1.0,2.0);
   var boxSize = vec3<f32>(0.5);
   //  let intersect = sphIntersect(rayOrigin, rayDirection, spherePos, 0.5);
   let intersect = boxIntersection(rayOrigin, rayDirection, boxSize);
-  var green = select(0., 1., rayDirection.y > 0);
-    var blue = select(0., 1., rayDirection.z > 0);
-  var red = select(0., 1., rayDirection.x > 0);
+  var green = rayDirection.y;
+  var blue = rayDirection.z;
+  var red = rayDirection.x;
   if(intersect.x > 0.0){
       let pos = rayOrigin + intersect.y * rayDirection;
       let normal = intersect.yzw;

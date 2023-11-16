@@ -20,7 +20,7 @@ export const createUniformBuffer = (items: number[], label?: string) => {
 export const createFloatUniformBuffer = (items: number[], label?: string) => {
   const floatArray = new Float32Array(items);
   const buffer = device.createBuffer({
-    size: Math.max(64, floatArray.byteLength), // TODO: figure out why this needs to be 64
+    size: floatArray.byteLength, // TODO: figure out why this needs to be 64
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
   device.queue.writeBuffer(

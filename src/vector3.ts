@@ -55,4 +55,24 @@ export class Vector3 {
     const length = Math.sqrt(this.x ** 2 + this.y ** 2 + this.z ** 2);
     return new Vector3(this.x / length, this.y / length, this.z / length);
   }
+
+  rotateY(rotation: number) {
+    const cosTheta = Math.cos(rotation);
+    const sinTheta = Math.sin(rotation);
+
+    const rotatedX = this.x * cosTheta - this.z * sinTheta;
+    const rotatedZ = this.x * sinTheta + this.z * cosTheta;
+
+    return new Vector3(rotatedX, this.y, rotatedZ);
+  }
+
+  rotateX(rotation: number) {
+    const cosTheta = Math.cos(rotation);
+    const sinTheta = Math.sin(rotation);
+
+    const rotatedY = this.y * cosTheta - this.z * sinTheta;
+    const rotatedZ = this.y * sinTheta + this.z * cosTheta;
+
+    return new Vector3(this.x, rotatedY, rotatedZ);
+  }
 }

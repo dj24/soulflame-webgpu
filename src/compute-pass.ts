@@ -60,7 +60,7 @@ export const createComputePass = (): ComputePass => {
     outputTextureView,
   }: RenderArgs) => {
     const flatMappedDirections = getFrustumCornerDirections(camera).flatMap(
-      (direction) => direction.toArray(),
+      (direction) => [...direction.toArray(), 0],
     );
     const frustumCornerDirectionsBuffer = createFloatUniformBuffer(
       flatMappedDirections,

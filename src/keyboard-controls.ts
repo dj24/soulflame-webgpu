@@ -5,6 +5,8 @@ export class KeyboardControls {
     a: false,
     s: false,
     d: false,
+    " ": false,
+    Control: false,
   };
   constructor() {
     window.addEventListener("keydown", (event) => {
