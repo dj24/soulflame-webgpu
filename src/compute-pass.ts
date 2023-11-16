@@ -3,7 +3,7 @@ import { Vector3 } from "./vector3";
 import { createFloatUniformBuffer } from "./buffer-utils";
 import { device, resolution } from "./app";
 
-const getFrustumCornerDirections = (fov, cameraDirection) => {
+const getFrustumCornerDirections = (fov: number, cameraDirection: Vector3) => {
   const aspectRatio = resolution.x / resolution.y;
   const halfFov = fov / 2;
   const tanHalfFov = Math.tan(halfFov);
@@ -32,8 +32,20 @@ const getFrustumCornerDirections = (fov, cameraDirection) => {
   return [topLeft, topRight, bottomLeft, bottomRight];
 };
 
-export const createComputePass = () => {
-  let computePipeline;
+type RenderArgs = {
+  commandEncoder: GPUCommandEncoder;
+  timeBuffer: GPUBuffer;
+  resolutionBuffer: GPUBuffer;
+  outputTextureView: GPUTextureView;
+};
+
+export type ComputePass = {
+  start: () => void;
+  render: (args: RenderArgs) => void;
+};
+
+export const createComputePass = (): ComputePass => {
+  let computePipeline: GPUComputePipeline;
   const start = () => {
     computePipeline = device.createComputePipeline({
       layout: "auto",
@@ -50,7 +62,7 @@ export const createComputePass = () => {
     timeBuffer,
     resolutionBuffer,
     outputTextureView,
-  }) => {
+  }: RenderArgs) => {
     const cameraDirection = new Vector3(0, 0, 1);
     const flatMappedDirections = getFrustumCornerDirections(
       70,

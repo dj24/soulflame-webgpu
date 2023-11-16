@@ -1,7 +1,9 @@
+import { createUniformBuffer } from "./buffer-utils";
+
 export class Vector2 {
-  x;
-  y;
-  constructor(x, y) {
+  x: number;
+  y: number;
+  constructor(x: number, y: number) {
     this.x = x;
     this.y = y;
   }
@@ -20,7 +22,7 @@ export class Vector2 {
     return [this.x, this.y];
   }
 
-  mul(val) {
+  mul(val: Vector2) {
     if (val instanceof Vector2) {
       return new Vector2(this.x * val.x, this.y * val.y);
     }
@@ -30,11 +32,11 @@ export class Vector2 {
     throw new Error("Can only multiply Vector2 by Vector2 or Number");
   }
 
-  add(val) {
+  add(val: Vector2) {
     return new Vector2(this.x + val.x, this.y + val.y);
   }
 
-  subtract(val) {
+  subtract(val: Vector2) {
     return new Vector2(this.x - val.x, this.y - val.y);
   }
 

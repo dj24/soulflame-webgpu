@@ -1,8 +1,10 @@
+import { createUniformBuffer } from "./buffer-utils";
+
 export class Vector3 {
-  x;
-  y;
-  z;
-  constructor(x, y, z) {
+  x: number;
+  y: number;
+  z: number;
+  constructor(x: number, y: number, z: number) {
     this.x = x;
     this.y = y;
     this.z = z;
@@ -23,7 +25,7 @@ export class Vector3 {
     return [this.x, this.y, this.z];
   }
 
-  mul(val) {
+  mul(val: Vector3 | number) {
     if (val instanceof Vector3) {
       return new Vector3(this.x * val.x, this.y * val.y, this.z * val.z);
     }
@@ -33,15 +35,15 @@ export class Vector3 {
     throw new Error("Can only multiply Vector3 by Vector3 or Number");
   }
 
-  add(val) {
+  add(val: Vector3) {
     return new Vector3(this.x + val.x, this.y + val.y, this.z + val.z);
   }
 
-  subtract(val) {
+  subtract(val: Vector3) {
     return new Vector3(this.x - val.x, this.y - val.y, this.z - val.z);
   }
 
-  cross(val) {
+  cross(val: Vector3) {
     return new Vector3(
       this.y * val.z - this.z * val.y,
       this.z * val.x - this.x * val.z,

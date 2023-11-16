@@ -1,7 +1,7 @@
 import { device } from "./app";
 
 //TODO: add check to allow for arrays or individual values to be passed
-export const createUniformBuffer = (items, label) => {
+export const createUniformBuffer = (items: number[], label?: string) => {
   const uintArray = new Uint32Array(items);
   const buffer = device.createBuffer({
     size: uintArray.byteLength, // TODO: figure out why this needs to be 64
@@ -17,7 +17,7 @@ export const createUniformBuffer = (items, label) => {
   return buffer;
 };
 
-export const createFloatUniformBuffer = (items, label) => {
+export const createFloatUniformBuffer = (items: number[], label?: string) => {
   const floatArray = new Float32Array(items);
   const buffer = device.createBuffer({
     size: Math.max(64, floatArray.byteLength), // TODO: figure out why this needs to be 64

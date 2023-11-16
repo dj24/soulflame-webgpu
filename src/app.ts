@@ -1,19 +1,19 @@
 import shaderCode from "./fullscreentexturedquad.wgsl";
 import { Vector2 } from "./vector2";
 import { createUniformBuffer } from "./buffer-utils";
-import { createComputePass } from "./compute-pass";
+import { ComputePass, createComputePass } from "./compute-pass";
 
-export let device;
-export let gpuContext;
+export let device: GPUDevice;
+export let gpuContext: GPUCanvasContext;
 export let resolution = new Vector2(0, 0);
 const startTime = performance.now();
 export let elapsedTime = startTime;
 
-const renderLoop = (device, computePasses) => {
+const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
   let bindGroup;
   let outputTexture;
-  let animationFrameId;
-  const canvas = document.getElementById("webgpu-canvas");
+  let animationFrameId: ReturnType<typeof requestAnimationFrame>;
+  const canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
   gpuContext = canvas.getContext("webgpu");
   const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
   gpuContext.configure({
@@ -47,7 +47,13 @@ const renderLoop = (device, computePasses) => {
     animationFrameId = requestAnimationFrame(frame);
   };
 
-  const fullscreenQuad = ({ commandEncoder, outputTextureView }) => {
+  const fullscreenQuad = ({
+    commandEncoder,
+    outputTextureView,
+  }: {
+    commandEncoder: GPUCommandEncoder;
+    outputTextureView: GPUTextureView;
+  }) => {
     const renderPass = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
