@@ -1,33 +1,29 @@
 import blurWGSL from "./blur.wgsl";
 import { Vector3 } from "./vector3";
 import { createFloatUniformBuffer } from "./buffer-utils";
-import { device, resolution } from "./app";
+import { camera, device, resolution } from "./app";
+import { Camera } from "./camera";
 
-const getFrustumCornerDirections = (fov: number, cameraDirection: Vector3) => {
+const getFrustumCornerDirections = (camera: Camera) => {
   const aspectRatio = resolution.x / resolution.y;
-  const halfFov = fov / 2;
+  const halfFov = camera.fieldOfView / 2;
   const tanHalfFov = Math.tan(halfFov);
-
-  const right = Vector3.up.cross(cameraDirection).normalize();
-  const up = cameraDirection.cross(right).normalize();
+  const right = Vector3.up.cross(camera.direction).normalize();
+  const up = camera.direction.cross(right).normalize();
   const upwardDisplacement = up.mul(tanHalfFov);
 
-  const topLeft = cameraDirection
+  const topLeft = camera.direction
     .add(upwardDisplacement)
-    .add(right.mul(-aspectRatio * tanHalfFov))
-    .normalize();
-  const topRight = cameraDirection
+    .add(right.mul(-aspectRatio * tanHalfFov));
+  const topRight = camera.direction
     .add(upwardDisplacement)
-    .add(right.mul(aspectRatio * tanHalfFov))
-    .normalize();
-  const bottomLeft = cameraDirection
+    .add(right.mul(aspectRatio * tanHalfFov));
+  const bottomLeft = camera.direction
     .subtract(upwardDisplacement)
-    .add(right.mul(-aspectRatio * tanHalfFov))
-    .normalize();
-  const bottomRight = cameraDirection
+    .add(right.mul(-aspectRatio * tanHalfFov));
+  const bottomRight = camera.direction
     .subtract(upwardDisplacement)
-    .add(right.mul(aspectRatio * tanHalfFov))
-    .normalize();
+    .add(right.mul(aspectRatio * tanHalfFov));
 
   return [topLeft, topRight, bottomLeft, bottomRight];
 };
@@ -63,14 +59,16 @@ export const createComputePass = (): ComputePass => {
     resolutionBuffer,
     outputTextureView,
   }: RenderArgs) => {
-    const cameraDirection = new Vector3(0, 0, 1);
-    const flatMappedDirections = getFrustumCornerDirections(
-      70,
-      cameraDirection,
-    ).flatMap((direction) => direction.toArray());
+    const flatMappedDirections = getFrustumCornerDirections(camera).flatMap(
+      (direction) => direction.toArray(),
+    );
     const frustumCornerDirectionsBuffer = createFloatUniformBuffer(
       flatMappedDirections,
       "frustum corner directions",
+    );
+    const cameraPostionBuffer = createFloatUniformBuffer(
+      camera.position.toArray(),
+      "camera position",
     );
     const computePass = commandEncoder.beginComputePass();
     computePass.setPipeline(computePipeline);
@@ -97,6 +95,12 @@ export const createComputePass = (): ComputePass => {
           binding: 3,
           resource: {
             buffer: frustumCornerDirectionsBuffer,
+          },
+        },
+        {
+          binding: 4,
+          resource: {
+            buffer: cameraPostionBuffer,
           },
         },
       ],

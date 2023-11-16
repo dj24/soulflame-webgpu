@@ -2,12 +2,17 @@ import shaderCode from "./fullscreentexturedquad.wgsl";
 import { Vector2 } from "./vector2";
 import { createUniformBuffer } from "./buffer-utils";
 import { ComputePass, createComputePass } from "./compute-pass";
+import { Camera } from "./camera";
+import { KeyboardControls } from "./keyboard-controls";
 
 export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let resolution = new Vector2(0, 0);
 const startTime = performance.now();
 export let elapsedTime = startTime;
+
+export const keyboardControls = new KeyboardControls();
+export let camera = new Camera(90);
 
 const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
   let bindGroup;
@@ -99,7 +104,22 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
     return outputTexture.createView();
   };
   const frame = async () => {
-    elapsedTime = performance.now() - startTime;
+    const newElapsedTime = performance.now() - startTime;
+    const deltaTime = newElapsedTime - elapsedTime;
+    elapsedTime = newElapsedTime;
+    if (keyboardControls.pressed.a) {
+      camera.position.x -= deltaTime * 0.01;
+    }
+    if (keyboardControls.pressed.d) {
+      camera.position.x += deltaTime * 0.01;
+    }
+    if (keyboardControls.pressed.w) {
+      camera.position.z += deltaTime * 0.01;
+    }
+    if (keyboardControls.pressed.s) {
+      camera.position.z -= deltaTime * 0.01;
+    }
+    // camera.fieldOfView = 70 + Math.sin(elapsedTime * 0.001) * 10;
 
     const commandEncoder = device.createCommandEncoder();
     const timeBuffer = createUniformBuffer([elapsedTime]);

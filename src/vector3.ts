@@ -19,18 +19,18 @@ export class Vector3 {
   static up = new Vector3(0, 1, 0);
   static down = new Vector3(0, -1, 0);
   static left = new Vector3(-1, 0, 0);
-  static right = new Vector3(1, 1, 0);
+  static right = new Vector3(1, 0, 0);
 
   toArray() {
     return [this.x, this.y, this.z];
   }
 
-  mul(val: Vector3 | number) {
-    if (val instanceof Vector3) {
-      return new Vector3(this.x * val.x, this.y * val.y, this.z * val.z);
+  mul(v: Vector3 | number) {
+    if (v instanceof Vector3) {
+      return new Vector3(this.x * v.x, this.y * v.y, this.z * v.z);
     }
-    if (typeof val === "number") {
-      return new Vector3(this.x * val, this.y * val, this.z * val);
+    if (typeof v === "number") {
+      return new Vector3(this.x * v, this.y * v, this.z * v);
     }
     throw new Error("Can only multiply Vector3 by Vector3 or Number");
   }
