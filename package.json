@@ -1,24 +1,16 @@
 {
-  "name": "webgpu-webpack-starter",
+  "name": "soulflame-webgpu",
   "version": "1.0.0",
-  "description": "A starter template for WebGPU development the uses webpack to build the code and manage dependencies.",
+  "description": "WebGPU voxel raytracing",
   "main": "app.js",
   "scripts": {
     "build": "webpack",
     "serve": "webpack server",
     "deploy": "webpack --mode=production"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Twinklebear/webgpu-webpack-starter.git"
-  },
   "keywords": [],
-  "author": "",
+  "author": "Daniel Jackson",
   "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/Twinklebear/webgpu-webpack-starter/issues"
-  },
-  "homepage": "https://github.com/Twinklebear/webgpu-webpack-starter#readme",
   "devDependencies": {
     "html-webpack-plugin": "^5.3.2",
     "ts-loader": "^9.5.1",
