@@ -12,6 +12,7 @@
   "author": "Daniel Jackson",
   "license": "MIT",
   "devDependencies": {
+    "gh-pages": "^6.0.0",
     "html-webpack-plugin": "^5.3.2",
     "ts-loader": "^9.5.1",
     "webpack": "^5.53.0",
