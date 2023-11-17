@@ -56,23 +56,29 @@ export class Vector3 {
     return new Vector3(this.x / length, this.y / length, this.z / length);
   }
 
-  rotateY(rotation: number) {
-    const cosTheta = Math.cos(rotation);
-    const sinTheta = Math.sin(rotation);
-
-    const rotatedX = this.x * cosTheta - this.z * sinTheta;
-    const rotatedZ = this.x * sinTheta + this.z * cosTheta;
-
-    return new Vector3(rotatedX, this.y, rotatedZ);
+  negate() {
+    return new Vector3(-this.x, -this.y, -this.z);
   }
 
-  rotateX(rotation: number) {
-    const cosTheta = Math.cos(rotation);
-    const sinTheta = Math.sin(rotation);
+  rotateAroundAxis(axis: Vector3, angle: number): Vector3 {
+    const cosTheta = Math.cos(angle);
+    const sinTheta = Math.sin(angle);
 
-    const rotatedY = this.y * cosTheta - this.z * sinTheta;
-    const rotatedZ = this.y * sinTheta + this.z * cosTheta;
+    const rotatedX =
+      this.x * (cosTheta + (1 - cosTheta) * axis.x * axis.x) +
+      this.y * ((1 - cosTheta) * axis.x * axis.y - sinTheta * axis.z) +
+      this.z * ((1 - cosTheta) * axis.x * axis.z + sinTheta * axis.y);
 
-    return new Vector3(this.x, rotatedY, rotatedZ);
+    const rotatedY =
+      this.x * ((1 - cosTheta) * axis.y * axis.x + sinTheta * axis.z) +
+      this.y * (cosTheta + (1 - cosTheta) * axis.y * axis.y) +
+      this.z * ((1 - cosTheta) * axis.y * axis.z - sinTheta * axis.x);
+
+    const rotatedZ =
+      this.x * ((1 - cosTheta) * axis.z * axis.x - sinTheta * axis.y) +
+      this.y * ((1 - cosTheta) * axis.z * axis.y + sinTheta * axis.x) +
+      this.z * (cosTheta + (1 - cosTheta) * axis.z * axis.z);
+
+    return new Vector3(rotatedX, rotatedY, rotatedZ);
   }
 }

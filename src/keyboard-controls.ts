@@ -10,13 +10,15 @@ export class KeyboardControls {
   };
   constructor() {
     window.addEventListener("keydown", (event) => {
-      if ((event.key as ValidKeys) in this.pressed) {
-        this.pressed[event.key as ValidKeys] = true;
+      const key = event.key.toLowerCase();
+      if ((key as ValidKeys) in this.pressed) {
+        this.pressed[key as ValidKeys] = true;
       }
     });
     window.addEventListener("keyup", (event) => {
-      if ((event.key as ValidKeys) in this.pressed) {
-        this.pressed[event.key as ValidKeys] = false;
+      const key = event.key.toLowerCase();
+      if ((key as ValidKeys) in this.pressed) {
+        this.pressed[key as ValidKeys] = false;
       }
     });
   }

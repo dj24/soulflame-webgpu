@@ -44,4 +44,8 @@ export class Vector2 {
     const length = Math.sqrt(this.x ** 2 + this.y ** 2);
     return new Vector2(this.x / length, this.y / length);
   }
+
+  negate() {
+    return new Vector2(-this.x, -this.y);
+  }
 }

@@ -2,16 +2,16 @@ import shaderCode from "./fullscreentexturedquad.wgsl";
 import { Vector2 } from "./vector2";
 import { createUniformBuffer } from "./buffer-utils";
 import { ComputePass, createComputePass } from "./compute-pass";
-import { Camera } from "./camera";
+import { Camera, moveCamera } from "./camera";
 import { KeyboardControls } from "./keyboard-controls";
 import { MouseControls } from "./mouse_controls";
-import { Vector3 } from "./vector3";
 
 export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let resolution = new Vector2(0, 0);
 const startTime = performance.now();
 export let elapsedTime = startTime;
+export let deltaTime = 0;
 
 export const keyboardControls = new KeyboardControls();
 export const mouseControls = new MouseControls();
@@ -111,39 +111,10 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
   };
   const frame = async () => {
     const newElapsedTime = performance.now() - startTime;
-    const deltaTime = newElapsedTime - elapsedTime;
-
-    // TODO: abstract to function or class
-    const speed = 0.005;
+    deltaTime = newElapsedTime - elapsedTime;
     elapsedTime = newElapsedTime;
-    const rotationSpeed = 0.0001;
-    camera.direction = camera.direction.rotateY(
-      -mouseControls.velocity.x * deltaTime * rotationSpeed,
-    );
-    camera.direction = camera.direction.rotateX(
-      mouseControls.velocity.y * deltaTime * rotationSpeed,
-    );
 
-    // TODO: add relative direction vectors to camera
-    if (keyboardControls.pressed.a) {
-      camera.position.x -= deltaTime * speed;
-    }
-    if (keyboardControls.pressed.d) {
-      camera.position.x += deltaTime * speed;
-    }
-    if (keyboardControls.pressed.w) {
-      camera.position.z += deltaTime * speed;
-    }
-    if (keyboardControls.pressed.s) {
-      camera.position.z -= deltaTime * speed;
-    }
-    if (keyboardControls.pressed[" "]) {
-      camera.position.y += deltaTime * speed;
-    }
-    if (keyboardControls.pressed.Control) {
-      camera.position.y -= deltaTime * speed;
-    }
-    // camera.fieldOfView = 70 + Math.sin(elapsedTime * 0.001) * 10;
+    moveCamera();
 
     const commandEncoder = device.createCommandEncoder();
     const timeBuffer = createUniformBuffer([elapsedTime]);
