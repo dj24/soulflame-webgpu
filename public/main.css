@@ -1,3 +1,9 @@
+@import url('https://fonts.googleapis.com/css2family=Poppins:wght@600&display=swap');
+
+body {
+    font-family: "Poppins", sans-serif;
+}
+
 .overlay {
     position: absolute;
     top: 0;
@@ -16,11 +22,12 @@
     pointer-events: auto;
 }
 .card{
+    perspective: 100vh;
     display: flex;
     gap: 1rem;
     padding: 1rem;
     background: white;
-    border-radius: 0.25rem;
+    border-radius: 0.5rem;
 }
 
 #captures img{
@@ -33,18 +40,16 @@ button {
     outline: 0;
     border: 0;
     padding: 0.5rem 1rem;
-    background-color: rgb(120,120,120);
-    color: white;
+    background-image: linear-gradient(180deg, rgb(200,200,200), rgb(160,160,160));
+    border: 1px solid rgb(150,150,150);
+    color: rgb(255,255,255);
     font-weight: 600;
-    border-radius: 0.25rem;
-    font-family: Calibri;
-    transition: transform 0.1s ease-in-out;
+    border-radius: 0.5rem;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     cursor: pointer;
     font-size: medium;
 }
 button:hover{
-    transform: scale(1.025);
-}
-button:active{
-    transform: scale(0.975);
+    transform: scale(1.05) translateY(-1px);
+    opacity: 0.9;
 }

@@ -48,7 +48,7 @@ fn boxIntersection(
 @group(0) @binding(3) var<uniform> frustumCornerDirections : FrustumCornerDirections;
 @group(0) @binding(4) var<uniform> cameraPosition : vec3<f32>;
 
-const EPSILON = 0.000001;
+const EPSILON = 0.0001;
 
 @compute @workgroup_size(1, 1, 1)
 fn main(
@@ -60,12 +60,9 @@ let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
   let uv = pixel / vec2<f32>(resolution);
   let rayOrigin = cameraPosition;
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
-  let spherePos = vec3(0,timeOffset - 1.0,2.0);
   var boxSize = vec3<f32>(1.0);
-
   let intersect = boxIntersection(rayOrigin, rayDirection, boxSize);
-  var green = rayDirection.y;
-  var colour = rayDirection;
+  var colour = sample_sky(rayDirection);
   let tNear = intersect.x;
   if(tNear > 0.0){
       let pos = rayOrigin + (intersect.x +EPSILON)  * rayDirection;

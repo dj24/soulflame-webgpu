@@ -1,4 +1,4 @@
-import shaderCode from "./shader/fullscreentexturedquad.wgsl";
+import fullscreenQuadShader from "./shader/fullscreentexturedquad.wgsl";
 import { Vector2 } from "./vector2";
 import { createUniformBuffer, writeToUniformBuffer } from "./buffer-utils";
 import { ComputePass, createComputePass } from "./compute-pass";
@@ -38,15 +38,17 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
     format: presentationFormat,
     usage: GPUTextureUsage.RENDER_ATTACHMENT,
   });
-  const shaderModule = device.createShaderModule({ code: shaderCode });
+  const fullscreenQuadShaderModule = device.createShaderModule({
+    code: fullscreenQuadShader,
+  });
   const renderPipeline = device.createRenderPipeline({
     layout: "auto",
     vertex: {
-      module: shaderModule,
+      module: fullscreenQuadShaderModule,
       entryPoint: "vertex_main",
     },
     fragment: {
-      module: shaderModule,
+      module: fullscreenQuadShaderModule,
       entryPoint: "fragment_main",
       targets: [{ format: presentationFormat }],
     },

@@ -5,18 +5,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2229b71a-dd5d-4a63-8f40-0a73278d8fb0" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/public/main.css" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/ui.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/shader/simple-sky.wgsl" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/main.css" beforeDir="false" afterPath="$PROJECT_DIR$/public/main.css" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/app.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/blur.wgsl" beforeDir="false" afterPath="$PROJECT_DIR$/src/shader/blur.wgsl" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/buffer-utils.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/buffer-utils.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/camera.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/camera.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/compute-pass.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/compute-pass.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/fullscreentexturedquad.wgsl" beforeDir="false" afterPath="$PROJECT_DIR$/src/shader/fullscreentexturedquad.wgsl" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/keyboard-controls.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/keyboard-controls.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/mouse_controls.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/mouse-controls.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/shader/blur.wgsl" beforeDir="false" afterPath="$PROJECT_DIR$/src/shader/blur.wgsl" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -69,7 +64,7 @@
       <updated>1699912687031</updated>
       <workItem from="1699912688021" duration="8765000" />
       <workItem from="1700079162002" duration="8368000" />
-      <workItem from="1700409624051" duration="8382000" />
+      <workItem from="1700409624051" duration="11849000" />
     </task>
     <servers />
   </component>

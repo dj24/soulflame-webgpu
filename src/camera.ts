@@ -53,7 +53,7 @@ export const moveCamera = () => {
     return;
   }
   const speed = 0.005;
-  const rotationSpeed = 0.0001;
+  const rotationSpeed = 0.0005;
   camera.rotateY(mouseControls.velocity.x * deltaTime * rotationSpeed);
   camera.rotateX(mouseControls.velocity.y * deltaTime * rotationSpeed);
   if (keyboardControls.pressed.a) {

@@ -1,4 +1,5 @@
 import blurWGSL from "./shader/blur.wgsl";
+import simpleSkyShader from "./shader/simple-sky.wgsl";
 import { Vector3 } from "./vector3";
 import { createFloatUniformBuffer } from "./buffer-utils";
 import { camera, device, resolution } from "./app";
@@ -47,7 +48,8 @@ export const createComputePass = (): ComputePass => {
       layout: "auto",
       compute: {
         module: device.createShaderModule({
-          code: blurWGSL,
+          code: `
+          ${simpleSkyShader}${blurWGSL}`,
         }),
         entryPoint: "main",
       },
