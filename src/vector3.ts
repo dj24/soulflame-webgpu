@@ -1,4 +1,5 @@
 import { createUniformBuffer } from "./buffer-utils";
+import { deltaTime } from "./app";
 
 export class Vector3 {
   x: number;

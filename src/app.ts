@@ -4,7 +4,8 @@ import { createUniformBuffer, writeToUniformBuffer } from "./buffer-utils";
 import { ComputePass, createComputePass } from "./compute-pass";
 import { Camera, moveCamera } from "./camera";
 import { DebugUI } from "./ui";
-
+import { Vector3 } from "./vector3";
+import "./main.css";
 export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
@@ -12,7 +13,10 @@ export let resolution = new Vector2(0, 0);
 const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
-export let camera = new Camera({ fieldOfView: 90 });
+export let camera = new Camera({
+  fieldOfView: 90,
+  position: new Vector3(0, 0, -5),
+});
 
 new DebugUI();
 
@@ -128,6 +132,7 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
     if (isCursorLocked) {
       moveCamera();
     }
+    camera.update();
 
     const commandEncoder = device.createCommandEncoder();
     if (timeBuffer) {

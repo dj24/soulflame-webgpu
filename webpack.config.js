@@ -1,5 +1,6 @@
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const path = require("path");
+const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 
 module.exports = {
   entry: "./src/app.ts",
@@ -23,9 +24,12 @@ module.exports = {
         type: "asset/resource",
       },
       {
-        // Embed your WGSL files as strings
         test: /\.wgsl$/i,
         type: "asset/source",
+      },
+      {
+        test: /\.(css)$/,
+        use: [MiniCssExtractPlugin.loader, "css-loader"],
       },
     ],
   },
@@ -33,5 +37,6 @@ module.exports = {
     new HtmlWebpackPlugin({
       template: "./index.html",
     }),
+    new MiniCssExtractPlugin(),
   ],
 };

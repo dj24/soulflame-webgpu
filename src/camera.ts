@@ -2,23 +2,24 @@ import { Vector3 } from "./vector3";
 import { camera, deltaTime } from "./app";
 import { KeyboardControls } from "./keyboard-controls";
 import { MouseControls } from "./mouse-controls";
+import { MoveableObject } from "./moveable-object";
 
 const keyboardControls = new KeyboardControls();
 const mouseControls = new MouseControls();
 
-export class Camera {
-  position: Vector3;
+export class Camera extends MoveableObject {
   fieldOfView: number;
   direction: Vector3;
 
-  constructor(options: { fieldOfView: number }) {
-    this.position = new Vector3(0, 0, -5);
+  constructor(options: { position: Vector3; fieldOfView: number }) {
+    super({ position: options.position });
     this.fieldOfView = options.fieldOfView;
     this.direction = new Vector3(0, 0, 1);
   }
 
   reset(options: { fieldOfView: number }) {
     this.position = new Vector3(0, 0, -5);
+    this.targetPosition = this.position;
     this.fieldOfView = options.fieldOfView;
     this.direction = new Vector3(0, 0, 1);
   }
@@ -49,35 +50,33 @@ export class Camera {
 }
 
 export const moveCamera = () => {
+  const rotationSpeed = 0.0002;
+  camera.rotateY(mouseControls.velocity.x * deltaTime * rotationSpeed);
+  camera.rotateX(mouseControls.velocity.y * deltaTime * rotationSpeed);
   if (!document.hasFocus()) {
     return;
   }
   const speed = 0.005;
-  const rotationSpeed = 0.0005;
-  camera.rotateY(mouseControls.velocity.x * deltaTime * rotationSpeed);
-  camera.rotateX(mouseControls.velocity.y * deltaTime * rotationSpeed);
+  let newVelocity = camera.velocity;
   if (keyboardControls.pressed.a) {
-    camera.position = camera.position = camera.position.add(
-      camera.left.mul(deltaTime * speed),
-    );
+    newVelocity = newVelocity.add(camera.left);
   }
   if (keyboardControls.pressed.d) {
-    camera.position = camera.position.add(camera.right.mul(deltaTime * speed));
+    newVelocity = newVelocity.add(camera.right);
   }
   if (keyboardControls.pressed.w) {
-    camera.position = camera.position.add(
-      camera.direction.mul(deltaTime * speed),
-    );
+    newVelocity = newVelocity.add(camera.direction);
   }
   if (keyboardControls.pressed.s) {
-    camera.position = camera.position.subtract(
-      camera.direction.mul(deltaTime * speed),
-    );
+    newVelocity = newVelocity.subtract(camera.direction);
   }
   if (keyboardControls.pressed[" "]) {
-    camera.position.y += deltaTime * speed;
+    newVelocity = newVelocity.add(camera.up);
   }
   if (keyboardControls.pressed.Control) {
-    camera.position.y -= deltaTime * speed;
+    newVelocity = newVelocity.add(camera.down);
   }
+  // TODO: normalize
+  newVelocity = newVelocity.mul(speed);
+  camera.velocity = camera.velocity.add(newVelocity);
 };
