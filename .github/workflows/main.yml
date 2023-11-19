@@ -25,8 +25,4 @@ jobs:
         run: npm run deploy
 
       - name: Publish
-        run: |
-          git remote set-url origin https://git:${GITHUB_TOKEN}@github.com/dj24/soulflame-webgpu.git
-          npx gh-pages -d dist -u "github-actions-bot <support+actions@github.com>"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: actions/deploy-pages@v2
