@@ -6,7 +6,7 @@
   "scripts": {
     "build": "webpack",
     "serve": "webpack server",
-    "deploy": "webpack --mode=production"
+    "deploy": "webpack --mode=production && npx gh-pages -d dist"
   },
   "keywords": [],
   "author": "Daniel Jackson",
