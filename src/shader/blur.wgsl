@@ -12,26 +12,6 @@ fn calculateRayDirection(uv: vec2<f32>, directions: FrustumCornerDirections) -> 
   return normalize(finalInterpolated);
 }
 
-fn sphNormal(pos: vec3<f32>, ce: vec3<f32>) -> vec3<f32>
-{
-  return normalize(pos-ce.xyz);
-}
-
-fn sphIntersect(ro: vec3<f32>, rd: vec3<f32>, ce: vec3<f32>, ra: f32) -> vec2<f32> {
-  let oc: vec3<f32> = ro - ce;
-  let b: f32 = dot(oc, rd);
-  let c: f32 = dot(oc, oc) - ra * ra;
-  var h: f32 = b * b - c;
-
-  if (h < 0.0) {
-      return vec2<f32>(-1.0); // no intersection
-  }
-
-  h = sqrt(h);
-
-  return vec2<f32>(-b - h, -b + h);
-}
-
 fn boxIntersection(
     ro: vec3<f32>,
     rd: vec3<f32>,
@@ -68,6 +48,8 @@ fn boxIntersection(
 @group(0) @binding(3) var<uniform> frustumCornerDirections : FrustumCornerDirections;
 @group(0) @binding(4) var<uniform> cameraPosition : vec3<f32>;
 
+const EPSILON = 0.000001;
+
 @compute @workgroup_size(1, 1, 1)
 fn main(
   @builtin(workgroup_id) WorkGroupID : vec3<u32>,
@@ -76,26 +58,20 @@ fn main(
 let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
   let pixel = vec2<f32>(f32(WorkGroupID.x), f32(resolution.y - WorkGroupID.y));
   let uv = pixel / vec2<f32>(resolution);
-  let p = (2.0*pixel-vec2<f32>(resolution)) / vec2<f32>(resolution).y;
-//  let rayOrigin = vec3(timeOffset * 0.5,timeOffset,5.0);
   let rayOrigin = cameraPosition;
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
-//  rayDirection = normalize( vec3(p,-2.0) );
-  
   let spherePos = vec3(0,timeOffset - 1.0,2.0);
-  var boxSize = vec3<f32>(0.5);
-  //  let intersect = sphIntersect(rayOrigin, rayDirection, spherePos, 0.5);
+  var boxSize = vec3<f32>(1.0);
+
   let intersect = boxIntersection(rayOrigin, rayDirection, boxSize);
   var green = rayDirection.y;
-  var blue = rayDirection.z;
-  var red = rayDirection.x;
-  if(intersect.x > 0.0){
-      let pos = rayOrigin + intersect.y * rayDirection;
+  var colour = rayDirection;
+  let tNear = intersect.x;
+  if(tNear > 0.0){
+      let pos = rayOrigin + (intersect.x +EPSILON)  * rayDirection;
       let normal = intersect.yzw;
-      red = normal.r;
-      green = normal.g;
-      blue = normal.b;
+      colour = fract(pos);
   }
 
-  textureStore(outputTex, WorkGroupID.xy, vec4(red,green,blue,1));
+  textureStore(outputTex, WorkGroupID.xy, vec4(colour,1));
 }

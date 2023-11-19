@@ -1,0 +1,50 @@
+.overlay {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    bottom: 0;
+    padding: 1rem;
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    flex-direction: column;
+    pointer-events: none;
+}
+
+.overlay *{
+    pointer-events: auto;
+}
+.card{
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    background: white;
+    border-radius: 0.25rem;
+}
+
+#captures img{
+    width: 240px;
+    aspect-ratio: 16/9;
+    border-radius: 0.25rem;
+}
+
+button {
+    outline: 0;
+    border: 0;
+    padding: 0.5rem 1rem;
+    background-color: rgb(120,120,120);
+    color: white;
+    font-weight: 600;
+    border-radius: 0.25rem;
+    font-family: Calibri;
+    transition: transform 0.1s ease-in-out;
+    cursor: pointer;
+    font-size: medium;
+}
+button:hover{
+    transform: scale(1.025);
+}
+button:active{
+    transform: scale(0.975);
+}

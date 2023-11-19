@@ -1,28 +1,31 @@
 import { device } from "./app";
 
-//TODO: add check to allow for arrays or individual values to be passed
+export const writeToUniformBuffer = (buffer: GPUBuffer, items: number[]) => {
+  const uintArray = new Uint32Array(items);
+  device.queue.writeBuffer(
+    buffer,
+    0, // offset
+    uintArray.buffer,
+    0, // data offset
+    items.length * Uint32Array.BYTES_PER_ELEMENT,
+  );
+};
 export const createUniformBuffer = (items: number[], label?: string) => {
   const uintArray = new Uint32Array(items);
   const buffer = device.createBuffer({
-    size: uintArray.byteLength, // TODO: figure out why this needs to be 64
-    mappedAtCreation: true,
-    usage: GPUBufferUsage.UNIFORM,
+    size: uintArray.byteLength,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     label,
   });
-  const mappedRange = new Uint32Array(buffer.getMappedRange());
-  items.forEach((item, index) => {
-    mappedRange[index] = item;
-  });
-  buffer.unmap();
+  writeToUniformBuffer(buffer, items);
   return buffer;
 };
 
-export const createFloatUniformBuffer = (items: number[], label?: string) => {
+export const writeToFloatUniformBuffer = (
+  buffer: GPUBuffer,
+  items: number[],
+) => {
   const floatArray = new Float32Array(items);
-  const buffer = device.createBuffer({
-    size: floatArray.byteLength, // TODO: figure out why this needs to be 64
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-  });
   device.queue.writeBuffer(
     buffer,
     0, // offset
@@ -30,5 +33,15 @@ export const createFloatUniformBuffer = (items: number[], label?: string) => {
     0, // data offset
     items.length * Float32Array.BYTES_PER_ELEMENT,
   );
+};
+
+export const createFloatUniformBuffer = (items: number[], label?: string) => {
+  const floatArray = new Float32Array(items);
+  const buffer = device.createBuffer({
+    size: floatArray.byteLength,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    label,
+  });
+  writeToFloatUniformBuffer(buffer, items);
   return buffer;
 };

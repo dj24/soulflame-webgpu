@@ -1,29 +1,35 @@
-import shaderCode from "./fullscreentexturedquad.wgsl";
+import shaderCode from "./shader/fullscreentexturedquad.wgsl";
 import { Vector2 } from "./vector2";
-import { createUniformBuffer } from "./buffer-utils";
+import { createUniformBuffer, writeToUniformBuffer } from "./buffer-utils";
 import { ComputePass, createComputePass } from "./compute-pass";
 import { Camera, moveCamera } from "./camera";
-import { KeyboardControls } from "./keyboard-controls";
-import { MouseControls } from "./mouse_controls";
+import { DebugUI } from "./ui";
 
 export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
+export let canvas: HTMLCanvasElement;
 export let resolution = new Vector2(0, 0);
 const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
+export let camera = new Camera({ fieldOfView: 90 });
 
-export const keyboardControls = new KeyboardControls();
-export const mouseControls = new MouseControls();
-export let camera = new Camera(90);
+new DebugUI();
 
 const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
   let bindGroup;
-  let outputTexture;
+  let outputTexture: GPUTexture;
   let animationFrameId: ReturnType<typeof requestAnimationFrame>;
-  const canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
+  let timeBuffer: GPUBuffer;
+  let resolutionBuffer: GPUBuffer;
+  let isCursorLocked: boolean;
+
+  canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
   canvas.addEventListener("click", async () => {
-    await canvas.requestPointerLock();
+    canvas.requestPointerLock();
+  });
+  document.addEventListener("pointerlockchange", () => {
+    isCursorLocked = document.pointerLockElement !== null;
   });
   gpuContext = canvas.getContext("webgpu");
   const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
@@ -99,6 +105,9 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
   };
 
   const createOutputTextureView = () => {
+    if (outputTexture) {
+      outputTexture.destroy();
+    }
     outputTexture = device.createTexture({
       size: [resolution.x, resolution.y, 1],
       format: "rgba8unorm",
@@ -114,11 +123,22 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
     deltaTime = newElapsedTime - elapsedTime;
     elapsedTime = newElapsedTime;
 
-    moveCamera();
+    if (isCursorLocked) {
+      moveCamera();
+    }
 
     const commandEncoder = device.createCommandEncoder();
-    const timeBuffer = createUniformBuffer([elapsedTime]);
-    const resolutionBuffer = createUniformBuffer([resolution.x, resolution.y]);
+    if (timeBuffer) {
+      writeToUniformBuffer(timeBuffer, [elapsedTime]);
+    } else {
+      timeBuffer = createUniformBuffer([elapsedTime]);
+    }
+    if (resolutionBuffer) {
+      writeToUniformBuffer(resolutionBuffer, [resolution.x, resolution.y]);
+    } else {
+      resolutionBuffer = createUniformBuffer([resolution.x, resolution.y]);
+    }
+
     const outputTextureView = createOutputTextureView();
 
     computePasses.forEach((computePass) => {

@@ -1,4 +1,3 @@
-type ValidKeys = "w" | "a" | "s" | "d";
 export class KeyboardControls {
   pressed = {
     w: false,
@@ -10,16 +9,12 @@ export class KeyboardControls {
   };
   constructor() {
     window.addEventListener("keydown", (event) => {
-      const key = event.key.toLowerCase();
-      if ((key as ValidKeys) in this.pressed) {
-        this.pressed[key as ValidKeys] = true;
-      }
+      const key = event.key.toLowerCase() as keyof KeyboardControls["pressed"];
+      this.pressed[key] = true;
     });
     window.addEventListener("keyup", (event) => {
-      const key = event.key.toLowerCase();
-      if ((key as ValidKeys) in this.pressed) {
-        this.pressed[key as ValidKeys] = false;
-      }
+      const key = event.key.toLowerCase() as keyof KeyboardControls["pressed"];
+      this.pressed[key] = false;
     });
   }
 }

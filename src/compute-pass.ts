@@ -1,4 +1,4 @@
-import blurWGSL from "./blur.wgsl";
+import blurWGSL from "./shader/blur.wgsl";
 import { Vector3 } from "./vector3";
 import { createFloatUniformBuffer } from "./buffer-utils";
 import { camera, device, resolution } from "./app";
@@ -62,6 +62,7 @@ export const createComputePass = (): ComputePass => {
     const flatMappedDirections = getFrustumCornerDirections(camera).flatMap(
       (direction) => [...direction.toArray(), 0],
     );
+    // TODO: make sure to destroy these buffers or write to them instead
     const frustumCornerDirectionsBuffer = createFloatUniformBuffer(
       flatMappedDirections,
       "frustum corner directions",

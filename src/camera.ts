@@ -1,14 +1,25 @@
 import { Vector3 } from "./vector3";
-import { camera, deltaTime, keyboardControls, mouseControls } from "./app";
+import { camera, deltaTime } from "./app";
+import { KeyboardControls } from "./keyboard-controls";
+import { MouseControls } from "./mouse-controls";
+
+const keyboardControls = new KeyboardControls();
+const mouseControls = new MouseControls();
 
 export class Camera {
   position: Vector3;
   fieldOfView: number;
   direction: Vector3;
 
-  constructor(fieldOfView: number) {
+  constructor(options: { fieldOfView: number }) {
     this.position = new Vector3(0, 0, -5);
-    this.fieldOfView = fieldOfView;
+    this.fieldOfView = options.fieldOfView;
+    this.direction = new Vector3(0, 0, 1);
+  }
+
+  reset(options: { fieldOfView: number }) {
+    this.position = new Vector3(0, 0, -5);
+    this.fieldOfView = options.fieldOfView;
     this.direction = new Vector3(0, 0, 1);
   }
 
@@ -38,6 +49,9 @@ export class Camera {
 }
 
 export const moveCamera = () => {
+  if (!document.hasFocus()) {
+    return;
+  }
   const speed = 0.005;
   const rotationSpeed = 0.0001;
   camera.rotateY(mouseControls.velocity.x * deltaTime * rotationSpeed);
