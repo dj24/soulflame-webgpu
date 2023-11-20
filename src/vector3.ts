@@ -54,7 +54,11 @@ export class Vector3 {
 
   normalize() {
     const length = Math.sqrt(this.x ** 2 + this.y ** 2 + this.z ** 2);
-    return new Vector3(this.x / length, this.y / length, this.z / length);
+    return new Vector3(
+      this.x !== 0 ? this.x / length : 0,
+      this.y !== 0 ? this.y / length : 0,
+      this.z !== 0 ? this.z / length : 0,
+    );
   }
 
   negate() {

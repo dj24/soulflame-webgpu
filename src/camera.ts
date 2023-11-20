@@ -56,27 +56,26 @@ export const moveCamera = () => {
   if (!document.hasFocus()) {
     return;
   }
-  const speed = 0.005;
-  let newVelocity = camera.velocity;
+  const speed = 0.001;
+  let direction = Vector3.zero;
   if (keyboardControls.pressed.a) {
-    newVelocity = newVelocity.add(camera.left);
+    direction = direction.add(camera.left);
   }
   if (keyboardControls.pressed.d) {
-    newVelocity = newVelocity.add(camera.right);
+    direction = direction.add(camera.right);
   }
   if (keyboardControls.pressed.w) {
-    newVelocity = newVelocity.add(camera.direction);
+    direction = direction.add(camera.direction);
   }
   if (keyboardControls.pressed.s) {
-    newVelocity = newVelocity.subtract(camera.direction);
+    direction = direction.subtract(camera.direction);
   }
   if (keyboardControls.pressed[" "]) {
-    newVelocity = newVelocity.add(camera.up);
+    direction = direction.add(camera.up);
   }
   if (keyboardControls.pressed.Control) {
-    newVelocity = newVelocity.add(camera.down);
+    direction = direction.add(camera.down);
   }
-  // TODO: normalize
-  newVelocity = newVelocity.mul(speed);
-  camera.velocity = camera.velocity.add(newVelocity);
+  direction = direction.normalize();
+  camera.velocity = camera.velocity.add(direction.mul(speed));
 };
