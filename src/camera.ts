@@ -50,7 +50,7 @@ export class Camera extends MoveableObject {
 }
 
 export const moveCamera = () => {
-  const rotationSpeed = 0.0002;
+  const rotationSpeed = 0.001;
   camera.rotateY(mouseControls.velocity.x * deltaTime * rotationSpeed);
   camera.rotateX(mouseControls.velocity.y * deltaTime * rotationSpeed);
   if (!document.hasFocus()) {

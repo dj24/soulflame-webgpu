@@ -50,6 +50,8 @@ fn boxIntersection(
 
 const EPSILON = 0.0001;
 
+const BORDER_WIDTH = 0.01;
+
 @compute @workgroup_size(1, 1, 1)
 fn main(
   @builtin(workgroup_id) WorkGroupID : vec3<u32>,
@@ -60,14 +62,18 @@ let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
   let uv = pixel / vec2<f32>(resolution);
   let rayOrigin = cameraPosition;
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
-  var boxSize = vec3<f32>(1.0);
+  var boxSize = vec3<f32>(4.0);
   let intersect = boxIntersection(rayOrigin, rayDirection, boxSize);
   var colour = sample_sky(rayDirection);
   let tNear = intersect.x;
   if(tNear > 0.0){
       let pos = rayOrigin + (intersect.x +EPSILON)  * rayDirection;
       let normal = intersect.yzw;
-      colour = fract(pos);
+      // Voxel borders
+      let positionInVoxel = fract(pos);
+      let border = step(positionInVoxel, vec3(1 - BORDER_WIDTH)) - step(positionInVoxel, vec3(BORDER_WIDTH));
+      let isBorder = 1.0 - step(length(border), 1.0);
+      colour = mix(vec3(0.2,0.2,0.2),vec3(0.4,0.4,0.4),isBorder);
   }
 
   textureStore(outputTex, WorkGroupID.xy, vec4(colour,1));
