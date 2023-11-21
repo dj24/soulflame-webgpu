@@ -1,8 +1,30 @@
 const fs = require("fs");
 
+const colors = {
+  reset: "\x1b[0m",
+  red: "\x1b[31m",
+  green: "\x1b[32m",
+  yellow: "\x1b[33m",
+  blue: "\x1b[34m",
+  magenta: "\x1b[35m",
+  cyan: "\x1b[36m",
+  white: "\x1b[37m",
+};
+
+function coloredText(text, color) {
+  return `${colors[color]}${text}${colors.reset}`;
+}
+
+const isNullCharacter = (byte) => {
+  return byte === 0x00;
+};
+
 // Version of vxm file must be >= 11
 module.exports = function (source, ...args) {
-  console.time("import vxm");
+  const fileNameParts = this.resourcePath.split("/");
+  const fileName = fileNameParts[fileNameParts.length - 1];
+  const timeLabel = coloredText(`imported ${fileName} in`, "magenta");
+  console.time(timeLabel);
   const decoder = new TextDecoder("utf-8");
   const fileBuffer = fs.readFileSync(this.resourcePath);
   const bufferReader = Buffer.from(fileBuffer);
@@ -157,8 +179,6 @@ module.exports = function (source, ...args) {
   paletteTexture = []; // array of vector4, [x,y,z,w]
   colourArray = [];
 
-  console.log({ materialAmount });
-
   for (let i = 0; i < materialAmount; ++i) {
     let blue = bufferReader.readUInt8(index);
     index++;
@@ -187,28 +207,21 @@ module.exports = function (source, ...args) {
     max: [0, 0, 0],
   };
 
-  console.log({
-    magic,
-    scale,
-    version,
-    normalisedPivot,
-    lodLevels,
-    voxels,
-    bytes,
-    index,
-    maxLayers,
-  });
-
   for (let layer = 0; layer < maxLayers; ++layer) {
     let idx = 0;
     let visible = true;
-    let layerName;
+    let layerName = "";
     if (version >= 12) {
-      layerName = decoder.decode(bufferReader.subarray(index, index + 1024));
-      index += 1024;
-      console.log({ layerName });
-      visible = bufferReader.readUInt8(index) > 0;
-      console.log({ visible });
+      for (;;) {
+        const byte = bufferReader.readUInt8(index);
+        index++;
+        if (isNullCharacter(byte)) {
+          break;
+        }
+        const character = String.fromCharCode(byte);
+        layerName = `${layerName}${character}`;
+      }
+      visible = bufferReader.readUInt8(index);
       index++;
     } else {
       layerName = `Layer ${layer}`;
@@ -237,9 +250,9 @@ module.exports = function (source, ...args) {
 
       // left to right, bottom to top, front to back
       for (let i = idx; i < idx + length; i++) {
-        let x = i / (scale[1] * scale[2]);
-        let y = (i / scale[2]) % scale[1];
-        let z = i % scale[2];
+        let x = Math.floor(i / (scale[1] * scale[2]));
+        let y = Math.floor((i / scale[2]) % scale[1]);
+        let z = Math.floor(i % scale[2]);
         if (x < bounds.min[0]) bounds.min = [x, bounds.min[1], bounds.min[2]];
         if (y < bounds.min[1]) bounds.min = [bounds.min[0], y, bounds.min[2]];
         if (z < bounds.min[2]) bounds.min = [bounds.min[0], bounds.min[1], z];
@@ -248,36 +261,27 @@ module.exports = function (source, ...args) {
         if (z > bounds.max[2]) bounds.max = [bounds.max[0], bounds.max[1], z];
         voxels.push({
           position: [x, y, z],
-          materialId: matIdx + 1,
+          colour: paletteTexture[matIdx + 1],
         });
       }
       idx += length;
     }
   }
 
-  surface = bufferReader.readUInt8(index);
-  index++;
-  if (surface > 0) {
-    let startx = bufferReader.readUInt32LE();
-    index += 4;
-    let starty = bufferReader.readUInt32LE();
-    index += 4;
-    let startz = bufferReader.readUInt32LE();
-    index += 4;
+  const output = {
+    scale,
+    normalisedPivot,
+    bounds: {
+      min: `${bounds.min[0]},${bounds.min[1]},${bounds.min[2]}`,
+      max: `${bounds.max[0]},${bounds.max[1]},${bounds.max[2]}`,
+    },
+    voxels: voxels.map(
+      ({ position, colour }) =>
+        `${position[0]},${position[1]},${position[2]} ${colour[0]},${colour[1]},${colour[2]}`,
+    ),
+  };
 
-    let endx = bufferReader.readUInt32LE();
-    index += 4;
-    let endy = bufferReader.readUInt32LE();
-    index += 4;
-    let endz = bufferReader.readUInt32LE();
-    index += 4;
-    let normal = bufferReader.readUInt32LE();
-    index += 4;
-  }
-  // here might be another byte - but it isn't written everytime
+  console.timeEnd(timeLabel);
 
-  // TODO: create texture here
-  console.log({ magic, scale, version, normalisedPivot, lodLevels, voxels });
-  console.timeEnd("import vxm");
-  return "";
+  return `module.exports = ${JSON.stringify(output)}`;
 };
