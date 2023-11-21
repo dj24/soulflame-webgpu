@@ -6,7 +6,7 @@ import { Camera, moveCamera } from "./camera";
 import { DebugUI } from "./ui";
 import { Vector3 } from "./vector3";
 import "./main.css";
-import voxelTree from "./fir-tree.vxm";
+import testModel from "./test.vxm";
 export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
@@ -21,7 +21,7 @@ export let camera = new Camera({
 
 new DebugUI();
 
-console.log({ voxelTree });
+console.log({ testModel });
 
 const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
   let bindGroup;

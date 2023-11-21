@@ -6,6 +6,7 @@ module.exports = function (source, ...args) {
   const decoder = new TextDecoder("utf-8");
   const fileBuffer = fs.readFileSync(this.resourcePath);
   const bufferReader = Buffer.from(fileBuffer);
+  const bytes = bufferReader.buffer.byteLength;
   let magic = [];
   let voxels = [];
   let index = 0;
@@ -113,72 +114,71 @@ module.exports = function (source, ...args) {
     index += 4;
     let textureDimY = bufferReader.readUInt32LE(index);
     index += 4;
-    console.log({ textureDimX, textureDimY });
     if (textureDimX > 2048 || textureDimY > 2048) {
       throw new Error("Size of texture exceeds the max allowed value");
     }
 
     let size = bufferReader.readUInt32LE(index);
     index += 4;
-    index += size * 4; // skip zipped pixel data
-
-    console.log({ magic, scale, version, normalisedPivot, lodLevels, voxels });
+    index += size; // skip zipped pixel data
 
     for (let i = 0; i < 6; ++i) {
       let quadAmount = bufferReader.readUInt32LE(index);
       index += 4;
 
       if (quadAmount > 0x40000) {
-        // throw new Error($"Size of quads exceeds the max allowed value: {quadAmount}");
+        console.warn(
+          `Size of quads exceeds the max allowed value: ${quadAmount}`,
+        );
       }
 
       // skip quad vertex
       let sizeOfQuadVertex = 20;
-      index += quadAmount * 4 * sizeOfQuadVertex;
+      let bytesToSkip = quadAmount * 4 * sizeOfQuadVertex;
+      index += bytesToSkip;
     }
   }
 
   index += 256 * 4; // palette data rgba
   index += 256 * 4; // palette data rgba for emissive materials
-  let chunkAmount = bufferReader.readUInt8(); // palette chunks
+  let chunkAmount = bufferReader.readUInt8(index); // palette chunks
+  index++;
   for (let i = 0; i < chunkAmount; ++i) {
     index += 1024; // chunk id
-    bufferReader.readUInt8();
+    bufferReader.readUInt8(index);
     index++; // chunk offset
-    bufferReader.readUInt8();
+    bufferReader.readUInt8(index);
     index++; // chunk length
   }
 
-  let materialAmount = bufferReader.readUInt8();
+  let materialAmount = bufferReader.readUInt8(index);
   index++;
 
   paletteTexture = []; // array of vector4, [x,y,z,w]
   colourArray = [];
 
+  console.log({ materialAmount });
+
   for (let i = 0; i < materialAmount; ++i) {
-    let blue = bufferReader.readUInt8();
+    let blue = bufferReader.readUInt8(index);
     index++;
-    let green = bufferReader.readUInt8();
+    let green = bufferReader.readUInt8(index);
     index++;
-    let red = bufferReader.readUInt8();
+    let red = bufferReader.readUInt8(index);
     index++;
-    let alpha = bufferReader.readUInt8();
+    let alpha = bufferReader.readUInt8(index);
     index++;
-    let emissive = bufferReader.readUInt8();
+    let emissive = bufferReader.readUInt8(index);
     index++;
     let color = [red, green, blue, alpha];
 
     colourArray[i] = color;
     paletteTexture[i] = color;
-    // TODO: check voxedit emissive capabilities
-    // if (emissive) {
-    // 	palette.glowColor(i) = palette.color(i);
-    // }
   }
 
   let maxLayers = 1;
   if (version >= 12) {
-    maxLayers = bufferReader.readUInt8();
+    maxLayers = bufferReader.readUInt8(index);
     index++;
   }
 
@@ -187,15 +187,28 @@ module.exports = function (source, ...args) {
     max: [0, 0, 0],
   };
 
+  console.log({
+    magic,
+    scale,
+    version,
+    normalisedPivot,
+    lodLevels,
+    voxels,
+    bytes,
+    index,
+    maxLayers,
+  });
+
   for (let layer = 0; layer < maxLayers; ++layer) {
     let idx = 0;
     let visible = true;
     let layerName;
     if (version >= 12) {
       layerName = decoder.decode(bufferReader.subarray(index, index + 1024));
-      console.log({ layerName });
       index += 1024;
+      console.log({ layerName });
       visible = bufferReader.readUInt8(index) > 0;
+      console.log({ visible });
       index++;
     } else {
       layerName = `Layer ${layer}`;
