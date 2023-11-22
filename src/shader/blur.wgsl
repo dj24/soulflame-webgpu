@@ -70,7 +70,7 @@ let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
   if(tNear > 0.0){
       var pos = startingPos;
       var normal = vec3(0.0);
-      var maxSteps = 64;
+      var maxSteps = 32;
       var stepsTaken = 0;
       var voxelSize = 1.0;
       var voxelStep = sign(rayDirection);
@@ -107,7 +107,7 @@ let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
       let positionInVoxel = fract(pos);
       let positionInBounds = fract(startingPos / BOUNDS_SIZE);
       let voxelBorder = step(positionInVoxel, vec3(1 - BORDER_WIDTH)) - step(positionInVoxel, vec3(BORDER_WIDTH));
-      let boundsBorder = step(positionInBounds, vec3(1 - BORDER_WIDTH)) - step(positionInBounds, vec3(BORDER_WIDTH));
+      let boundsBorder = step(positionInBounds, vec3(1 - BORDER_WIDTH / BOUNDS_SIZE)) - step(positionInBounds, vec3(BORDER_WIDTH / BOUNDS_SIZE));
       let isVoxelBorder = step(length(voxelBorder), 1.0);
       let isBoundsBorder = step(length(boundsBorder), 1.0);
         var baseColour = clamp(vec3(currentIndex / 4.0), vec3(0.0), vec3(1.0)) + vec3(0.5);

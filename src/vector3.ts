@@ -26,6 +26,12 @@ export class Vector3 {
     return [this.x, this.y, this.z];
   }
 
+  toString() {
+    return `Vector3(${this.x.toFixed(2)},${this.y.toFixed(2)},${this.z.toFixed(
+      2,
+    )})`;
+  }
+
   mul(v: Vector3 | number) {
     if (v instanceof Vector3) {
       return new Vector3(this.x * v.x, this.y * v.y, this.z * v.z);

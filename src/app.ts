@@ -19,7 +19,7 @@ export let camera = new Camera({
   position: new Vector3(0, 0, -32),
 });
 
-new DebugUI();
+const debugUI = new DebugUI();
 
 console.log({ testModel });
 
@@ -62,9 +62,13 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
   });
   const start = () => {
     const { clientWidth, clientHeight } = canvas.parentElement;
-    resolution = new Vector2(clientWidth, clientHeight);
+    resolution = new Vector2(
+      clientWidth * window.devicePixelRatio,
+      clientHeight * window.devicePixelRatio,
+    );
     canvas.width = resolution.x;
     canvas.height = resolution.y;
+    canvas.style.transform = `scale(${1 / window.devicePixelRatio})`;
 
     computePasses.forEach((computePass) => {
       computePass.start();
@@ -136,6 +140,10 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
       moveCamera();
     }
     camera.update();
+    debugUI.log(`Position: ${camera.position.toString()}
+    Resolution: ${resolution.x}x${resolution.y}
+    FPS: ${(1000 / deltaTime).toFixed(1)}
+    `);
 
     const commandEncoder = device.createCommandEncoder();
     if (timeBuffer) {

@@ -1,6 +1,7 @@
 import { camera, canvas } from "./app";
 
 export class DebugUI {
+  logElement;
   constructor() {
     document.getElementById("reset").addEventListener("click", (event) => {
       camera.reset({ fieldOfView: 90 });
@@ -18,5 +19,10 @@ export class DebugUI {
         console.log(event.target);
       });
     });
+    this.logElement = document.getElementById("log");
+  }
+
+  log(text: string) {
+    this.logElement.innerText = text;
   }
 }
