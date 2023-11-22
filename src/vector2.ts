@@ -22,7 +22,7 @@ export class Vector2 {
     return [this.x, this.y];
   }
 
-  mul(val: Vector2) {
+  mul(val: Vector2 | number) {
     if (val instanceof Vector2) {
       return new Vector2(this.x * val.x, this.y * val.y);
     }

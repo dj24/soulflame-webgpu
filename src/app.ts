@@ -11,6 +11,11 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = new Vector2(0, 0);
+
+let downscale = {
+  value: 1,
+};
+
 const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
@@ -21,7 +26,9 @@ export let camera = new Camera({
 
 const debugUI = new DebugUI();
 
-console.log({ testModel });
+export const setDownscale = (value: number) => {
+  downscale = { value };
+};
 
 const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
   let bindGroup;
@@ -30,6 +37,7 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
   let timeBuffer: GPUBuffer;
   let resolutionBuffer: GPUBuffer;
   let isCursorLocked: boolean;
+  let downscaledResolution: Vector2;
 
   canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
   canvas.addEventListener("click", async () => {
@@ -60,12 +68,28 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
       targets: [{ format: presentationFormat }],
     },
   });
+
+  const reset = () => {
+    cancelAnimationFrame(animationFrameId);
+    start();
+  };
+
+  const downscaleProxy = new Proxy(downscale as any, {
+    set: (target, key, value) => {
+      console.log("set");
+      reset();
+      target = value;
+      return true;
+    },
+  });
+
   const start = () => {
     const { clientWidth, clientHeight } = canvas.parentElement;
     resolution = new Vector2(
       clientWidth * window.devicePixelRatio,
       clientHeight * window.devicePixelRatio,
     );
+    downscaledResolution = resolution.mul(1 / downscale.value);
     canvas.width = resolution.x;
     canvas.height = resolution.y;
     canvas.style.transform = `scale(${1 / window.devicePixelRatio})`;
@@ -122,7 +146,7 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
       outputTexture.destroy();
     }
     outputTexture = device.createTexture({
-      size: [resolution.x, resolution.y, 1],
+      size: [downscaledResolution.x, downscaledResolution.y, 1],
       format: "rgba8unorm",
       usage:
         GPUTextureUsage.TEXTURE_BINDING |
@@ -141,7 +165,7 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
     }
     camera.update();
     debugUI.log(`Position: ${camera.position.toString()}
-    Resolution: ${resolution.x}x${resolution.y}
+    Resolution: ${downscaledResolution.x}x${downscaledResolution.y}
     FPS: ${(1000 / deltaTime).toFixed(1)}
     `);
 
@@ -152,9 +176,15 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
       timeBuffer = createUniformBuffer([elapsedTime]);
     }
     if (resolutionBuffer) {
-      writeToUniformBuffer(resolutionBuffer, [resolution.x, resolution.y]);
+      writeToUniformBuffer(resolutionBuffer, [
+        downscaledResolution.x,
+        downscaledResolution.y,
+      ]);
     } else {
-      resolutionBuffer = createUniformBuffer([resolution.x, resolution.y]);
+      resolutionBuffer = createUniformBuffer([
+        downscaledResolution.x,
+        downscaledResolution.y,
+      ]);
     }
 
     const outputTextureView = createOutputTextureView();
@@ -174,10 +204,7 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
     animationFrameId = requestAnimationFrame(frame);
   };
 
-  const resizeObserver = new ResizeObserver(() => {
-    cancelAnimationFrame(animationFrameId);
-    start();
-  });
+  const resizeObserver = new ResizeObserver(reset);
   resizeObserver.observe(canvas.parentElement);
 };
 
