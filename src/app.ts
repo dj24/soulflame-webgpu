@@ -6,15 +6,12 @@ import { Camera, moveCamera } from "./camera";
 import { DebugUI } from "./ui";
 import { Vector3 } from "./vector3";
 import "./main.css";
-import testModel from "./test.vxm";
 export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = new Vector2(0, 0);
 
-let downscale = {
-  value: 1,
-};
+let downscale = 1;
 
 const startTime = performance.now();
 export let elapsedTime = startTime;
@@ -26,9 +23,7 @@ export let camera = new Camera({
 
 const debugUI = new DebugUI();
 
-export const setDownscale = (value: number) => {
-  downscale = { value };
-};
+let handleDownscaleChange: (event: CustomEvent) => void;
 
 const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
   let bindGroup;
@@ -73,23 +68,13 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
     cancelAnimationFrame(animationFrameId);
     start();
   };
-
-  const downscaleProxy = new Proxy(downscale as any, {
-    set: (target, key, value) => {
-      console.log("set");
-      reset();
-      target = value;
-      return true;
-    },
-  });
-
   const start = () => {
     const { clientWidth, clientHeight } = canvas.parentElement;
     resolution = new Vector2(
       clientWidth * window.devicePixelRatio,
       clientHeight * window.devicePixelRatio,
     );
-    downscaledResolution = resolution.mul(1 / downscale.value);
+    downscaledResolution = resolution.mul(1 / downscale);
     canvas.width = resolution.x;
     canvas.height = resolution.y;
     canvas.style.transform = `scale(${1 / window.devicePixelRatio})`;
@@ -165,7 +150,9 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
     }
     camera.update();
     debugUI.log(`Position: ${camera.position.toString()}
-    Resolution: ${downscaledResolution.x}x${downscaledResolution.y}
+    Resolution: ${downscaledResolution.x.toFixed(
+      0,
+    )}x${downscaledResolution.y.toFixed(0)}
     FPS: ${(1000 / deltaTime).toFixed(1)}
     `);
 
@@ -205,6 +192,11 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
   };
 
   const resizeObserver = new ResizeObserver(reset);
+  handleDownscaleChange = (event) => {
+    downscale = event.detail;
+    reset();
+  };
+  window.addEventListener("changeDownscale", handleDownscaleChange);
   resizeObserver.observe(canvas.parentElement);
 };
 

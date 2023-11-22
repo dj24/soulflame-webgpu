@@ -69,6 +69,7 @@ let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
   let tNear = intersect.x;
   let startingPos = rayOrigin + (intersect.x + EPSILON)  * rayDirection;
   if(tNear > 0.0){
+  }
       var pos = startingPos;
       var normal = vec3(0.0);
       var maxSteps = 64;
@@ -98,10 +99,13 @@ let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
         normal = vec3(mask * -voxelStep);
         pos = rayOrigin + rayDirection * tIntersection;
         stepsTaken ++;
+        let isInBounds = all(currentIndex > vec3(0.0)) && all(currentIndex < vec3(BOUNDS_SIZE));
+        if(!isInBounds){
+            break;
+        }
         // TODO: Make this a volume check
         let isSolidVoxel = sin(currentIndex.x * 0.25) - sin(currentIndex.z * 0.25) > (currentIndex.y - 8) * 0.4;
-        let isInBounds = all(currentIndex > vec3(0.0)) && all(currentIndex < vec3(BOUNDS_SIZE));
-        if(isSolidVoxel && isInBounds){
+        if(isSolidVoxel){
             occlusion = true;
             break;
         }
@@ -115,13 +119,15 @@ let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
       let boundsBorder = step(positionInBounds, vec3(1 - boundsBorderWidth)) - step(positionInBounds, vec3(boundsBorderWidth));
       let isVoxelBorder = step(length(voxelBorder), 1.0);
       let isBoundsBorder = step(length(boundsBorder), 1.0);
-        var baseColour = clamp(vec3(currentIndex / BOUNDS_SIZE), vec3(0.0), vec3(1.0)) + vec3(0.5);
+      var baseColour = clamp(vec3(currentIndex / BOUNDS_SIZE), vec3(0.0), vec3(1.0)) + vec3(0.5);
+      baseColour = vec3(f32(stepsTaken) / f32(maxSteps));
+      baseColour = normal;
       if(occlusion){    
         colour = mix(baseColour,baseColour * 0.8,isVoxelBorder);
       }
       colour = mix(colour,vec3(0.0,1.0,0.0),isBoundsBorder);
      
-  }
+ 
 
   textureStore(outputTex, WorkGroupID.xy, vec4(colour,1));
 }

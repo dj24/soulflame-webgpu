@@ -1,4 +1,4 @@
-import { camera, canvas, setDownscale } from "./app";
+import { camera, canvas } from "./app";
 
 export class DebugUI {
   logElement;
@@ -19,9 +19,11 @@ export class DebugUI {
         console.log(event.target);
       });
     });
-    document.getElementById("downscale").addEventListener("change", (event) => {
+    document.getElementById("downscale").addEventListener("input", (event) => {
       const input = event.target as HTMLInputElement;
-      setDownscale(parseFloat(input.value));
+      window.dispatchEvent(
+        new CustomEvent("changeDownscale", { detail: input.value }),
+      );
     });
     this.logElement = document.getElementById("log");
   }
