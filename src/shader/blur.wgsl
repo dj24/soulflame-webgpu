@@ -17,8 +17,9 @@ fn boxIntersection(
     rd: vec3<f32>,
     boxSize: vec3<f32>,
 ) -> vec4<f32> {
+    let offsetRayOrigin = ro - boxSize;
     let m: vec3<f32> = 1.0 / rd;
-    let n: vec3<f32> = m * ro;
+    let n: vec3<f32> = m * offsetRayOrigin;
     let k: vec3<f32> = abs(m) * boxSize;
 
     let t1: vec3<f32> = -n - k;
@@ -50,7 +51,7 @@ fn boxIntersection(
 
 const EPSILON = 0.0001;
 const BORDER_WIDTH = 0.025;
-const BOUNDS_SIZE = 16.0;
+const BOUNDS_SIZE = 32.0;
 
 @compute @workgroup_size(1, 1, 1)
 fn main(
@@ -63,14 +64,14 @@ let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
   let rayOrigin = cameraPosition;
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
   var boxSize = vec3<f32>(BOUNDS_SIZE);
-  let intersect = boxIntersection(rayOrigin, rayDirection, boxSize);
+  let intersect = boxIntersection(rayOrigin, rayDirection, boxSize * 0.5);
   var colour = sample_sky(rayDirection);
   let tNear = intersect.x;
   let startingPos = rayOrigin + (intersect.x + EPSILON)  * rayDirection;
   if(tNear > 0.0){
       var pos = startingPos;
       var normal = vec3(0.0);
-      var maxSteps = 32;
+      var maxSteps = 64;
       var stepsTaken = 0;
       var voxelSize = 1.0;
       var voxelStep = sign(rayDirection);
@@ -97,7 +98,10 @@ let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
         normal = vec3(mask * -voxelStep);
         pos = rayOrigin + rayDirection * tIntersection;
         stepsTaken ++;
-        if(sin(currentIndex.x * 0.25) - sin(currentIndex.z * 0.25) > currentIndex.y * 0.4){
+        // TODO: Make this a volume check
+        let isSolidVoxel = sin(currentIndex.x * 0.25) - sin(currentIndex.z * 0.25) > (currentIndex.y - 8) * 0.4;
+        let isInBounds = all(currentIndex > vec3(0.0)) && all(currentIndex < vec3(BOUNDS_SIZE));
+        if(isSolidVoxel && isInBounds){
             occlusion = true;
             break;
         }
@@ -107,12 +111,13 @@ let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
       let positionInVoxel = fract(pos);
       let positionInBounds = fract(startingPos / BOUNDS_SIZE);
       let voxelBorder = step(positionInVoxel, vec3(1 - BORDER_WIDTH)) - step(positionInVoxel, vec3(BORDER_WIDTH));
-      let boundsBorder = step(positionInBounds, vec3(1 - BORDER_WIDTH / BOUNDS_SIZE)) - step(positionInBounds, vec3(BORDER_WIDTH / BOUNDS_SIZE));
+      let boundsBorderWidth = BORDER_WIDTH / BOUNDS_SIZE * 2.0;
+      let boundsBorder = step(positionInBounds, vec3(1 - boundsBorderWidth)) - step(positionInBounds, vec3(boundsBorderWidth));
       let isVoxelBorder = step(length(voxelBorder), 1.0);
       let isBoundsBorder = step(length(boundsBorder), 1.0);
-        var baseColour = clamp(vec3(currentIndex / 4.0), vec3(0.0), vec3(1.0)) + vec3(0.5);
+        var baseColour = clamp(vec3(currentIndex / BOUNDS_SIZE), vec3(0.0), vec3(1.0)) + vec3(0.5);
       if(occlusion){    
-        colour = mix(baseColour,baseColour * 0.5,isVoxelBorder);
+        colour = mix(baseColour,baseColour * 0.8,isVoxelBorder);
       }
       colour = mix(colour,vec3(0.0,1.0,0.0),isBoundsBorder);
      

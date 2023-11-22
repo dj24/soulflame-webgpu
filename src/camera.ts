@@ -18,7 +18,7 @@ export class Camera extends MoveableObject {
   }
 
   reset(options: { fieldOfView: number }) {
-    this.position = new Vector3(0, 0, -5);
+    this.position = new Vector3(16, 16, -16);
     this.targetPosition = this.position;
     this.fieldOfView = options.fieldOfView;
     this.direction = new Vector3(0, 0, 1);
@@ -51,12 +51,12 @@ export class Camera extends MoveableObject {
 
 export const moveCamera = () => {
   const rotationSpeed = 0.001;
-  camera.rotateY(mouseControls.velocity.x * deltaTime * rotationSpeed);
-  camera.rotateX(mouseControls.velocity.y * deltaTime * rotationSpeed);
+  camera.rotateY(mouseControls.velocity.x * rotationSpeed);
+  camera.rotateX(mouseControls.velocity.y * rotationSpeed);
   if (!document.hasFocus()) {
     return;
   }
-  const speed = 0.001;
+  const speed = 0.01;
   let direction = Vector3.zero;
   if (keyboardControls.pressed.a) {
     direction = direction.add(camera.left);

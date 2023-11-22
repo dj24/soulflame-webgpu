@@ -16,7 +16,7 @@ export let elapsedTime = startTime;
 export let deltaTime = 0;
 export let camera = new Camera({
   fieldOfView: 90,
-  position: new Vector3(0, 0, -32),
+  position: new Vector3(16, 16, -16),
 });
 
 const debugUI = new DebugUI();
