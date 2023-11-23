@@ -109,7 +109,10 @@ export const createComputePass = (): ComputePass => {
       ],
     });
     computePass.setBindGroup(0, computeBindGroup);
-    computePass.dispatchWorkgroups(resolution.x, resolution.y);
+    computePass.dispatchWorkgroups(
+      Math.ceil(resolution.x / 8),
+      Math.ceil(resolution.y / 8),
+    );
     computePass.end();
   };
 

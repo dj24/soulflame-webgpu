@@ -12,11 +12,17 @@ fn calculateRayDirection(uv: vec2<f32>, directions: FrustumCornerDirections) -> 
   return normalize(finalInterpolated);
 }
 
+struct BoxIntersectionResult {
+    tNear: f32;
+    tFar: f32;
+    normal: vec3<f32>
+}
+
 fn boxIntersection(
     ro: vec3<f32>,
     rd: vec3<f32>,
     boxSize: vec3<f32>,
-) -> vec4<f32> {
+) -> vec2<f32> {
     let offsetRayOrigin = ro - boxSize;
     let m: vec3<f32> = 1.0 / rd;
     let n: vec3<f32> = m * offsetRayOrigin;
@@ -40,7 +46,11 @@ fn boxIntersection(
 
     normal *= -sign(rd);
 
-    return vec4<f32>(tN, normal);
+    var result = BoxIntersectionResult();
+    result.tNear = tN;
+    result.tFar =
+
+    return vec2<f32>(tN, normal);
 }
 
 @group(0) @binding(0) var outputTex : texture_storage_2d<rgba8unorm, write>;
@@ -51,15 +61,15 @@ fn boxIntersection(
 
 const EPSILON = 0.0001;
 const BORDER_WIDTH = 0.025;
-const BOUNDS_SIZE = 32.0;
+const BOUNDS_SIZE = 64.0;
+const MAX_RAY_STEPS = 128;
 
-@compute @workgroup_size(1, 1, 1)
+@compute @workgroup_size(8, 8, 1)
 fn main(
-  @builtin(workgroup_id) WorkGroupID : vec3<u32>,
-  @builtin(local_invocation_id) LocalInvocationID : vec3<u32>
+  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
 let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
-  let pixel = vec2<f32>(f32(WorkGroupID.x), f32(resolution.y - WorkGroupID.y));
+  let pixel = vec2<f32>(f32(GlobalInvocationID.x), f32(resolution.y - GlobalInvocationID.y));
   let uv = pixel / vec2<f32>(resolution);
   let rayOrigin = cameraPosition;
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
@@ -72,7 +82,6 @@ let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
   }
       var pos = startingPos;
       var normal = vec3(0.0);
-      var maxSteps = 64;
       var stepsTaken = 0;
       var voxelSize = 1.0;
       var voxelStep = sign(rayDirection);
@@ -86,7 +95,7 @@ let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
       var tMax = (voxelStep * voxelOriginDifference + clampedVoxelBoundary) * tDelta + EPSILON;
       var occlusion = false;
       
-      while(stepsTaken <= maxSteps)
+      while(stepsTaken <= MAX_RAY_STEPS)
       {
         tIntersection = min(min(tMax.x, tMax.y), tMax.z);
         let mask = vec3(
@@ -103,7 +112,6 @@ let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
         if(!isInBounds){
             break;
         }
-        // TODO: Make this a volume check
         let isSolidVoxel = sin(currentIndex.x * 0.25) - sin(currentIndex.z * 0.25) > (currentIndex.y - 8) * 0.4;
         if(isSolidVoxel){
             occlusion = true;
@@ -119,9 +127,8 @@ let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
       let boundsBorder = step(positionInBounds, vec3(1 - boundsBorderWidth)) - step(positionInBounds, vec3(boundsBorderWidth));
       let isVoxelBorder = step(length(voxelBorder), 1.0);
       let isBoundsBorder = step(length(boundsBorder), 1.0);
-      var baseColour = clamp(vec3(currentIndex / BOUNDS_SIZE), vec3(0.0), vec3(1.0)) + vec3(0.5);
-      baseColour = vec3(f32(stepsTaken) / f32(maxSteps));
-      baseColour = normal;
+      let baseColour = normal;
+      occlusion = true;
       if(occlusion){    
         colour = mix(baseColour,baseColour * 0.8,isVoxelBorder);
       }
@@ -129,5 +136,5 @@ let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
      
  
 
-  textureStore(outputTex, WorkGroupID.xy, vec4(colour,1));
+  textureStore(outputTex, GlobalInvocationID.xy, vec4(colour,1));
 }
