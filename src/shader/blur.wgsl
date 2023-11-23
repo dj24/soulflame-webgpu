@@ -13,8 +13,8 @@ fn calculateRayDirection(uv: vec2<f32>, directions: FrustumCornerDirections) -> 
 }
 
 struct BoxIntersectionResult {
-    tNear: f32;
-    tFar: f32;
+    tNear: f32,
+    tFar: f32,
     normal: vec3<f32>
 }
 
@@ -22,7 +22,9 @@ fn boxIntersection(
     ro: vec3<f32>,
     rd: vec3<f32>,
     boxSize: vec3<f32>,
-) -> vec2<f32> {
+) -> BoxIntersectionResult {
+    var result = BoxIntersectionResult();
+
     let offsetRayOrigin = ro - boxSize;
     let m: vec3<f32> = 1.0 / rd;
     let n: vec3<f32> = m * offsetRayOrigin;
@@ -35,7 +37,11 @@ fn boxIntersection(
     let tF: f32 = min(min(t2.x, t2.y), t2.z);
 
     if (tN > tF || tF < 0.0) {
-        return vec4<f32>(-1.0);
+        result.tNear = -1.0;
+        result.tFar = -1.0;
+        result.normal = vec3(0.0);
+
+        return result;
     }
 
     var normal = select(
@@ -46,11 +52,11 @@ fn boxIntersection(
 
     normal *= -sign(rd);
 
-    var result = BoxIntersectionResult();
     result.tNear = tN;
-    result.tFar =
+    result.tFar = tF;
+    result.normal = normal;
 
-    return vec2<f32>(tN, normal);
+    return result;
 }
 
 @group(0) @binding(0) var outputTex : texture_storage_2d<rgba8unorm, write>;
@@ -76,8 +82,8 @@ let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
   var boxSize = vec3<f32>(BOUNDS_SIZE);
   let intersect = boxIntersection(rayOrigin, rayDirection, boxSize * 0.5);
   var colour = sample_sky(rayDirection);
-  let tNear = intersect.x;
-  let startingPos = rayOrigin + (intersect.x + EPSILON)  * rayDirection;
+  let tNear = intersect.tNear;
+  let startingPos = rayOrigin + (tNear + EPSILON)  * rayDirection;
   if(tNear > 0.0){
   }
       var pos = startingPos;
