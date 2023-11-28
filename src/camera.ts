@@ -11,10 +11,10 @@ export class Camera extends MoveableObject {
   fieldOfView: number;
   direction: Vector3;
 
-  constructor(options: { position: Vector3; fieldOfView: number }) {
+  constructor(options: { position: Vector3; fieldOfView: number, direction: Vector3 }) {
     super({ position: options.position });
     this.fieldOfView = options.fieldOfView;
-    this.direction = new Vector3(0, 0, 1);
+    this.direction = options.direction;
   }
 
   reset(options: { fieldOfView: number }) {

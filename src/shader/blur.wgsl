@@ -99,7 +99,9 @@ fn addBoundsBorderColour(baseColour: vec3<f32>, worldPos: vec3<f32>) -> vec3<f32
 }
 
 fn sampleVoxel(position: vec3<f32>) -> bool {
-  let isSolidVoxel = sin(position.x * 0.25) - sin(position.z * 0.25) > (position.y - 8) * 0.4;
+  let layer1 = (sin(position.x * 0.25) - sin(position.z * 0.25)) * 2;
+  let layer2 = (sin(position.x * 0.125) - sin(position.z * 0.125)) * 4;
+  let isSolidVoxel = layer1 + layer2 > (position.y - 32);
   return isSolidVoxel;
 }
 
@@ -111,11 +113,56 @@ fn main(
   let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
   let pixel = vec2<f32>(f32(GlobalInvocationID.x), f32(resolution.y - GlobalInvocationID.y));
   let uv = pixel / vec2<f32>(resolution);
-  let rayOrigin = cameraPosition;
+  var rayOrigin = cameraPosition;
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
+
+  let objectCenter = vec3<f32>(BOUNDS_SIZE / 2.0);
+  // Initialize the object transformation matrix as the identity matrix
+    var objectTransformMatrix: mat4x4<f32> = mat4x4<f32>(
+        vec4<f32>(1.0, 0.0, 0.0, 0.0),
+        vec4<f32>(0.0, 1.0, 0.0, 0.0),
+        vec4<f32>(0.0, 0.0, 1.0, 0.0),
+        vec4<f32>(0.0, 0.0, 0.0, 1.0)
+    );
+
+  // Translate the object to bring its center to the origin
+  let translateToOrigin: mat4x4<f32> = mat4x4<f32>(
+      vec4<f32>(1.0, 0.0, 0.0, -objectCenter.x),
+      vec4<f32>(0.0, 1.0, 0.0, -objectCenter.y),
+      vec4<f32>(0.0, 0.0, 1.0, -objectCenter.z),
+      vec4<f32>(0.0, 0.0, 0.0, 1.0)
+  );
+
+  // Rotate the object around its center based on time
+  let rotationAngle: f32 = f32(time) * 0.0005;
+  let rotationMatrix: mat4x4<f32> = mat4x4<f32>(
+      vec4<f32>(cos(rotationAngle), 0.0, sin(rotationAngle), 0.0),
+      vec4<f32>(0.0, 1.0, 0.0, 0.0),
+      vec4<f32>(-sin(rotationAngle), 0.0, cos(rotationAngle), 0.0),
+      vec4<f32>(0.0, 0.0, 0.0, 1.0)
+  );
+
+  // Translate the object back to its original position
+  let translateBack: mat4x4<f32> = mat4x4<f32>(
+      vec4<f32>(1.0, 0.0, 0.0, objectCenter.x),
+      vec4<f32>(0.0, 1.0, 0.0, objectCenter.y),
+      vec4<f32>(0.0, 0.0, 1.0, objectCenter.z),
+      vec4<f32>(0.0, 0.0, 0.0, 1.0)
+  );
+
+  // Combine the translation, rotation, and translation matrices
+  objectTransformMatrix = translateBack * rotationMatrix * translateToOrigin * objectTransformMatrix;
+
   var boxSize = vec3<f32>(BOUNDS_SIZE);
-  let intersect = boxIntersection(rayOrigin, rayDirection, boxSize * 0.5);
+
   var colour = sample_sky(rayDirection);
+
+  // Transform the ray using the combined matrix
+  rayOrigin = (objectTransformMatrix * vec4<f32>(rayOrigin, 1.0)).xyz;
+  rayDirection = (objectTransformMatrix * vec4<f32>(rayDirection, 0.0)).xyz;
+
+  let intersect = boxIntersection(rayOrigin, rayDirection, boxSize * 0.5);
+
   let tNear = intersect.tNear;
   let boundingBoxSurfacePosition = rayOrigin + (tNear + EPSILON)  * rayDirection;
   let isStartingInBounds = all(boundingBoxSurfacePosition > vec3(0.0)) && all(boundingBoxSurfacePosition < vec3(BOUNDS_SIZE / voxelSize));
@@ -157,10 +204,10 @@ fn main(
       }
     }
 
-    if(occlusion){
+//    if(occlusion){
       colour = normal;
       colour = addVoxelBorderColour(colour, pos);
-    }
+//    }
     colour = addBoundsBorderColour(colour, boundingBoxSurfacePosition);
 
   }

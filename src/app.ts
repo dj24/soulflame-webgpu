@@ -17,8 +17,9 @@ const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
 export let camera = new Camera({
-  fieldOfView: 90,
-  position: new Vector3(16, 16, -16),
+  fieldOfView: 70,
+  position: new Vector3(120, 120, 120),
+  direction: new Vector3(-1, -1, -1).normalize(),
 });
 
 const debugUI = new DebugUI();
