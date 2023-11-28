@@ -15,7 +15,7 @@ fn calculateRayDirection(uv: vec2<f32>, directions: FrustumCornerDirections) -> 
 struct BoxIntersectionResult {
     tNear: f32,
     tFar: f32,
-    normal: vec3<f32>
+    normal: vec3<f32>,
 }
 
 fn boxIntersection(
@@ -44,6 +44,9 @@ fn boxIntersection(
         return result;
     }
 
+    // Check if the ray starts inside the volume
+    let insideVolume = tN < 0.0;
+
     var normal = select(
         step(vec3<f32>(tN), t1),
         step(t2, vec3<f32>(tF)),
@@ -51,6 +54,16 @@ fn boxIntersection(
     );
 
     normal *= -sign(rd);
+
+    // Check if the intersection is in the correct direction, only if inside the volume
+    if (insideVolume && dot(normal, rd) < 0.0) {
+        result.tNear = -1.0;
+        result.tFar = -1.0;
+        result.normal = vec3(0.0);
+        return result;
+    }
+
+
 
     result.tNear = tN;
     result.tFar = tF;
@@ -66,15 +79,36 @@ fn boxIntersection(
 @group(0) @binding(4) var<uniform> cameraPosition : vec3<f32>;
 
 const EPSILON = 0.0001;
-const BORDER_WIDTH = 0.025;
+const BORDER_WIDTH = 0.05;
 const BOUNDS_SIZE = 64.0;
-const MAX_RAY_STEPS = 128;
+const MAX_RAY_STEPS = 256;
+
+fn addVoxelBorderColour(baseColour: vec3<f32>, worldPos: vec3<f32>) -> vec3<f32> {
+  let positionInVoxel = fract(worldPos);
+  let voxelBorder = step(positionInVoxel, vec3(1 - BORDER_WIDTH)) - step(positionInVoxel, vec3(BORDER_WIDTH));
+  let isVoxelBorder = step(length(voxelBorder), 1.0);
+  return mix(baseColour,baseColour * 0.8,isVoxelBorder);
+}
+
+fn addBoundsBorderColour(baseColour: vec3<f32>, worldPos: vec3<f32>) -> vec3<f32> {
+  let positionInBounds = fract(worldPos / BOUNDS_SIZE);
+  let boundsBorderWidth = BORDER_WIDTH / BOUNDS_SIZE * 4.0;
+  let boundsBorder = step(positionInBounds, vec3(1 - boundsBorderWidth)) - step(positionInBounds, vec3(boundsBorderWidth));
+  let isBoundsBorder = step(length(boundsBorder), 1.0);
+  return mix(baseColour,vec3(1.0,0.0,1.0),isBoundsBorder);
+}
+
+fn sampleVoxel(position: vec3<f32>) -> bool {
+  let isSolidVoxel = sin(position.x * 0.25) - sin(position.z * 0.25) > (position.y - 8) * 0.4;
+  return isSolidVoxel;
+}
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
-let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
+  var voxelSize = 1.0;
+  let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
   let pixel = vec2<f32>(f32(GlobalInvocationID.x), f32(resolution.y - GlobalInvocationID.y));
   let uv = pixel / vec2<f32>(resolution);
   let rayOrigin = cameraPosition;
@@ -83,64 +117,52 @@ let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
   let intersect = boxIntersection(rayOrigin, rayDirection, boxSize * 0.5);
   var colour = sample_sky(rayDirection);
   let tNear = intersect.tNear;
-  let startingPos = rayOrigin + (tNear + EPSILON)  * rayDirection;
-  if(tNear > 0.0){
-  }
-      var pos = startingPos;
-      var normal = vec3(0.0);
-      var stepsTaken = 0;
-      var voxelSize = 1.0;
-      var voxelStep = sign(rayDirection);
-      var tIntersection = 0.0;
-      var tDelta = vec3(voxelSize / abs(rayDirection));
-      var scaledStartingPoint = pos / voxelSize;
-      var scaledRayOrigin = vec3<f32>(rayOrigin) / voxelSize;
-      var currentIndex = floor(scaledStartingPoint);
-      var voxelOriginDifference = vec3<f32>(currentIndex) - scaledRayOrigin;
-      var clampedVoxelBoundary = (voxelStep * 0.5) + 0.5; // 0 if <= 0, 1 if > 0
-      var tMax = (voxelStep * voxelOriginDifference + clampedVoxelBoundary) * tDelta + EPSILON;
-      var occlusion = false;
-      
-      while(stepsTaken <= MAX_RAY_STEPS)
-      {
-        tIntersection = min(min(tMax.x, tMax.y), tMax.z);
-        let mask = vec3(
-            select(0.0, 1.0, tMax.x == tIntersection),
-            select(0.0, 1.0, tMax.y == tIntersection), 
-            select(0.0, 1.0, tMax.z == tIntersection)
-        );
-        tMax += mask * tDelta;
-        currentIndex += mask * voxelStep;
-        normal = vec3(mask * -voxelStep);
-        pos = rayOrigin + rayDirection * tIntersection;
-        stepsTaken ++;
-        let isInBounds = all(currentIndex > vec3(0.0)) && all(currentIndex < vec3(BOUNDS_SIZE));
-        if(!isInBounds){
-            break;
-        }
-        let isSolidVoxel = sin(currentIndex.x * 0.25) - sin(currentIndex.z * 0.25) > (currentIndex.y - 8) * 0.4;
-        if(isSolidVoxel){
-            occlusion = true;
-            break;
-        }
-      }
-        
-      // Voxel borders
-      let positionInVoxel = fract(pos);
-      let positionInBounds = fract(startingPos / BOUNDS_SIZE);
-      let voxelBorder = step(positionInVoxel, vec3(1 - BORDER_WIDTH)) - step(positionInVoxel, vec3(BORDER_WIDTH));
-      let boundsBorderWidth = BORDER_WIDTH / BOUNDS_SIZE * 2.0;
-      let boundsBorder = step(positionInBounds, vec3(1 - boundsBorderWidth)) - step(positionInBounds, vec3(boundsBorderWidth));
-      let isVoxelBorder = step(length(voxelBorder), 1.0);
-      let isBoundsBorder = step(length(boundsBorder), 1.0);
-      let baseColour = normal;
-      occlusion = true;
-      if(occlusion){    
-        colour = mix(baseColour,baseColour * 0.8,isVoxelBorder);
-      }
-      colour = mix(colour,vec3(0.0,1.0,0.0),isBoundsBorder);
-     
- 
+  let boundingBoxSurfacePosition = rayOrigin + (tNear + EPSILON)  * rayDirection;
+  let isStartingInBounds = all(boundingBoxSurfacePosition > vec3(0.0)) && all(boundingBoxSurfacePosition < vec3(BOUNDS_SIZE / voxelSize));
+  if(tNear > 0.0 || isStartingInBounds){
+    var pos = boundingBoxSurfacePosition;
+    var normal = vec3(0.0);
+    var stepsTaken = 0;
+    var voxelStep = sign(rayDirection);
+    var tIntersection = 0.0;
+    var tDelta = vec3(voxelSize / abs(rayDirection));
+    var scaledStartingPoint = pos / voxelSize;
+    var scaledRayOrigin = vec3<f32>(rayOrigin) / voxelSize;
+    var currentIndex = floor(scaledStartingPoint);
+    var voxelOriginDifference = vec3<f32>(currentIndex) - scaledRayOrigin;
+    var clampedVoxelBoundary = (voxelStep * 0.5) + 0.5; // 0 if <= 0, 1 if > 0
+    var tMax = (voxelStep * voxelOriginDifference + clampedVoxelBoundary) * tDelta + EPSILON;
+    var occlusion = false;
 
+    while(stepsTaken <= MAX_RAY_STEPS)
+    {
+      tIntersection = min(min(tMax.x, tMax.y), tMax.z);
+      let mask = vec3(
+          select(0.0, 1.0, tMax.x == tIntersection),
+          select(0.0, 1.0, tMax.y == tIntersection),
+          select(0.0, 1.0, tMax.z == tIntersection)
+      );
+      tMax += mask * tDelta;
+      currentIndex += mask * voxelStep;
+      normal = vec3(mask * -voxelStep);
+      pos = rayOrigin + rayDirection * tIntersection;
+      stepsTaken ++;
+      let isInBounds = all(currentIndex > vec3(0.0)) && all(currentIndex < vec3(BOUNDS_SIZE / voxelSize));
+      if(!isInBounds){
+          break;
+      }
+      if(sampleVoxel(currentIndex)){
+          occlusion = true;
+          break;
+      }
+    }
+
+    if(occlusion){
+      colour = normal;
+      colour = addVoxelBorderColour(colour, pos);
+    }
+    colour = addBoundsBorderColour(colour, boundingBoxSurfacePosition);
+
+  }
   textureStore(outputTex, GlobalInvocationID.xy, vec4(colour,1));
 }
