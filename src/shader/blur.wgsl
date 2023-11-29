@@ -147,15 +147,15 @@ fn main(
 
   // Create a translation matrix based on the new position
   let translateMatrix: mat4x4<f32> = mat4x4<f32>(
-      vec4<f32>(1.0, 0.0, 0.0, 20.0),
+      vec4<f32>(1.0, 0.0, 0.0, 0.0),
       vec4<f32>(0.0, 1.0, 0.0, 0.0),
       vec4<f32>(0.0, 0.0, 1.0, 0.0),
-      vec4<f32>(0.0, 0.0, 0.0, 1.0)
+      vec4<f32>(0.0, sin(f32(time) * 0.001) * 20.0, 0.0, 1.0)
   );
 
   // Add a scale transformation
   let scaleX = 1.0 + (sin(f32(time) * 0.002) * 0.5 + 0.5) * 0.33;
-  let scale = vec3(scaleX, 1.0, 1.0);
+  let scale = vec3(scaleX);
   let scaleMatrix: mat4x4<f32> = mat4x4<f32>(
       vec4<f32>(scale.x, 0.0, 0.0, 0.0),  // Scale factor along the x-axis
       vec4<f32>(0.0, scale.y, 0.0, 0.0),  // No scaling along the y-axis
@@ -163,7 +163,7 @@ fn main(
       vec4<f32>(0.0, 0.0, 0.0, 1.0)
   );
 
-  objectTransformMatrix =  translateMatrix * scaleMatrix * objectTransformMatrix;
+  objectTransformMatrix = rotationMatrix * scaleMatrix * translateMatrix * objectTransformMatrix;
 
   // Transform the ray using the combined matrix
   rayOrigin = (objectTransformMatrix * vec4<f32>(rayOrigin, 1.0)).xyz;
