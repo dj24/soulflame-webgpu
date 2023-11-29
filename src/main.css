@@ -127,3 +127,8 @@ button:active{
 #log{
     font-family: "Arial Unicode MS", sans-serif;
 }
+
+.debug-label{
+    font-family: "Arial Unicode MS", sans-serif;
+    width: 50%;
+}

@@ -12,6 +12,10 @@ fn calculateRayDirection(uv: vec2<f32>, directions: FrustumCornerDirections) -> 
   return normalize(finalInterpolated);
 }
 
+fn plainIntersect(ro: vec3<f32>, rd: vec3<f32>, p: vec4<f32>) -> f32 {
+    return -(dot(ro, p.xyz) + p.w) / dot(rd, p.xyz);
+}
+
 struct BoxIntersectionResult {
     tNear: f32,
     tFar: f32,
@@ -110,26 +114,25 @@ fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
   var voxelSize = 1.0;
-  let timeOffset = (sin(f32(time) * 0.001) * 0.5 + 0.5) * 2.0;
   let pixel = vec2<f32>(f32(GlobalInvocationID.x), f32(resolution.y - GlobalInvocationID.y));
   let uv = pixel / vec2<f32>(resolution);
   var rayOrigin = cameraPosition;
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
-
+  var boxSize = vec3<f32>(BOUNDS_SIZE);
+  var colour = sample_sky(rayDirection);
+  let plainIntersection = plainIntersect(rayOrigin, rayDirection, vec4<f32>(0.0, 1.0, 0.0, 0.0));
+  if(plainIntersection > 0.0){
+    let worldPos = plainIntersection * rayDirection + rayOrigin;
+    var borderColour = addVoxelBorderColour(colour, worldPos * 0.25);
+    colour = borderColour;
+  }
   let objectCenter = vec3<f32>(BOUNDS_SIZE / 2.0);
-  // Initialize the object transformation matrix as the identity matrix
-    var objectTransformMatrix: mat4x4<f32> = mat4x4<f32>(
-        vec4<f32>(1.0, 0.0, 0.0, 0.0),
-        vec4<f32>(0.0, 1.0, 0.0, 0.0),
-        vec4<f32>(0.0, 0.0, 1.0, 0.0),
-        vec4<f32>(0.0, 0.0, 0.0, 1.0)
-    );
 
-  // Translate the object to bring its center to the origin
-  let translateToOrigin: mat4x4<f32> = mat4x4<f32>(
-      vec4<f32>(1.0, 0.0, 0.0, -objectCenter.x),
-      vec4<f32>(0.0, 1.0, 0.0, -objectCenter.y),
-      vec4<f32>(0.0, 0.0, 1.0, -objectCenter.z),
+  // Initialize the object transformation matrix as the translation matrix
+  var objectTransformMatrix: mat4x4<f32> = mat4x4<f32>(
+      vec4<f32>(1.0, 0.0, 0.0, 0.0),
+      vec4<f32>(0.0, 1.0, 0.0, 0.0),
+      vec4<f32>(0.0, 0.0, 1.0, 0.0),
       vec4<f32>(0.0, 0.0, 0.0, 1.0)
   );
 
@@ -142,23 +145,29 @@ fn main(
       vec4<f32>(0.0, 0.0, 0.0, 1.0)
   );
 
-  // Translate the object back to its original position
-  let translateBack: mat4x4<f32> = mat4x4<f32>(
-      vec4<f32>(1.0, 0.0, 0.0, objectCenter.x),
-      vec4<f32>(0.0, 1.0, 0.0, objectCenter.y),
-      vec4<f32>(0.0, 0.0, 1.0, objectCenter.z),
+  // Create a translation matrix based on the new position
+  let translateMatrix: mat4x4<f32> = mat4x4<f32>(
+      vec4<f32>(1.0, 0.0, 0.0, 20.0),
+      vec4<f32>(0.0, 1.0, 0.0, 0.0),
+      vec4<f32>(0.0, 0.0, 1.0, 0.0),
       vec4<f32>(0.0, 0.0, 0.0, 1.0)
   );
 
-  // Combine the translation, rotation, and translation matrices
-  objectTransformMatrix = translateBack * rotationMatrix * translateToOrigin * objectTransformMatrix;
+  // Add a scale transformation
+  let scaleX = 1.0 + (sin(f32(time) * 0.002) * 0.5 + 0.5) * 0.33;
+  let scale = vec3(scaleX, 1.0, 1.0);
+  let scaleMatrix: mat4x4<f32> = mat4x4<f32>(
+      vec4<f32>(scale.x, 0.0, 0.0, 0.0),  // Scale factor along the x-axis
+      vec4<f32>(0.0, scale.y, 0.0, 0.0),  // No scaling along the y-axis
+      vec4<f32>(0.0, 0.0, scale.z, 0.0),  // Scale factor along the z-axis
+      vec4<f32>(0.0, 0.0, 0.0, 1.0)
+  );
 
-  var boxSize = vec3<f32>(BOUNDS_SIZE);
-
-  var colour = sample_sky(rayDirection);
+  objectTransformMatrix =  translateMatrix * scaleMatrix * objectTransformMatrix;
 
   // Transform the ray using the combined matrix
   rayOrigin = (objectTransformMatrix * vec4<f32>(rayOrigin, 1.0)).xyz;
+  //  rayOrigin = rayOrigin + translationVector;
   rayDirection = (objectTransformMatrix * vec4<f32>(rayDirection, 0.0)).xyz;
 
   let intersect = boxIntersection(rayOrigin, rayDirection, boxSize * 0.5);

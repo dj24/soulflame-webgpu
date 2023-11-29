@@ -17,7 +17,7 @@ const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
 export let camera = new Camera({
-  fieldOfView: 70,
+  fieldOfView: 82.5,
   position: new Vector3(120, 120, 120),
   direction: new Vector3(-1, -1, -1).normalize(),
 });
@@ -25,6 +25,11 @@ export let camera = new Camera({
 const debugUI = new DebugUI();
 
 let handleDownscaleChange: (event: CustomEvent) => void;
+
+let handleFovChange = (event: CustomEvent) => {
+  camera.fieldOfView = event.detail;
+};
+window.addEventListener("changeFov", handleFovChange);
 
 const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
   let bindGroup;

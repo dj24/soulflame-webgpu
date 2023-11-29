@@ -24,6 +24,16 @@ export class DebugUI {
       window.dispatchEvent(
         new CustomEvent("changeDownscale", { detail: input.value }),
       );
+      const label = input.parentElement.getElementsByTagName("label")[0];
+      label.innerText = `Downscale: ${parseFloat(input.value).toFixed(1)}`;
+    });
+    document.getElementById("fov").addEventListener("input", (event) => {
+      const input = event.target as HTMLInputElement;
+      window.dispatchEvent(
+        new CustomEvent("changeFov", { detail: input.value }),
+      );
+      const label = input.parentElement.getElementsByTagName("label")[0];
+      label.innerText = `FOV: ${parseFloat(input.value).toFixed(1)}`;
     });
     this.logElement = document.getElementById("log");
   }
