@@ -77,10 +77,11 @@ fn boxIntersection(
 }
 
 @group(0) @binding(0) var outputTex : texture_storage_2d<rgba8unorm, write>;
-@group(0) @binding(1) var<uniform> time : u32;
+//@group(0) @binding(1) var<uniform> time : u32;
 @group(0) @binding(2) var<uniform> resolution : vec2<u32>;
 @group(0) @binding(3) var<uniform> frustumCornerDirections : FrustumCornerDirections;
 @group(0) @binding(4) var<uniform> cameraPosition : vec3<f32>;
+@group(0) @binding(5) var<uniform> transformationMatrix : mat4x4<f32>;
 
 const EPSILON = 0.0001;
 const BORDER_WIDTH = 0.05;
@@ -126,49 +127,11 @@ fn main(
     var borderColour = addVoxelBorderColour(colour, worldPos * 0.25);
     colour = borderColour;
   }
-  let objectCenter = vec3<f32>(BOUNDS_SIZE / 2.0);
-
-  // Initialize the object transformation matrix as the translation matrix
-  var objectTransformMatrix: mat4x4<f32> = mat4x4<f32>(
-      vec4<f32>(1.0, 0.0, 0.0, 0.0),
-      vec4<f32>(0.0, 1.0, 0.0, 0.0),
-      vec4<f32>(0.0, 0.0, 1.0, 0.0),
-      vec4<f32>(0.0, 0.0, 0.0, 1.0)
-  );
-
-  // Rotate the object around its center based on time
-  let rotationAngle: f32 = f32(time) * 0.0005;
-  let rotationMatrix: mat4x4<f32> = mat4x4<f32>(
-      vec4<f32>(cos(rotationAngle), 0.0, sin(rotationAngle), 0.0),
-      vec4<f32>(0.0, 1.0, 0.0, 0.0),
-      vec4<f32>(-sin(rotationAngle), 0.0, cos(rotationAngle), 0.0),
-      vec4<f32>(0.0, 0.0, 0.0, 1.0)
-  );
-
-  // Create a translation matrix based on the new position
-  let translateMatrix: mat4x4<f32> = mat4x4<f32>(
-      vec4<f32>(1.0, 0.0, 0.0, 0.0),
-      vec4<f32>(0.0, 1.0, 0.0, 0.0),
-      vec4<f32>(0.0, 0.0, 1.0, 0.0),
-      vec4<f32>(0.0, sin(f32(time) * 0.001) * 20.0, 0.0, 1.0)
-  );
-
-  // Add a scale transformation
-  let scaleX = 1.0 + (sin(f32(time) * 0.002) * 0.5 + 0.5) * 0.33;
-  let scale = vec3(scaleX);
-  let scaleMatrix: mat4x4<f32> = mat4x4<f32>(
-      vec4<f32>(scale.x, 0.0, 0.0, 0.0),  // Scale factor along the x-axis
-      vec4<f32>(0.0, scale.y, 0.0, 0.0),  // No scaling along the y-axis
-      vec4<f32>(0.0, 0.0, scale.z, 0.0),  // Scale factor along the z-axis
-      vec4<f32>(0.0, 0.0, 0.0, 1.0)
-  );
-
-  objectTransformMatrix = rotationMatrix * scaleMatrix * translateMatrix * objectTransformMatrix;
 
   // Transform the ray using the combined matrix
-  rayOrigin = (objectTransformMatrix * vec4<f32>(rayOrigin, 1.0)).xyz;
+  rayOrigin = (transformationMatrix * vec4<f32>(rayOrigin, 1.0)).xyz;
   //  rayOrigin = rayOrigin + translationVector;
-  rayDirection = (objectTransformMatrix * vec4<f32>(rayDirection, 0.0)).xyz;
+  rayDirection = (transformationMatrix * vec4<f32>(rayDirection, 0.0)).xyz;
 
   let intersect = boxIntersection(rayOrigin, rayDirection, boxSize * 0.5);
 

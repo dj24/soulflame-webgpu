@@ -6,12 +6,17 @@ import { Camera, moveCamera } from "./camera";
 import { DebugUI } from "./ui";
 import { Vector3 } from "./vector3";
 import "./main.css";
+import { animate, spring } from "motion";
 export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = new Vector2(0, 0);
 
 let downscale = 1;
+
+export let scale = 1;
+
+export let translateX = 0;
 
 const startTime = performance.now();
 export let elapsedTime = startTime;
@@ -29,7 +34,29 @@ let handleDownscaleChange: (event: CustomEvent) => void;
 let handleFovChange = (event: CustomEvent) => {
   camera.fieldOfView = event.detail;
 };
-window.addEventListener("changeFov", handleFovChange);
+window.addEventListener("changefov", handleFovChange);
+
+let translationAnimation;
+const handleTranslateChange = (event: CustomEvent) => {
+  const target = event.detail;
+  const current = translateX;
+  translationAnimation = animate(
+    (progress: number) => {
+      translateX = current + (target - current) * progress;
+    },
+    {
+      easing: spring({
+        restDistance: 0.001,
+      }),
+    },
+  );
+};
+window.addEventListener("changetranslate", handleTranslateChange);
+
+const handleScaleChange = (event: CustomEvent) => {
+  scale = parseFloat(event.detail);
+};
+window.addEventListener("changescale", handleScaleChange);
 
 const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
   let bindGroup;
@@ -202,7 +229,7 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
     downscale = event.detail;
     reset();
   };
-  window.addEventListener("changeDownscale", handleDownscaleChange);
+  window.addEventListener("changedownscale", handleDownscaleChange);
   resizeObserver.observe(canvas.parentElement);
 };
 

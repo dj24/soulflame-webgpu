@@ -2,7 +2,8 @@
   "compilerOptions": {
     "noImplicitAny": true,
     "target": "esnext",
-    "module": "ES2015",
-    "types": ["@webgpu/types"]
+    "module": "NodeNext",
+    "types": ["@webgpu/types"],
+    "moduleResolution":"nodenext"
   }
 }

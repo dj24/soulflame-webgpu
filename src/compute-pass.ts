@@ -2,8 +2,9 @@ import blurWGSL from "./shader/blur.wgsl";
 import simpleSkyShader from "./shader/simple-sky.wgsl";
 import { Vector3 } from "./vector3";
 import { createFloatUniformBuffer } from "./buffer-utils";
-import { camera, device, resolution } from "./app";
+import { camera, device, resolution, scale, translateX } from "./app";
 import { Camera } from "./camera";
+import { Matrix4x4 } from "./matrix4x4";
 
 const getFrustumCornerDirections = (camera: Camera) => {
   const aspectRatio = resolution.x / resolution.y;
@@ -73,6 +74,17 @@ export const createComputePass = (): ComputePass => {
       camera.position.toArray(),
       "camera position",
     );
+
+    const transformationMatrix = Matrix4x4.identity;
+
+    transformationMatrix.scale(Vector3.one.mul(scale));
+    transformationMatrix.translate(new Vector3(translateX, 0, 0));
+
+    const transformationMatrixBuffer = createFloatUniformBuffer(
+      transformationMatrix.elements,
+      "transformation matrix",
+    );
+
     const computePass = commandEncoder.beginComputePass();
     computePass.setPipeline(computePipeline);
     const computeBindGroup = device.createBindGroup({
@@ -82,12 +94,12 @@ export const createComputePass = (): ComputePass => {
           binding: 0,
           resource: outputTextureView,
         },
-        {
-          binding: 1,
-          resource: {
-            buffer: timeBuffer,
-          },
-        },
+        // {
+        //   binding: 1,
+        //   resource: {
+        //     buffer: timeBuffer,
+        //   },
+        // },
         {
           binding: 2,
           resource: {
@@ -104,6 +116,12 @@ export const createComputePass = (): ComputePass => {
           binding: 4,
           resource: {
             buffer: cameraPostionBuffer,
+          },
+        },
+        {
+          binding: 5,
+          resource: {
+            buffer: transformationMatrixBuffer,
           },
         },
       ],

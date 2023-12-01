@@ -48,6 +48,7 @@
 .card{
     perspective: 100vh;
     display: flex;
+    flex-direction: column;
     gap: 1rem;
     padding: 1rem;
     --squircle-fill: rgba(40,40,40,1.0);
@@ -131,4 +132,10 @@ button:active{
 .debug-label{
     font-family: "Arial Unicode MS", sans-serif;
     width: 50%;
+}
+
+.debug-transforms{
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
