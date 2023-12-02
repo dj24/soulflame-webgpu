@@ -7,6 +7,7 @@ import { DebugUI } from "./ui";
 import { Vector3 } from "./vector3";
 import "./main.css";
 import { animate, spring } from "motion";
+import * as _ from "lodash";
 export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
@@ -37,20 +38,23 @@ let handleFovChange = (event: CustomEvent) => {
 window.addEventListener("changefov", handleFovChange);
 
 let translationAnimation;
+
 const handleTranslateChange = (event: CustomEvent) => {
   const target = event.detail;
-  const current = translateX;
+  const start = translateX;
   translationAnimation = animate(
     (progress: number) => {
-      translateX = current + (target - current) * progress;
+      translateX = start + (target - start) * progress;
     },
     {
       easing: spring({
         restDistance: 0.001,
+        damping: 200,
       }),
     },
   );
 };
+
 window.addEventListener("changetranslate", handleTranslateChange);
 
 const handleScaleChange = (event: CustomEvent) => {

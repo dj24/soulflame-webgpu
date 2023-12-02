@@ -12,6 +12,8 @@
   "author": "Daniel Jackson",
   "license": "MIT",
   "devDependencies": {
+    "@types/lodash": "^4.14.202",
+    "@webgpu/types": "^0.1.39",
     "css-loader": "^6.8.1",
     "gh-pages": "^6.0.0",
     "html-webpack-plugin": "^5.3.2",
@@ -21,12 +23,12 @@
     "ts-loader": "^9.5.1",
     "webpack": "^5.53.0",
     "webpack-cli": "^4.8.0",
-    "webpack-dev-server": "^4.2.1"
+    "webpack-dev-server": "^4.2.1",
+    "prettier": "^3.1.0"
   },
   "dependencies": {
-    "@webgpu/types": "^0.1.39",
     "css-houdini-squircle": "^0.3.0",
-    "motion": "^10.16.4",
-    "prettier": "^3.1.0"
+    "lodash": "^4.17.21",
+    "motion": "^10.16.4"
   }
 }
