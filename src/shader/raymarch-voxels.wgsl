@@ -130,7 +130,6 @@ fn main(
 
   // Transform the ray using the combined matrix
   rayOrigin = (transformationMatrix * vec4<f32>(rayOrigin, 1.0)).xyz;
-  //  rayOrigin = rayOrigin + translationVector;
   rayDirection = (transformationMatrix * vec4<f32>(rayDirection, 0.0)).xyz;
 
   let intersect = boxIntersection(rayOrigin, rayDirection, boxSize * 0.5);
@@ -166,7 +165,7 @@ fn main(
       normal = vec3(mask * -voxelStep);
       pos = rayOrigin + rayDirection * tIntersection;
       stepsTaken ++;
-      let isInBounds = all(currentIndex > vec3(0.0)) && all(currentIndex < vec3(BOUNDS_SIZE / voxelSize));
+      let isInBounds = all(currentIndex > vec3(-1.0)) && all(currentIndex < vec3(BOUNDS_SIZE / voxelSize));
       if(!isInBounds){
           break;
       }
@@ -176,12 +175,10 @@ fn main(
       }
     }
 
-//    if(occlusion){
+    if(occlusion){
       colour = normal;
       colour = addVoxelBorderColour(colour, pos);
-//    }
-    colour = addBoundsBorderColour(colour, boundingBoxSurfacePosition);
-
+    }
   }
   textureStore(outputTex, GlobalInvocationID.xy, vec4(colour,1));
 }

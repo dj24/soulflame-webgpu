@@ -17,13 +17,6 @@ export class Camera extends MoveableObject {
     this.direction = options.direction;
   }
 
-  reset(options: { fieldOfView: number }) {
-    this.position = new Vector3(16, 16, -16);
-    this.targetPosition = this.position;
-    this.fieldOfView = options.fieldOfView;
-    this.direction = new Vector3(0, 0, 1);
-  }
-
   get right() {
     return Vector3.up.cross(this.direction).normalize();
   }

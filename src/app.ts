@@ -7,26 +7,54 @@ import { DebugUI } from "./ui";
 import { Vector3 } from "./vector3";
 import "./main.css";
 import { animate, spring } from "motion";
-import * as _ from "lodash";
+
 export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = new Vector2(0, 0);
-
 let downscale = 1;
-
 export let scale = 1;
-
 export let translateX = 0;
-
 const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
+
+const startingCameraPosition = new Vector3(120, 120, 120);
+const startingCameraDirection = new Vector3(-1, -1, -1).normalize();
+const startingCameraFieldOfView = 82.5;
 export let camera = new Camera({
-  fieldOfView: 82.5,
-  position: new Vector3(120, 120, 120),
-  direction: new Vector3(-1, -1, -1).normalize(),
+  fieldOfView: startingCameraFieldOfView,
+  position: new Vector3(120,0,120),
+  direction: new Vector3(-1,0,-1).normalize(),
 });
+
+const animateCameraToStartingPosition = () => {
+  const targetPosition = startingCameraPosition;
+  const startPosition = camera.position;
+  const targetDirection = startingCameraDirection;
+  const startDirection = camera.direction;
+  const targetFieldOfView = startingCameraFieldOfView;
+  const startFieldOfView = camera.fieldOfView;
+  animate(
+      (progress: number) => {
+        camera.position = startPosition.add(targetPosition.subtract(startPosition).mul(progress));
+        camera.direction = startDirection.add(targetDirection.subtract(startDirection).mul(progress));
+        camera.fieldOfView = startFieldOfView + (targetFieldOfView - startFieldOfView) * progress;
+      },
+      {
+        easing: spring({
+          restDistance: 0.001,
+          damping: 400,
+          mass: 4,
+        }),
+      },
+  );
+}
+
+animateCameraToStartingPosition();
+
+window.addEventListener("resetcamera", animateCameraToStartingPosition);
+
 
 const debugUI = new DebugUI();
 
@@ -37,22 +65,10 @@ let handleFovChange = (event: CustomEvent) => {
 };
 window.addEventListener("changefov", handleFovChange);
 
-let translationAnimation;
+
 
 const handleTranslateChange = (event: CustomEvent) => {
-  const target = event.detail;
-  const start = translateX;
-  translationAnimation = animate(
-    (progress: number) => {
-      translateX = start + (target - start) * progress;
-    },
-    {
-      easing: spring({
-        restDistance: 0.001,
-        damping: 200,
-      }),
-    },
-  );
+  camera.position.x = event.detail;
 };
 
 window.addEventListener("changetranslate", handleTranslateChange);

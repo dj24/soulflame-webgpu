@@ -1,4 +1,4 @@
-import blurWGSL from "./shader/blur.wgsl";
+import blurWGSL from "./shader/raymarch-voxels.wgsl";
 import simpleSkyShader from "./shader/simple-sky.wgsl";
 import { Vector3 } from "./vector3";
 import { createFloatUniformBuffer } from "./buffer-utils";
@@ -77,8 +77,8 @@ export const createComputePass = (): ComputePass => {
 
     const transformationMatrix = Matrix4x4.identity;
 
-    transformationMatrix.scale(Vector3.one.mul(scale));
     transformationMatrix.translate(new Vector3(translateX, 0, 0));
+    transformationMatrix.scale(Vector3.one.mul(scale));
 
     const transformationMatrixBuffer = createFloatUniformBuffer(
       transformationMatrix.elements,

@@ -4,7 +4,9 @@ export class DebugUI {
   logElement;
   constructor() {
     document.getElementById("reset").addEventListener("click", (event) => {
-      camera.reset({ fieldOfView: 90 });
+      window.dispatchEvent(
+          new CustomEvent(`resetcamera`),
+      );
       document.getElementById("captures").innerHTML = "";
     });
     document.getElementById("capture").addEventListener("click", (event) => {
