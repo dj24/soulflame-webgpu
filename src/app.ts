@@ -35,17 +35,24 @@ const animateCameraToStartingPosition = () => {
   const startDirection = camera.direction;
   const targetFieldOfView = startingCameraFieldOfView;
   const startFieldOfView = camera.fieldOfView;
+  const startScale = scale;
+  const startTranslateX = translateX;
+  const targetScale = 1;
+  const targetTranslateX = 0;
   animate(
       (progress: number) => {
         camera.position = startPosition.add(targetPosition.subtract(startPosition).mul(progress));
         camera.direction = startDirection.add(targetDirection.subtract(startDirection).mul(progress));
         camera.fieldOfView = startFieldOfView + (targetFieldOfView - startFieldOfView) * progress;
+        scale = startScale + (targetScale - startScale) * progress;
+        translateX = startTranslateX + (targetTranslateX - startTranslateX) * progress;
       },
       {
         easing: spring({
-          restDistance: 0.001,
-          damping: 400,
-          mass: 4,
+          restDistance: 0.0001,
+          damping: 40,
+          stiffness: 700,
+          mass: 2,
         }),
       },
   );
@@ -61,14 +68,13 @@ const debugUI = new DebugUI();
 let handleDownscaleChange: (event: CustomEvent) => void;
 
 let handleFovChange = (event: CustomEvent) => {
-  camera.fieldOfView = event.detail;
+  camera.fieldOfView = parseFloat(event.detail);
 };
 window.addEventListener("changefov", handleFovChange);
 
 
-
 const handleTranslateChange = (event: CustomEvent) => {
-  camera.position.x = event.detail;
+  translateX = parseFloat(event.detail);
 };
 
 window.addEventListener("changetranslate", handleTranslateChange);
@@ -84,16 +90,10 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
   let animationFrameId: ReturnType<typeof requestAnimationFrame>;
   let timeBuffer: GPUBuffer;
   let resolutionBuffer: GPUBuffer;
-  let isCursorLocked: boolean;
   let downscaledResolution: Vector2;
 
   canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
-  canvas.addEventListener("click", async () => {
-    canvas.requestPointerLock();
-  });
-  document.addEventListener("pointerlockchange", () => {
-    isCursorLocked = document.pointerLockElement !== null;
-  });
+
   gpuContext = canvas.getContext("webgpu");
   const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
   gpuContext.configure({
@@ -198,9 +198,7 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
     deltaTime = newElapsedTime - elapsedTime;
     elapsedTime = newElapsedTime;
 
-    if (isCursorLocked) {
-      moveCamera();
-    }
+    moveCamera();
     camera.update();
     debugUI.log(`Position: ${camera.position.toString()}
     Resolution: ${downscaledResolution.x.toFixed(

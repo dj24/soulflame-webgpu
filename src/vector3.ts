@@ -1,6 +1,3 @@
-import { createUniformBuffer } from "./buffer-utils";
-import { deltaTime } from "./app";
-
 export class Vector3 {
   x: number;
   y: number;
@@ -9,10 +6,6 @@ export class Vector3 {
     this.x = x;
     this.y = y;
     this.z = z;
-  }
-
-  get uniformBuffer() {
-    return createUniformBuffer([this.x, this.y, this.z]);
   }
 
   static zero = new Vector3(0, 0, 0);

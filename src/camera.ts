@@ -4,8 +4,8 @@ import { KeyboardControls } from "./keyboard-controls";
 import { MouseControls } from "./mouse-controls";
 import { MoveableObject } from "./moveable-object";
 
-const keyboardControls = new KeyboardControls();
-const mouseControls = new MouseControls();
+// const keyboardControls = new KeyboardControls();
+// const mouseControls = new MouseControls();
 
 export class Camera extends MoveableObject {
   fieldOfView: number;
@@ -44,31 +44,32 @@ export class Camera extends MoveableObject {
 
 export const moveCamera = () => {
   const rotationSpeed = 0.001;
-  camera.rotateY(mouseControls.velocity.x * rotationSpeed);
-  camera.rotateX(mouseControls.velocity.y * rotationSpeed);
+  // TODO: abstract this
+  // camera.rotateY(mouseControls.velocity.x * rotationSpeed);
+  // camera.rotateX(mouseControls.velocity.y * rotationSpeed);
   if (!document.hasFocus()) {
     return;
   }
   const speed = 0.01;
   let direction = Vector3.zero;
-  if (keyboardControls.pressed.a) {
-    direction = direction.add(camera.left);
-  }
-  if (keyboardControls.pressed.d) {
-    direction = direction.add(camera.right);
-  }
-  if (keyboardControls.pressed.w) {
-    direction = direction.add(camera.direction);
-  }
-  if (keyboardControls.pressed.s) {
-    direction = direction.subtract(camera.direction);
-  }
-  if (keyboardControls.pressed[" "]) {
-    direction = direction.add(camera.up);
-  }
-  if (keyboardControls.pressed.Control) {
-    direction = direction.add(camera.down);
-  }
+  // if (keyboardControls.pressed.a) {
+  //   direction = direction.add(camera.left);
+  // }
+  // if (keyboardControls.pressed.d) {
+  //   direction = direction.add(camera.right);
+  // }
+  // if (keyboardControls.pressed.w) {
+  //   direction = direction.add(camera.direction);
+  // }
+  // if (keyboardControls.pressed.s) {
+  //   direction = direction.subtract(camera.direction);
+  // }
+  // if (keyboardControls.pressed[" "]) {
+  //   direction = direction.add(camera.up);
+  // }
+  // if (keyboardControls.pressed.Control) {
+  //   direction = direction.add(camera.down);
+  // }
   direction = direction.normalize();
   camera.velocity = camera.velocity.add(direction.mul(speed));
 };

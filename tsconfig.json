@@ -3,7 +3,7 @@
     "noImplicitAny": true,
     "target": "esnext",
     "module": "NodeNext",
-    "types": ["@webgpu/types"],
+    "types": ["@webgpu/types", "jest"],
     "moduleResolution":"nodenext"
   }
 }

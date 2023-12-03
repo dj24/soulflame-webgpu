@@ -5,6 +5,7 @@ import { createFloatUniformBuffer } from "./buffer-utils";
 import { camera, device, resolution, scale, translateX } from "./app";
 import { Camera } from "./camera";
 import { Matrix4x4 } from "./matrix4x4";
+import { ObjectOrbitControls } from "./object-orbit-controls";
 
 const getFrustumCornerDirections = (camera: Camera) => {
   const aspectRatio = resolution.x / resolution.y;
@@ -44,6 +45,11 @@ export type ComputePass = {
 
 export const createComputePass = (): ComputePass => {
   let computePipeline: GPUComputePipeline;
+  let angleY = 0;
+
+  new ObjectOrbitControls((progress) => {
+    angleY = progress;
+  });
   const start = () => {
     computePipeline = device.createComputePipeline({
       layout: "auto",
@@ -75,13 +81,18 @@ export const createComputePass = (): ComputePass => {
       "camera position",
     );
 
-    const transformationMatrix = Matrix4x4.identity;
-
+    let transformationMatrix = Matrix4x4.identity;
     transformationMatrix.translate(new Vector3(translateX, 0, 0));
+    transformationMatrix.rotateY(angleY);
     transformationMatrix.scale(Vector3.one.mul(scale));
 
+    document.getElementById("matrix").innerHTML =
+      transformationMatrix.elements.reduce((acc, value, index) => {
+        return `${acc}<span>${value.toFixed(1)}</span>`;
+      }, "");
+
     const transformationMatrixBuffer = createFloatUniformBuffer(
-      transformationMatrix.elements,
+      transformationMatrix.invert().elements,
       "transformation matrix",
     );
 
