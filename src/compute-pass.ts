@@ -46,10 +46,9 @@ export type ComputePass = {
 export const createComputePass = (): ComputePass => {
   let computePipeline: GPUComputePipeline;
   let angleY = 0;
+  let angleX = 0;
 
-  new ObjectOrbitControls((progress) => {
-    angleY = progress;
-  });
+  const orbit = new ObjectOrbitControls();
   const start = () => {
     computePipeline = device.createComputePipeline({
       layout: "auto",
@@ -81,21 +80,21 @@ export const createComputePass = (): ComputePass => {
       "camera position",
     );
 
-    let transformationMatrix = mat4.translation([translateX, 0, 0]);
-
-    console.log({transformationMatrix})
-    // transformationMatrix.rotateY(angleY);
-    // transformationMatrix.scale(Vector3.one.mul(scale));
-
-
+    let m = mat4.identity();
+    mat4.translate(m,[translateX, 0, 0], m);
+    mat4.translate(m, [32, 32, 32], m);
+    mat4.rotateY(m, performance.now() * 0.0005, m);
+    mat4.scale(m, [scale, scale, scale], m);
+    mat4.translate(m, [-32, -32, -32], m);
+    mat4.invert(m, m);
 
     document.getElementById("matrix").innerHTML =
-        (transformationMatrix as Float32Array).reduce((acc: string, value: number) => {
+        (m as Float32Array).reduce((acc: string, value: number) => {
         return `${acc}<span>${value.toFixed(1)}</span>`;
       }, "");
 
     const transformationMatrixBuffer = createFloatUniformBuffer(
-      transformationMatrix as number[],
+      m as number[],
       "transformation matrix",
     );
 

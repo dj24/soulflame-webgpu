@@ -135,7 +135,7 @@ fn main(
   let intersect = boxIntersection(rayOrigin, rayDirection, boxSize * 0.5);
 
   let tNear = intersect.tNear;
-  let boundingBoxSurfacePosition = rayOrigin + (tNear + EPSILON)  * rayDirection;
+  let boundingBoxSurfacePosition = rayOrigin + (tNear - EPSILON)  * rayDirection;
   let isStartingInBounds = all(boundingBoxSurfacePosition > vec3(0.0)) && all(boundingBoxSurfacePosition < vec3(BOUNDS_SIZE / voxelSize));
   if(tNear > 0.0 || isStartingInBounds){
     var pos = boundingBoxSurfacePosition;

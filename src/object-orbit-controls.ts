@@ -1,21 +1,23 @@
-import { Vector2 } from "./vector2";
 import { animate, glide } from "motion";
+import {vec2} from "wgpu-matrix";
 export class ObjectOrbitControls {
-  velocity = Vector2.zero;
+  velocity = vec2.create(0, 0);
   animationFrame: ReturnType<typeof requestAnimationFrame>;
-  constructor(onUpdate: (progress: number) => void) {
+  constructor() {
     window.addEventListener("mousemove", (event) => {
       const isLeftClick = event.buttons === 1;
       if (!isLeftClick) {
         return;
       }
-      // cancelAnimationFrame(this.animationFrame);
-      // this.velocity = new Vector2(event.movementX, event.movementY);
-      // this.animationFrame = requestAnimationFrame(() => {
-      //   this.velocity = Vector2.zero;
-      // });
-      animate(onUpdate, {
+      animate((progress) => {
+        this.velocity[0] = -progress;
+      }, {
         easing: glide({ velocity: event.movementX, restDistance: 0.0001 }),
+      });
+      animate((progress) => {
+        this.velocity[1] = progress;
+      }, {
+        easing: glide({ velocity: event.movementY, restDistance: 0.0001 }),
       });
     });
   }
