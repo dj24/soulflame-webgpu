@@ -148,6 +148,7 @@ button:active{
 
 #matrix span{
     padding: 0.5rem;
+    width: 1.5rem;
 }
 /*scale*/
 #matrix span:nth-of-type(5n - 4){
