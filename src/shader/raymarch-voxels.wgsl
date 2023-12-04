@@ -76,16 +76,21 @@ fn boxIntersection(
     return result;
 }
 
+struct VoxelObject {
+  transform: mat4x4<f32>,
+  size : vec3<f32>,
+  padding : f32
+}
+
 @group(0) @binding(0) var outputTex : texture_storage_2d<rgba8unorm, write>;
 //@group(0) @binding(1) var<uniform> time : u32;
 @group(0) @binding(2) var<uniform> resolution : vec2<u32>;
 @group(0) @binding(3) var<uniform> frustumCornerDirections : FrustumCornerDirections;
 @group(0) @binding(4) var<uniform> cameraPosition : vec3<f32>;
-@group(0) @binding(5) var<uniform> transformationMatrix : mat4x4<f32>;
+@group(0) @binding(5) var<uniform> voxelObjects : array<VoxelObject, 2>; // TODO: dynamic amount of these using string interpolation
 
 const EPSILON = 0.0001;
 const BORDER_WIDTH = 0.05;
-const BOUNDS_SIZE = 64.0;
 const MAX_RAY_STEPS = 256;
 
 fn addVoxelBorderColour(baseColour: vec3<f32>, worldPos: vec3<f32>) -> vec3<f32> {
@@ -95,9 +100,9 @@ fn addVoxelBorderColour(baseColour: vec3<f32>, worldPos: vec3<f32>) -> vec3<f32>
   return mix(baseColour,baseColour * 0.8,isVoxelBorder);
 }
 
-fn addBoundsBorderColour(baseColour: vec3<f32>, worldPos: vec3<f32>) -> vec3<f32> {
-  let positionInBounds = fract(worldPos / BOUNDS_SIZE);
-  let boundsBorderWidth = BORDER_WIDTH / BOUNDS_SIZE * 4.0;
+fn addBoundsBorderColour(baseColour: vec3<f32>, worldPos: vec3<f32>, bounds: vec3<f32>) -> vec3<f32> {
+  let positionInBounds = fract(worldPos / bounds);
+  let boundsBorderWidth = BORDER_WIDTH / bounds * 4.0;
   let boundsBorder = step(positionInBounds, vec3(1 - boundsBorderWidth)) - step(positionInBounds, vec3(boundsBorderWidth));
   let isBoundsBorder = step(length(boundsBorder), 1.0);
   return mix(baseColour,vec3(1.0,0.0,1.0),isBoundsBorder);
@@ -114,12 +119,12 @@ fn sampleVoxel(position: vec3<f32>) -> bool {
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
+  // background
   var voxelSize = 1.0;
   let pixel = vec2<f32>(f32(GlobalInvocationID.x), f32(resolution.y - GlobalInvocationID.y));
   let uv = pixel / vec2<f32>(resolution);
   var rayOrigin = cameraPosition;
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
-  var boxSize = vec3<f32>(BOUNDS_SIZE);
   var colour = sample_sky(rayDirection);
   let plainIntersection = plainIntersect(rayOrigin, rayDirection, vec4<f32>(0.0, 1.0, 0.0, 0.0));
   if(plainIntersection > 0.0){
@@ -128,15 +133,15 @@ fn main(
     colour = borderColour;
   }
 
-  // Transform the ray using the combined matrix
-  rayOrigin = (transformationMatrix * vec4<f32>(rayOrigin, 1.0)).xyz;
-  rayDirection = (transformationMatrix * vec4<f32>(rayDirection, 0.0)).xyz;
-
-  let intersect = boxIntersection(rayOrigin, rayDirection, boxSize * 0.5);
-
+  // voxel objects
+  var voxelObject = voxelObjects[0];
+  rayOrigin = (voxelObject.transform * vec4<f32>(rayOrigin, 1.0)).xyz;
+  rayDirection = (voxelObject.transform * vec4<f32>(rayDirection, 0.0)).xyz;
+  let intersect = boxIntersection(rayOrigin, rayDirection, voxelObject.size * 0.5);
   let tNear = intersect.tNear;
   let boundingBoxSurfacePosition = rayOrigin + (tNear - EPSILON)  * rayDirection;
-  let isStartingInBounds = all(boundingBoxSurfacePosition > vec3(0.0)) && all(boundingBoxSurfacePosition < vec3(BOUNDS_SIZE / voxelSize));
+  let isStartingInBounds = all(boundingBoxSurfacePosition > vec3(0.0)) && all(boundingBoxSurfacePosition < vec3(voxelObject.size / voxelSize));
+
   if(tNear > 0.0 || isStartingInBounds){
     var pos = boundingBoxSurfacePosition;
     var normal = vec3(0.0);
@@ -165,7 +170,7 @@ fn main(
       normal = vec3(mask * -voxelStep);
       pos = rayOrigin + rayDirection * tIntersection;
       stepsTaken ++;
-      let isInBounds = all(currentIndex > vec3(-1.0)) && all(currentIndex < vec3(BOUNDS_SIZE / voxelSize));
+      let isInBounds = all(currentIndex > vec3(-1.0)) && all(currentIndex < vec3(voxelObject.size / voxelSize));
       if(!isInBounds){
           break;
       }
@@ -180,5 +185,6 @@ fn main(
       colour = addVoxelBorderColour(colour, pos);
     }
   }
+
   textureStore(outputTex, GlobalInvocationID.xy, vec4(colour,1));
 }

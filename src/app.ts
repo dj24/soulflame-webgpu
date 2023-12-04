@@ -1,5 +1,4 @@
 import fullscreenQuadShader from "./shader/fullscreentexturedquad.wgsl";
-import { Vector2 } from "./vector2";
 import { createUniformBuffer, writeToUniformBuffer } from "./buffer-utils";
 import { ComputePass, createComputePass } from "./compute-pass";
 import { Camera, moveCamera } from "./camera";
@@ -7,6 +6,7 @@ import { DebugUI } from "./ui";
 import { Vector3 } from "./vector3";
 import "./main.css";
 import { animate, spring } from "motion";
+import {Vector2} from "./vector2";
 
 export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
@@ -255,6 +255,7 @@ if (navigator.gpu !== undefined) {
   navigator.gpu.requestAdapter().then((adapter) => {
     adapter.requestDevice().then((newDevice) => {
       device = newDevice;
+      console.log(device.limits);
       const computePass = createComputePass();
       renderLoop(device, [computePass]);
     });

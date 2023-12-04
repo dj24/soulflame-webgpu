@@ -5,7 +5,7 @@ import { createFloatUniformBuffer } from "./buffer-utils";
 import { camera, device, resolution, scale, translateX } from "./app";
 import { Camera } from "./camera";
 import { ObjectOrbitControls } from "./object-orbit-controls";
-import { mat4 } from "wgpu-matrix";
+import {Mat4, mat4, Vec3} from "wgpu-matrix";
 
 const getFrustumCornerDirections = (camera: Camera) => {
   const aspectRatio = resolution.x / resolution.y;
@@ -42,6 +42,19 @@ export type ComputePass = {
   start: () => void;
   render: (args: RenderArgs) => void;
 };
+
+class VoxelObject {
+  transform: Mat4;
+  size: Vec3;
+  constructor(m: Mat4, s: Vec3) {
+      this.transform = m;
+      this.size = s;
+  }
+
+  toArray() {
+    return [...this.transform, ...this.size, 0.0]; //padding for 4 byte stride
+  }
+}
 
 export const createComputePass = (): ComputePass => {
   let computePipeline: GPUComputePipeline;
@@ -80,13 +93,17 @@ export const createComputePass = (): ComputePass => {
       "camera position",
     );
 
+    const chunkSize = 64;
+
     let m = mat4.identity();
     mat4.translate(m,[translateX, 0, 0], m);
-    mat4.translate(m, [32, 32, 32], m);
-    mat4.rotateY(m, performance.now() * 0.0005, m);
+    mat4.translate(m, [chunkSize / 2, chunkSize / 2, chunkSize / 2], m);
+    mat4.rotateY(m, performance.now() * 0.0001, m);
     mat4.scale(m, [scale, scale, scale], m);
-    mat4.translate(m, [-32, -32, -32], m);
+    mat4.translate(m, [-chunkSize / 2, -chunkSize / 2, -chunkSize / 2], m);
     mat4.invert(m, m);
+
+    let voxelObject = new VoxelObject(m, [chunkSize, chunkSize, chunkSize]);
 
     document.getElementById("matrix").innerHTML =
         (m as Float32Array).reduce((acc: string, value: number) => {
@@ -94,8 +111,8 @@ export const createComputePass = (): ComputePass => {
       }, "");
 
     const transformationMatrixBuffer = createFloatUniformBuffer(
-      m as number[],
-      "transformation matrix",
+      [...voxelObject.toArray(), ...voxelObject.toArray()],
+      "voxel object",
     );
 
     const computePass = commandEncoder.beginComputePass();

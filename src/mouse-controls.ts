@@ -1,7 +1,7 @@
-import { Vector2 } from "./vector2";
-import {canvas} from "./app";
+import {vec2} from "wgpu-matrix";
+
 export class MouseControls {
-  velocity = Vector2.zero;
+  velocity = vec2.create(0,0);
   animationFrame: ReturnType<typeof requestAnimationFrame>;
   isCursorLocked = false;
   constructor() {
@@ -14,9 +14,9 @@ export class MouseControls {
     });
     window.addEventListener("mousemove", (event) => {
       cancelAnimationFrame(this.animationFrame);
-      this.velocity = new Vector2(event.movementX, event.movementY);
+      this.velocity = [event.movementX, event.movementY];
       this.animationFrame = requestAnimationFrame(() => {
-        this.velocity = Vector2.zero;
+        this.velocity = [0,0];
       });
     });
   }
