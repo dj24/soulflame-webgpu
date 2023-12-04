@@ -4,6 +4,6 @@
     "target": "esnext",
     "module": "NodeNext",
     "types": ["@webgpu/types", "jest"],
-    "moduleResolution":"nodenext"
+    "moduleResolution": "nodenext"
   }
 }

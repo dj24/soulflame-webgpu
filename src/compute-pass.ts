@@ -4,8 +4,8 @@ import { Vector3 } from "./vector3";
 import { createFloatUniformBuffer } from "./buffer-utils";
 import { camera, device, resolution, scale, translateX } from "./app";
 import { Camera } from "./camera";
-import { Matrix4x4 } from "./matrix4x4";
 import { ObjectOrbitControls } from "./object-orbit-controls";
+import { mat4 } from "wgpu-matrix";
 
 const getFrustumCornerDirections = (camera: Camera) => {
   const aspectRatio = resolution.x / resolution.y;
@@ -81,18 +81,21 @@ export const createComputePass = (): ComputePass => {
       "camera position",
     );
 
-    let transformationMatrix = Matrix4x4.identity;
-    transformationMatrix.translate(new Vector3(translateX, 0, 0));
-    transformationMatrix.rotateY(angleY);
-    transformationMatrix.scale(Vector3.one.mul(scale));
+    let transformationMatrix = mat4.translation([translateX, 0, 0]);
+
+    console.log({transformationMatrix})
+    // transformationMatrix.rotateY(angleY);
+    // transformationMatrix.scale(Vector3.one.mul(scale));
+
+
 
     document.getElementById("matrix").innerHTML =
-      transformationMatrix.elements.reduce((acc, value, index) => {
+        (transformationMatrix as Float32Array).reduce((acc: string, value: number) => {
         return `${acc}<span>${value.toFixed(1)}</span>`;
       }, "");
 
     const transformationMatrixBuffer = createFloatUniformBuffer(
-      transformationMatrix.invert().elements,
+      transformationMatrix as number[],
       "transformation matrix",
     );
 

@@ -18,3 +18,9 @@ test("translation is correct", () => {
   m.translate(new Vector3(1, 2, 3));
   expect(m.elements).toEqual([1, 0, 0, 1, 0, 1, 0, 2, 0, 0, 1, 3, 0, 0, 0, 1]);
 });
+
+test("scale is correct", () => {
+    const m = Matrix4x4.identity;
+    m.scale(new Vector3(2, 3, 4));
+    expect(m.elements).toEqual([2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 4, 0, 0, 0, 0, 1]);
+})

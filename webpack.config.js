@@ -47,4 +47,7 @@ module.exports = {
     }),
     new MiniCssExtractPlugin(),
   ],
+  experiments: {
+    topLevelAwait: true, // Enable top-level await
+  },
 };

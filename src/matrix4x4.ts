@@ -31,31 +31,32 @@ export class Matrix4x4 {
   }
 
   multiply(m: Matrix4x4): void {
-    const result = new Matrix4x4();
+    const tempElements = this.elements.slice();  // Create a copy of the current elements
     for (let row = 0; row < 4; row++) {
       for (let col = 0; col < 4; col++) {
         let sum = 0;
         for (let i = 0; i < 4; i++) {
-          sum += this.get(row, i) * m.get(i, col);
+          sum += tempElements[row * 4 + i] * m.get(i, col);
         }
-        result.set(row, col, sum);
+        this.elements[row * 4 + col] = sum;  // Update the current object directly
       }
     }
-    this.elements = result.elements;
   }
 
-  translate(translate: Vector3): Matrix4x4 {
-    this.set(0, 3, translate.x);
-    this.set(1, 3, translate.y);
-    this.set(2, 3, translate.z);
-    return this;
+  translate(translate: Vector3): void {
+    let translationMatrix = Matrix4x4.identity;
+    translationMatrix.set(0, 3, translate.x);
+    translationMatrix.set(1, 3, translate.y);
+    translationMatrix.set(2, 3, translate.z);
+    this.multiply(translationMatrix);
   }
 
-  scale(scale: Vector3): Matrix4x4 {
-    this.set(0, 0, scale.x);
-    this.set(1, 1, scale.y);
-    this.set(2, 2, scale.z);
-    return this;
+  scale(scale: Vector3): void {
+    const scalingMatrix = Matrix4x4.identity;
+    scalingMatrix.set(0, 0, scale.x);
+    scalingMatrix.set(1, 1, scale.y);
+    scalingMatrix.set(2, 2, scale.z);
+    this.multiply(scalingMatrix);
   }
 
   rotateY(angle: number): Matrix4x4 {

@@ -33,6 +33,7 @@
   "dependencies": {
     "css-houdini-squircle": "^0.3.0",
     "lodash": "^4.17.21",
-    "motion": "^10.16.4"
+    "motion": "^10.16.4",
+    "wgpu-matrix": "^2.5.1"
   }
 }
