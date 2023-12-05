@@ -1,21 +1,23 @@
-import { smoothDampVector3 } from "./smooth-damp";
-import { Vector3 } from "./vector3";
 import { camera, deltaTime } from "./app";
+import { vec3, Vec3 } from "wgpu-matrix";
 
 const SMOOTH_TIME = 200.0;
 
 export class MoveableObject {
-  position: Vector3;
-  targetPosition: Vector3;
-  velocity: Vector3;
-  constructor(options: { position: Vector3 }) {
+  position: Vec3;
+  targetPosition: Vec3;
+  velocity: Vec3;
+  constructor(options: { position: Vec3 }) {
     this.position = options.position;
     this.targetPosition = this.position;
-    this.velocity = Vector3.zero;
+    this.velocity = vec3.zero();
   }
 
   update() {
-    camera.velocity = camera.velocity.mul(1 - deltaTime * 0.015);
-    this.position = this.position.add(this.velocity.mul(deltaTime));
+    camera.velocity = vec3.mulScalar(camera.velocity, 1 - deltaTime * 0.015);
+    this.position = vec3.add(
+      this.position,
+      vec3.mulScalar(this.velocity, deltaTime),
+    );
   }
 }

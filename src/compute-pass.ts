@@ -1,32 +1,37 @@
 import blurWGSL from "./shader/raymarch-voxels.wgsl";
 import simpleSkyShader from "./shader/simple-sky.wgsl";
-import { Vector3 } from "./vector3";
 import { createFloatUniformBuffer } from "./buffer-utils";
 import { camera, device, resolution } from "./app";
 import { Camera } from "./camera";
 import { VoxelObject } from "./voxel-object";
+import { vec3 } from "wgpu-matrix";
 
 const getFrustumCornerDirections = (camera: Camera) => {
   const aspectRatio = resolution[0] / resolution[1];
   const halfFov = camera.fieldOfView / 2;
   const tanHalfFov = Math.tan(halfFov);
-  const right = Vector3.up.cross(camera.direction).normalize();
-  const up = camera.direction.cross(right).normalize();
-  const upwardDisplacement = up.mul(tanHalfFov);
+  const right = vec3.normalize(
+    vec3.cross(vec3.create(0, 1, 0), camera.direction),
+  );
+  const up = vec3.normalize(vec3.cross(camera.direction, right));
+  const upwardDisplacement = vec3.mulScalar(up, tanHalfFov);
 
-  const topLeft = camera.direction
-    .add(upwardDisplacement)
-    .add(right.mul(-aspectRatio * tanHalfFov));
-  const topRight = camera.direction
-    .add(upwardDisplacement)
-    .add(right.mul(aspectRatio * tanHalfFov));
-  const bottomLeft = camera.direction
-    .subtract(upwardDisplacement)
-    .add(right.mul(-aspectRatio * tanHalfFov));
-  const bottomRight = camera.direction
-    .subtract(upwardDisplacement)
-    .add(right.mul(aspectRatio * tanHalfFov));
-
+  const topLeft = vec3.add(
+    vec3.add(camera.direction, upwardDisplacement),
+    vec3.mulScalar(right, -aspectRatio * tanHalfFov),
+  );
+  const topRight = vec3.add(
+    vec3.add(camera.direction, upwardDisplacement),
+    vec3.mulScalar(right, aspectRatio * tanHalfFov),
+  );
+  const bottomLeft = vec3.add(
+    vec3.subtract(camera.direction, upwardDisplacement),
+    vec3.mulScalar(right, -aspectRatio * tanHalfFov),
+  );
+  const bottomRight = vec3.add(
+    vec3.subtract(camera.direction, upwardDisplacement),
+    vec3.mulScalar(right, aspectRatio * tanHalfFov),
+  );
   return [topLeft, topRight, bottomLeft, bottomRight];
 };
 
@@ -63,7 +68,7 @@ export const createComputePass = (): ComputePass => {
     voxelObjects,
   }: RenderArgs) => {
     const flatMappedDirections = getFrustumCornerDirections(camera).flatMap(
-      (direction) => [...direction.toArray(), 0],
+      (direction) => [...direction, 0],
     );
     // TODO: make sure to destroy these buffers or write to them instead
     const frustumCornerDirectionsBuffer = createFloatUniformBuffer(
@@ -71,7 +76,7 @@ export const createComputePass = (): ComputePass => {
       "frustum corner directions",
     );
     const cameraPostionBuffer = createFloatUniformBuffer(
-      camera.position.toArray(),
+      camera.position as number[],
       "camera position",
     );
 

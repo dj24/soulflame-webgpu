@@ -3,11 +3,9 @@ import { createUniformBuffer, writeToUniformBuffer } from "./buffer-utils";
 import { ComputePass, createComputePass } from "./compute-pass";
 import { Camera, moveCamera } from "./camera";
 import { DebugUI } from "./ui";
-import { Vector3 } from "./vector3";
 import "./main.css";
 import { animate, spring } from "motion";
-import { Vector2 } from "./vector2";
-import { mat4, Vec2, vec2 } from "wgpu-matrix";
+import { mat4, Vec2, vec2, vec3 } from "wgpu-matrix";
 import { VoxelObject } from "./voxel-object";
 
 export let device: GPUDevice;
@@ -21,13 +19,13 @@ const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
 
-const startingCameraPosition = new Vector3(120, 120, 120);
-const startingCameraDirection = new Vector3(-1, -1, -1).normalize();
+const startingCameraPosition = vec3.create(120, 120, 120);
+const startingCameraDirection = vec3.normalize(vec3.create(-1, -1, -1));
 const startingCameraFieldOfView = 82.5;
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
-  position: new Vector3(120, 0, 120),
-  direction: new Vector3(-1, 0, -1).normalize(),
+  position: vec3.create(120, 0, 120),
+  direction: vec3.normalize(vec3.create(-1, 0, -1)),
 });
 
 const animateCameraToStartingPosition = () => {
@@ -43,11 +41,16 @@ const animateCameraToStartingPosition = () => {
   const targetTranslateX = 0;
   animate(
     (progress: number) => {
-      camera.position = startPosition.add(
-        targetPosition.subtract(startPosition).mul(progress),
+      camera.position = vec3.add(
+        startPosition,
+        vec3.mulScalar(vec3.subtract(targetPosition, startPosition), progress),
       );
-      camera.direction = startDirection.add(
-        targetDirection.subtract(startDirection).mul(progress),
+      camera.direction = vec3.add(
+        startDirection,
+        vec3.mulScalar(
+          vec3.subtract(targetDirection, startDirection),
+          progress,
+        ),
       );
       camera.fieldOfView =
         startFieldOfView + (targetFieldOfView - startFieldOfView) * progress;
@@ -278,7 +281,6 @@ if (navigator.gpu !== undefined) {
     adapter.requestDevice().then((newDevice) => {
       device = newDevice;
       console.log(device.limits);
-
       const computePass = createComputePass();
       renderLoop(device, [computePass]);
     });
