@@ -67,6 +67,7 @@ export const createComputePass = (): ComputePass => {
     outputTextureView,
     voxelObjects,
   }: RenderArgs) => {
+    // 4 byte stride
     const flatMappedDirections = getFrustumCornerDirections(camera).flatMap(
       (direction) => [...direction, 0],
     );

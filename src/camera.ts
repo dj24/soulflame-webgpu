@@ -10,6 +10,8 @@ const keyboardControls = new KeyboardControls();
 export class Camera extends MoveableObject {
   fieldOfView: number;
   direction: Vec3;
+  near = 0.1;
+  far = 1000000;
 
   constructor(options: {
     position: Vec3;
