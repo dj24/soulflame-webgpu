@@ -105,13 +105,15 @@ export const createComputePass = (): ComputePass => {
 
     let voxelObject = new VoxelObject(m, [chunkSize, chunkSize, chunkSize]);
 
+    let voxelObject2 = new VoxelObject(mat4.identity(), [32, 32, 32]);
+
     document.getElementById("matrix").innerHTML =
         (m as Float32Array).reduce((acc: string, value: number) => {
         return `${acc}<span>${value.toFixed(1)}</span>`;
       }, "");
 
     const transformationMatrixBuffer = createFloatUniformBuffer(
-      [...voxelObject.toArray(), ...voxelObject.toArray()],
+      [...voxelObject.toArray(), ...voxelObject2.toArray()],
       "voxel object",
     );
 

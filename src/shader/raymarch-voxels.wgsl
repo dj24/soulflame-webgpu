@@ -127,38 +127,51 @@ fn main(
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
   var colour = sample_sky(rayDirection);
   let plainIntersection = plainIntersect(rayOrigin, rayDirection, vec4<f32>(0.0, 1.0, 0.0, 0.0));
+  var worldPos = vec3(0.0);
   if(plainIntersection > 0.0){
-    let worldPos = plainIntersection * rayDirection + rayOrigin;
+    worldPos = plainIntersection * rayDirection + rayOrigin;
     var borderColour = addVoxelBorderColour(colour, worldPos * 0.25);
     colour = borderColour;
   }
 
-  // voxel objects
-  var voxelObject = voxelObjects[0];
-  rayOrigin = (voxelObject.transform * vec4<f32>(rayOrigin, 1.0)).xyz;
-  rayDirection = (voxelObject.transform * vec4<f32>(rayDirection, 0.0)).xyz;
-  let intersect = boxIntersection(rayOrigin, rayDirection, voxelObject.size * 0.5);
-  let tNear = intersect.tNear;
-  let boundingBoxSurfacePosition = rayOrigin + (tNear - EPSILON)  * rayDirection;
-  let isStartingInBounds = all(boundingBoxSurfacePosition > vec3(0.0)) && all(boundingBoxSurfacePosition < vec3(voxelObject.size / voxelSize));
+  var tNear = 999999.0;
+  var occlusion = false;
+  var normal = vec3(0.0);
+  var closestIntersection = 9999999.0;
 
-  if(tNear > 0.0 || isStartingInBounds){
+  // voxel objects
+  for (var i = 0; i < 2; i++) {
+    var voxelObject = voxelObjects[i];
+    let objectRayOrigin = (voxelObject.transform * vec4<f32>(rayOrigin, 1.0)).xyz;
+    let objectRayDirection = (voxelObject.transform * vec4<f32>(rayDirection, 0.0)).xyz;
+    let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
+    tNear = intersect.tNear;
+    let boundingBoxSurfacePosition = objectRayOrigin + (tNear - EPSILON)  * objectRayDirection;
+    let isStartingInBounds = all(boundingBoxSurfacePosition > vec3(0.0)) && all(boundingBoxSurfacePosition < vec3(voxelObject.size / voxelSize));
+
+    let isBackwardsIntersection = tNear < 0.0 && !isStartingInBounds;
+
+    // TODO : add depth sort here
+    if(isBackwardsIntersection){
+      continue;
+    }
+
     var pos = boundingBoxSurfacePosition;
-    var normal = vec3(0.0);
-    var stepsTaken = 0;
-    var voxelStep = sign(rayDirection);
+    var objectNormal = vec3(0.0);
     var tIntersection = 0.0;
-    var tDelta = vec3(voxelSize / abs(rayDirection));
+    var stepsTaken = 0;
+    var voxelStep = sign(objectRayDirection);
+    var tDelta = vec3(voxelSize / abs(objectRayDirection));
     var scaledStartingPoint = pos / voxelSize;
-    var scaledRayOrigin = vec3<f32>(rayOrigin) / voxelSize;
+    var scaledRayOrigin = vec3<f32>(objectRayOrigin) / voxelSize;
     var currentIndex = floor(scaledStartingPoint);
     var voxelOriginDifference = vec3<f32>(currentIndex) - scaledRayOrigin;
     var clampedVoxelBoundary = (voxelStep * 0.5) + 0.5; // 0 if <= 0, 1 if > 0
     var tMax = (voxelStep * voxelOriginDifference + clampedVoxelBoundary) * tDelta + EPSILON;
-    var occlusion = false;
 
     while(stepsTaken <= MAX_RAY_STEPS)
     {
+      stepsTaken ++;
       tIntersection = min(min(tMax.x, tMax.y), tMax.z);
       let mask = vec3(
           select(0.0, 1.0, tMax.x == tIntersection),
@@ -167,23 +180,33 @@ fn main(
       );
       tMax += mask * tDelta;
       currentIndex += mask * voxelStep;
-      normal = vec3(mask * -voxelStep);
-      pos = rayOrigin + rayDirection * tIntersection;
-      stepsTaken ++;
+      objectNormal = vec3(mask * -voxelStep);
+      pos = objectRayOrigin + objectRayDirection * tIntersection;
       let isInBounds = all(currentIndex > vec3(-1.0)) && all(currentIndex < vec3(voxelObject.size / voxelSize));
       if(!isInBounds){
           break;
       }
+      // we marched further than the closest intersection, so we are "inside" voxels now
+      let isInsideAlreadyMarchedVoxel = tIntersection > closestIntersection;
+      if(isInsideAlreadyMarchedVoxel){
+          break;
+      }
       if(sampleVoxel(currentIndex)){
+          closestIntersection = tIntersection;
+          normal = objectNormal;
+          colour = vec3(f32(i), 1.0 - f32(i), 0.0);
           occlusion = true;
+          worldPos = pos;
           break;
       }
     }
+  }
 
-    if(occlusion){
-      colour = normal;
-      colour = addVoxelBorderColour(colour, pos);
-    }
+  // output result
+  if(occlusion){
+//    colour = normal;
+    colour *= 1 - (closestIntersection * 0.004);
+    colour = addVoxelBorderColour(colour, worldPos);
   }
 
   textureStore(outputTex, GlobalInvocationID.xy, vec4(colour,1));
