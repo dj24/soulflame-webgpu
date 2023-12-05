@@ -5,8 +5,17 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2229b71a-dd5d-4a63-8f40-0a73278d8fb0" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/src/camera.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/camera.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/create-3d-texture.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/compute-pass.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/compute-pass.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/fir-tree.vxm" beforeDir="false" afterPath="$PROJECT_DIR$/src/voxel-models/fir-tree.vxm" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/test.vxm" beforeDir="false" afterPath="$PROJECT_DIR$/src/voxel-models/test.vxm" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/test.vxm.png" beforeDir="false" afterPath="$PROJECT_DIR$/src/voxel-models/test.vxm.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/vxm-loader.js" beforeDir="false" afterPath="$PROJECT_DIR$/vxm-loader.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -70,6 +79,7 @@
       <recent name="C:\Code\soulflame-webgpu\public" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/src/voxel-models" />
       <recent name="C:\Code\soulflame-webgpu\src" />
       <recent name="C:\Code\soulflame-webgpu\src\shader" />
     </key>

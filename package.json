@@ -34,6 +34,7 @@
     "css-houdini-squircle": "^0.3.0",
     "lodash": "^4.17.21",
     "motion": "^10.16.4",
+    "pngjs": "^7.0.0",
     "wgpu-matrix": "^2.5.1"
   }
 }

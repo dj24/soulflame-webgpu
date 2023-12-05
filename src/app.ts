@@ -7,6 +7,8 @@ import "./main.css";
 import { animate, spring } from "motion";
 import { mat4, Vec2, vec2, vec3 } from "wgpu-matrix";
 import { VoxelObject } from "./voxel-object";
+import treeModel from "./voxel-models/fir-tree.vxm";
+import miniViking from "./voxel-models/mini-viking.vxm";
 
 export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
@@ -249,7 +251,7 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
       mat4.translate(m, [-chunkSize / 2, -chunkSize / 2, -chunkSize / 2], m);
       mat4.invert(m, m);
       let voxelObject = new VoxelObject(m, [chunkSize, chunkSize, chunkSize]);
-      let voxelObject2 = new VoxelObject(mat4.identity(), [32, 32, 32]);
+      let voxelObject2 = new VoxelObject(mat4.identity(), [128, 48, 128]);
       document.getElementById("matrix").innerHTML = (m as Float32Array).reduce(
         (acc: string, value: number) => {
           return `${acc}<span>${value.toFixed(1)}</span>`;
@@ -283,6 +285,7 @@ if (navigator.gpu !== undefined) {
     adapter.requestDevice().then((newDevice) => {
       device = newDevice;
       console.log(device.limits);
+      console.log({ treeModel, miniViking });
       const computePass = createComputePass();
       renderLoop(device, [computePass]);
     });

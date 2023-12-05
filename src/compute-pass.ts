@@ -5,6 +5,7 @@ import { camera, device, resolution } from "./app";
 import { Camera } from "./camera";
 import { VoxelObject } from "./voxel-object";
 import { vec3 } from "wgpu-matrix";
+import { create3dTexture } from "./create-3d-texture";
 
 const getFrustumCornerDirections = (camera: Camera) => {
   const aspectRatio = resolution[0] / resolution[1];
@@ -47,9 +48,34 @@ export type ComputePass = {
   render: (args: RenderArgs) => void;
 };
 
+const getTextureSlices = async (folderPath: string) => {
+  const slices = [];
+  let sliceIndex = 0;
+  while (true) {
+    try {
+      const response = await fetch(`${folderPath}/${sliceIndex}.png`);
+      if (response.ok) {
+        slices.push(`${folderPath}/${sliceIndex}.png`);
+      } else {
+        break;
+      }
+    } catch (e) {
+      break;
+    }
+    sliceIndex++;
+  }
+  return slices;
+};
+
 export const createComputePass = (): ComputePass => {
+  let voxelTexture: GPUTexture;
+
   let computePipeline: GPUComputePipeline;
-  const start = () => {
+  const start = async () => {
+    // voxelTexture = await create3dTexture(
+    //   device,
+    //   await getTextureSlices("./voxel-models/mini-viking"),
+    // );
     computePipeline = device.createComputePipeline({
       layout: "auto",
       compute: {

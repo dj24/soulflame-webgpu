@@ -1,4 +1,5 @@
 const fs = require("fs");
+const { PNG } = require("pngjs");
 
 const colors = {
   reset: "\x1b[0m",
@@ -261,7 +262,7 @@ module.exports = function (source, ...args) {
         if (z > bounds.max[2]) bounds.max = [bounds.max[0], bounds.max[1], z];
         voxels.push({
           position: [x, y, z],
-          colour: paletteTexture[matIdx + 1],
+          colour: paletteTexture[matIdx],
         });
       }
       idx += length;
@@ -271,16 +272,68 @@ module.exports = function (source, ...args) {
   const output = {
     scale,
     normalisedPivot,
-    bounds: {
-      min: `${bounds.min[0]},${bounds.min[1]},${bounds.min[2]}`,
-      max: `${bounds.max[0]},${bounds.max[1]},${bounds.max[2]}`,
-    },
-    voxels: voxels.map(
-      ({ position, colour }) =>
-        `${position[0]},${position[1]},${position[2]} ${colour[0]},${colour[1]},${colour[2]}`,
-    ),
+    bounds,
+    voxels,
   };
 
+  const width = bounds.max[0] - bounds.min[0];
+  const height = bounds.max[1] - bounds.min[1];
+  const depth = bounds.max[2] - bounds.min[2];
+
+  const directoryPath = `${this.resourcePath.split(".vxm")[0]}`;
+
+  // Check if the directory exists
+  if (fs.existsSync(directoryPath)) {
+    // If it exists, remove the directory
+    fs.rmdirSync(directoryPath, { recursive: true });
+    console.log(`Directory '${directoryPath}' exists and has been deleted.`);
+  } else {
+    console.log(`Directory '${directoryPath}' does not exist.`);
+  }
+
+  // Create a directory
+  fs.mkdir(directoryPath, { recursive: true }, (err) => {
+    if (err) {
+      console.error(`Error creating directory: ${err.message}`);
+    } else {
+      console.log(`Directory created successfully at: ${directoryPath}`);
+    }
+  });
+
+  for (let slice = 0; slice < depth; slice++) {
+    const png = new PNG({
+      width,
+      height,
+    });
+
+    for (const voxel of voxels) {
+      let [x, y, z] = voxel.position;
+      let [minX, minY, minZ] = bounds.min;
+      x -= minX;
+      y -= minY;
+      z -= minZ;
+
+      // y is inverted for some reason
+      y = height - y - 1;
+
+      if (z !== slice) {
+        continue;
+      }
+
+      const [r, g, b] = voxel.colour;
+      const index = (png.width * y + x) << 2;
+
+      png.data[index] = r;
+      png.data[index + 1] = g;
+      png.data[index + 2] = b;
+      png.data[index + 3] = 255; // Alpha channel
+    }
+
+    // Save the PNG image as a file
+    const pngFileName = `${directoryPath}/${slice}.png`;
+    const stream = fs.createWriteStream(pngFileName);
+    png.pack().pipe(stream);
+  }
   console.timeEnd(timeLabel);
 
   return `module.exports = ${JSON.stringify(output)}`;
