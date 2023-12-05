@@ -6,12 +6,14 @@ import { DebugUI } from "./ui";
 import { Vector3 } from "./vector3";
 import "./main.css";
 import { animate, spring } from "motion";
-import {Vector2} from "./vector2";
+import { Vector2 } from "./vector2";
+import { mat4, Vec2, vec2 } from "wgpu-matrix";
+import { VoxelObject } from "./voxel-object";
 
 export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
-export let resolution = new Vector2(0, 0);
+export let resolution = vec2.zero();
 let downscale = 1;
 export let scale = 1;
 export let translateX = 0;
@@ -24,8 +26,8 @@ const startingCameraDirection = new Vector3(-1, -1, -1).normalize();
 const startingCameraFieldOfView = 82.5;
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
-  position: new Vector3(120,0,120),
-  direction: new Vector3(-1,0,-1).normalize(),
+  position: new Vector3(120, 0, 120),
+  direction: new Vector3(-1, 0, -1).normalize(),
 });
 
 const animateCameraToStartingPosition = () => {
@@ -40,28 +42,33 @@ const animateCameraToStartingPosition = () => {
   const targetScale = 1;
   const targetTranslateX = 0;
   animate(
-      (progress: number) => {
-        camera.position = startPosition.add(targetPosition.subtract(startPosition).mul(progress));
-        camera.direction = startDirection.add(targetDirection.subtract(startDirection).mul(progress));
-        camera.fieldOfView = startFieldOfView + (targetFieldOfView - startFieldOfView) * progress;
-        scale = startScale + (targetScale - startScale) * progress;
-        translateX = startTranslateX + (targetTranslateX - startTranslateX) * progress;
-      },
-      {
-        easing: spring({
-          restDistance: 0.0001,
-          damping: 40,
-          stiffness: 700,
-          mass: 2,
-        }),
-      },
+    (progress: number) => {
+      camera.position = startPosition.add(
+        targetPosition.subtract(startPosition).mul(progress),
+      );
+      camera.direction = startDirection.add(
+        targetDirection.subtract(startDirection).mul(progress),
+      );
+      camera.fieldOfView =
+        startFieldOfView + (targetFieldOfView - startFieldOfView) * progress;
+      scale = startScale + (targetScale - startScale) * progress;
+      translateX =
+        startTranslateX + (targetTranslateX - startTranslateX) * progress;
+    },
+    {
+      easing: spring({
+        restDistance: 0.0001,
+        damping: 40,
+        stiffness: 700,
+        mass: 2,
+      }),
+    },
   );
-}
+};
 
 animateCameraToStartingPosition();
 
 window.addEventListener("resetcamera", animateCameraToStartingPosition);
-
 
 const debugUI = new DebugUI();
 
@@ -71,7 +78,6 @@ let handleFovChange = (event: CustomEvent) => {
   camera.fieldOfView = parseFloat(event.detail);
 };
 window.addEventListener("changefov", handleFovChange);
-
 
 const handleTranslateChange = (event: CustomEvent) => {
   translateX = parseFloat(event.detail);
@@ -90,7 +96,7 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
   let animationFrameId: ReturnType<typeof requestAnimationFrame>;
   let timeBuffer: GPUBuffer;
   let resolutionBuffer: GPUBuffer;
-  let downscaledResolution: Vector2;
+  let downscaledResolution: Vec2;
 
   canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
 
@@ -123,14 +129,15 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
   };
   const start = () => {
     const { clientWidth, clientHeight } = canvas.parentElement;
-    resolution = new Vector2(
-      clientWidth * window.devicePixelRatio,
-      clientHeight * window.devicePixelRatio,
+    let pixelRatio = Math.min(window.devicePixelRatio, 1.5);
+    resolution = vec2.create(
+      clientWidth * pixelRatio,
+      clientHeight * pixelRatio,
     );
-    downscaledResolution = resolution.mul(1 / downscale);
-    canvas.width = resolution.x;
-    canvas.height = resolution.y;
-    canvas.style.transform = `scale(${1 / window.devicePixelRatio})`;
+    downscaledResolution = vec2.mulScalar(resolution, 1 / downscale);
+    canvas.width = resolution[0];
+    canvas.height = resolution[1];
+    canvas.style.transform = `scale(${1 / pixelRatio})`;
 
     computePasses.forEach((computePass) => {
       computePass.start();
@@ -184,7 +191,7 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
       outputTexture.destroy();
     }
     outputTexture = device.createTexture({
-      size: [downscaledResolution.x, downscaledResolution.y, 1],
+      size: [downscaledResolution[0], downscaledResolution[1], 1],
       format: "rgba8unorm",
       usage:
         GPUTextureUsage.TEXTURE_BINDING |
@@ -201,9 +208,9 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
     moveCamera();
     camera.update();
     debugUI.log(`Position: ${camera.position.toString()}
-    Resolution: ${downscaledResolution.x.toFixed(
+    Resolution: ${downscaledResolution[0].toFixed(
       0,
-    )}x${downscaledResolution.y.toFixed(0)}
+    )}x${downscaledResolution[1].toFixed(0)}
     FPS: ${(1000 / deltaTime).toFixed(1)}
     `);
 
@@ -215,29 +222,44 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
     }
     if (resolutionBuffer) {
       writeToUniformBuffer(resolutionBuffer, [
-        downscaledResolution.x,
-        downscaledResolution.y,
+        downscaledResolution[0],
+        downscaledResolution[1],
       ]);
     } else {
       resolutionBuffer = createUniformBuffer([
-        downscaledResolution.x,
-        downscaledResolution.y,
+        downscaledResolution[0],
+        downscaledResolution[1],
       ]);
     }
 
     const outputTextureView = createOutputTextureView();
 
     computePasses.forEach((computePass) => {
+      const chunkSize = 64;
+      let m = mat4.identity();
+      mat4.translate(m, [translateX, 0, 0], m);
+      mat4.translate(m, [chunkSize / 2, chunkSize / 2, chunkSize / 2], m);
+      mat4.rotateY(m, performance.now() * 0.0001, m);
+      mat4.scale(m, [scale, scale, scale], m);
+      mat4.translate(m, [-chunkSize / 2, -chunkSize / 2, -chunkSize / 2], m);
+      mat4.invert(m, m);
+      let voxelObject = new VoxelObject(m, [chunkSize, chunkSize, chunkSize]);
+      let voxelObject2 = new VoxelObject(mat4.identity(), [32, 32, 32]);
+      document.getElementById("matrix").innerHTML = (m as Float32Array).reduce(
+        (acc: string, value: number) => {
+          return `${acc}<span>${value.toFixed(1)}</span>`;
+        },
+        "",
+      );
       computePass.render({
         commandEncoder,
-        timeBuffer,
         resolutionBuffer,
         outputTextureView,
+        voxelObjects: [voxelObject, voxelObject2],
       });
     });
 
     fullscreenQuad({ commandEncoder, outputTextureView });
-
     device.queue.submit([commandEncoder.finish()]);
     animationFrameId = requestAnimationFrame(frame);
   };
@@ -256,6 +278,7 @@ if (navigator.gpu !== undefined) {
     adapter.requestDevice().then((newDevice) => {
       device = newDevice;
       console.log(device.limits);
+
       const computePass = createComputePass();
       renderLoop(device, [computePass]);
     });

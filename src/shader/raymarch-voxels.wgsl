@@ -82,14 +82,15 @@ struct VoxelObject {
   padding : f32
 }
 
+const VOXEL_OBJECT_COUNT = 2;
+
 @group(0) @binding(0) var outputTex : texture_storage_2d<rgba8unorm, write>;
-//@group(0) @binding(1) var<uniform> time : u32;
 @group(0) @binding(2) var<uniform> resolution : vec2<u32>;
 @group(0) @binding(3) var<uniform> frustumCornerDirections : FrustumCornerDirections;
 @group(0) @binding(4) var<uniform> cameraPosition : vec3<f32>;
-@group(0) @binding(5) var<uniform> voxelObjects : array<VoxelObject, 2>; // TODO: dynamic amount of these using string interpolation
+@group(0) @binding(5) var<uniform> voxelObjects : array<VoxelObject, VOXEL_OBJECT_COUNT>; // TODO: dynamic amount of these using string interpolation
 
-const EPSILON = 0.0001;
+const EPSILON = 0.001;
 const BORDER_WIDTH = 0.05;
 const MAX_RAY_STEPS = 256;
 
@@ -98,6 +99,13 @@ fn addVoxelBorderColour(baseColour: vec3<f32>, worldPos: vec3<f32>) -> vec3<f32>
   let voxelBorder = step(positionInVoxel, vec3(1 - BORDER_WIDTH)) - step(positionInVoxel, vec3(BORDER_WIDTH));
   let isVoxelBorder = step(length(voxelBorder), 1.0);
   return mix(baseColour,baseColour * 0.8,isVoxelBorder);
+}
+
+fn addBasicShading(baseColour: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
+  let lightDirection = normalize(vec3(0.5, 1.0, 0.5));
+  let cosTheta = max(dot(normal, lightDirection), 0.0);
+  let lambertianReflectance = cosTheta * baseColour;
+  return lambertianReflectance;
 }
 
 fn addBoundsBorderColour(baseColour: vec3<f32>, worldPos: vec3<f32>, bounds: vec3<f32>) -> vec3<f32> {
@@ -140,7 +148,7 @@ fn main(
   var closestIntersection = 9999999.0;
 
   // voxel objects
-  for (var i = 0; i < 2; i++) {
+  for (var i = 0; i < VOXEL_OBJECT_COUNT; i++) {
     var voxelObject = voxelObjects[i];
     let objectRayOrigin = (voxelObject.transform * vec4<f32>(rayOrigin, 1.0)).xyz;
     let objectRayDirection = (voxelObject.transform * vec4<f32>(rayDirection, 0.0)).xyz;
@@ -150,8 +158,6 @@ fn main(
     let isStartingInBounds = all(boundingBoxSurfacePosition > vec3(0.0)) && all(boundingBoxSurfacePosition < vec3(voxelObject.size / voxelSize));
 
     let isBackwardsIntersection = tNear < 0.0 && !isStartingInBounds;
-
-    // TODO : add depth sort here
     if(isBackwardsIntersection){
       continue;
     }
@@ -187,7 +193,7 @@ fn main(
           break;
       }
       // we marched further than the closest intersection, so we are "inside" voxels now
-      let isInsideAlreadyMarchedVoxel = tIntersection > closestIntersection;
+      let isInsideAlreadyMarchedVoxel = tIntersection > closestIntersection + EPSILON;
       if(isInsideAlreadyMarchedVoxel){
           break;
       }
@@ -204,8 +210,7 @@ fn main(
 
   // output result
   if(occlusion){
-//    colour = normal;
-    colour *= 1 - (closestIntersection * 0.004);
+    colour = addBasicShading(colour, normal);
     colour = addVoxelBorderColour(colour, worldPos);
   }
 

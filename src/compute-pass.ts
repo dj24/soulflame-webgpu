@@ -2,13 +2,12 @@ import blurWGSL from "./shader/raymarch-voxels.wgsl";
 import simpleSkyShader from "./shader/simple-sky.wgsl";
 import { Vector3 } from "./vector3";
 import { createFloatUniformBuffer } from "./buffer-utils";
-import { camera, device, resolution, scale, translateX } from "./app";
+import { camera, device, resolution } from "./app";
 import { Camera } from "./camera";
-import { ObjectOrbitControls } from "./object-orbit-controls";
-import {Mat4, mat4, Vec3} from "wgpu-matrix";
+import { VoxelObject } from "./voxel-object";
 
 const getFrustumCornerDirections = (camera: Camera) => {
-  const aspectRatio = resolution.x / resolution.y;
+  const aspectRatio = resolution[0] / resolution[1];
   const halfFov = camera.fieldOfView / 2;
   const tanHalfFov = Math.tan(halfFov);
   const right = Vector3.up.cross(camera.direction).normalize();
@@ -33,9 +32,9 @@ const getFrustumCornerDirections = (camera: Camera) => {
 
 type RenderArgs = {
   commandEncoder: GPUCommandEncoder;
-  timeBuffer: GPUBuffer;
   resolutionBuffer: GPUBuffer;
   outputTextureView: GPUTextureView;
+  voxelObjects: VoxelObject[];
 };
 
 export type ComputePass = {
@@ -43,25 +42,8 @@ export type ComputePass = {
   render: (args: RenderArgs) => void;
 };
 
-class VoxelObject {
-  transform: Mat4;
-  size: Vec3;
-  constructor(m: Mat4, s: Vec3) {
-      this.transform = m;
-      this.size = s;
-  }
-
-  toArray() {
-    return [...this.transform, ...this.size, 0.0]; //padding for 4 byte stride
-  }
-}
-
 export const createComputePass = (): ComputePass => {
   let computePipeline: GPUComputePipeline;
-  let angleY = 0;
-  let angleX = 0;
-
-  const orbit = new ObjectOrbitControls();
   const start = () => {
     computePipeline = device.createComputePipeline({
       layout: "auto",
@@ -76,9 +58,9 @@ export const createComputePass = (): ComputePass => {
   };
   const render = ({
     commandEncoder,
-    timeBuffer,
     resolutionBuffer,
     outputTextureView,
+    voxelObjects,
   }: RenderArgs) => {
     const flatMappedDirections = getFrustumCornerDirections(camera).flatMap(
       (direction) => [...direction.toArray(), 0],
@@ -93,27 +75,8 @@ export const createComputePass = (): ComputePass => {
       "camera position",
     );
 
-    const chunkSize = 64;
-
-    let m = mat4.identity();
-    mat4.translate(m,[translateX, 0, 0], m);
-    mat4.translate(m, [chunkSize / 2, chunkSize / 2, chunkSize / 2], m);
-    mat4.rotateY(m, performance.now() * 0.0001, m);
-    mat4.scale(m, [scale, scale, scale], m);
-    mat4.translate(m, [-chunkSize / 2, -chunkSize / 2, -chunkSize / 2], m);
-    mat4.invert(m, m);
-
-    let voxelObject = new VoxelObject(m, [chunkSize, chunkSize, chunkSize]);
-
-    let voxelObject2 = new VoxelObject(mat4.identity(), [32, 32, 32]);
-
-    document.getElementById("matrix").innerHTML =
-        (m as Float32Array).reduce((acc: string, value: number) => {
-        return `${acc}<span>${value.toFixed(1)}</span>`;
-      }, "");
-
     const transformationMatrixBuffer = createFloatUniformBuffer(
-      [...voxelObject.toArray(), ...voxelObject2.toArray()],
+      voxelObjects.flatMap((voxelObject) => voxelObject.toArray()),
       "voxel object",
     );
 
@@ -126,12 +89,6 @@ export const createComputePass = (): ComputePass => {
           binding: 0,
           resource: outputTextureView,
         },
-        // {
-        //   binding: 1,
-        //   resource: {
-        //     buffer: timeBuffer,
-        //   },
-        // },
         {
           binding: 2,
           resource: {
@@ -160,8 +117,8 @@ export const createComputePass = (): ComputePass => {
     });
     computePass.setBindGroup(0, computeBindGroup);
     computePass.dispatchWorkgroups(
-      Math.ceil(resolution.x / 8),
-      Math.ceil(resolution.y / 8),
+      Math.ceil(resolution[0] / 8),
+      Math.ceil(resolution[1] / 8),
     );
     computePass.end();
   };
