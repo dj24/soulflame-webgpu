@@ -269,18 +269,11 @@ module.exports = function (source, ...args) {
     }
   }
 
-  const output = {
-    scale,
-    normalisedPivot,
-    bounds,
-    voxels,
-  };
-
   const width = bounds.max[0] - bounds.min[0];
   const height = bounds.max[1] - bounds.min[1];
   const depth = bounds.max[2] - bounds.min[2];
 
-  const directoryPath = `${this.resourcePath.split(".vxm")[0]}`;
+  const directoryPath = `public/voxel-models/${fileName.split(".vxm")[0]}`;
 
   // Check if the directory exists
   if (fs.existsSync(directoryPath)) {
@@ -299,6 +292,8 @@ module.exports = function (source, ...args) {
       console.log(`Directory created successfully at: ${directoryPath}`);
     }
   });
+
+  let sliceFilePaths = [];
 
   for (let slice = 0; slice < depth; slice++) {
     const png = new PNG({
@@ -333,8 +328,18 @@ module.exports = function (source, ...args) {
     const pngFileName = `${directoryPath}/${slice}.png`;
     const stream = fs.createWriteStream(pngFileName);
     png.pack().pipe(stream);
+    // Remove public from the path
+    sliceFilePaths.push(pngFileName.split("public")[1]);
   }
   console.timeEnd(timeLabel);
+
+  const output = {
+    scale,
+    normalisedPivot,
+    bounds,
+    voxels,
+    sliceFilePaths,
+  };
 
   return `module.exports = ${JSON.stringify(output)}`;
 };

@@ -35,6 +35,7 @@
     "lodash": "^4.17.21",
     "motion": "^10.16.4",
     "pngjs": "^7.0.0",
+    "webgpu-utils": "^0.15.0",
     "wgpu-matrix": "^2.5.1"
   }
 }
