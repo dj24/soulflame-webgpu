@@ -65,7 +65,7 @@ export const createComputePass = (): ComputePass => {
     voxelTexture = await create3dTexture(
       device,
       miniViking.sliceFilePaths,
-      miniViking.scale,
+      miniViking.size,
     );
   };
   const render = ({
@@ -95,6 +95,12 @@ export const createComputePass = (): ComputePass => {
 
     const computePass = commandEncoder.beginComputePass();
     computePass.setPipeline(computePipeline);
+
+    const pointSampler = device.createSampler({
+      magFilter: "nearest", // Nearest-neighbor interpolation for magnification
+      minFilter: "nearest", // Nearest-neighbor interpolation for minification
+    });
+
     const computeBindGroup = device.createBindGroup({
       layout: computePipeline.getBindGroupLayout(0),
       entries: [
@@ -128,7 +134,29 @@ export const createComputePass = (): ComputePass => {
         },
       ],
     });
+
+    // TODO: find way to wait for loading more gracefully
+    if (!voxelTexture) {
+      computePass.end();
+      return;
+    }
+
+    const volumeBindGroup = device.createBindGroup({
+      layout: computePipeline.getBindGroupLayout(1),
+      entries: [
+        {
+          binding: 0,
+          resource: voxelTexture.createView(),
+        },
+        {
+          binding: 1,
+          resource: pointSampler,
+        },
+      ],
+    });
+
     computePass.setBindGroup(0, computeBindGroup);
+    computePass.setBindGroup(1, volumeBindGroup);
     computePass.dispatchWorkgroups(
       Math.ceil(resolution[0] / 8),
       Math.ceil(resolution[1] / 8),

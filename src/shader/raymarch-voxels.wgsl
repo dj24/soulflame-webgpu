@@ -89,6 +89,8 @@ const VOXEL_OBJECT_COUNT = 2;
 @group(0) @binding(3) var<uniform> frustumCornerDirections : FrustumCornerDirections;
 @group(0) @binding(4) var<uniform> cameraPosition : vec3<f32>;
 @group(0) @binding(5) var<uniform> voxelObjects : array<VoxelObject, VOXEL_OBJECT_COUNT>; // TODO: dynamic amount of these using string interpolation
+@group(1) @binding(0) var voxels : texture_3d<f32>;
+@group(1) @binding(1) var voxelsSampler : sampler;
 
 const EPSILON = 0.001;
 const BORDER_WIDTH = 0.05;
@@ -121,6 +123,13 @@ fn sampleVoxel(position: vec3<f32>) -> bool {
   let layer2 = (sin(position.x * 0.125) - sin(position.z * 0.125)) * 4;
   let isSolidVoxel = layer1 + layer2 > (position.y - 32);
   return isSolidVoxel;
+}
+
+fn sampleVoxelObject(position: vec3<f32>) -> bool {
+  return true;
+  let objectSample = textureSampleLevel(voxels, voxelsSampler, position, 0.0);
+  return objectSample.a > 0.0;
+//  return false;
 }
 
 @compute @workgroup_size(8, 8, 1)
@@ -197,7 +206,16 @@ fn main(
       if(isInsideAlreadyMarchedVoxel){
           break;
       }
-      if(sampleVoxel(currentIndex)){
+      if(i == 1 && sampleVoxel(currentIndex)){
+          closestIntersection = tIntersection;
+          normal = objectNormal;
+          colour = vec3(f32(i), 1.0 - f32(i), 0.0);
+          occlusion = true;
+          worldPos = pos;
+          break;
+      }
+      let foo = sampleVoxelObject(currentIndex);
+      if(i == 0 && sampleVoxelObject(currentIndex)){
           closestIntersection = tIntersection;
           normal = objectNormal;
           colour = vec3(f32(i), 1.0 - f32(i), 0.0);

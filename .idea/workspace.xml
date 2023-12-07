@@ -6,35 +6,35 @@
   <component name="ChangeListManager">
     <list default="true" id="2229b71a-dd5d-4a63-8f40-0a73278d8fb0" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/fir-tree/0.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/fir-tree/0.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/fir-tree/1.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/fir-tree/1.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/fir-tree/10.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/fir-tree/10.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/fir-tree/11.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/fir-tree/11.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/fir-tree/12.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/fir-tree/12.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/fir-tree/13.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/fir-tree/13.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/fir-tree/14.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/fir-tree/14.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/fir-tree/15.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/fir-tree/15.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/fir-tree/16.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/fir-tree/16.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/fir-tree/17.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/fir-tree/17.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/fir-tree/2.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/fir-tree/2.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/fir-tree/3.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/fir-tree/3.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/fir-tree/4.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/fir-tree/4.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/fir-tree/5.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/fir-tree/5.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/fir-tree/6.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/fir-tree/6.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/fir-tree/7.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/fir-tree/7.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/fir-tree/8.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/fir-tree/8.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/fir-tree/9.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/fir-tree/9.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/mini-viking/0.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/mini-viking/0.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/mini-viking/1.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/mini-viking/1.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/mini-viking/2.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/mini-viking/2.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/mini-viking/3.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/mini-viking/3.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/mini-viking/4.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/mini-viking/4.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/mini-viking/5.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/mini-viking/5.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/voxel-models/mini-viking/6.png" beforeDir="false" afterPath="$PROJECT_DIR$/public/voxel-models/mini-viking/6.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/compute-pass.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/compute-pass.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/create-3d-texture.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/create-3d-texture.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/fir-tree/0.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/fir-tree/1.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/fir-tree/10.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/fir-tree/11.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/fir-tree/12.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/fir-tree/13.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/fir-tree/14.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/fir-tree/15.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/fir-tree/16.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/fir-tree/17.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/fir-tree/2.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/fir-tree/3.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/fir-tree/4.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/fir-tree/5.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/fir-tree/6.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/fir-tree/7.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/fir-tree/8.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/fir-tree/9.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/mini-viking/0.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/mini-viking/1.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/mini-viking/2.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/mini-viking/3.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/mini-viking/4.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/mini-viking/5.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-models/mini-viking/6.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/shader/raymarch-voxels.wgsl" beforeDir="false" afterPath="$PROJECT_DIR$/src/shader/raymarch-voxels.wgsl" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/vxm-loader.js" beforeDir="false" afterPath="$PROJECT_DIR$/vxm-loader.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -155,7 +155,7 @@
       <workItem from="1701244928568" duration="924000" />
       <workItem from="1701245896022" duration="2946000" />
       <workItem from="1701635443059" duration="6639000" />
-      <workItem from="1701883191860" duration="4140000" />
+      <workItem from="1701883191860" duration="8400000" />
     </task>
     <servers />
   </component>

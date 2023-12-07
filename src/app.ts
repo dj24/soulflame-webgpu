@@ -5,7 +5,7 @@ import { Camera, moveCamera } from "./camera";
 import { DebugUI } from "./ui";
 import "./main.css";
 import { animate, spring } from "motion";
-import { mat4, Vec2, vec2, vec3 } from "wgpu-matrix";
+import { mat4, Vec2, vec2, Vec3, vec3 } from "wgpu-matrix";
 import { VoxelObject } from "./voxel-object";
 import treeModel from "./voxel-models/fir-tree.vxm";
 import miniViking from "./voxel-models/mini-viking.vxm";
@@ -21,13 +21,13 @@ const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
 
-const startingCameraPosition = vec3.create(120, 120, 120);
+const startingCameraPosition = vec3.create(80, 120, 80);
 const startingCameraDirection = vec3.normalize(vec3.create(-1, -1, -1));
 const startingCameraFieldOfView = 82.5;
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
-  position: vec3.create(120, 0, 120),
-  direction: vec3.normalize(vec3.create(-1, 0, -1)),
+  position: vec3.create(80, 480, 80),
+  direction: vec3.normalize(vec3.create(-1, -1, -1)),
 });
 
 const animateCameraToStartingPosition = () => {
@@ -63,9 +63,9 @@ const animateCameraToStartingPosition = () => {
     {
       easing: spring({
         restDistance: 0.0001,
-        damping: 40,
+        damping: 300,
         stiffness: 700,
-        mass: 2,
+        mass: 8,
       }),
     },
   );
@@ -242,16 +242,19 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
     const outputTextureView = createOutputTextureView();
 
     computePasses.forEach((computePass) => {
-      const chunkSize = 64;
+      const objectSize = miniViking.size as Vec3;
       let m = mat4.identity();
-      mat4.translate(m, [translateX, 0, 0], m);
-      mat4.translate(m, [chunkSize / 2, chunkSize / 2, chunkSize / 2], m);
+      mat4.translate(m, [translateX, 50, 0], m);
+      mat4.translate(m, vec3.divScalar(objectSize, 2), m);
       mat4.rotateY(m, performance.now() * 0.0001, m);
       mat4.scale(m, [scale, scale, scale], m);
-      mat4.translate(m, [-chunkSize / 2, -chunkSize / 2, -chunkSize / 2], m);
+      mat4.translate(m, vec3.divScalar(objectSize, -2), m);
       mat4.invert(m, m);
-      let voxelObject = new VoxelObject(m, [chunkSize, chunkSize, chunkSize]);
-      let voxelObject2 = new VoxelObject(mat4.identity(), [128, 48, 128]);
+      let voxelObject = new VoxelObject(m, objectSize);
+      let voxelObject2 = new VoxelObject(
+        mat4.translate(mat4.identity(), [128, 0, 129]),
+        [256, 48, 256],
+      );
       document.getElementById("matrix").innerHTML = (m as Float32Array).reduce(
         (acc: string, value: number) => {
           return `${acc}<span>${value.toFixed(1)}</span>`;

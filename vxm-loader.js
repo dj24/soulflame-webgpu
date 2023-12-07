@@ -269,9 +269,9 @@ module.exports = function (source, ...args) {
     }
   }
 
-  const width = bounds.max[0] - bounds.min[0];
-  const height = bounds.max[1] - bounds.min[1];
-  const depth = bounds.max[2] - bounds.min[2];
+  const width = bounds.max[0] - bounds.min[0] + 1;
+  const height = bounds.max[1] - bounds.min[1] + 1;
+  const depth = bounds.max[2] - bounds.min[2] + 1;
 
   const directoryPath = `public/voxel-models/${fileName.split(".vxm")[0]}`;
 
@@ -296,6 +296,7 @@ module.exports = function (source, ...args) {
   let sliceFilePaths = [];
 
   for (let slice = 0; slice < depth; slice++) {
+    console.log({ width, height });
     const png = new PNG({
       width,
       height,
@@ -304,12 +305,12 @@ module.exports = function (source, ...args) {
     for (const voxel of voxels) {
       let [x, y, z] = voxel.position;
       let [minX, minY, minZ] = bounds.min;
-      x -= minX;
-      y -= minY;
-      z -= minZ;
+      x -= minX - 1;
+      y -= minY - 1;
+      z -= minZ - 1;
 
       // y is inverted for some reason
-      y = height - y - 1;
+      y = height - y;
 
       if (z !== slice) {
         continue;
@@ -331,15 +332,16 @@ module.exports = function (source, ...args) {
     // Remove public from the path
     sliceFilePaths.push(pngFileName.split("public")[1]);
   }
-  console.timeEnd(timeLabel);
 
   const output = {
-    scale,
+    size: [width, height, depth],
     normalisedPivot,
     bounds,
     voxels,
     sliceFilePaths,
   };
+
+  console.timeEnd(timeLabel);
 
   return `module.exports = ${JSON.stringify(output)}`;
 };

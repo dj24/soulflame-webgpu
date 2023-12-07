@@ -14,13 +14,13 @@ export const create3dTexture = async (
   const texture = device.createTexture({
     size: { width, height, depthOrArrayLayers: depth },
     format: "rgba8unorm",
-    usage: GPUTextureUsage.COPY_DST,
+    usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+    dimension: "3d",
   });
   // TODO: figure out with all dimensions are + 1 bigger than they should be
   console.log({ size, paths });
   const commandEncoder = device.createCommandEncoder();
   for (let i = 0; i < depth; i++) {
-    // console.log({ path: paths[i] });
     const sliceTexture = await createTextureFromImage(device, paths[i]);
     const copyEncoder = device.createCommandEncoder();
     copyEncoder.copyTextureToTexture(
