@@ -296,7 +296,6 @@ module.exports = function (source, ...args) {
   let sliceFilePaths = [];
 
   for (let slice = 0; slice < depth; slice++) {
-    console.log({ width, height });
     const png = new PNG({
       width,
       height,
@@ -310,7 +309,7 @@ module.exports = function (source, ...args) {
       z -= minZ - 1;
 
       // y is inverted for some reason
-      y = height - y;
+      // y = height - y;
 
       if (z !== slice) {
         continue;
@@ -342,6 +341,7 @@ module.exports = function (source, ...args) {
   };
 
   console.timeEnd(timeLabel);
+  console.log(process.env.NODE_ENV);
 
   return `module.exports = ${JSON.stringify(output)}`;
 };

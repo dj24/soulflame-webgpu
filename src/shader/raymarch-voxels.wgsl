@@ -107,7 +107,7 @@ fn addBasicShading(baseColour: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
   let lightDirection = normalize(vec3(0.5, 1.0, 0.5));
   let cosTheta = max(dot(normal, lightDirection), 0.0);
   let lambertianReflectance = cosTheta * baseColour;
-  return lambertianReflectance;
+  return mix(baseColour,lambertianReflectance, 0.5);
 }
 
 fn addBoundsBorderColour(baseColour: vec3<f32>, worldPos: vec3<f32>, bounds: vec3<f32>) -> vec3<f32> {
@@ -214,11 +214,13 @@ fn main(
           worldPos = pos;
           break;
       }
-      let foo = sampleVoxelObject(currentIndex);
-      if(i == 0 && sampleVoxelObject(currentIndex)){
+      let foo = textureSampleLevel(voxels, voxelsSampler, vec3(currentIndex) / voxelObject.size, 0.0);
+      if(i == 0 && foo.a > 0.0){
           closestIntersection = tIntersection;
           normal = objectNormal;
-          colour = vec3(f32(i), 1.0 - f32(i), 0.0);
+//          colour = vec3(f32(i), 1.0 - f32(i), 0.0);
+          colour = foo.rgb;
+//          colour = vec3(currentIndex) / voxelObject.size;
           occlusion = true;
           worldPos = pos;
           break;

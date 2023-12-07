@@ -21,6 +21,8 @@ const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
 
+export let testTexture: GPUTexture;
+
 const startingCameraPosition = vec3.create(80, 120, 80);
 const startingCameraDirection = vec3.normalize(vec3.create(-1, -1, -1));
 const startingCameraFieldOfView = 82.5;
@@ -246,7 +248,7 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
       let m = mat4.identity();
       mat4.translate(m, [translateX, 50, 0], m);
       mat4.translate(m, vec3.divScalar(objectSize, 2), m);
-      mat4.rotateY(m, performance.now() * 0.0001, m);
+      mat4.rotateY(m, performance.now() * 0.001, m);
       mat4.scale(m, [scale, scale, scale], m);
       mat4.translate(m, vec3.divScalar(objectSize, -2), m);
       mat4.invert(m, m);

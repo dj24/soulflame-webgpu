@@ -1,5 +1,6 @@
 import { Vec3 } from "wgpu-matrix";
 import { createTextureFromImage } from "webgpu-utils";
+import { testTexture } from "./app";
 
 const ceilToNearestFactor = (value: number, factor: number) => {
   return Math.ceil(value / factor) * factor;
@@ -19,11 +20,16 @@ export const create3dTexture = async (
   });
   // TODO: figure out with all dimensions are + 1 bigger than they should be
   console.log({ size, paths });
+
   const commandEncoder = device.createCommandEncoder();
+
   for (let i = 0; i < depth; i++) {
-    const sliceTexture = await createTextureFromImage(device, paths[i]);
-    const copyEncoder = device.createCommandEncoder();
-    copyEncoder.copyTextureToTexture(
+    const sliceTexture = await createTextureFromImage(device, paths[i], {
+      usage: GPUTextureUsage.COPY_SRC,
+    });
+
+    console.log({ sliceTexture, texture });
+    commandEncoder.copyTextureToTexture(
       {
         texture: sliceTexture,
         mipLevel: 0, // Assuming mip level 0 for simplicity
