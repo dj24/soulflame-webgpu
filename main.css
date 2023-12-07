@@ -1,4 +1,10 @@
+/*!****************************************************************!*\
+  !*** css ./node_modules/css-loader/dist/cjs.js!./src/main.css ***!
+  \****************************************************************/
 @import url(https://fonts.googleapis.com/css2?family=Montserrat:wght@600&display=swap);
+/*!********************************************************************!*\
+  !*** css ./node_modules/css-loader/dist/cjs.js!./src/main.css (1) ***!
+  \********************************************************************/
 * {
     font-family: 'Montserrat', sans-serif;
     color: #fff;
