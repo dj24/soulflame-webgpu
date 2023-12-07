@@ -1,6 +1,7 @@
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const path = require("path");
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
+const CopyWebpackPlugin = require("copy-webpack-plugin");
 
 module.exports = {
   entry: "./src/app.ts",
@@ -8,6 +9,7 @@ module.exports = {
   output: {
     filename: "main.js",
     path: path.resolve(__dirname, "dist"),
+    publicPath: "/soulflame-webgpu",
   },
   resolve: {
     extensions: [".ts", ".js", ".json"],
@@ -46,6 +48,11 @@ module.exports = {
       template: "./index.html",
     }),
     new MiniCssExtractPlugin(),
+    new CopyWebpackPlugin({
+      patterns: [
+        { from: "public", to: "" }, // Copy everything from public to the root of dist
+      ],
+    }),
   ],
   experiments: {
     topLevelAwait: true, // Enable top-level await
