@@ -32,6 +32,8 @@ const debugUI = new DebugUI();
 let handleDownscaleChange: (event: CustomEvent) => void;
 
 const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
+  let normalTexture: GPUTexture;
+  let albedoTexture: GPUTexture;
   let outputTexture: GPUTexture;
   let animationFrameId: ReturnType<typeof requestAnimationFrame>;
   let fixedIntervalId: ReturnType<typeof setInterval>;
@@ -84,9 +86,41 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
     return outputTexture.createView();
   };
 
+  const createNormalTextureView = () => {
+    if (normalTexture) {
+      normalTexture.destroy();
+    }
+    normalTexture = device.createTexture({
+      size: [downscaledResolution[0], downscaledResolution[1], 1],
+      format: "rgba8unorm",
+      usage:
+        GPUTextureUsage.TEXTURE_BINDING |
+        GPUTextureUsage.RENDER_ATTACHMENT |
+        GPUTextureUsage.STORAGE_BINDING,
+    });
+    return normalTexture.createView();
+  };
+
+  const createAlbedoTextureView = () => {
+    if (albedoTexture) {
+      albedoTexture.destroy();
+    }
+    albedoTexture = device.createTexture({
+      size: [downscaledResolution[0], downscaledResolution[1], 1],
+      format: "rgba8unorm",
+      usage:
+        GPUTextureUsage.TEXTURE_BINDING |
+        GPUTextureUsage.RENDER_ATTACHMENT |
+        GPUTextureUsage.STORAGE_BINDING,
+    });
+    return albedoTexture.createView();
+  };
+
   const fixedUpdate = () => {
     computePasses.forEach(({ fixedUpdate }) => {
-      fixedUpdate();
+      if (fixedUpdate) {
+        fixedUpdate();
+      }
     });
   };
 
@@ -124,11 +158,17 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
     }
 
     const outputTextureView = createOutputTextureView();
+    const normalTextureView = createNormalTextureView();
+    const albedoTextureView = createAlbedoTextureView();
     computePasses.forEach(({ render }) => {
       render({
         commandEncoder,
         resolutionBuffer,
-        outputTextureView,
+        outputTextureViews: [
+          outputTextureView,
+          albedoTextureView,
+          normalTextureView,
+        ],
       });
     });
     device.queue.submit([commandEncoder.finish()]);

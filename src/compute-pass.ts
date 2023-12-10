@@ -15,10 +15,17 @@ import miniViking from "./voxel-models/mini-viking.vxm";
 import { getFrustumCornerDirections } from "./get-frustum-corner-directions";
 import { mat4, vec3, Vec3 } from "wgpu-matrix";
 
+// TODO: make this into more robust type, probably object
+type OutputTextureView = [
+  finalTexture: GPUTextureView,
+  albedoTextureView?: GPUTextureView,
+  normalTextureView?: GPUTextureView,
+];
+
 export type RenderArgs = {
   commandEncoder: GPUCommandEncoder;
   resolutionBuffer: GPUBuffer;
-  outputTextureView: GPUTextureView;
+  outputTextureViews: OutputTextureView;
 };
 
 export type ComputePass = {
@@ -75,7 +82,7 @@ export const createComputePass = async (
   const render = ({
     commandEncoder,
     resolutionBuffer,
-    outputTextureView,
+    outputTextureViews,
   }: RenderArgs) => {
     // 4 byte stride
     const flatMappedDirections = getFrustumCornerDirections(camera).flatMap(
@@ -109,7 +116,7 @@ export const createComputePass = async (
       entries: [
         {
           binding: 0,
-          resource: outputTextureView,
+          resource: outputTextureViews[0],
         },
         {
           binding: 2,
@@ -134,6 +141,14 @@ export const createComputePass = async (
           resource: {
             buffer: transformationMatrixBuffer,
           },
+        },
+        {
+          binding: 6,
+          resource: outputTextureViews[1],
+        },
+        {
+          binding: 7,
+          resource: outputTextureViews[2],
         },
       ],
     });
