@@ -1,78 +1,81 @@
 import blurWGSL from "./shader/raymarch-voxels.wgsl";
 import simpleSkyShader from "./shader/simple-sky.wgsl";
 import { createFloatUniformBuffer } from "./buffer-utils";
-import { camera, device, resolution } from "./app";
-import { Camera } from "./camera";
+import {
+  camera,
+  device,
+  resolution,
+  scale,
+  translateX,
+  voxelModelCount,
+} from "./app";
 import { VoxelObject } from "./voxel-object";
-import { vec3 } from "wgpu-matrix";
 import { create3dTexture } from "./create-3d-texture";
 import miniViking from "./voxel-models/mini-viking.vxm";
+import { getFrustumCornerDirections } from "./get-frustum-corner-directions";
+import { mat4, vec3, Vec3 } from "wgpu-matrix";
 
-const getFrustumCornerDirections = (camera: Camera) => {
-  const aspectRatio = resolution[0] / resolution[1];
-  const halfFov = camera.fieldOfView / 2;
-  const tanHalfFov = Math.tan(halfFov);
-  const right = vec3.normalize(
-    vec3.cross(vec3.create(0, 1, 0), camera.direction),
-  );
-  const up = vec3.normalize(vec3.cross(camera.direction, right));
-  const upwardDisplacement = vec3.mulScalar(up, tanHalfFov);
-
-  const topLeft = vec3.add(
-    vec3.add(camera.direction, upwardDisplacement),
-    vec3.mulScalar(right, -aspectRatio * tanHalfFov),
-  );
-  const topRight = vec3.add(
-    vec3.add(camera.direction, upwardDisplacement),
-    vec3.mulScalar(right, aspectRatio * tanHalfFov),
-  );
-  const bottomLeft = vec3.add(
-    vec3.subtract(camera.direction, upwardDisplacement),
-    vec3.mulScalar(right, -aspectRatio * tanHalfFov),
-  );
-  const bottomRight = vec3.add(
-    vec3.subtract(camera.direction, upwardDisplacement),
-    vec3.mulScalar(right, aspectRatio * tanHalfFov),
-  );
-  return [topLeft, topRight, bottomLeft, bottomRight];
-};
-
-type RenderArgs = {
+export type RenderArgs = {
   commandEncoder: GPUCommandEncoder;
   resolutionBuffer: GPUBuffer;
   outputTextureView: GPUTextureView;
-  voxelObjects: VoxelObject[];
 };
 
 export type ComputePass = {
-  start: () => void;
+  fixedUpdate?: () => void;
   render: (args: RenderArgs) => void;
 };
-export const createComputePass = (): ComputePass => {
-  let voxelTexture: GPUTexture;
-  let computePipeline: GPUComputePipeline;
-  const start = async () => {
-    computePipeline = device.createComputePipeline({
-      layout: "auto",
-      compute: {
-        module: device.createShaderModule({
-          code: `
-          ${simpleSkyShader}${blurWGSL}`,
-        }),
-        entryPoint: "main",
-      },
+
+export const createComputePass = async (
+  voxelModelCount: number,
+): Promise<ComputePass> => {
+  let voxelObjects: VoxelObject[] = [];
+  const computePipeline = device.createComputePipeline({
+    layout: "auto",
+    compute: {
+      module: device.createShaderModule({
+        code: `
+          ${simpleSkyShader}
+          const VOXEL_OBJECT_COUNT = ${voxelModelCount};
+          ${blurWGSL}`,
+      }),
+      entryPoint: "main",
+    },
+  });
+  const voxelTexture = await create3dTexture(
+    device,
+    miniViking.sliceFilePaths,
+    miniViking.size,
+  );
+  const fixedUpdate = () => {
+    const gap = 25;
+    voxelObjects = [...Array(voxelModelCount).keys()].map((index) => {
+      const objectSize = miniViking.size as Vec3;
+      let m = mat4.identity();
+      let x = (index % 8) * gap;
+      let z = Math.floor(index / 8) * gap;
+      mat4.translate(
+        m,
+        [
+          translateX + x,
+          (Math.sin(performance.now() * 0.001 + x * 0.02) * 0.5 + 0.5) * gap,
+          z,
+        ],
+        m,
+      );
+      mat4.translate(m, vec3.divScalar(objectSize, 2), m);
+      mat4.rotateY(m, performance.now() * 0.001, m);
+      mat4.scale(m, [scale, scale, scale], m);
+      mat4.translate(m, vec3.divScalar(objectSize, -2), m);
+      mat4.invert(m, m);
+      return new VoxelObject(m, objectSize);
     });
-    voxelTexture = await create3dTexture(
-      device,
-      miniViking.sliceFilePaths,
-      miniViking.size,
-    );
   };
+
   const render = ({
     commandEncoder,
     resolutionBuffer,
     outputTextureView,
-    voxelObjects,
   }: RenderArgs) => {
     // 4 byte stride
     const flatMappedDirections = getFrustumCornerDirections(camera).flatMap(
@@ -146,11 +149,11 @@ export const createComputePass = (): ComputePass => {
       entries: [
         {
           binding: 0,
-          resource: voxelTexture.createView(),
+          resource: pointSampler,
         },
         {
           binding: 1,
-          resource: pointSampler,
+          resource: voxelTexture.createView(),
         },
       ],
     });
@@ -164,5 +167,5 @@ export const createComputePass = (): ComputePass => {
     computePass.end();
   };
 
-  return { start, render };
+  return { render, fixedUpdate };
 };

@@ -5,12 +5,17 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2229b71a-dd5d-4a63-8f40-0a73278d8fb0" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/src/fullscreen-quad.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/get-frustum-corner-directions.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/interpolate-matrix.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/index.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/app.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/compute-pass.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/compute-pass.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/create-3d-texture.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/create-3d-texture.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/shader/raymarch-voxels.wgsl" beforeDir="false" afterPath="$PROJECT_DIR$/src/shader/raymarch-voxels.wgsl" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/vxm-loader.js" beforeDir="false" afterPath="$PROJECT_DIR$/vxm-loader.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/webpack.config.js" beforeDir="false" afterPath="$PROJECT_DIR$/webpack.config.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ui.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/ui.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/voxel-object.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/voxel-object.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -134,7 +139,7 @@
       <workItem from="1701244928568" duration="924000" />
       <workItem from="1701245896022" duration="2946000" />
       <workItem from="1701635443059" duration="6639000" />
-      <workItem from="1701883191860" duration="17214000" />
+      <workItem from="1701883191860" duration="26801000" />
     </task>
     <servers />
   </component>

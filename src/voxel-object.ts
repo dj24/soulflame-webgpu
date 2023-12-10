@@ -7,7 +7,6 @@ export class VoxelObject {
     this.transform = m;
     this.size = s;
   }
-
   toArray() {
     return [...this.transform, ...this.size, 0.0]; //padding for 4 byte stride
   }

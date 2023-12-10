@@ -1,14 +1,12 @@
-import fullscreenQuadShader from "./shader/fullscreentexturedquad.wgsl";
 import { createUniformBuffer, writeToUniformBuffer } from "./buffer-utils";
 import { ComputePass, createComputePass } from "./compute-pass";
 import { Camera, moveCamera } from "./camera";
 import { DebugUI } from "./ui";
 import "./main.css";
-import { animate, spring } from "motion";
-import { mat4, Vec2, vec2, Vec3, vec3 } from "wgpu-matrix";
-import { VoxelObject } from "./voxel-object";
+import { Vec2, vec2, vec3 } from "wgpu-matrix";
 import treeModel from "./voxel-models/fir-tree.vxm";
 import miniViking from "./voxel-models/mini-viking.vxm";
+import { fullscreenQuad } from "./fullscreen-quad";
 
 export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
@@ -20,11 +18,8 @@ export let translateX = 0;
 const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
+export const voxelModelCount = 72;
 
-export let testTexture: GPUTexture;
-
-const startingCameraPosition = vec3.create(80, 120, 80);
-const startingCameraDirection = vec3.normalize(vec3.create(-1, -1, -1));
 const startingCameraFieldOfView = 82.5;
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
@@ -32,81 +27,19 @@ export let camera = new Camera({
   direction: vec3.normalize(vec3.create(-1, -1, -1)),
 });
 
-const animateCameraToStartingPosition = () => {
-  const targetPosition = startingCameraPosition;
-  const startPosition = camera.position;
-  const targetDirection = startingCameraDirection;
-  const startDirection = camera.direction;
-  const targetFieldOfView = startingCameraFieldOfView;
-  const startFieldOfView = camera.fieldOfView;
-  const startScale = scale;
-  const startTranslateX = translateX;
-  const targetScale = 1;
-  const targetTranslateX = 0;
-  animate(
-    (progress: number) => {
-      camera.position = vec3.add(
-        startPosition,
-        vec3.mulScalar(vec3.subtract(targetPosition, startPosition), progress),
-      );
-      camera.direction = vec3.add(
-        startDirection,
-        vec3.mulScalar(
-          vec3.subtract(targetDirection, startDirection),
-          progress,
-        ),
-      );
-      camera.fieldOfView =
-        startFieldOfView + (targetFieldOfView - startFieldOfView) * progress;
-      scale = startScale + (targetScale - startScale) * progress;
-      translateX =
-        startTranslateX + (targetTranslateX - startTranslateX) * progress;
-    },
-    {
-      easing: spring({
-        restDistance: 0.0001,
-        damping: 300,
-        stiffness: 700,
-        mass: 8,
-      }),
-    },
-  );
-};
-
-animateCameraToStartingPosition();
-
-window.addEventListener("resetcamera", animateCameraToStartingPosition);
-
 const debugUI = new DebugUI();
 
 let handleDownscaleChange: (event: CustomEvent) => void;
 
-let handleFovChange = (event: CustomEvent) => {
-  camera.fieldOfView = parseFloat(event.detail);
-};
-window.addEventListener("changefov", handleFovChange);
-
-const handleTranslateChange = (event: CustomEvent) => {
-  translateX = parseFloat(event.detail);
-};
-
-window.addEventListener("changetranslate", handleTranslateChange);
-
-const handleScaleChange = (event: CustomEvent) => {
-  scale = parseFloat(event.detail);
-};
-window.addEventListener("changescale", handleScaleChange);
-
 const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
-  let bindGroup;
   let outputTexture: GPUTexture;
   let animationFrameId: ReturnType<typeof requestAnimationFrame>;
+  let fixedIntervalId: ReturnType<typeof setInterval>;
   let timeBuffer: GPUBuffer;
   let resolutionBuffer: GPUBuffer;
   let downscaledResolution: Vec2;
 
   canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
-
   gpuContext = canvas.getContext("webgpu");
   const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
   gpuContext.configure({
@@ -114,27 +47,14 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
     format: presentationFormat,
     usage: GPUTextureUsage.RENDER_ATTACHMENT,
   });
-  const fullscreenQuadShaderModule = device.createShaderModule({
-    code: fullscreenQuadShader,
-  });
-  const renderPipeline = device.createRenderPipeline({
-    layout: "auto",
-    vertex: {
-      module: fullscreenQuadShaderModule,
-      entryPoint: "vertex_main",
-    },
-    fragment: {
-      module: fullscreenQuadShaderModule,
-      entryPoint: "fragment_main",
-      targets: [{ format: presentationFormat }],
-    },
-  });
 
   const reset = () => {
+    clearInterval(fixedIntervalId);
     cancelAnimationFrame(animationFrameId);
-    start();
+    init();
   };
-  const start = () => {
+
+  const init = () => {
     const { clientWidth, clientHeight } = canvas.parentElement;
     let pixelRatio = Math.min(window.devicePixelRatio, 1.5);
     resolution = vec2.create(
@@ -145,52 +65,8 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
     canvas.width = resolution[0];
     canvas.height = resolution[1];
     canvas.style.transform = `scale(${1 / pixelRatio})`;
-
-    computePasses.forEach((computePass) => {
-      computePass.start();
-    });
-
     animationFrameId = requestAnimationFrame(frame);
-  };
-
-  const fullscreenQuad = ({
-    commandEncoder,
-    outputTextureView,
-  }: {
-    commandEncoder: GPUCommandEncoder;
-    outputTextureView: GPUTextureView;
-  }) => {
-    const renderPass = commandEncoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view: gpuContext.getCurrentTexture().createView(),
-          loadOp: "clear",
-          clearValue: [0.3, 0.3, 0.3, 1],
-          storeOp: "store",
-        },
-      ],
-    });
-
-    bindGroup = device.createBindGroup({
-      layout: renderPipeline.getBindGroupLayout(0),
-      entries: [
-        {
-          binding: 0,
-          resource: device.createSampler({
-            magFilter: "linear",
-            minFilter: "linear",
-          }),
-        },
-        {
-          binding: 1,
-          resource: outputTextureView,
-        },
-      ],
-    });
-    renderPass.setPipeline(renderPipeline);
-    renderPass.setBindGroup(0, bindGroup);
-    renderPass.draw(6);
-    renderPass.end();
+    fixedIntervalId = setInterval(fixedUpdate, 1000 / 60);
   };
 
   const createOutputTextureView = () => {
@@ -207,11 +83,17 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
     });
     return outputTexture.createView();
   };
+
+  const fixedUpdate = () => {
+    computePasses.forEach(({ fixedUpdate }) => {
+      fixedUpdate();
+    });
+  };
+
   const frame = async () => {
     const newElapsedTime = performance.now() - startTime;
     deltaTime = newElapsedTime - elapsedTime;
     elapsedTime = newElapsedTime;
-
     moveCamera();
     camera.update();
     debugUI.log(`Position: ${camera.position[0].toFixed(
@@ -242,36 +124,13 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
     }
 
     const outputTextureView = createOutputTextureView();
-
-    computePasses.forEach((computePass) => {
-      const objectSize = miniViking.size as Vec3;
-      let m = mat4.identity();
-      mat4.translate(m, [translateX, 50, 0], m);
-      mat4.translate(m, vec3.divScalar(objectSize, 2), m);
-      mat4.rotateY(m, performance.now() * 0.001, m);
-      mat4.scale(m, [scale, scale, scale], m);
-      mat4.translate(m, vec3.divScalar(objectSize, -2), m);
-      mat4.invert(m, m);
-      let voxelObject = new VoxelObject(m, objectSize);
-      let voxelObject2 = new VoxelObject(
-        mat4.translate(mat4.identity(), [128, 0, 129]),
-        [256, 48, 256],
-      );
-      document.getElementById("matrix").innerHTML = (m as Float32Array).reduce(
-        (acc: string, value: number) => {
-          return `${acc}<span>${value.toFixed(1)}</span>`;
-        },
-        "",
-      );
-      computePass.render({
+    computePasses.forEach(({ render }) => {
+      render({
         commandEncoder,
         resolutionBuffer,
         outputTextureView,
-        voxelObjects: [voxelObject, voxelObject2],
       });
     });
-
-    fullscreenQuad({ commandEncoder, outputTextureView });
     device.queue.submit([commandEncoder.finish()]);
     animationFrameId = requestAnimationFrame(frame);
   };
@@ -287,12 +146,13 @@ const renderLoop = (device: GPUDevice, computePasses: ComputePass[]) => {
 
 if (navigator.gpu !== undefined) {
   navigator.gpu.requestAdapter().then((adapter) => {
-    adapter.requestDevice().then((newDevice) => {
+    adapter.requestDevice().then(async (newDevice) => {
       device = newDevice;
       console.log(device.limits);
       console.log({ treeModel, miniViking });
-      const computePass = createComputePass();
-      renderLoop(device, [computePass]);
+      const computePass = await createComputePass(voxelModelCount);
+      const fullscreenQuadPass = fullscreenQuad(device);
+      renderLoop(device, [computePass, fullscreenQuadPass]);
     });
   });
 } else {
