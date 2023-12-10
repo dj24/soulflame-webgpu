@@ -331,7 +331,12 @@ module.exports = function (source, ...args) {
     const stream = fs.createWriteStream(pngFileName);
     png.pack().pipe(stream);
     // Remove public from the path
-    sliceFilePaths.push(pngFileName.replace("public", "soulflame-webgpu"));
+    sliceFilePaths.push(
+      pngFileName.replace(
+        "public",
+        isProductionMode ? "https://dj24.github.io/soulflame-webgpu" : "",
+      ),
+    );
   }
 
   const output = {
@@ -342,6 +347,7 @@ module.exports = function (source, ...args) {
     sliceFilePaths,
   };
 
+  console.log(output.sliceFilePaths);
   console.timeEnd(timeLabel);
 
   return `module.exports = ${JSON.stringify(output)}`;
