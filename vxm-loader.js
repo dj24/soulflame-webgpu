@@ -273,7 +273,11 @@ module.exports = function (source, ...args) {
   const height = bounds.max[1] - bounds.min[1] + 1;
   const depth = bounds.max[2] - bounds.min[2] + 1;
 
-  const directoryPath = `public/voxel-models/${fileName.split(".vxm")[0]}`;
+  const isProductionMode = process.argv.includes("--mode=production");
+
+  const directoryPath = isProductionMode
+    ? `/soulflame-webgu/voxel-models/${fileName.split(".vxm")[0]}`
+    : `public/voxel-models/${fileName.split(".vxm")[0]}`;
 
   // Check if the directory exists
   if (fs.existsSync(directoryPath)) {
@@ -341,7 +345,6 @@ module.exports = function (source, ...args) {
   };
 
   console.timeEnd(timeLabel);
-  console.log(process.env.NODE_ENV);
 
   return `module.exports = ${JSON.stringify(output)}`;
 };

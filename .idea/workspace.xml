@@ -5,12 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2229b71a-dd5d-4a63-8f40-0a73278d8fb0" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/compute-pass.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/compute-pass.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/fullscreen-quad.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/fullscreen-quad.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/shader/fullscreentexturedquad.wgsl" beforeDir="false" afterPath="$PROJECT_DIR$/src/shader/fullscreentexturedquad.wgsl" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/shader/raymarch-voxels.wgsl" beforeDir="false" afterPath="$PROJECT_DIR$/src/shader/raymarch-voxels.wgsl" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/vxm-loader.js" beforeDir="false" afterPath="$PROJECT_DIR$/vxm-loader.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -134,7 +129,7 @@
       <workItem from="1701244928568" duration="924000" />
       <workItem from="1701245896022" duration="2946000" />
       <workItem from="1701635443059" duration="6639000" />
-      <workItem from="1701883191860" duration="29356000" />
+      <workItem from="1701883191860" duration="29708000" />
     </task>
     <servers />
   </component>
