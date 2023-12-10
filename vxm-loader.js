@@ -275,9 +275,7 @@ module.exports = function (source, ...args) {
 
   const isProductionMode = process.argv.includes("--mode=production");
 
-  const directoryPath = isProductionMode
-    ? `/soulflame-webgu/voxel-models/${fileName.split(".vxm")[0]}`
-    : `public/voxel-models/${fileName.split(".vxm")[0]}`;
+  const directoryPath = `public/voxel-models/${fileName.split(".vxm")[0]}`;
 
   // Check if the directory exists
   if (fs.existsSync(directoryPath)) {
@@ -333,7 +331,7 @@ module.exports = function (source, ...args) {
     const stream = fs.createWriteStream(pngFileName);
     png.pack().pipe(stream);
     // Remove public from the path
-    sliceFilePaths.push(pngFileName.split("public")[1]);
+    sliceFilePaths.push(pngFileName.replace("public", "soulflame-webgpu"));
   }
 
   const output = {
