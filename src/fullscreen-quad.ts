@@ -1,6 +1,6 @@
 import { gpuContext } from "./app";
 import fullscreenQuadShader from "./shader/fullscreentexturedquad.wgsl";
-import { RenderArgs } from "./compute-pass";
+import { RenderArgs } from "./get-g-buffer-pass";
 
 export const fullscreenQuad = (device: GPUDevice) => {
   const fullscreenQuadShaderModule = device.createShaderModule({
@@ -51,6 +51,10 @@ export const fullscreenQuad = (device: GPUDevice) => {
         {
           binding: 3,
           resource: args.outputTextureViews[2],
+        },
+        {
+          binding: 4,
+          resource: args.outputTextureViews[3],
         },
       ],
     });

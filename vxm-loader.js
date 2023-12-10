@@ -22,7 +22,11 @@ const isNullCharacter = (byte) => {
 
 // Version of vxm file must be >= 11
 module.exports = function (source, ...args) {
-  const fileNameParts = this.resourcePath.split("/");
+  let fileNameParts = this.resourcePath.split("/");
+  // Windows fix
+  if (fileNameParts.length < 2) {
+    fileNameParts = this.resourcePath.split("\\");
+  }
   const fileName = fileNameParts[fileNameParts.length - 1];
   const timeLabel = coloredText(`imported ${fileName} in`, "magenta");
   console.time(timeLabel);
@@ -330,13 +334,18 @@ module.exports = function (source, ...args) {
     const pngFileName = `${directoryPath}/${slice}.png`;
     const stream = fs.createWriteStream(pngFileName);
     png.pack().pipe(stream);
+
     // Remove public from the path
-    sliceFilePaths.push(
-      pngFileName.replace(
-        "public",
-        isProductionMode ? "https://dj24.github.io/soulflame-webgpu" : "",
-      ),
-    );
+    if (isProductionMode) {
+      sliceFilePaths.push(
+        pngFileName.replace(
+          "public",
+          "https://dj24.github.io/soulflame-webgpu",
+        ),
+      );
+    } else {
+      sliceFilePaths.push(pngFileName.split("public")[1]);
+    }
   }
 
   const output = {
@@ -347,7 +356,6 @@ module.exports = function (source, ...args) {
     sliceFilePaths,
   };
 
-  console.log(output.sliceFilePaths);
   console.timeEnd(timeLabel);
 
   return `module.exports = ${JSON.stringify(output)}`;

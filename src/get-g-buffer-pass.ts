@@ -1,17 +1,14 @@
 import blurWGSL from "./shader/raymarch-voxels.wgsl";
 import simpleSkyShader from "./shader/simple-sky.wgsl";
 import { createFloatUniformBuffer } from "./buffer-utils";
-import {
-  camera,
-  device,
-  resolution,
-  scale,
-  translateX,
-  voxelModelCount,
-} from "./app";
+import { camera, device, resolution, scale, translateX } from "./app";
 import { VoxelObject } from "./voxel-object";
 import { create3dTexture } from "./create-3d-texture";
 import miniViking from "./voxel-models/mini-viking.vxm";
+import firTree from "./voxel-models/fir-tree.vxm";
+import vikingBoat from "./voxel-models/viking-boat.vxm";
+import building from "./voxel-models/building.vxm";
+import tower from "./voxel-models/tower.vxm";
 import { getFrustumCornerDirections } from "./get-frustum-corner-directions";
 import { mat4, vec3, Vec3 } from "wgpu-matrix";
 
@@ -20,6 +17,7 @@ type OutputTextureView = [
   finalTexture: GPUTextureView,
   albedoTextureView?: GPUTextureView,
   normalTextureView?: GPUTextureView,
+  depthTextureView?: GPUTextureView,
 ];
 
 export type RenderArgs = {
@@ -28,14 +26,14 @@ export type RenderArgs = {
   outputTextureViews: OutputTextureView;
 };
 
-export type ComputePass = {
+export type RenderPass = {
   fixedUpdate?: () => void;
   render: (args: RenderArgs) => void;
 };
 
-export const createComputePass = async (
+export const getGBufferPass = async (
   voxelModelCount: number,
-): Promise<ComputePass> => {
+): Promise<RenderPass> => {
   let voxelObjects: VoxelObject[] = [];
   const computePipeline = device.createComputePipeline({
     layout: "auto",
@@ -51,25 +49,22 @@ export const createComputePass = async (
   });
   const voxelTexture = await create3dTexture(
     device,
-    miniViking.sliceFilePaths,
-    miniViking.size,
+    tower.sliceFilePaths,
+    tower.size,
   );
   const fixedUpdate = () => {
-    const gap = 25;
+    const objectSize = tower.size as Vec3;
+    const spaceBetweenObjects = 2;
+    const gapX = objectSize[0] + spaceBetweenObjects;
+    const gapZ = objectSize[2] + spaceBetweenObjects;
+    const rows = 24;
     voxelObjects = [...Array(voxelModelCount).keys()].map((index) => {
-      const objectSize = miniViking.size as Vec3;
       let m = mat4.identity();
-      let x = (index % 8) * gap;
-      let z = Math.floor(index / 8) * gap;
-      mat4.translate(
-        m,
-        [
-          translateX + x,
-          (Math.sin(performance.now() * 0.001 + x * 0.02) * 0.5 + 0.5) * gap,
-          z,
-        ],
-        m,
-      );
+      let x = (index % rows) * gapX;
+      let y = (Math.sin(performance.now() * 0.001 + x * 0.02) * 0.5 + 0.5) * 20;
+      y = 0;
+      let z = Math.floor(index / rows) * gapZ;
+      mat4.translate(m, [translateX + x, y, z], m);
       mat4.translate(m, vec3.divScalar(objectSize, 2), m);
       mat4.rotateY(m, performance.now() * 0.001, m);
       mat4.scale(m, [scale, scale, scale], m);
@@ -77,6 +72,16 @@ export const createComputePass = async (
       mat4.invert(m, m);
       return new VoxelObject(m, objectSize);
     });
+    // const objectsToDisplay = Math.floor(
+    //   (Math.sin(performance.now() * 0.0005) * 0.5 + 0.5) * voxelModelCount,
+    // );
+    // const activeVoxelObjects = voxelObjects.filter(
+    //   (voxelObject, index) => index < objectsToDisplay,
+    // );
+    // const bufferPadding = [
+    //   ...Array(voxelModelCount - objectsToDisplay).keys(),
+    // ].map(() => new VoxelObject(mat4.identity(), [0, 0, 0]));
+    // voxelObjects = [...activeVoxelObjects, ...bufferPadding];
   };
 
   const render = ({
