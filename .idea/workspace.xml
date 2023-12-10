@@ -5,20 +5,18 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2229b71a-dd5d-4a63-8f40-0a73278d8fb0" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/src/get-depth-prepass.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/shader/raymarch-voxels-depth.wgsl" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/voxel-models/building.vxm" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/voxel-models/tower.vxm" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/voxel-models/viking-boat.vxm" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/depth-prepass/conservative-depth-min.wgsl" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/index.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/app.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/compute-pass.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/get-g-buffer-pass.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/fullscreen-quad.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/fullscreen-quad.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/shader/fullscreentexturedquad.wgsl" beforeDir="false" afterPath="$PROJECT_DIR$/src/shader/fullscreentexturedquad.wgsl" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/shader/raymarch-voxels.wgsl" beforeDir="false" afterPath="$PROJECT_DIR$/src/shader/raymarch-voxels.wgsl" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/fullscreen-quad.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/fullscreen-quad/fullscreen-quad.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/get-depth-prepass.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/depth-prepass/get-depth-prepass.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/get-g-buffer-pass.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/g-buffer/get-g-buffer-pass.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/shader/fullscreentexturedquad.wgsl" beforeDir="false" afterPath="$PROJECT_DIR$/src/fullscreen-quad/fullscreentexturedquad.wgsl" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/shader/raymarch-voxels-depth.wgsl" beforeDir="false" afterPath="$PROJECT_DIR$/src/depth-prepass/raymarch-voxels-depth.wgsl" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/shader/raymarch-voxels.wgsl" beforeDir="false" afterPath="$PROJECT_DIR$/src/g-buffer/raymarch-voxels.wgsl" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/shader/simple-sky.wgsl" beforeDir="false" afterPath="$PROJECT_DIR$/src/composite/simple-sky.wgsl" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/ui.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/ui.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/vxm-loader.js" beforeDir="false" afterPath="$PROJECT_DIR$/vxm-loader.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -49,7 +47,7 @@
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "WebServerToolWindowFactoryState": "false",
     "git-widget-placeholder": "main",
-    "last_opened_file_path": "C:/Code/soulflame-webgpu/src/shader",
+    "last_opened_file_path": "C:/Code/soulflame-webgpu/src/depth-prepass",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -63,12 +61,16 @@
 }]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Code\soulflame-webgpu\src\depth-prepass" />
       <recent name="C:\Code\soulflame-webgpu\src\shader" />
       <recent name="C:\Code\soulflame-webgpu\src" />
       <recent name="C:\Code\soulflame-webgpu\src\voxel-models" />
       <recent name="C:\Code\soulflame-webgpu\public" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Code\soulflame-webgpu\src\fullscreen-quad" />
+      <recent name="C:\Code\soulflame-webgpu\src\g-buffer" />
+      <recent name="C:\Code\soulflame-webgpu\src\depth-prepass" />
       <recent name="C:\Code\soulflame-webgpu\src" />
       <recent name="C:\Code\soulflame-webgpu\src\shader" />
     </key>
@@ -93,10 +95,22 @@
       <workItem from="1701245896022" duration="2946000" />
       <workItem from="1701635443059" duration="6639000" />
       <workItem from="1702216307156" duration="8609000" />
+      <workItem from="1702234919268" duration="9332000" />
     </task>
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
   </component>
 </project>

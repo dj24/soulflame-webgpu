@@ -1,15 +1,23 @@
-import blurWGSL from "./shader/raymarch-voxels.wgsl";
-import simpleSkyShader from "./shader/simple-sky.wgsl";
-import { createFloatUniformBuffer } from "./buffer-utils";
-import { camera, device, resolution, scale, translateX } from "./app";
-import { VoxelObject } from "./voxel-object";
-import { create3dTexture } from "./create-3d-texture";
-import miniViking from "./voxel-models/mini-viking.vxm";
-import firTree from "./voxel-models/fir-tree.vxm";
-import vikingBoat from "./voxel-models/viking-boat.vxm";
-import building from "./voxel-models/building.vxm";
-import tower from "./voxel-models/tower.vxm";
-import { getFrustumCornerDirections } from "./get-frustum-corner-directions";
+import blurWGSL from "./raymarch-voxels.wgsl";
+import simpleSkyShader from "../composite/simple-sky.wgsl";
+import { createFloatUniformBuffer } from "../buffer-utils";
+import {
+  camera,
+  device,
+  maxObjectCount,
+  objectCount,
+  resolution,
+  scale,
+  translateX,
+} from "../app";
+import { VoxelObject } from "../voxel-object";
+import { create3dTexture } from "../create-3d-texture";
+import miniViking from "../voxel-models/mini-viking.vxm";
+import firTree from "../voxel-models/fir-tree.vxm";
+import vikingBoat from "../voxel-models/viking-boat.vxm";
+import building from "../voxel-models/building.vxm";
+import tower from "../voxel-models/tower.vxm";
+import { getFrustumCornerDirections } from "../get-frustum-corner-directions";
 import { mat4, vec3, Vec3 } from "wgpu-matrix";
 
 // TODO: make this into more robust type, probably object
@@ -31,9 +39,7 @@ export type RenderPass = {
   render: (args: RenderArgs) => void;
 };
 
-export const getGBufferPass = async (
-  voxelModelCount: number,
-): Promise<RenderPass> => {
+export const getGBufferPass = async (): Promise<RenderPass> => {
   let voxelObjects: VoxelObject[] = [];
   const computePipeline = device.createComputePipeline({
     layout: "auto",
@@ -41,7 +47,7 @@ export const getGBufferPass = async (
       module: device.createShaderModule({
         code: `
           ${simpleSkyShader}
-          const VOXEL_OBJECT_COUNT = ${voxelModelCount};
+          const VOXEL_OBJECT_COUNT = ${objectCount};
           ${blurWGSL}`,
       }),
       entryPoint: "main",
@@ -52,13 +58,18 @@ export const getGBufferPass = async (
     tower.sliceFilePaths,
     tower.size,
   );
-  const fixedUpdate = () => {
+
+  const render = ({
+    commandEncoder,
+    resolutionBuffer,
+    outputTextureViews,
+  }: RenderArgs) => {
     const objectSize = tower.size as Vec3;
     const spaceBetweenObjects = 2;
     const gapX = objectSize[0] + spaceBetweenObjects;
     const gapZ = objectSize[2] + spaceBetweenObjects;
     const rows = 24;
-    voxelObjects = [...Array(voxelModelCount).keys()].map((index) => {
+    voxelObjects = [...Array(maxObjectCount).keys()].map((index) => {
       let m = mat4.identity();
       let x = (index % rows) * gapX;
       let y = (Math.sin(performance.now() * 0.001 + x * 0.02) * 0.5 + 0.5) * 20;
@@ -72,23 +83,14 @@ export const getGBufferPass = async (
       mat4.invert(m, m);
       return new VoxelObject(m, objectSize);
     });
-    // const objectsToDisplay = Math.floor(
-    //   (Math.sin(performance.now() * 0.0005) * 0.5 + 0.5) * voxelModelCount,
-    // );
-    // const activeVoxelObjects = voxelObjects.filter(
-    //   (voxelObject, index) => index < objectsToDisplay,
-    // );
-    // const bufferPadding = [
-    //   ...Array(voxelModelCount - objectsToDisplay).keys(),
-    // ].map(() => new VoxelObject(mat4.identity(), [0, 0, 0]));
-    // voxelObjects = [...activeVoxelObjects, ...bufferPadding];
-  };
+    const activeVoxelObjects = voxelObjects.filter(
+      (voxelObject, index) => index < objectCount,
+    );
+    const bufferPadding = [...Array(maxObjectCount - objectCount).keys()].map(
+      () => new VoxelObject(mat4.identity(), [0, 0, 0]),
+    );
+    voxelObjects = [...activeVoxelObjects, ...bufferPadding];
 
-  const render = ({
-    commandEncoder,
-    resolutionBuffer,
-    outputTextureViews,
-  }: RenderArgs) => {
     // 4 byte stride
     const flatMappedDirections = getFrustumCornerDirections(camera).flatMap(
       (direction) => [...direction, 0],
@@ -155,6 +157,10 @@ export const getGBufferPass = async (
           binding: 7,
           resource: outputTextureViews[2],
         },
+        {
+          binding: 8,
+          resource: outputTextureViews[3],
+        },
       ],
     });
 
@@ -187,5 +193,5 @@ export const getGBufferPass = async (
     computePass.end();
   };
 
-  return { render, fixedUpdate };
+  return { render };
 };

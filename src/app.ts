@@ -1,13 +1,13 @@
 import { createUniformBuffer, writeToUniformBuffer } from "./buffer-utils";
-import { RenderPass, getGBufferPass } from "./get-g-buffer-pass";
+import { RenderPass, getGBufferPass } from "./g-buffer/get-g-buffer-pass";
 import { Camera, moveCamera } from "./camera";
 import { DebugUI } from "./ui";
 import "./main.css";
 import { Vec2, vec2, vec3 } from "wgpu-matrix";
 import treeModel from "./voxel-models/fir-tree.vxm";
 import miniViking from "./voxel-models/mini-viking.vxm";
-import { fullscreenQuad } from "./fullscreen-quad";
-import { getDepthPrepass } from "./get-depth-prepass";
+import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
+import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
 
 export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
@@ -15,11 +15,12 @@ export let canvas: HTMLCanvasElement;
 export let resolution = vec2.zero();
 let downscale = 1;
 export let scale = 1;
+export const maxObjectCount = 768;
+export let objectCount = 512;
 export let translateX = 0;
 const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
-export const voxelModelCount = 512;
 
 const startingCameraFieldOfView = 82.5;
 export let camera = new Camera({
@@ -151,6 +152,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     )}, ${camera.position[1].toFixed(0)}, ${camera.position[2].toFixed(0)}
     Resolution: ${resolution[0].toFixed(0)}x${resolution[1].toFixed(0)}
     FPS: ${(1000 / deltaTime).toFixed(1)}
+    Object Count: ${objectCount}
     `);
 
     const commandEncoder = device.createCommandEncoder();
@@ -200,10 +202,11 @@ if (navigator.gpu !== undefined) {
       device = newDevice;
       console.log(device.limits);
       console.log({ treeModel, miniViking });
-      const computePass = await getGBufferPass(voxelModelCount);
-      const fullscreenQuadPass = fullscreenQuad(device);
-      const depthPrepass = await getDepthPrepass(voxelModelCount);
-      renderLoop(device, [depthPrepass, computePass, fullscreenQuadPass]);
+      renderLoop(device, [
+        // await getDepthPrepass(),
+        await getGBufferPass(),
+        fullscreenQuad(device),
+      ]);
     });
   });
 } else {

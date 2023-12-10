@@ -1,4 +1,4 @@
-import { camera, canvas, scale, translateX } from "./app";
+import { camera, canvas, scale, translateX, objectCount } from "./app";
 import { animate, spring } from "motion";
 import { vec3 } from "wgpu-matrix";
 
@@ -68,7 +68,7 @@ export class DebugUI {
         console.log(event.target);
       });
     });
-    ["downscale", "fov", "scale", "translate"].forEach((id) => {
+    ["downscale", "fov", "scale", "translate", "objectcount"].forEach((id) => {
       document.getElementById(id).addEventListener("input", (event) => {
         const input = event.target as HTMLInputElement;
         window.dispatchEvent(
@@ -95,6 +95,12 @@ export class DebugUI {
     window.addEventListener("changescale", handleScaleChange);
     animateCameraToStartingPosition();
     window.addEventListener("resetcamera", animateCameraToStartingPosition);
+    const handleObjectCountChange = (event: CustomEvent) => {
+      // @ts-ignore
+      objectCount = parseFloat(event.detail);
+      console.log(objectCount);
+    };
+    window.addEventListener("changeobjectcount", handleObjectCountChange);
   }
 
   log(text: string) {
