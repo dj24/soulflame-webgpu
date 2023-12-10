@@ -14,7 +14,6 @@ export class MoveableObject {
   }
 
   update() {
-    camera.velocity = vec3.mulScalar(camera.velocity, 1 - deltaTime * 0.015);
     this.position = vec3.add(
       this.position,
       vec3.mulScalar(this.velocity, deltaTime),

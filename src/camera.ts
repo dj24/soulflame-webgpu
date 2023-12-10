@@ -53,7 +53,7 @@ export const moveCamera = () => {
   if (!document.hasFocus()) {
     return;
   }
-  const speed = 0.01;
+  const speed = 1.0;
   let direction = vec3.zero();
   if (keyboardControls.pressed.a) {
     direction = vec3.add(direction, camera.left);
@@ -74,5 +74,5 @@ export const moveCamera = () => {
     direction = vec3.add(direction, camera.down);
   }
   direction = vec3.normalize(direction);
-  camera.velocity = vec3.add(camera.velocity, vec3.mulScalar(direction, speed));
+  camera.velocity = vec3.mulScalar(direction, speed);
 };
