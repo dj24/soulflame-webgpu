@@ -19,6 +19,7 @@ import building from "../voxel-models/building.vxm";
 import tower from "../voxel-models/tower.vxm";
 import { getFrustumCornerDirections } from "../get-frustum-corner-directions";
 import { mat4, vec3, Vec3 } from "wgpu-matrix";
+import { isInsideFrustum } from "../is-inside-frustum";
 
 // TODO: make this into more robust type, probably object
 type OutputTextureView = [
@@ -75,20 +76,40 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       let y = (Math.sin(performance.now() * 0.001 + x * 0.02) * 0.5 + 0.5) * 20;
       y = 0;
       let z = Math.floor(index / rows) * gapZ;
+      let height =
+        Math.sin(performance.now() * 0.0005 + x * 0.008 + z * 0.016) * 0.5 +
+        0.5;
+      height = Math.max(height, 0.01);
       mat4.translate(m, [translateX + x, y, z], m);
       mat4.translate(m, vec3.divScalar(objectSize, 2), m);
       //mat4.rotateY(m, performance.now() * 0.001, m);
-      mat4.scale(m, [scale, scale, scale], m);
+      mat4.scale(m, [scale, height, scale], m);
       mat4.translate(m, vec3.divScalar(objectSize, -2), m);
       mat4.invert(m, m);
       return new VoxelObject(m, objectSize);
     });
-    const activeVoxelObjects = voxelObjects.filter(
-      (voxelObject, index) => index < objectCount,
-    );
-    const bufferPadding = [...Array(maxObjectCount - objectCount).keys()].map(
-      () => new VoxelObject(mat4.identity(), [0, 0, 0]),
-    );
+    // sort by distance to the camera
+    voxelObjects = voxelObjects.sort((a, b) => {
+      const aDistance = vec3.distance(a.worldSpaceCenter, camera.position);
+      const bDistance = vec3.distance(b.worldSpaceCenter, camera.position);
+      return bDistance - aDistance;
+    });
+
+    let activeVoxelObjects = voxelObjects;
+
+    // activeVoxelObjects = voxelObjects.filter(
+    //   (voxelObject, index) =>
+    //     !isInsideFrustum({
+    //       viewProjectionMatrix: camera.viewProjectionMatrix,
+    //       voxelObject,
+    //     }),
+    // );
+
+    activeVoxelObjects = activeVoxelObjects.slice(0, objectCount);
+
+    const bufferPadding = [
+      ...Array(maxObjectCount - activeVoxelObjects.length).keys(),
+    ].map(() => new VoxelObject(mat4.identity(), [0, 0, 0]));
     voxelObjects = [...activeVoxelObjects, ...bufferPadding];
 
     // 4 byte stride

@@ -175,6 +175,13 @@ fn main(
     let objectRayDirection = (voxelObject.transform * vec4<f32>(rayDirection, 0.0)).xyz;
     let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
     tNear = intersect.tNear;
+
+    // bounding box is further away than the closest intersection, so we can skip this object
+    let isInsideAlreadyMarchedVoxel = tNear > closestIntersection + EPSILON;
+    if(isInsideAlreadyMarchedVoxel){
+        continue;
+    }
+
     let boundingBoxSurfacePosition = objectRayOrigin + (tNear - EPSILON)  * objectRayDirection;
     let isStartingInBounds = all(boundingBoxSurfacePosition > vec3(0.0)) && all(boundingBoxSurfacePosition < vec3(voxelObject.size / voxelSize));
 

@@ -1,8 +1,8 @@
-import { camera, deltaTime } from "./app";
+import { camera, deltaTime, resolution } from "./app";
 import { KeyboardControls } from "./keyboard-controls";
 import { MouseControls } from "./mouse-controls";
 import { MoveableObject } from "./moveable-object";
-import { vec3, Vec3 } from "wgpu-matrix";
+import { mat4, vec3, Vec3 } from "wgpu-matrix";
 
 const keyboardControls = new KeyboardControls();
 // const mouseControls = new MouseControls();
@@ -11,7 +11,7 @@ export class Camera extends MoveableObject {
   fieldOfView: number;
   direction: Vec3;
   near = 0.1;
-  far = 1000000;
+  far = 100000;
 
   constructor(options: {
     position: Vec3;
@@ -43,6 +43,33 @@ export class Camera extends MoveableObject {
   rotateX(angle: number) {}
 
   rotateY(angle: number) {}
+
+  get viewMatrix() {
+    let viewMatrix = mat4.create();
+    mat4.lookAt(
+      this.position,
+      vec3.add(this.position, this.direction),
+      this.up,
+      viewMatrix,
+    );
+    return viewMatrix;
+  }
+
+  get projectionMatrix() {
+    let projectionMatrix = mat4.create();
+    mat4.perspective(
+      this.fieldOfView,
+      resolution[0] / resolution[1],
+      this.near,
+      this.far,
+      projectionMatrix,
+    );
+    return projectionMatrix;
+  }
+
+  get viewProjectionMatrix() {
+    return mat4.mul(this.projectionMatrix, this.viewMatrix);
+  }
 }
 
 export const moveCamera = () => {
@@ -53,7 +80,7 @@ export const moveCamera = () => {
   if (!document.hasFocus()) {
     return;
   }
-  const speed = 1.0;
+  const speed = 0.75;
   let direction = vec3.zero();
   if (keyboardControls.pressed.a) {
     direction = vec3.add(direction, camera.left);
@@ -70,7 +97,7 @@ export const moveCamera = () => {
   if (keyboardControls.pressed[" "]) {
     direction = vec3.add(direction, camera.up);
   }
-  if (keyboardControls.pressed.Control) {
+  if (keyboardControls.pressed.control) {
     direction = vec3.add(direction, camera.down);
   }
   direction = vec3.normalize(direction);

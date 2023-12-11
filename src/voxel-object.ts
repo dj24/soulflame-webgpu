@@ -1,4 +1,4 @@
-import { Mat4, Vec3 } from "wgpu-matrix";
+import { Mat4, vec3, Vec3 } from "wgpu-matrix";
 
 export class VoxelObject {
   transform: Mat4;
@@ -7,6 +7,23 @@ export class VoxelObject {
     this.transform = m;
     this.size = s;
   }
+
+  get worldSpaceBounds() {
+    let minBound = vec3.create();
+    let maxBound = vec3.create();
+    vec3.transformMat4(vec3.create(), this.transform, minBound);
+    vec3.transformMat4(this.size, this.transform, maxBound);
+    return { minBound, maxBound };
+  }
+
+  get worldSpaceCenter() {
+    return vec3.lerp(
+      this.worldSpaceBounds.minBound,
+      this.worldSpaceBounds.maxBound,
+      0.5,
+    );
+  }
+
   toArray() {
     return [...this.transform, ...this.size, 0.0]; //padding for 4 byte stride
   }

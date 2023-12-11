@@ -98,7 +98,6 @@ export class DebugUI {
     const handleObjectCountChange = (event: CustomEvent) => {
       // @ts-ignore
       objectCount = parseFloat(event.detail);
-      console.log(objectCount);
     };
     window.addEventListener("changeobjectcount", handleObjectCountChange);
   }
