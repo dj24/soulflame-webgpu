@@ -4,18 +4,18 @@ import { createFloatUniformBuffer } from "../buffer-utils";
 import {
   camera,
   device,
-  maxObjectCount,
   objectCount,
   resolution,
-  scale,
-  translateX,
 } from "../app";
 import { VoxelObject } from "../voxel-object";
 import { create3dTexture } from "../create-3d-texture";
 import tower from "../voxel-models/tower.vxm";
+import building from "../voxel-models/building.vxm";
+import miniViking from "../voxel-models/mini-viking.vxm";
 import { getFrustumCornerDirections } from "../get-frustum-corner-directions";
 import { mat4, vec3, Vec3 } from "wgpu-matrix";
 import { RenderArgs, RenderPass } from "../g-buffer/get-g-buffer-pass";
+import {getObjects} from "../get-objects";
 
 const downscaleFactor = 4;
 
@@ -66,8 +66,8 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
 
   const voxelTexture = await create3dTexture(
     device,
-    tower.sliceFilePaths,
-    tower.size,
+    miniViking.sliceFilePaths,
+    miniViking.size,
   );
 
   const render = ({
@@ -75,53 +75,8 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
     resolutionBuffer,
     outputTextureViews,
   }: RenderArgs) => {
-    // TODO: abstract these objects somewhere else
-    const objectSize = tower.size as Vec3;
-    const spaceBetweenObjects = 2;
-    const gapX = objectSize[0] + spaceBetweenObjects;
-    const gapZ = objectSize[2] + spaceBetweenObjects;
-    const rows = 24;
-    voxelObjects = [...Array(maxObjectCount).keys()].map((index) => {
-      let m = mat4.identity();
-      let x = (index % rows) * gapX;
-      let y = (Math.sin(performance.now() * 0.001 + x * 0.02) * 0.5 + 0.5) * 20;
-      y = 0;
-      let z = Math.floor(index / rows) * gapZ;
-      let height =
-        Math.sin(performance.now() * 0.0005 + x * 0.008 + z * 0.016) * 0.5 +
-        0.5;
-      height = Math.max(height, 0.01);
-      mat4.translate(m, [translateX + x, y, z], m);
-      mat4.translate(m, vec3.divScalar(objectSize, 2), m);
-      //mat4.rotateY(m, performance.now() * 0.001, m);
-      mat4.scale(m, [scale, height, scale], m);
-      mat4.translate(m, vec3.divScalar(objectSize, -2), m);
-      mat4.invert(m, m);
-      return new VoxelObject(m, objectSize);
-    });
-    // sort by distance to the camera
-    voxelObjects = voxelObjects.sort((a, b) => {
-      const aDistance = vec3.distance(a.worldSpaceCenter, camera.position);
-      const bDistance = vec3.distance(b.worldSpaceCenter, camera.position);
-      return bDistance - aDistance;
-    });
 
-    let activeVoxelObjects = voxelObjects;
-
-    // activeVoxelObjects = voxelObjects.filter(
-    //   (voxelObject, index) =>
-    //     !isInsideFrustum({
-    //       viewProjectionMatrix: camera.viewProjectionMatrix,
-    //       voxelObject,
-    //     }),
-    // );
-
-    activeVoxelObjects = activeVoxelObjects.slice(0, objectCount);
-
-    const bufferPadding = [
-      ...Array(maxObjectCount - activeVoxelObjects.length).keys(),
-    ].map(() => new VoxelObject(mat4.identity(), [0, 0, 0]));
-    voxelObjects = [...activeVoxelObjects, ...bufferPadding];
+    voxelObjects = getObjects();
 
     // 4 byte stride
     const flatMappedDirections = getFrustumCornerDirections(camera).flatMap(

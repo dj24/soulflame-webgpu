@@ -11,6 +11,7 @@
 @group(0) @binding(6) var normalTex : texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(7) var albedoTex : texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(8) var depthTex : texture_2d<f32>;
+@group(0) @binding(9) var debugTex : texture_storage_2d<rgba8unorm, write>;
 
 
 struct FrustumCornerDirections {
@@ -97,7 +98,7 @@ struct VoxelObject {
 
 const EPSILON = 0.001;
 const BORDER_WIDTH = 0.05;
-const MAX_RAY_STEPS = 256;
+const MAX_RAY_STEPS = 512;
 
 fn addVoxelBorderColour(baseColour: vec3<f32>, worldPos: vec3<f32>) -> vec3<f32> {
   let positionInVoxel = fract(worldPos);
@@ -147,25 +148,18 @@ fn main(
   var voxelSize = 1.0;
   let pixel = vec2<f32>(f32(GlobalInvocationID.x), f32(resolution.y - GlobalInvocationID.y));
   let uv = pixel / vec2<f32>(resolution);
-  var rayOrigin = cameraPosition;
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
+  var rayOrigin = cameraPosition;
 
-//  var colour = sample_sky(rayDirection);
   var colour = vec3(0.0);
-  let plainIntersection = plainIntersect(rayOrigin, rayDirection, vec4<f32>(0.0, 1.0, 0.0, 0.0));
   var worldPos = vec3(0.0);
-  if(plainIntersection > 0.0){
-    worldPos = plainIntersection * rayDirection + rayOrigin;
-    var borderColour = addVoxelBorderColour(colour, worldPos * 0.25);
-    colour = borderColour;
-  }
-
   var tNear = 999999.0;
   var occlusion = false;
   var normal = vec3(0.0);
   var albedo = vec3(0.0);
   var closestIntersection = 9999999.0;
 
+  var stepsTaken = 0;
   // voxel objects
   for (var i = 0; i < VOXEL_OBJECT_COUNT; i++) {
     var voxelObject = voxelObjects[i];
@@ -197,7 +191,6 @@ fn main(
     var pos = boundingBoxSurfacePosition;
     var objectNormal = vec3(0.0);
     var tIntersection = 0.0;
-    var stepsTaken = 0;
     var voxelStep = sign(objectRayDirection);
     var tDelta = vec3(voxelSize / abs(objectRayDirection));
     var scaledStartingPoint = pos / voxelSize;
@@ -206,10 +199,13 @@ fn main(
     var voxelOriginDifference = vec3<f32>(currentIndex) - scaledRayOrigin;
     var clampedVoxelBoundary = (voxelStep * 0.5) + 0.5; // 0 if <= 0, 1 if > 0
     var tMax = (voxelStep * voxelOriginDifference + clampedVoxelBoundary) * tDelta + EPSILON;
+    let maxSteps = max(voxelObject.size.x,voxelObject.size.y);
+    var objectStepsTaken = 0;
 
-    while(stepsTaken <= MAX_RAY_STEPS)
+    while(objectStepsTaken <= i32(maxSteps) && stepsTaken < MAX_RAY_STEPS)
     {
       stepsTaken ++;
+      objectStepsTaken ++;
       tIntersection = min(min(tMax.x, tMax.y), tMax.z);
       let mask = vec3(
           select(0.0, 1.0, tMax.x == tIntersection),
@@ -244,10 +240,12 @@ fn main(
   // output result
   if(occlusion){
     colour = addBasicShading(albedo, normal);
-    colour = addVoxelBorderColour(colour, worldPos);
   }
 
   textureStore(normalTex, GlobalInvocationID.xy, vec4(normal,1));
   textureStore(albedoTex, GlobalInvocationID.xy, vec4(albedo,1));
   textureStore(outputTex, GlobalInvocationID.xy, vec4(colour,1));
+  let heatMap = mix(vec3(0.0,0.0,0.3),vec3(1.0,0.25,0.0),f32(stepsTaken) / f32(MAX_RAY_STEPS * 0.1));
+  textureStore(debugTex, GlobalInvocationID.xy, vec4(heatMap,1));
+//  textureStore(debugTex, GlobalInvocationID.xy, vec4(select(0.2, 1.0, stepsTaken > 128),0,0,1));
 }

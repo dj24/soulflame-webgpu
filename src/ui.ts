@@ -3,8 +3,8 @@ import { animate, spring } from "motion";
 import { vec3 } from "wgpu-matrix";
 
 const startingCameraFieldOfView = 82.5;
-const startingCameraPosition = vec3.create(1200, 800, 1200);
-const startingCameraDirection = vec3.normalize(vec3.create(-1, -1, -1));
+const startingCameraPosition = vec3.create(570, 55, 420);
+const startingCameraDirection = vec3.normalize(vec3.create(-1, -0.33, -1));
 
 const animateCameraToStartingPosition = () => {
   const targetPosition = startingCameraPosition;

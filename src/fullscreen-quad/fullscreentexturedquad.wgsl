@@ -4,6 +4,7 @@
 @group(0) @binding(3) var normalTexture : texture_2d<f32>;
 @group(0) @binding(4) var depthTexture : texture_2d<f32>;
 @group(0) @binding(5) var<uniform> resolution : vec2<u32>;
+@group(0) @binding(6) var debugTexture : texture_2d<f32>;
 
 struct VertexOutput {
   @builtin(position) Position : vec4<f32>,
@@ -42,15 +43,11 @@ fn fragment_main(@location(0) fragUV : vec2<f32>) -> @location(0) vec4<f32> {
     let albedo = textureSample(albedoTexture, mySampler, fragUV);
     let pixel = vec2<u32>(fragUV * vec2<f32>(resolution));
     let depth = textureLoad(depthTexture, pixel, 0).r;
+    let debug = textureLoad(debugTexture, pixel, 0);
     let foo = textureSample(myTexture, mySampler, fragUV);
-    if(fragUV.x < 0.5) {
-        return vec4(1.0 - (depth / 2000.0));
+    if(fragUV.x < 0.5){
+      return debug;
     }
-//    if(fragUV.x < 0.8) {
-//        return albedo;
-//    }
-//    if(fragUV.x < 0.9) {
-//        return normal;
-//    }
+
     return foo;
 }

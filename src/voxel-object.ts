@@ -1,11 +1,14 @@
-import { Mat4, vec3, Vec3 } from "wgpu-matrix";
+import {mat4, Mat4, vec3, Vec3} from "wgpu-matrix";
 
 export class VoxelObject {
   transform: Mat4;
+  inverseTransform: Mat4;
   size: Vec3;
   constructor(m: Mat4, s: Vec3) {
     this.transform = m;
     this.size = s;
+    this.inverseTransform = mat4.create();
+    mat4.invert(this.transform, this.inverseTransform);
   }
 
   get worldSpaceBounds() {
@@ -25,6 +28,6 @@ export class VoxelObject {
   }
 
   toArray() {
-    return [...this.transform, ...this.size, 0.0]; //padding for 4 byte stride
+    return [...this.inverseTransform, ...this.size, 0.0]; //padding for 4 byte stride
   }
 }

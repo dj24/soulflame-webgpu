@@ -15,8 +15,8 @@ export let canvas: HTMLCanvasElement;
 export let resolution = vec2.zero();
 let downscale = 1;
 export let scale = 1;
-export const maxObjectCount = 768;
-export let objectCount = 512;
+export const maxObjectCount = 256;
+export let objectCount = 256;
 export let translateX = 0;
 const startTime = performance.now();
 export let elapsedTime = startTime;
@@ -38,6 +38,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let albedoTexture: GPUTexture;
   let outputTexture: GPUTexture;
   let depthTexture: GPUTexture;
+  let debugTexture: GPUTexture;
   let animationFrameId: ReturnType<typeof requestAnimationFrame>;
   let fixedIntervalId: ReturnType<typeof setInterval>;
   let timeBuffer: GPUBuffer;
@@ -133,6 +134,21 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     return albedoTexture.createView();
   };
 
+  const createDebugTexture = () => {
+    if (debugTexture) {
+      debugTexture.destroy();
+    }
+    debugTexture = device.createTexture({
+      size: [resolution[0], resolution[1], 1],
+      format: "rgba8unorm",
+      usage:
+        GPUTextureUsage.TEXTURE_BINDING |
+        GPUTextureUsage.RENDER_ATTACHMENT |
+        GPUTextureUsage.STORAGE_BINDING,
+    });
+    return debugTexture.createView();
+  };
+
   const fixedUpdate = () => {
     computePasses.forEach(({ fixedUpdate }) => {
       if (fixedUpdate) {
@@ -171,6 +187,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     const normalTextureView = createNormalTextureView();
     const albedoTextureView = createAlbedoTextureView();
     const depthTextureView = createDepthTextureView();
+    const debugTextureView = createDebugTexture();
     computePasses.forEach(({ render }) => {
       render({
         commandEncoder,
@@ -180,6 +197,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
           albedoTextureView,
           normalTextureView,
           depthTextureView,
+          debugTextureView
         ],
       });
     });

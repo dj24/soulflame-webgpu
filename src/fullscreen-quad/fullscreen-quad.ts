@@ -62,6 +62,10 @@ export const fullscreenQuad = (device: GPUDevice) => {
             buffer: args.resolutionBuffer,
           },
         },
+        {
+          binding: 6,
+          resource: args.outputTextureViews[4],
+        },
       ],
     });
     renderPass.setPipeline(renderPipeline);
