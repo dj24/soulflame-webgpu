@@ -163,6 +163,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     elapsedTime = newElapsedTime;
     moveCamera();
     camera.update();
+
     // debugUI.log(`Position: ${camera.position[0].toFixed(
     //   0,
     // )}, ${camera.position[1].toFixed(0)}, ${camera.position[2].toFixed(0)}

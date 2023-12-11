@@ -15,7 +15,6 @@ import miniViking from "../voxel-models/mini-viking.vxm";
 import { getFrustumCornerDirections } from "../get-frustum-corner-directions";
 import { mat4, vec3, Vec3 } from "wgpu-matrix";
 import { RenderArgs, RenderPass } from "../g-buffer/get-g-buffer-pass";
-import {getObjects} from "../get-objects";
 
 const downscaleFactor = 8;
 
@@ -76,7 +75,7 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
     outputTextureViews,
   }: RenderArgs) => {
 
-    voxelObjects = getObjects();
+    // voxelObjects = getObjectsWorker();
 
     // 4 byte stride
     const flatMappedDirections = getFrustumCornerDirections(camera).flatMap(

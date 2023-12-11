@@ -3,21 +3,15 @@ import simpleSkyShader from "../composite/simple-sky.wgsl";
 import { createFloatUniformBuffer } from "../buffer-utils";
 import {
   camera,
-  device,
+  device, maxObjectCount,
   objectCount,
   resolution,
 } from "../app";
 import { VoxelObject } from "../voxel-object";
 import { create3dTexture } from "../create-3d-texture";
 import miniViking from "../voxel-models/mini-viking.vxm";
-import firTree from "../voxel-models/fir-tree.vxm";
-import vikingBoat from "../voxel-models/viking-boat.vxm";
-import building from "../voxel-models/building.vxm";
-import tower from "../voxel-models/tower.vxm";
 import { getFrustumCornerDirections } from "../get-frustum-corner-directions";
-import { mat4, vec3, Vec3 } from "wgpu-matrix";
-import { isInsideFrustum } from "../is-inside-frustum";
-import {getObjects} from "../get-objects";
+import {GetObjectsArgs} from "../get-object-transforms/get-objects-worker";
 
 // TODO: make this into more robust type, probably object
 type OutputTextureView = [
@@ -39,9 +33,24 @@ export type RenderPass = {
   render: (args: RenderArgs) => void;
 };
 
+const getObjectTransformsWorker = new Worker("../get-object-transforms/get-objects-worker.ts");
+
 export const getGBufferPass = async (): Promise<RenderPass> => {
   let voxelObjects: VoxelObject[] = [];
   let transformationMatrixBuffer: GPUBuffer;
+
+  getObjectTransformsWorker.onmessage = (event: MessageEvent<VoxelObject[]>) => {
+    voxelObjects = event.data;
+  };
+  let message: GetObjectsArgs = {
+    maxObjectCount: maxObjectCount,
+    objectCount: objectCount,
+    scale: 1,
+    translateX: 0,
+    camera: camera,
+  }
+  getObjectTransformsWorker.postMessage(message);
+
   const computePipeline = device.createComputePipeline({
     layout: "auto",
     compute: {
@@ -59,9 +68,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     miniViking.sliceFilePaths,
     miniViking.size,
   );
-
-
-
 
   const render = ({
     commandEncoder,
@@ -81,8 +87,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       camera.position as number[],
       "camera position",
     );
-
-    voxelObjects  = getObjects();
 
     transformationMatrixBuffer = createFloatUniformBuffer(
       voxelObjects.flatMap((voxelObject) => voxelObject.toArray()),
