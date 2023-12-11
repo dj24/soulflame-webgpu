@@ -138,13 +138,17 @@ fn transformNormal(inverseTransform: mat4x4<f32>, normal: vec3<f32>) -> vec3<f32
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
+  let tStart = textureLoad(depthTex, GlobalInvocationID.xy,0).r;
+  if(tStart > 10000.0){
+//    textureStore(outputTex, GlobalInvocationID.xy, vec4(0.0,0.0,0.0,1.0));
+    return;
+  }
   // background
   var voxelSize = 1.0;
   let pixel = vec2<f32>(f32(GlobalInvocationID.x), f32(resolution.y - GlobalInvocationID.y));
   let uv = pixel / vec2<f32>(resolution);
   var rayOrigin = cameraPosition;
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
-  let tStart = textureLoad(depthTex, GlobalInvocationID.xy,0);
 
 //  var colour = sample_sky(rayDirection);
   var colour = vec3(0.0);

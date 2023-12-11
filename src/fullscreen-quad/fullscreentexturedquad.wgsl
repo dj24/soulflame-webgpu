@@ -43,9 +43,9 @@ fn fragment_main(@location(0) fragUV : vec2<f32>) -> @location(0) vec4<f32> {
     let pixel = vec2<u32>(fragUV * vec2<f32>(resolution));
     let depth = textureLoad(depthTexture, pixel, 0).r;
     let foo = textureSample(myTexture, mySampler, fragUV);
-//    if(fragUV.x < 0.7) {
-//        return vec4(1.0 - (depth / 2000.0));
-//    }
+    if(fragUV.x < 0.5) {
+        return vec4(1.0 - (depth / 2000.0));
+    }
 //    if(fragUV.x < 0.8) {
 //        return albedo;
 //    }

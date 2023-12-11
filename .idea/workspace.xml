@@ -5,14 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2229b71a-dd5d-4a63-8f40-0a73278d8fb0" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/src/is-inside-frustum.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/camera.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/camera.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/g-buffer/get-g-buffer-pass.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/g-buffer/get-g-buffer-pass.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/g-buffer/raymarch-voxels.wgsl" beforeDir="false" afterPath="$PROJECT_DIR$/src/g-buffer/raymarch-voxels.wgsl" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/keyboard-controls.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/keyboard-controls.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/ui.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/ui.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-object.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/voxel-object.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/depth-prepass/get-depth-prepass.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/depth-prepass/get-depth-prepass.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/fullscreen-quad/fullscreentexturedquad.wgsl" beforeDir="false" afterPath="$PROJECT_DIR$/src/fullscreen-quad/fullscreentexturedquad.wgsl" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

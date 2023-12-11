@@ -203,7 +203,7 @@ if (navigator.gpu !== undefined) {
       console.log(device.limits);
       console.log({ treeModel, miniViking });
       renderLoop(device, [
-        // await getDepthPrepass(),
+        await getDepthPrepass(),
         await getGBufferPass(),
         fullscreenQuad(device),
       ]);
