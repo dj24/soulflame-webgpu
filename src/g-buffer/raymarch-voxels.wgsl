@@ -44,37 +44,28 @@ fn boxIntersection(
     boxSize: vec3<f32>,
 ) -> BoxIntersectionResult {
     var result = BoxIntersectionResult();
-
     let offsetRayOrigin = ro - boxSize;
     let m: vec3<f32> = 1.0 / rd;
     let n: vec3<f32> = m * offsetRayOrigin;
     let k: vec3<f32> = abs(m) * boxSize;
-
     let t1: vec3<f32> = -n - k;
     let t2: vec3<f32> = -n + k;
-
     let tN: f32 = max(max(t1.x, t1.y), t1.z);
     let tF: f32 = min(min(t2.x, t2.y), t2.z);
-
     if (tN > tF || tF < 0.0) {
         result.tNear = -1.0;
         result.tFar = -1.0;
         result.normal = vec3(0.0);
-
         return result;
     }
-
     // Check if the ray starts inside the volume
     let insideVolume = tN < 0.0;
-
     var normal = select(
         step(vec3<f32>(tN), t1),
         step(t2, vec3<f32>(tF)),
         tN < 0.0,
     );
-
     normal *= -sign(rd);
-
     // Check if the intersection is in the correct direction, only if inside the volume
     if (insideVolume && dot(normal, rd) < 0.0) {
         result.tNear = -1.0;
@@ -82,11 +73,9 @@ fn boxIntersection(
         result.normal = vec3(0.0);
         return result;
     }
-
     result.tNear = tN;
     result.tFar = tF;
     result.normal = normal;
-
     return result;
 }
 
@@ -144,13 +133,11 @@ fn main(
 //    textureStore(outputTex, GlobalInvocationID.xy, vec4(0.0,0.0,0.0,1.0));
     return;
   }
-  // background
   var voxelSize = 1.0;
   let pixel = vec2<f32>(f32(GlobalInvocationID.x), f32(resolution.y - GlobalInvocationID.y));
   let uv = pixel / vec2<f32>(resolution);
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
   var rayOrigin = cameraPosition;
-
   var colour = vec3(0.0);
   var worldPos = vec3(0.0);
   var tNear = 999999.0;
@@ -160,9 +147,10 @@ fn main(
   var closestIntersection = 9999999.0;
 
   var stepsTaken = 0;
-  // voxel objects
-  for (var i = 0; i < VOXEL_OBJECT_COUNT; i++) {
-    var voxelObject = voxelObjects[i];
+  var objectsTraversed = 0;
+  for (var voxelObjectIndex = 0; voxelObjectIndex < VOXEL_OBJECT_COUNT; voxelObjectIndex++) {
+    var voxelObject = voxelObjects[voxelObjectIndex];
+    objectsTraversed ++;
 
     // Empty object, go to next
     if(voxelObject.size.x == 0.0){
@@ -201,7 +189,6 @@ fn main(
     var tMax = (voxelStep * voxelOriginDifference + clampedVoxelBoundary) * tDelta + EPSILON;
     let maxSteps = max(voxelObject.size.x,voxelObject.size.y);
     var objectStepsTaken = 0;
-
     while(objectStepsTaken <= i32(maxSteps) && stepsTaken < MAX_RAY_STEPS)
     {
       stepsTaken ++;
@@ -235,6 +222,9 @@ fn main(
           break;
       }
     }
+    if(occlusion){
+      break;
+    }
   }
 
   // output result
@@ -246,6 +236,7 @@ fn main(
   textureStore(albedoTex, GlobalInvocationID.xy, vec4(albedo,1));
   textureStore(outputTex, GlobalInvocationID.xy, vec4(colour,1));
   let heatMap = mix(vec3(0.0,0.0,0.3),vec3(1.0,0.25,0.0),f32(stepsTaken) / f32(MAX_RAY_STEPS * 0.1));
-  textureStore(debugTex, GlobalInvocationID.xy, vec4(heatMap,1));
+  let heatMap2 = mix(vec3(0.0,1.0,0.0), vec3(1.0,0.0,0.0), f32(objectsTraversed) / 256.0);
+  textureStore(debugTex, GlobalInvocationID.xy, vec4(heatMap2,1));
 //  textureStore(debugTex, GlobalInvocationID.xy, vec4(select(0.2, 1.0, stepsTaken > 128),0,0,1));
 }

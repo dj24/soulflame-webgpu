@@ -17,7 +17,7 @@ import { mat4, vec3, Vec3 } from "wgpu-matrix";
 import { RenderArgs, RenderPass } from "../g-buffer/get-g-buffer-pass";
 import {getObjects} from "../get-objects";
 
-const downscaleFactor = 4;
+const downscaleFactor = 8;
 
 export const getDepthPrepass = async (): Promise<RenderPass> => {
   let voxelObjects: VoxelObject[] = [];
@@ -147,22 +147,22 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
       ],
     });
 
-    const volumeBindGroup = device.createBindGroup({
-      layout: rayMarchPipeline.getBindGroupLayout(1),
-      entries: [
-        {
-          binding: 0,
-          resource: pointSampler,
-        },
-        {
-          binding: 1,
-          resource: voxelTexture.createView(),
-        },
-      ],
-    });
+    // const volumeBindGroup = device.createBindGroup({
+    //   layout: rayMarchPipeline.getBindGroupLayout(1),
+    //   entries: [
+    //     {
+    //       binding: 0,
+    //       resource: pointSampler,
+    //     },
+    //     {
+    //       binding: 1,
+    //       resource: voxelTexture.createView(),
+    //     },
+    //   ],
+    // });
+    // computePass.setBindGroup(1, volumeBindGroup);
 
     computePass.setBindGroup(0, computeBindGroup);
-    computePass.setBindGroup(1, volumeBindGroup);
     computePass.dispatchWorkgroups(
       Math.ceil(resolution[0] / 8),
       Math.ceil(resolution[1] / 8),

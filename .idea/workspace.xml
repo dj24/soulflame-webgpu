@@ -5,17 +5,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2229b71a-dd5d-4a63-8f40-0a73278d8fb0" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/src/get-objects.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/index.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/app.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/depth-prepass/conservative-depth-min.wgsl" beforeDir="false" afterPath="$PROJECT_DIR$/src/depth-prepass/conservative-depth-min.wgsl" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/depth-prepass/get-depth-prepass.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/depth-prepass/get-depth-prepass.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/fullscreen-quad/fullscreen-quad.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/fullscreen-quad/fullscreen-quad.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/depth-prepass/raymarch-voxels-depth.wgsl" beforeDir="false" afterPath="$PROJECT_DIR$/src/depth-prepass/raymarch-voxels-depth.wgsl" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/fullscreen-quad/fullscreentexturedquad.wgsl" beforeDir="false" afterPath="$PROJECT_DIR$/src/fullscreen-quad/fullscreentexturedquad.wgsl" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/g-buffer/get-g-buffer-pass.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/g-buffer/get-g-buffer-pass.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/g-buffer/raymarch-voxels.wgsl" beforeDir="false" afterPath="$PROJECT_DIR$/src/g-buffer/raymarch-voxels.wgsl" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/ui.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/ui.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/voxel-object.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/voxel-object.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/get-objects.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/get-objects.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

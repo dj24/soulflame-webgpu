@@ -43,13 +43,13 @@ export const getObjects = () => {
       index <= objectCount
   );
 
-  activeVoxelObjects = activeVoxelObjects.filter(
-    (voxelObject, index) =>
-      !isInsideFrustum({
-        viewProjectionMatrix: camera.viewProjectionMatrix,
-        voxelObject,
-      }),
-  );
+  // activeVoxelObjects = activeVoxelObjects.filter(
+  //   (voxelObject, index) =>
+  //     !isInsideFrustum({
+  //       viewProjectionMatrix: camera.viewProjectionMatrix,
+  //       voxelObject,
+  //     }),
+  // );
 
   activeVoxelObjects = activeVoxelObjects.slice(0, objectCount);
 

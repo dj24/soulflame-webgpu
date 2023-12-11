@@ -2,7 +2,7 @@
 @group(0) @binding(1) var outputTex : texture_storage_2d<r32float, write>;
 @group(0) @binding(2) var<uniform> resolution : vec2<u32>;
 
-const DOWNSCALE_FACTOR = 4;
+const DOWNSCALE_FACTOR = 8;
 
 @compute @workgroup_size(8, 8, 1)
 fn main(

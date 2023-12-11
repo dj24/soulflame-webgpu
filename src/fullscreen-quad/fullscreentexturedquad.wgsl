@@ -45,9 +45,17 @@ fn fragment_main(@location(0) fragUV : vec2<f32>) -> @location(0) vec4<f32> {
     let depth = textureLoad(depthTexture, pixel, 0).r;
     let debug = textureLoad(debugTexture, pixel, 0);
     let foo = textureSample(myTexture, mySampler, fragUV);
+
+    var colour = vec4(0.0);
+
     if(fragUV.x < 0.5){
-      return debug;
+      colour = debug;
+    } else{
+      colour = foo;
     }
 
-    return foo;
+    if(colour.r == 0.0){
+      colour = mix(vec4(0.9,0.9,1,1),vec4(0.2,0.4,1,1), fragUV.y);
+    }
+    return colour;
 }

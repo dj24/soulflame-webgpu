@@ -41,6 +41,7 @@ export type RenderPass = {
 
 export const getGBufferPass = async (): Promise<RenderPass> => {
   let voxelObjects: VoxelObject[] = [];
+  let transformationMatrixBuffer: GPUBuffer;
   const computePipeline = device.createComputePipeline({
     layout: "auto",
     compute: {
@@ -59,13 +60,14 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     miniViking.size,
   );
 
+
+
+
   const render = ({
     commandEncoder,
     resolutionBuffer,
     outputTextureViews,
   }: RenderArgs) => {
-    voxelObjects  = getObjects();
-
     // 4 byte stride
     const flatMappedDirections = getFrustumCornerDirections(camera).flatMap(
       (direction) => [...direction, 0],
@@ -80,7 +82,9 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       "camera position",
     );
 
-    const transformationMatrixBuffer = createFloatUniformBuffer(
+    voxelObjects  = getObjects();
+
+    transformationMatrixBuffer = createFloatUniformBuffer(
       voxelObjects.flatMap((voxelObject) => voxelObject.toArray()),
       "voxel object",
     );

@@ -4,7 +4,7 @@
 @group(0) @binding(3) var<uniform> cameraPosition : vec3<f32>;
 @group(0) @binding(4) var<uniform> voxelObjects : array<VoxelObject, VOXEL_OBJECT_COUNT>; // TODO: dynamic amount of these using string interpolation
 
-const DOWNSCALE_FACTOR = 4;
+const DOWNSCALE_FACTOR = 8;
 
 @group(1) @binding(0) var voxelsSampler : sampler;
 @group(1) @binding(1) var voxels : texture_3d<f32>;
@@ -114,16 +114,12 @@ fn main(
   var normal = vec3(0.0);
   var albedo = vec3(0.0);
   var closestIntersection = 9999999.0;
-
-  // voxel objects
   for (var i = 0; i < VOXEL_OBJECT_COUNT; i++) {
     var voxelObject = voxelObjects[i];
-
     // Empty object, go to next
     if(voxelObject.size.x == 0.0){
       continue;
     }
-
     let objectRayOrigin = (voxelObject.transform * vec4<f32>(rayOrigin, 1.0)).xyz;
     let objectRayDirection = (voxelObject.transform * vec4<f32>(rayDirection, 0.0)).xyz;
     let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
@@ -131,50 +127,10 @@ fn main(
     let boundingBoxSurfacePosition = objectRayOrigin + (tNear - EPSILON)  * objectRayDirection;
     let isStartingInBounds = all(boundingBoxSurfacePosition > vec3(0.0)) && all(boundingBoxSurfacePosition < vec3(voxelObject.size / voxelSize));
     let isBackwardsIntersection = tNear < 0.0 && !isStartingInBounds;
-    if(isBackwardsIntersection){
-      continue;
-    }
-    var pos = boundingBoxSurfacePosition;
-    var objectNormal = vec3(0.0);
-    var tIntersection = 0.0;
-    var stepsTaken = 0;
-    var voxelStep = sign(objectRayDirection);
-    var tDelta = vec3(voxelSize / abs(objectRayDirection));
-    var scaledStartingPoint = pos / voxelSize;
-    var scaledRayOrigin = vec3<f32>(objectRayOrigin) / voxelSize;
-    var currentIndex = floor(scaledStartingPoint);
-    var voxelOriginDifference = vec3<f32>(currentIndex) - scaledRayOrigin;
-    var clampedVoxelBoundary = (voxelStep * 0.5) + 0.5; // 0 if <= 0, 1 if > 0
-    var tMax = (voxelStep * voxelOriginDifference + clampedVoxelBoundary) * tDelta + EPSILON;
-
-    while(stepsTaken <= MAX_RAY_STEPS)
-    {
-      stepsTaken ++;
-      tIntersection = min(min(tMax.x, tMax.y), tMax.z);
-      let mask = vec3(
-          select(0.0, 1.0, tMax.x == tIntersection),
-          select(0.0, 1.0, tMax.y == tIntersection),
-          select(0.0, 1.0, tMax.z == tIntersection)
-      );
-      tMax += mask * tDelta;
-      currentIndex += mask * voxelStep;
-      objectNormal = vec3(mask * -voxelStep);
-      pos = objectRayOrigin + objectRayDirection * tIntersection;
-      let isInBounds = all(currentIndex > vec3(-1.0)) && all(currentIndex < vec3(voxelObject.size / voxelSize));
-      if(!isInBounds){
-          break;
-      }
-      // we marched further than the closest intersection, so we are "inside" voxels now
-      let isInsideAlreadyMarchedVoxel = tIntersection > closestIntersection + EPSILON;
-      if(isInsideAlreadyMarchedVoxel){
-          break;
-      }
-      let foo = textureSampleLevel(voxels, voxelsSampler, vec3(currentIndex) / voxelObject.size, 0.0);
-      if(foo.a > 0.0){
-          closestIntersection = tIntersection;
-          occlusion = true;
-          break;
-      }
+    if(!isBackwardsIntersection){
+      closestIntersection = tNear;
+      occlusion = true;
+      break;
     }
   }
 

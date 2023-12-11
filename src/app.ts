@@ -163,13 +163,13 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     elapsedTime = newElapsedTime;
     moveCamera();
     camera.update();
-    debugUI.log(`Position: ${camera.position[0].toFixed(
-      0,
-    )}, ${camera.position[1].toFixed(0)}, ${camera.position[2].toFixed(0)}
-    Resolution: ${resolution[0].toFixed(0)}x${resolution[1].toFixed(0)}
-    FPS: ${(1000 / deltaTime).toFixed(1)}
-    Object Count: ${objectCount}
-    `);
+    // debugUI.log(`Position: ${camera.position[0].toFixed(
+    //   0,
+    // )}, ${camera.position[1].toFixed(0)}, ${camera.position[2].toFixed(0)}
+    // Resolution: ${resolution[0].toFixed(0)}x${resolution[1].toFixed(0)}
+    // Frame Time: ${deltaTime.toFixed(1)}ms
+    // Object Count: ${objectCount}
+    // `);
 
     const commandEncoder = device.createCommandEncoder();
     if (timeBuffer) {
@@ -221,7 +221,7 @@ if (navigator.gpu !== undefined) {
       console.log(device.limits);
       console.log({ treeModel, miniViking });
       renderLoop(device, [
-        await getDepthPrepass(),
+        // await getDepthPrepass(),
         await getGBufferPass(),
         fullscreenQuad(device),
       ]);
