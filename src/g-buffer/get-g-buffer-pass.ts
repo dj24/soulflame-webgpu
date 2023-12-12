@@ -3,15 +3,18 @@ import simpleSkyShader from "../composite/simple-sky.wgsl";
 import { createFloatUniformBuffer } from "../buffer-utils";
 import {
   camera,
-  device, maxObjectCount,
+  device,
+  maxObjectCount,
   objectCount,
   resolution,
+  scale,
+  translateX,
 } from "../app";
 import { VoxelObject } from "../voxel-object";
 import { create3dTexture } from "../create-3d-texture";
 import miniViking from "../voxel-models/mini-viking.vxm";
 import { getFrustumCornerDirections } from "../get-frustum-corner-directions";
-import {GetObjectsArgs} from "../get-object-transforms/get-objects-worker";
+import Worker from "../objects-worker.worker.ts;
 
 // TODO: make this into more robust type, probably object
 type OutputTextureView = [
@@ -33,23 +36,30 @@ export type RenderPass = {
   render: (args: RenderArgs) => void;
 };
 
-const getObjectTransformsWorker = new Worker("../get-object-transforms/get-objects-worker.ts");
+const getObjectTransformsWorker = new Worker();
+
+const message = {
+  maxObjectCount,
+  objectCount,
+  scale,
+  translateX,
+  camera,
+};
+
+getObjectTransformsWorker.postMessage(message);
+getObjectTransformsWorker.onmessage = (event) => {
+  console.log("onmessage");
+};
+
+getObjectTransformsWorker.addEventListener("message", (event) => {
+  console.log("message event");
+});
+
+console.log({ getObjectTransformsWorker });
 
 export const getGBufferPass = async (): Promise<RenderPass> => {
   let voxelObjects: VoxelObject[] = [];
   let transformationMatrixBuffer: GPUBuffer;
-
-  getObjectTransformsWorker.onmessage = (event: MessageEvent<VoxelObject[]>) => {
-    voxelObjects = event.data;
-  };
-  let message: GetObjectsArgs = {
-    maxObjectCount: maxObjectCount,
-    objectCount: objectCount,
-    scale: 1,
-    translateX: 0,
-    camera: camera,
-  }
-  getObjectTransformsWorker.postMessage(message);
 
   const computePipeline = device.createComputePipeline({
     layout: "auto",
@@ -149,7 +159,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           resource: outputTextureViews[4],
         },
       ],
-
     });
 
     // TODO: find way to wait for loading more gracefully

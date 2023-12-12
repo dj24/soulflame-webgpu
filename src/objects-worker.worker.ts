@@ -1,15 +1,17 @@
-import viking from "../voxel-models/mini-viking.vxm";
-import {mat4, vec3, Vec3} from "wgpu-matrix";
-import {VoxelObject} from "../voxel-object";
-import {Camera} from "../camera";
+import viking from "./voxel-models/mini-viking.vxm";
+import { mat4, vec3, Vec3 } from "wgpu-matrix";
+import { VoxelObject } from "./voxel-object";
+import { Camera } from "./camera";
 
-export type GetObjectsArgs = {
+const ctx: Worker = self as any;
+
+type GetObjectsArgs = {
   maxObjectCount: number;
   objectCount: number;
   scale: number;
   translateX: number;
   camera: Camera;
-}
+};
 
 const getObjectTransforms = ({
   maxObjectCount,
@@ -17,7 +19,7 @@ const getObjectTransforms = ({
   scale,
   translateX,
   camera,
- }: GetObjectsArgs) => {
+}: GetObjectsArgs) => {
   const objectSize = viking.size as Vec3;
   const spaceBetweenObjects = 16;
   const gapX = objectSize[0] + spaceBetweenObjects;
@@ -35,7 +37,8 @@ const getObjectTransforms = ({
     mat4.translate(m, vec3.divScalar(objectSize, -2), m);
     return new VoxelObject(m, objectSize);
   });
-// sort by distance to the camera
+  console.log({ voxelObjects });
+  // sort by distance to the camera
   voxelObjects = voxelObjects.sort((a, b) => {
     const aDistance = vec3.distance(a.worldSpaceCenter, camera.position);
     const bDistance = vec3.distance(b.worldSpaceCenter, camera.position);
@@ -45,8 +48,7 @@ const getObjectTransforms = ({
   let activeVoxelObjects = voxelObjects;
 
   activeVoxelObjects = activeVoxelObjects.filter(
-    (voxelObject, index) =>
-      index <= objectCount
+    (voxelObject, index) => index <= objectCount,
   );
   activeVoxelObjects = activeVoxelObjects.slice(0, objectCount);
   const bufferPadding = [
@@ -55,9 +57,13 @@ const getObjectTransforms = ({
   voxelObjects = [...activeVoxelObjects, ...bufferPadding];
 
   return voxelObjects;
-}
+};
 
-onmessage = (event: MessageEvent<GetObjectsArgs>) => {
+// Post data to parent thread
+ctx.postMessage({ foo: "foo" });
+
+ctx.addEventListener("message", (event: MessageEvent<GetObjectsArgs>) => {
+  console.log({ recieved: event.data });
   const result = getObjectTransforms(event.data);
   postMessage(result);
-};
+});

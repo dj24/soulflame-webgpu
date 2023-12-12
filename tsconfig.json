@@ -5,6 +5,7 @@
     "module": "commonjs",
     "esModuleInterop": true,
     "types": ["@webgpu/types", "jest"],
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    "allowImportingTsExtensions": false
   }
 }
