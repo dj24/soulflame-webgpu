@@ -2,7 +2,7 @@
   "compilerOptions": {
     "noImplicitAny": true,
     "target": "esnext",
-    "module": "commonjs",
+    "module": "esnext",
     "esModuleInterop": true,
     "types": ["@webgpu/types", "jest"],
     "moduleResolution": "node",

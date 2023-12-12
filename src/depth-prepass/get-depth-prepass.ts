@@ -4,7 +4,7 @@ import { createFloatUniformBuffer } from "../buffer-utils";
 import {
   camera,
   device,
-  objectCount,
+  debugValues,
   resolution,
 } from "../app";
 import { VoxelObject } from "../voxel-object";
@@ -46,7 +46,7 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
     compute: {
       module: device.createShaderModule({
         code: `
-          const VOXEL_OBJECT_COUNT = ${objectCount};
+          const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
           ${raymarchDepth}`,
       }),
       entryPoint: "main",
@@ -83,15 +83,18 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
     );
     // TODO: make sure to destroy these buffers or write to them instead
     const frustumCornerDirectionsBuffer = createFloatUniformBuffer(
+      device,
       flatMappedDirections,
       "frustum corner directions",
     );
     const cameraPostionBuffer = createFloatUniformBuffer(
+      device,
       camera.position as number[],
       "camera position",
     );
 
     const transformationMatrixBuffer = createFloatUniformBuffer(
+      device,
       voxelObjects.flatMap((voxelObject) => voxelObject.toArray()),
       "voxel object",
     );

@@ -8,16 +8,15 @@ import treeModel from "./voxel-models/fir-tree.vxm";
 import miniViking from "./voxel-models/mini-viking.vxm";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
+import {DebugValuesStore} from "./debug-values-store";
+
+export const debugValues = new DebugValuesStore();
 
 export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.zero();
 let downscale = 1;
-export let scale = 1;
-export const maxObjectCount = 256;
-export let objectCount = 256;
-export let translateX = 0;
 const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
@@ -164,13 +163,13 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     moveCamera();
     camera.update();
 
-    // debugUI.log(`Position: ${camera.position[0].toFixed(
-    //   0,
-    // )}, ${camera.position[1].toFixed(0)}, ${camera.position[2].toFixed(0)}
-    // Resolution: ${resolution[0].toFixed(0)}x${resolution[1].toFixed(0)}
-    // Frame Time: ${deltaTime.toFixed(1)}ms
-    // Object Count: ${objectCount}
-    // `);
+    debugUI.log(`Position: ${camera.position[0].toFixed(
+      0,
+    )}, ${camera.position[1].toFixed(0)}, ${camera.position[2].toFixed(0)}
+    Resolution: ${resolution[0].toFixed(0)}x${resolution[1].toFixed(0)}
+    Frame Time: ${deltaTime.toFixed(1)}ms
+    Object Count: ${debugValues.objectCount}
+    `);
 
     const commandEncoder = device.createCommandEncoder();
     if (timeBuffer) {

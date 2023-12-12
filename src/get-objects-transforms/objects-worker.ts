@@ -1,7 +1,7 @@
-import viking from "./voxel-models/mini-viking.vxm";
+import viking from "../voxel-models/mini-viking.vxm";
 import { mat4, vec3, Vec3 } from "wgpu-matrix";
-import { VoxelObject } from "./voxel-object";
-import { Camera } from "./camera";
+import { VoxelObject } from "../voxel-object";
+import { Camera } from "../camera";
 
 const ctx: Worker = self as any;
 
@@ -37,7 +37,6 @@ const getObjectTransforms = ({
     mat4.translate(m, vec3.divScalar(objectSize, -2), m);
     return new VoxelObject(m, objectSize);
   });
-  console.log({ voxelObjects });
   // sort by distance to the camera
   voxelObjects = voxelObjects.sort((a, b) => {
     const aDistance = vec3.distance(a.worldSpaceCenter, camera.position);
@@ -50,6 +49,7 @@ const getObjectTransforms = ({
   activeVoxelObjects = activeVoxelObjects.filter(
     (voxelObject, index) => index <= objectCount,
   );
+
   activeVoxelObjects = activeVoxelObjects.slice(0, objectCount);
   const bufferPadding = [
     ...Array(maxObjectCount - activeVoxelObjects.length).keys(),
@@ -59,11 +59,7 @@ const getObjectTransforms = ({
   return voxelObjects;
 };
 
-// Post data to parent thread
-ctx.postMessage({ foo: "foo" });
-
-ctx.addEventListener("message", (event: MessageEvent<GetObjectsArgs>) => {
-  console.log({ recieved: event.data });
-  const result = getObjectTransforms(event.data);
-  postMessage(result);
-});
+ctx.onmessage =  (event: MessageEvent<GetObjectsArgs>) => {
+  const result = getObjectTransforms(event.data).flatMap((voxelObject) =>voxelObject.toArray());
+  ctx.postMessage(result);
+};

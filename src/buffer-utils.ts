@@ -23,19 +23,29 @@ export const createUniformBuffer = (items: number[], label?: string) => {
 
 export const writeToFloatUniformBuffer = (
   buffer: GPUBuffer,
-  items: number[],
+  items: number[] | Float32Array,
 ) => {
-  const floatArray = new Float32Array(items);
-  device.queue.writeBuffer(
-    buffer,
-    0, // offset
-    floatArray.buffer,
-    0, // data offset
-    items.length * Float32Array.BYTES_PER_ELEMENT,
-  );
+  if (items instanceof Float32Array) {
+    device.queue.writeBuffer(
+      buffer,
+      0, // offset
+      items.buffer,
+      0, // data offset
+      items.length * Float32Array.BYTES_PER_ELEMENT,
+    );
+  } else{
+    const floatArray = new Float32Array(items);
+    device.queue.writeBuffer(
+      buffer,
+      0, // offset
+      floatArray.buffer,
+      0, // data offset
+      items.length * Float32Array.BYTES_PER_ELEMENT,
+    );
+  }
 };
 
-export const createFloatUniformBuffer = (items: number[], label?: string) => {
+export const createFloatUniformBuffer = (device: GPUDevice, items: number[], label?: string) => {
   const floatArray = new Float32Array(items);
   const buffer = device.createBuffer({
     size: floatArray.byteLength,

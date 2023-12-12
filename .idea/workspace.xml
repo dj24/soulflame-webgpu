@@ -5,12 +5,17 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2229b71a-dd5d-4a63-8f40-0a73278d8fb0" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/src/debug-values-store.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/declaration.d.ts" beforeDir="false" afterPath="$PROJECT_DIR$/declaration.d.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/buffer-utils.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/buffer-utils.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/depth-prepass/get-depth-prepass.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/depth-prepass/get-depth-prepass.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/fullscreen-quad/fullscreentexturedquad.wgsl" beforeDir="false" afterPath="$PROJECT_DIR$/src/fullscreen-quad/fullscreentexturedquad.wgsl" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/g-buffer/get-g-buffer-pass.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/g-buffer/get-g-buffer-pass.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/get-object-transforms/get-objects-worker.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/objects-worker.worker.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/objects-worker.worker.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/get-objects-transforms/objects-worker.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ui.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/ui.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tsconfig.json" beforeDir="false" afterPath="$PROJECT_DIR$/tsconfig.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/webpack.config.js" beforeDir="false" afterPath="$PROJECT_DIR$/webpack.config.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -50,7 +55,7 @@
     "nodejs_package_manager_path": "npm",
     "prettierjs.PrettierConfiguration.Package": "/Users/home/code/soulflame-webgpu/node_modules/prettier",
     "settings.editor.selected.configurable": "settings.javascript.prettier",
-    "ts.external.directory.path": "/Applications/WebStorm.app/Contents/plugins/javascript-impl/jsLanguageServicesImpl/external",
+    "ts.external.directory.path": "C:\\Users\\guita\\AppData\\Local\\JetBrains\\Toolbox\\apps\\WebStorm\\ch-0\\231.9225.18\\plugins\\javascript-impl\\jsLanguageServicesImpl\\external",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
@@ -63,11 +68,11 @@
       <recent name="C:\Code\soulflame-webgpu\public" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Code\soulflame-webgpu\src\get-objects-transforms" />
+      <recent name="C:\Code\soulflame-webgpu\src\g-buffer" />
+      <recent name="C:\Code\soulflame-webgpu\public" />
       <recent name="$PROJECT_DIR$/src" />
       <recent name="C:\Code\soulflame-webgpu\src\get-object-transforms" />
-      <recent name="C:\Code\soulflame-webgpu\src\fullscreen-quad" />
-      <recent name="C:\Code\soulflame-webgpu\src\g-buffer" />
-      <recent name="C:\Code\soulflame-webgpu\src\depth-prepass" />
     </key>
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
@@ -91,6 +96,7 @@
       <workItem from="1701635443059" duration="6639000" />
       <workItem from="1702216307156" duration="8609000" />
       <workItem from="1702234919268" duration="9332000" />
+      <workItem from="1702405142019" duration="4555000" />
     </task>
     <servers />
   </component>

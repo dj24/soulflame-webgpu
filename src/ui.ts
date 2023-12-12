@@ -1,4 +1,4 @@
-import { camera, canvas, scale, translateX, objectCount } from "./app";
+import { camera, canvas, debugValues } from "./app";
 import { animate, spring } from "motion";
 import { vec3 } from "wgpu-matrix";
 
@@ -13,8 +13,8 @@ const animateCameraToStartingPosition = () => {
   const startDirection = camera.direction;
   const targetFieldOfView = startingCameraFieldOfView;
   const startFieldOfView = camera.fieldOfView;
-  const startScale = scale;
-  const startTranslateX = translateX;
+  const startScale = debugValues.scale;
+  const startTranslateX = debugValues.translateX;
   const targetScale = 1;
   const targetTranslateX = 0;
   animate(
@@ -32,11 +32,9 @@ const animateCameraToStartingPosition = () => {
       );
       camera.fieldOfView =
         startFieldOfView + (targetFieldOfView - startFieldOfView) * progress;
-      // @ts-ignore
-      scale = startScale + (targetScale - startScale) * progress;
-      // @ts-ignore
-      translateX =
-        startTranslateX + (targetTranslateX - startTranslateX) * progress;
+      debugValues.scale = startScale + (targetScale - startScale) * progress;
+      debugValues.translateX =
+         startTranslateX + (targetTranslateX - startTranslateX) * progress;
     },
     {
       easing: spring({
@@ -83,21 +81,18 @@ export class DebugUI {
     };
     window.addEventListener("changefov", handleFovChange);
     const handleTranslateChange = (event: CustomEvent) => {
-      // @ts-ignore
-      translateX = parseFloat(event.detail);
+      debugValues.translateX = parseFloat(event.detail);
     };
 
     window.addEventListener("changetranslate", handleTranslateChange);
     const handleScaleChange = (event: CustomEvent) => {
-      // @ts-ignore
-      scale = parseFloat(event.detail);
+      debugValues.scale = parseFloat(event.detail);
     };
     window.addEventListener("changescale", handleScaleChange);
     animateCameraToStartingPosition();
     window.addEventListener("resetcamera", animateCameraToStartingPosition);
     const handleObjectCountChange = (event: CustomEvent) => {
-      // @ts-ignore
-      objectCount = parseFloat(event.detail);
+      debugValues.objectCount = parseFloat(event.detail);
     };
     window.addEventListener("changeobjectcount", handleObjectCountChange);
   }
