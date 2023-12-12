@@ -1,32 +1,55 @@
 import { Camera } from "./camera";
-import { resolution } from "./app";
-import { vec3 } from "wgpu-matrix";
+import { camera, resolution } from "./app";
+import { Vec3, vec3 } from "wgpu-matrix";
 
-export const getFrustumCornerDirections = (camera: Camera) => {
+type Corners = [
+  topLeft: Vec3,
+  topRight: Vec3,
+  bottomLeft: Vec3,
+  bottomRight: Vec3,
+];
+
+const getNearPlaneCornerPositions = (camera: Camera): Corners => {
   const aspectRatio = resolution[0] / resolution[1];
-  const halfFov = camera.fieldOfView / 2;
-  const tanHalfFov = Math.tan(halfFov);
-  const right = vec3.normalize(
-    vec3.cross(vec3.create(0, 1, 0), camera.direction),
-  );
-  const up = vec3.normalize(vec3.cross(camera.direction, right));
-  const upwardDisplacement = vec3.mulScalar(up, tanHalfFov);
-
-  const topLeft = vec3.add(
-    vec3.add(camera.direction, upwardDisplacement),
-    vec3.mulScalar(right, -aspectRatio * tanHalfFov),
-  );
-  const topRight = vec3.add(
-    vec3.add(camera.direction, upwardDisplacement),
-    vec3.mulScalar(right, aspectRatio * tanHalfFov),
-  );
-  const bottomLeft = vec3.add(
-    vec3.subtract(camera.direction, upwardDisplacement),
-    vec3.mulScalar(right, -aspectRatio * tanHalfFov),
-  );
-  const bottomRight = vec3.add(
-    vec3.subtract(camera.direction, upwardDisplacement),
-    vec3.mulScalar(right, aspectRatio * tanHalfFov),
-  );
+  const nearHeight =
+    2 * Math.tan(((camera.fieldOfView / 180) * Math.PI) / 2) * camera.near;
+  const nearWidth = nearHeight * aspectRatio;
+  const topLeft = vec3.create(-nearWidth / 2, nearHeight / 2, -camera.near); //0, Near Top Left
+  const topRight = vec3.create(nearWidth / 2, nearHeight / 2, -camera.near); //1, Near Top Right
+  const bottomRight = vec3.create(nearWidth / 2, -nearHeight / 2, -camera.near); //2, Near Bottom Right
+  const bottomLeft = vec3.create(-nearWidth / 2, -nearHeight / 2, -camera.near); //3, Near Bottom Left
   return [topLeft, topRight, bottomLeft, bottomRight];
+};
+
+const getNearPlaneWorldSpaceCornerPositions = (camera: Camera): Corners => {
+  const corners = getNearPlaneCornerPositions(camera);
+  return [
+    vec3.transformMat4(corners[0], camera.viewMatrix),
+    vec3.transformMat4(corners[1], camera.viewMatrix),
+    vec3.transformMat4(corners[2], camera.viewMatrix),
+    vec3.transformMat4(corners[3], camera.viewMatrix),
+  ];
+};
+
+const getClipSpaceFrustumCornerDirections = (camera: Camera): Corners => {
+  const corners = getNearPlaneCornerPositions(camera);
+  console.log({ corners });
+  return [
+    vec3.normalize(vec3.add(corners[0], vec3.zero())),
+    vec3.normalize(vec3.add(corners[1], vec3.zero())),
+    vec3.normalize(vec3.add(corners[2], vec3.zero())),
+    vec3.normalize(vec3.add(corners[3], vec3.zero())),
+  ];
+};
+
+export const getFrustumCornerDirections = (camera: Camera): Corners => {
+  const corners = getClipSpaceFrustumCornerDirections(camera);
+  return corners;
+  // TODO: fix this
+  return [
+    vec3.transformMat4(corners[0], camera.viewMatrix),
+    vec3.transformMat4(corners[1], camera.viewMatrix),
+    vec3.transformMat4(corners[2], camera.viewMatrix),
+    vec3.transformMat4(corners[3], camera.viewMatrix),
+  ];
 };
