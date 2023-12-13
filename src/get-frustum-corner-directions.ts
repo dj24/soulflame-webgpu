@@ -24,16 +24,15 @@ const getNearPlaneCornerPositions = (camera: Camera): Corners => {
 const getNearPlaneWorldSpaceCornerPositions = (camera: Camera): Corners => {
   const corners = getNearPlaneCornerPositions(camera);
   return [
-    vec3.transformMat4(corners[0], camera.viewMatrix),
-    vec3.transformMat4(corners[1], camera.viewMatrix),
-    vec3.transformMat4(corners[2], camera.viewMatrix),
-    vec3.transformMat4(corners[3], camera.viewMatrix),
+    vec3.transformMat4(corners[0], camera.inverseViewMatrix),
+    vec3.transformMat4(corners[1], camera.inverseViewMatrix),
+    vec3.transformMat4(corners[2], camera.inverseViewMatrix),
+    vec3.transformMat4(corners[3], camera.inverseViewMatrix),
   ];
 };
 
-const getClipSpaceFrustumCornerDirections = (camera: Camera): Corners => {
+export const getClipSpaceFrustumCornerDirections = (camera: Camera): Corners => {
   const corners = getNearPlaneCornerPositions(camera);
-  console.log({ corners });
   return [
     vec3.normalize(vec3.add(corners[0], vec3.zero())),
     vec3.normalize(vec3.add(corners[1], vec3.zero())),
@@ -42,14 +41,12 @@ const getClipSpaceFrustumCornerDirections = (camera: Camera): Corners => {
   ];
 };
 
-export const getFrustumCornerDirections = (camera: Camera): Corners => {
-  const corners = getClipSpaceFrustumCornerDirections(camera);
-  return corners;
-  // TODO: fix this
+export const getWorldSpaceFrustumCornerDirections = (camera: Camera): Corners => {
+  const corners = getNearPlaneWorldSpaceCornerPositions(camera);
   return [
-    vec3.transformMat4(corners[0], camera.viewMatrix),
-    vec3.transformMat4(corners[1], camera.viewMatrix),
-    vec3.transformMat4(corners[2], camera.viewMatrix),
-    vec3.transformMat4(corners[3], camera.viewMatrix),
+    vec3.normalize(vec3.add(corners[0], camera.position)),
+    vec3.normalize(vec3.add(corners[1] ,camera.position)),
+    vec3.normalize(vec3.add(corners[2], camera.position)),
+    vec3.normalize(vec3.add(corners[3], camera.position)),
   ];
 };

@@ -45,26 +45,32 @@ export class Camera extends MoveableObject {
   rotateY(angle: number) {}
 
   get viewMatrix() {
-    let viewMatrix = mat4.create();
-    mat4.lookAt(
+    return mat4.lookAt(
       this.position,
       vec3.add(this.position, this.direction),
       this.up,
-      viewMatrix,
     );
-    return viewMatrix;
   }
 
-  get projectionMatrix() {
-    let projectionMatrix = mat4.create();
-    mat4.perspective(
+  get inverseViewMatrix() {
+    return mat4.invert(this.viewMatrix);
+  }
+
+  get perspectiveMatrix() {
+    return mat4.perspective(
       this.fieldOfView,
       resolution[0] / resolution[1],
       this.near,
       this.far,
-      projectionMatrix,
     );
-    return projectionMatrix;
+  }
+
+  get projectionMatrix() {
+    return mat4.multiply(this.perspectiveMatrix, this.viewMatrix);
+  }
+
+  get inverseProjectionMatrix() {
+    return mat4.invert(this.projectionMatrix);
   }
 
   get viewProjectionMatrix() {

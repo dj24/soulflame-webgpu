@@ -9,7 +9,7 @@ import {
 } from "../app";
 import { create3dTexture } from "../create-3d-texture";
 import miniViking from "../voxel-models/mini-viking.vxm";
-import { getFrustumCornerDirections } from "../get-frustum-corner-directions";
+import { getClipSpaceFrustumCornerDirections } from "../get-frustum-corner-directions";
 
 // TODO: make this into more robust type, probably object
 type OutputTextureView = [
@@ -85,7 +85,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     });
 
     // 4 byte stride
-    const flatMappedDirections = getFrustumCornerDirections(camera).flatMap(
+    const flatMappedDirections = getClipSpaceFrustumCornerDirections(camera).flatMap(
       (direction) => [...direction, 0],
     );
     // TODO: make sure to destroy these buffers or write to them instead

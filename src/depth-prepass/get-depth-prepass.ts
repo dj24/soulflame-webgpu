@@ -12,7 +12,7 @@ import { create3dTexture } from "../create-3d-texture";
 import tower from "../voxel-models/tower.vxm";
 import building from "../voxel-models/building.vxm";
 import miniViking from "../voxel-models/mini-viking.vxm";
-import { getFrustumCornerDirections } from "../get-frustum-corner-directions";
+import { getClipSpaceFrustumCornerDirections } from "../get-frustum-corner-directions";
 import { mat4, vec3, Vec3 } from "wgpu-matrix";
 import { RenderArgs, RenderPass } from "../g-buffer/get-g-buffer-pass";
 
@@ -78,7 +78,7 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
     // voxelObjects = getObjectsWorker();
 
     // 4 byte stride
-    const flatMappedDirections = getFrustumCornerDirections(camera).flatMap(
+    const flatMappedDirections = getClipSpaceFrustumCornerDirections(camera).flatMap(
       (direction) => [...direction, 0],
     );
     // TODO: make sure to destroy these buffers or write to them instead
