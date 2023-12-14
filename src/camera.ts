@@ -45,11 +45,8 @@ export class Camera extends MoveableObject {
   rotateY(angle: number) {}
 
   get viewMatrix() {
-    return mat4.lookAt(
-      this.position,
-      vec3.add(this.position, this.direction),
-      this.up,
-    );
+    const target = vec3.add(this.position, this.direction);
+    return mat4.lookAt(this.position, target, this.up);
   }
 
   get inverseViewMatrix() {
@@ -88,11 +85,12 @@ export const moveCamera = () => {
   }
   const speed = 0.75;
   let direction = vec3.zero();
+  // TODO: Why is it backwards?
   if (keyboardControls.pressed.a) {
-    direction = vec3.add(direction, camera.left);
+    direction = vec3.add(direction, camera.right);
   }
   if (keyboardControls.pressed.d) {
-    direction = vec3.add(direction, camera.right);
+    direction = vec3.add(direction, camera.left);
   }
   if (keyboardControls.pressed.w) {
     direction = vec3.add(direction, camera.direction);

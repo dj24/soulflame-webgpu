@@ -6,8 +6,11 @@
   <component name="ChangeListManager">
     <list default="true" id="2229b71a-dd5d-4a63-8f40-0a73278d8fb0" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+<<<<<<< Updated upstream
       <change beforePath="$PROJECT_DIR$/src/camera.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/camera.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/get-frustum-corner-directions.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/get-frustum-corner-directions.ts" afterDir="false" />
+=======
+>>>>>>> Stashed changes
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

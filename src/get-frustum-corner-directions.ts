@@ -1,6 +1,6 @@
 import { Camera } from "./camera";
 import { camera, resolution } from "./app";
-import { Vec3, vec3 } from "wgpu-matrix";
+import { mat4, quat, Vec3, vec3 } from "wgpu-matrix";
 
 type Corners = [
   topLeft: Vec3,
@@ -21,32 +21,28 @@ const getNearPlaneCornerPositions = (camera: Camera): Corners => {
   return [topLeft, topRight, bottomLeft, bottomRight];
 };
 
-const getNearPlaneWorldSpaceCornerPositions = (camera: Camera): Corners => {
+export const getCameraSpaceFrustumCornerDirections = (
+  camera: Camera,
+): Corners => {
   const corners = getNearPlaneCornerPositions(camera);
   return [
-    vec3.transformMat4(corners[0], camera.inverseViewMatrix),
-    vec3.transformMat4(corners[1], camera.inverseViewMatrix),
-    vec3.transformMat4(corners[2], camera.inverseViewMatrix),
-    vec3.transformMat4(corners[3], camera.inverseViewMatrix),
+    vec3.normalize(vec3.subtract(corners[0], vec3.zero())),
+    vec3.normalize(vec3.subtract(corners[1], vec3.zero())),
+    vec3.normalize(vec3.subtract(corners[2], vec3.zero())),
+    vec3.normalize(vec3.subtract(corners[3], vec3.zero())),
   ];
 };
 
-export const getClipSpaceFrustumCornerDirections = (camera: Camera): Corners => {
-  const corners = getNearPlaneCornerPositions(camera);
-  return [
-    vec3.normalize(vec3.add(corners[0], vec3.zero())),
-    vec3.normalize(vec3.add(corners[1], vec3.zero())),
-    vec3.normalize(vec3.add(corners[2], vec3.zero())),
-    vec3.normalize(vec3.add(corners[3], vec3.zero())),
+export const getWorldSpaceFrustumCornerDirections = (
+  camera: Camera,
+): Corners => {
+  const cornerDirections = getCameraSpaceFrustumCornerDirections(camera);
+  const rotationQuat = quat.fromMat(camera.inverseViewMatrix);
+  const worldSpaceCornerDirections = [
+    vec3.transformQuat(cornerDirections[0], rotationQuat),
+    vec3.transformQuat(cornerDirections[1], rotationQuat),
+    vec3.transformQuat(cornerDirections[2], rotationQuat),
+    vec3.transformQuat(cornerDirections[3], rotationQuat),
   ];
-};
-
-export const getWorldSpaceFrustumCornerDirections = (camera: Camera): Corners => {
-  const corners = getNearPlaneWorldSpaceCornerPositions(camera);
-  return [
-    vec3.normalize(vec3.add(corners[0], camera.position)),
-    vec3.normalize(vec3.add(corners[1] ,camera.position)),
-    vec3.normalize(vec3.add(corners[2], camera.position)),
-    vec3.normalize(vec3.add(corners[3], camera.position)),
-  ];
+  return worldSpaceCornerDirections as Corners;
 };

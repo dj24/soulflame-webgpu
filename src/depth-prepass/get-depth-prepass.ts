@@ -1,18 +1,13 @@
 import raymarchDepth from "./raymarch-voxels-depth.wgsl";
 import conservativeDepthMin from "./conservative-depth-min.wgsl";
 import { createFloatUniformBuffer } from "../buffer-utils";
-import {
-  camera,
-  device,
-  debugValues,
-  resolution,
-} from "../app";
+import { camera, device, debugValues, resolution } from "../app";
 import { VoxelObject } from "../voxel-object";
 import { create3dTexture } from "../create-3d-texture";
 import tower from "../voxel-models/tower.vxm";
 import building from "../voxel-models/building.vxm";
 import miniViking from "../voxel-models/mini-viking.vxm";
-import { getClipSpaceFrustumCornerDirections } from "../get-frustum-corner-directions";
+import { getCameraSpaceFrustumCornerDirections } from "../get-frustum-corner-directions";
 import { mat4, vec3, Vec3 } from "wgpu-matrix";
 import { RenderArgs, RenderPass } from "../g-buffer/get-g-buffer-pass";
 
@@ -74,13 +69,12 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
     resolutionBuffer,
     outputTextureViews,
   }: RenderArgs) => {
-
     // voxelObjects = getObjectsWorker();
 
     // 4 byte stride
-    const flatMappedDirections = getClipSpaceFrustumCornerDirections(camera).flatMap(
-      (direction) => [...direction, 0],
-    );
+    const flatMappedDirections = getCameraSpaceFrustumCornerDirections(
+      camera,
+    ).flatMap((direction) => [...direction, 0]);
     // TODO: make sure to destroy these buffers or write to them instead
     const frustumCornerDirectionsBuffer = createFloatUniformBuffer(
       device,

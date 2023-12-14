@@ -238,5 +238,6 @@ fn main(
   let heatMap = mix(vec3(0.0,0.0,0.3),vec3(1.0,0.25,0.0),f32(stepsTaken) / f32(MAX_RAY_STEPS * 0.1));
   let heatMap2 = mix(vec3(0.0,1.0,0.0), vec3(1.0,0.0,0.0), f32(objectsTraversed) / 256.0);
   textureStore(debugTex, GlobalInvocationID.xy, vec4(heatMap2,1));
+//  textureStore(debugTex, GlobalInvocationID.xy, vec4(rayDirection,1));
 //  textureStore(debugTex, GlobalInvocationID.xy, vec4(select(0.2, 1.0, stepsTaken > 128),0,0,1));
 }

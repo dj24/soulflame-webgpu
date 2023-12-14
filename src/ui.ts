@@ -2,9 +2,9 @@ import { camera, canvas, debugValues } from "./app";
 import { animate, spring } from "motion";
 import { vec3 } from "wgpu-matrix";
 
-const startingCameraFieldOfView = 82.5;
-const startingCameraPosition = vec3.create(570, 55, 420);
-const startingCameraDirection = vec3.normalize(vec3.create(-1, -0.33, -1));
+const startingCameraFieldOfView = 70;
+const startingCameraPosition = vec3.create(0, 64, 0);
+const startingCameraDirection = vec3.normalize(vec3.create(1, -0.33, 1));
 
 const animateCameraToStartingPosition = () => {
   const targetPosition = startingCameraPosition;
@@ -34,7 +34,7 @@ const animateCameraToStartingPosition = () => {
         startFieldOfView + (targetFieldOfView - startFieldOfView) * progress;
       debugValues.scale = startScale + (targetScale - startScale) * progress;
       debugValues.translateX =
-         startTranslateX + (targetTranslateX - startTranslateX) * progress;
+        startTranslateX + (targetTranslateX - startTranslateX) * progress;
     },
     {
       easing: spring({

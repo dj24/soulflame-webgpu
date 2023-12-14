@@ -1,15 +1,16 @@
 import blurWGSL from "./raymarch-voxels.wgsl";
 import simpleSkyShader from "../composite/simple-sky.wgsl";
-import {createFloatUniformBuffer, writeToFloatUniformBuffer} from "../buffer-utils";
 import {
-  camera,
-  device,
-  debugValues,
-  resolution,
-} from "../app";
+  createFloatUniformBuffer,
+  writeToFloatUniformBuffer,
+} from "../buffer-utils";
+import { camera, device, debugValues, resolution } from "../app";
 import { create3dTexture } from "../create-3d-texture";
 import miniViking from "../voxel-models/mini-viking.vxm";
-import { getClipSpaceFrustumCornerDirections } from "../get-frustum-corner-directions";
+import {
+  getCameraSpaceFrustumCornerDirections,
+  getWorldSpaceFrustumCornerDirections,
+} from "../get-frustum-corner-directions";
 
 // TODO: make this into more robust type, probably object
 type OutputTextureView = [
@@ -31,7 +32,9 @@ export type RenderPass = {
   render: (args: RenderArgs) => void;
 };
 
-const getObjectTransformsWorker = new Worker(new URL('../get-objects-transforms/objects-worker.ts', import.meta.url));
+const getObjectTransformsWorker = new Worker(
+  new URL("../get-objects-transforms/objects-worker.ts", import.meta.url),
+);
 
 export const getGBufferPass = async (): Promise<RenderPass> => {
   let transformationMatrixBuffer: GPUBuffer;
@@ -50,32 +53,32 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     },
   });
 
-  create3dTexture(
-    device,
-    miniViking.sliceFilePaths,
-    miniViking.size,
-  ).then((texture) => {
-    voxelTexture = texture;
-  });
+  create3dTexture(device, miniViking.sliceFilePaths, miniViking.size).then(
+    (texture) => {
+      voxelTexture = texture;
+    },
+  );
 
-  getObjectTransformsWorker.addEventListener("message", (event: MessageEvent<number[]>) => {
-    if(transformationMatrixBuffer) {
-      writeToFloatUniformBuffer(transformationMatrixBuffer, event.data);
-    } else{
-      transformationMatrixBuffer = createFloatUniformBuffer(
-        device,
-        event.data,
-        "voxel object",
-      );
-    }
-  });
+  getObjectTransformsWorker.addEventListener(
+    "message",
+    (event: MessageEvent<number[]>) => {
+      if (transformationMatrixBuffer) {
+        writeToFloatUniformBuffer(transformationMatrixBuffer, event.data);
+      } else {
+        transformationMatrixBuffer = createFloatUniformBuffer(
+          device,
+          event.data,
+          "voxel object",
+        );
+      }
+    },
+  );
 
   const render = ({
     commandEncoder,
     resolutionBuffer,
     outputTextureViews,
   }: RenderArgs) => {
-
     getObjectTransformsWorker.postMessage({
       maxObjectCount: debugValues.maxObjectCount,
       objectCount: debugValues.objectCount,
@@ -85,9 +88,9 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     });
 
     // 4 byte stride
-    const flatMappedDirections = getClipSpaceFrustumCornerDirections(camera).flatMap(
-      (direction) => [...direction, 0],
-    );
+    const flatMappedDirections = getWorldSpaceFrustumCornerDirections(
+      camera,
+    ).flatMap((direction) => [...direction, 0]);
     // TODO: make sure to destroy these buffers or write to them instead
     const frustumCornerDirectionsBuffer = createFloatUniformBuffer(
       device,
@@ -100,7 +103,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       "camera position",
     );
 
-    if(!transformationMatrixBuffer) {
+    if (!transformationMatrixBuffer) {
       return;
     }
 
