@@ -10,7 +10,8 @@
 // TODO: maybe make a G-Buffer bind group to resuse across shaders
 @group(0) @binding(6) var normalTex : texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(7) var albedoTex : texture_storage_2d<rgba8unorm, write>;
-@group(0) @binding(8) var depthTex : texture_2d<f32>;
+//@group(0) @binding(8) var depthTex : texture_storage_2d<r32float, write>;
+//@group(0) @binding(8) var depthTex : texture_2d<f32>;
 @group(0) @binding(9) var debugTex : texture_storage_2d<rgba8unorm, write>;
 
 
@@ -128,11 +129,11 @@ fn transformNormal(inverseTransform: mat4x4<f32>, normal: vec3<f32>) -> vec3<f32
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
-  let tStart = textureLoad(depthTex, GlobalInvocationID.xy,0).r;
-  if(tStart > 10000.0){
-//    textureStore(outputTex, GlobalInvocationID.xy, vec4(0.0,0.0,0.0,1.0));
-    return;
-  }
+//  let tStart = textureLoad(depthTex, GlobalInvocationID.xy,0).r;
+//  if(tStart > 10000.0){
+////    textureStore(outputTex, GlobalInvocationID.xy, vec4(0.0,0.0,0.0,1.0));
+//    return;
+//  }
   var voxelSize = 1.0;
   let pixel = vec2<f32>(f32(GlobalInvocationID.x), f32(resolution.y - GlobalInvocationID.y));
   let uv = pixel / vec2<f32>(resolution);
@@ -227,14 +228,18 @@ fn main(
     }
   }
 
+  var alpha = 0.0;
+
   // output result
   if(occlusion){
+    alpha = 1.0;
     colour = addBasicShading(albedo, normal);
   }
 
   textureStore(normalTex, GlobalInvocationID.xy, vec4(normal,1));
-  textureStore(albedoTex, GlobalInvocationID.xy, vec4(albedo,1));
-  textureStore(outputTex, GlobalInvocationID.xy, vec4(colour,1));
+  textureStore(albedoTex, GlobalInvocationID.xy, vec4(albedo,f32(closestIntersection) * 0.001));
+  textureStore(outputTex, GlobalInvocationID.xy, vec4(colour,alpha));
+//  textureStore(depthTex, GlobalInvocationID.xy, vec4(closestIntersection));
   let heatMap = mix(vec3(0.0,0.0,0.3),vec3(1.0,0.25,0.0),f32(stepsTaken) / f32(MAX_RAY_STEPS * 0.1));
   let heatMap2 = mix(vec3(0.0,1.0,0.0), vec3(1.0,0.0,0.0), f32(objectsTraversed) / 256.0);
   textureStore(debugTex, GlobalInvocationID.xy, vec4(heatMap2,1));

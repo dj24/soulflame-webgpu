@@ -7,8 +7,6 @@ const startingCameraPosition = vec3.create(0, 64, 0);
 const startingCameraDirection = vec3.normalize(vec3.create(1, -0.33, 1));
 
 const animateCameraToStartingPosition = () => {
-  const targetPosition = startingCameraPosition;
-  const startPosition = camera.position;
   const targetDirection = startingCameraDirection;
   const startDirection = camera.direction;
   const targetFieldOfView = startingCameraFieldOfView;
@@ -17,12 +15,9 @@ const animateCameraToStartingPosition = () => {
   const startTranslateX = debugValues.translateX;
   const targetScale = 1;
   const targetTranslateX = 0;
+  camera.targetPosition = startingCameraPosition;
   animate(
     (progress: number) => {
-      camera.position = vec3.add(
-        startPosition,
-        vec3.mulScalar(vec3.subtract(targetPosition, startPosition), progress),
-      );
       camera.direction = vec3.add(
         startDirection,
         vec3.mulScalar(

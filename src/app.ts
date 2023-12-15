@@ -8,7 +8,7 @@ import treeModel from "./voxel-models/fir-tree.vxm";
 import miniViking from "./voxel-models/mini-viking.vxm";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
-import {DebugValuesStore} from "./debug-values-store";
+import { DebugValuesStore } from "./debug-values-store";
 
 export const debugValues = new DebugValuesStore();
 
@@ -24,8 +24,8 @@ export let deltaTime = 0;
 const startingCameraFieldOfView = 82.5;
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
-  position: vec3.create(80, 480, 80),
-  direction: vec3.normalize(vec3.create(-1, -1, -1)),
+  position: vec3.create(0, 128, 0),
+  direction: vec3.normalize(vec3.create(-1, -0.33, 1)),
 });
 
 const debugUI = new DebugUI();
@@ -197,7 +197,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
           albedoTextureView,
           normalTextureView,
           depthTextureView,
-          debugTextureView
+          debugTextureView,
         ],
       });
     });

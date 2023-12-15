@@ -154,10 +154,10 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           binding: 7,
           resource: outputTextureViews[2],
         },
-        {
-          binding: 8,
-          resource: outputTextureViews[3],
-        },
+        // {
+        //   binding: 8,
+        //   resource: outputTextureViews[3],
+        // },
         {
           binding: 9,
           resource: outputTextureViews[4],

@@ -24,7 +24,7 @@ const getObjectTransforms = ({
   const spaceBetweenObjects = 16;
   const gapX = objectSize[0] + spaceBetweenObjects;
   const gapZ = objectSize[2] + spaceBetweenObjects;
-  const rows = 16;
+  const rows = 12;
   let voxelObjects = [...Array(maxObjectCount).keys()].map((index) => {
     let m = mat4.identity();
     let x = (index % rows) * gapX;
@@ -59,7 +59,9 @@ const getObjectTransforms = ({
   return voxelObjects;
 };
 
-ctx.onmessage =  (event: MessageEvent<GetObjectsArgs>) => {
-  const result = getObjectTransforms(event.data).flatMap((voxelObject) =>voxelObject.toArray());
+ctx.onmessage = (event: MessageEvent<GetObjectsArgs>) => {
+  const result = getObjectTransforms(event.data).flatMap((voxelObject) =>
+    voxelObject.toArray(),
+  );
   ctx.postMessage(result);
 };

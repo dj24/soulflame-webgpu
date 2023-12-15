@@ -52,10 +52,10 @@ export const fullscreenQuad = (device: GPUDevice) => {
           binding: 3,
           resource: args.outputTextureViews[2],
         },
-        {
-          binding: 4,
-          resource: args.outputTextureViews[3],
-        },
+        // {
+        //   binding: 4,
+        //   resource: args.outputTextureViews[3],
+        // },
         {
           binding: 5,
           resource: {

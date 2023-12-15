@@ -3,6 +3,7 @@ import { KeyboardControls } from "./keyboard-controls";
 import { MouseControls } from "./mouse-controls";
 import { MoveableObject } from "./moveable-object";
 import { mat4, vec3, Vec3 } from "wgpu-matrix";
+import { animate, glide } from "motion";
 
 const keyboardControls = new KeyboardControls();
 // const mouseControls = new MouseControls();
@@ -83,7 +84,7 @@ export const moveCamera = () => {
   if (!document.hasFocus()) {
     return;
   }
-  const speed = 0.75;
+  const speed = 1 * deltaTime;
   let direction = vec3.zero();
   // TODO: Why is it backwards?
   if (keyboardControls.pressed.a) {
@@ -105,5 +106,8 @@ export const moveCamera = () => {
     direction = vec3.add(direction, camera.down);
   }
   direction = vec3.normalize(direction);
-  camera.velocity = vec3.mulScalar(direction, speed);
+  camera.targetPosition = vec3.add(
+    camera.targetPosition,
+    vec3.mulScalar(direction, speed),
+  );
 };
