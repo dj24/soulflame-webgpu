@@ -42,15 +42,15 @@ export const fullscreenQuad = (device: GPUDevice) => {
         },
         {
           binding: 1,
-          resource: args.outputTextureViews[0],
+          resource: args.outputTextureViews.finalTexture,
         },
         {
           binding: 2,
-          resource: args.outputTextureViews[1],
+          resource: args.outputTextureViews.albedoTextureView,
         },
         {
           binding: 3,
-          resource: args.outputTextureViews[2],
+          resource: args.outputTextureViews.normalTextureView,
         },
         // {
         //   binding: 4,
@@ -62,9 +62,13 @@ export const fullscreenQuad = (device: GPUDevice) => {
             buffer: args.resolutionBuffer,
           },
         },
+        // {
+        //   binding: 6,
+        //   resource: args.outputTextureViews.depthAndClusterTextureView,
+        // },
         {
           binding: 6,
-          resource: args.outputTextureViews[4],
+          resource: args.outputTextureViews.debugTextureView,
         },
       ],
     });

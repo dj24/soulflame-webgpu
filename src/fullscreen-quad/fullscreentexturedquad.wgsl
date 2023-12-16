@@ -3,6 +3,7 @@
 @group(0) @binding(3) var albedoTexture : texture_2d<f32>;
 @group(0) @binding(2) var normalTexture : texture_2d<f32>;
 @group(0) @binding(5) var<uniform> resolution : vec2<u32>;
+//@group(0) @binding(6) var clusterTexture : texture_2d<i32>;
 @group(0) @binding(6) var debugTexture : texture_2d<f32>;
 
 struct VertexOutput {
@@ -36,25 +37,44 @@ fn vertex_main(@builtin(vertex_index) VertexIndex : u32) -> VertexOutput {
   return output;
 }
 
+fn get_debug_colour(index : i32) -> vec4<f32> {
+  let colours = array(
+    vec4<f32>(1.0, 0.0, 0.0, 1.0),
+    vec4<f32>(0.0, 1.0, 0.0, 1.0),
+    vec4<f32>(0.0, 0.0, 1.0, 1.0),
+    vec4<f32>(1.0, 1.0, 0.0, 1.0),
+    vec4<f32>(1.0, 0.0, 1.0, 1.0),
+    vec4<f32>(0.0, 1.0, 1.0, 1.0),
+    vec4<f32>(1.0, 1.0, 1.0, 1.0),
+    vec4<f32>(0.0, 0.0, 0.0, 1.0),
+  );
+  return colours[index % 8];
+}
+
 @fragment
 fn fragment_main(@location(0) fragUV : vec2<f32>) -> @location(0) vec4<f32> {
     let normal = textureSample(normalTexture, mySampler, fragUV);
     let albedo = textureSample(albedoTexture, mySampler, fragUV);
     let pixel = vec2<u32>(fragUV * vec2<f32>(resolution));
     let depth = albedo.a;
-    let debug = textureLoad(debugTexture, pixel, 0);
+
     let foo = textureSample(myTexture, mySampler, fragUV);
+//    let cluster = textureLoad(clusterTexture, pixel, 0).r;
+let debug = textureLoad(debugTexture, pixel, 0);
 
     var colour = vec4(0.0);
-
-//    if(fragUV.x < 0.5){
-//      colour = debug;
-//    } else{
+let sky = mix(vec4(0.9,0.9,1,1),vec4(0.2,0.4,1,1), fragUV.y);
+    if(fragUV.x < 0.5){
+      //colour = get_debug_colour(cluster);
+      colour = debug;
+    } else{
       colour = foo;
-//    }
 
-    let sky = mix(vec4(0.9,0.9,1,1),vec4(0.2,0.4,1,1), fragUV.y);
-    colour = mix(sky, colour, (1.0 - depth));
+      colour = mix(sky, colour, (1.0 - depth));
+    }
+    if colour.a == 0.0 {
+      colour = sky;
+    }
 
     return colour;
 }

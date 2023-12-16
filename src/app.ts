@@ -36,7 +36,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let normalTexture: GPUTexture;
   let albedoTexture: GPUTexture;
   let outputTexture: GPUTexture;
-  let depthTexture: GPUTexture;
+  let cluserTexture: GPUTexture;
   let debugTexture: GPUTexture;
   let animationFrameId: ReturnType<typeof requestAnimationFrame>;
   let fixedIntervalId: ReturnType<typeof setInterval>;
@@ -103,19 +103,19 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     return normalTexture.createView();
   };
 
-  const createDepthTextureView = () => {
-    if (depthTexture) {
-      depthTexture.destroy();
+  const createClusterTextureView = () => {
+    if (cluserTexture) {
+      cluserTexture.destroy();
     }
-    depthTexture = device.createTexture({
+    cluserTexture = device.createTexture({
       size: [resolution[0], resolution[1], 1],
-      format: "r32float",
+      format: "rg32sint",
       usage:
         GPUTextureUsage.TEXTURE_BINDING |
         GPUTextureUsage.RENDER_ATTACHMENT |
         GPUTextureUsage.STORAGE_BINDING,
     });
-    return depthTexture.createView();
+    return cluserTexture.createView();
   };
 
   const createAlbedoTextureView = () => {
@@ -186,19 +186,19 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     const outputTextureView = createOutputTextureView();
     const normalTextureView = createNormalTextureView();
     const albedoTextureView = createAlbedoTextureView();
-    const depthTextureView = createDepthTextureView();
+    const depthTextureView = createClusterTextureView();
     const debugTextureView = createDebugTexture();
     computePasses.forEach(({ render }) => {
       render({
         commandEncoder,
         resolutionBuffer,
-        outputTextureViews: [
-          outputTextureView,
+        outputTextureViews: {
+          finalTexture: outputTextureView,
           albedoTextureView,
           normalTextureView,
-          depthTextureView,
+          depthAndClusterTextureView: depthTextureView,
           debugTextureView,
-        ],
+        },
       });
     });
     device.queue.submit([commandEncoder.finish()]);
@@ -221,7 +221,7 @@ if (navigator.gpu !== undefined) {
       console.log(device.limits);
       console.log({ treeModel, miniViking });
       renderLoop(device, [
-        // await getDepthPrepass(),
+        await getDepthPrepass(),
         await getGBufferPass(),
         fullscreenQuad(device),
       ]);

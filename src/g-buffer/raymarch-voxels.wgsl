@@ -11,7 +11,7 @@
 @group(0) @binding(6) var normalTex : texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(7) var albedoTex : texture_storage_2d<rgba8unorm, write>;
 //@group(0) @binding(8) var depthTex : texture_storage_2d<r32float, write>;
-//@group(0) @binding(8) var depthTex : texture_2d<f32>;
+@group(0) @binding(8) var depthTex : texture_2d<i32>;
 @group(0) @binding(9) var debugTex : texture_storage_2d<rgba8unorm, write>;
 
 
@@ -101,7 +101,7 @@ fn addBasicShading(baseColour: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
   let lightDirection = normalize(vec3(0.5, 1.0, 0.5));
   let cosTheta = max(dot(normal, lightDirection), 0.0);
   let lambertianReflectance = cosTheta * baseColour;
-  return mix(baseColour,lambertianReflectance, 1.0);
+  return mix(baseColour,lambertianReflectance, 0.66);
 }
 
 fn addBoundsBorderColour(baseColour: vec3<f32>, worldPos: vec3<f32>, bounds: vec3<f32>) -> vec3<f32> {
@@ -131,9 +131,17 @@ fn main(
 ) {
 //  let tStart = textureLoad(depthTex, GlobalInvocationID.xy,0).r;
 //  if(tStart > 10000.0){
-////    textureStore(outputTex, GlobalInvocationID.xy, vec4(0.0,0.0,0.0,1.0));
+//    textureStore(outputTex, GlobalInvocationID.xy, vec4(0.0,0.0,0.0,1.0));
+//    textureStore(debugTex, GlobalInvocationID.xy, vec4(1.0));
 //    return;
 //  }
+  let startingObjectIndex = textureLoad(depthTex, GlobalInvocationID.xy,0).r;
+
+  if(startingObjectIndex < 0){
+    textureStore(debugTex, GlobalInvocationID.xy, vec4(1.0));
+    return;
+  }
+
   var voxelSize = 1.0;
   let pixel = vec2<f32>(f32(GlobalInvocationID.x), f32(resolution.y - GlobalInvocationID.y));
   let uv = pixel / vec2<f32>(resolution);
@@ -149,7 +157,7 @@ fn main(
 
   var stepsTaken = 0;
   var objectsTraversed = 0;
-  for (var voxelObjectIndex = 0; voxelObjectIndex < VOXEL_OBJECT_COUNT; voxelObjectIndex++) {
+  for (var voxelObjectIndex = startingObjectIndex; voxelObjectIndex < VOXEL_OBJECT_COUNT; voxelObjectIndex++) {
     var voxelObject = voxelObjects[voxelObjectIndex];
     objectsTraversed ++;
 
@@ -164,7 +172,7 @@ fn main(
     tNear = intersect.tNear;
 
     // bounding box is further away than the closest intersection, so we can skip this object
-    let isInsideAlreadyMarchedVoxel = tNear > closestIntersection + EPSILON;
+    let isInsideAlreadyMarchedVoxel = tNear > closestIntersection - EPSILON;
     if(isInsideAlreadyMarchedVoxel){
         continue;
     }
@@ -241,8 +249,10 @@ fn main(
   textureStore(outputTex, GlobalInvocationID.xy, vec4(colour,alpha));
 //  textureStore(depthTex, GlobalInvocationID.xy, vec4(closestIntersection));
   let heatMap = mix(vec3(0.0,0.0,0.3),vec3(1.0,0.25,0.0),f32(stepsTaken) / f32(MAX_RAY_STEPS * 0.1));
-  let heatMap2 = mix(vec3(0.0,1.0,0.0), vec3(1.0,0.0,0.0), f32(objectsTraversed) / 256.0);
+  let heatMap2 = mix(vec3(0.0,1.0,0.0), vec3(1.0,0.0,0.0), f32(objectsTraversed) / 128.0);
+//  textureStore(debugTex, GlobalInvocationID.xy, vec4(t,1));
   textureStore(debugTex, GlobalInvocationID.xy, vec4(heatMap2,1));
+//textureStore(debugTex, GlobalInvocationID.xy, vec4(f32(startingObjectIndex) / 128.0));
 //  textureStore(debugTex, GlobalInvocationID.xy, vec4(rayDirection,1));
 //  textureStore(debugTex, GlobalInvocationID.xy, vec4(select(0.2, 1.0, stepsTaken > 128),0,0,1));
 }

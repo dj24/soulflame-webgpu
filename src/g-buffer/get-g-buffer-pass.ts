@@ -7,24 +7,21 @@ import {
 import { camera, device, debugValues, resolution } from "../app";
 import { create3dTexture } from "../create-3d-texture";
 import miniViking from "../voxel-models/mini-viking.vxm";
-import {
-  getCameraSpaceFrustumCornerDirections,
-  getWorldSpaceFrustumCornerDirections,
-} from "../get-frustum-corner-directions";
+import { getWorldSpaceFrustumCornerDirections } from "../get-frustum-corner-directions";
 
 // TODO: make this into more robust type, probably object
-type OutputTextureView = [
-  finalTexture: GPUTextureView,
-  albedoTextureView?: GPUTextureView,
-  normalTextureView?: GPUTextureView,
-  depthTextureView?: GPUTextureView,
-  debugTextureView?: GPUTextureView,
-];
+type OutputTextureViews = {
+  finalTexture: GPUTextureView;
+  albedoTextureView?: GPUTextureView;
+  normalTextureView?: GPUTextureView;
+  depthAndClusterTextureView?: GPUTextureView;
+  debugTextureView?: GPUTextureView;
+};
 
 export type RenderArgs = {
   commandEncoder: GPUCommandEncoder;
   resolutionBuffer: GPUBuffer;
-  outputTextureViews: OutputTextureView;
+  outputTextureViews: OutputTextureViews;
 };
 
 export type RenderPass = {
@@ -32,7 +29,7 @@ export type RenderPass = {
   render: (args: RenderArgs) => void;
 };
 
-const getObjectTransformsWorker = new Worker(
+export const getObjectTransformsWorker = new Worker(
   new URL("../get-objects-transforms/objects-worker.ts", import.meta.url),
 );
 
@@ -91,6 +88,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     const flatMappedDirections = getWorldSpaceFrustumCornerDirections(
       camera,
     ).flatMap((direction) => [...direction, 0]);
+
     // TODO: make sure to destroy these buffers or write to them instead
     const frustumCornerDirectionsBuffer = createFloatUniformBuffer(
       device,
@@ -120,7 +118,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       entries: [
         {
           binding: 0,
-          resource: outputTextureViews[0],
+          resource: outputTextureViews.finalTexture,
         },
         {
           binding: 2,
@@ -148,19 +146,19 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 6,
-          resource: outputTextureViews[1],
+          resource: outputTextureViews.albedoTextureView,
         },
         {
           binding: 7,
-          resource: outputTextureViews[2],
+          resource: outputTextureViews.normalTextureView,
         },
-        // {
-        //   binding: 8,
-        //   resource: outputTextureViews[3],
-        // },
+        {
+          binding: 8,
+          resource: outputTextureViews.depthAndClusterTextureView,
+        },
         {
           binding: 9,
-          resource: outputTextureViews[4],
+          resource: outputTextureViews.debugTextureView,
         },
       ],
     });

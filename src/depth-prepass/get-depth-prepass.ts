@@ -1,20 +1,23 @@
 import raymarchDepth from "./raymarch-voxels-depth.wgsl";
 import conservativeDepthMin from "./conservative-depth-min.wgsl";
-import { createFloatUniformBuffer } from "../buffer-utils";
+import {
+  createFloatUniformBuffer,
+  writeToFloatUniformBuffer,
+} from "../buffer-utils";
 import { camera, device, debugValues, resolution } from "../app";
-import { VoxelObject } from "../voxel-object";
 import { create3dTexture } from "../create-3d-texture";
-import tower from "../voxel-models/tower.vxm";
-import building from "../voxel-models/building.vxm";
 import miniViking from "../voxel-models/mini-viking.vxm";
-import { getCameraSpaceFrustumCornerDirections } from "../get-frustum-corner-directions";
-import { mat4, vec3, Vec3 } from "wgpu-matrix";
-import { RenderArgs, RenderPass } from "../g-buffer/get-g-buffer-pass";
+import { getWorldSpaceFrustumCornerDirections } from "../get-frustum-corner-directions";
+import {
+  getObjectTransformsWorker,
+  RenderArgs,
+  RenderPass,
+} from "../g-buffer/get-g-buffer-pass";
 
 const downscaleFactor = 8;
 
 export const getDepthPrepass = async (): Promise<RenderPass> => {
-  let voxelObjects: VoxelObject[] = [];
+  let transformationMatrixBuffer: GPUBuffer;
   let downscaledDepthTexture: GPUTexture;
 
   const createDownscaledDepthTextureView = () => {
@@ -27,7 +30,7 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
         Math.ceil(resolution[1] / downscaleFactor),
         1,
       ],
-      format: "r32float",
+      format: "rg32sint",
       usage:
         GPUTextureUsage.TEXTURE_BINDING |
         GPUTextureUsage.RENDER_ATTACHMENT |
@@ -64,17 +67,32 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
     miniViking.size,
   );
 
+  getObjectTransformsWorker.addEventListener(
+    "message",
+    (event: MessageEvent<number[]>) => {
+      if (transformationMatrixBuffer) {
+        writeToFloatUniformBuffer(transformationMatrixBuffer, event.data);
+      } else {
+        transformationMatrixBuffer = createFloatUniformBuffer(
+          device,
+          event.data,
+          "voxel object",
+        );
+      }
+    },
+  );
+
   const render = ({
     commandEncoder,
     resolutionBuffer,
     outputTextureViews,
   }: RenderArgs) => {
     // voxelObjects = getObjectsWorker();
-
-    // 4 byte stride
-    const flatMappedDirections = getCameraSpaceFrustumCornerDirections(
+    // downscaleFactor byte stride
+    const flatMappedDirections = getWorldSpaceFrustumCornerDirections(
       camera,
     ).flatMap((direction) => [...direction, 0]);
+
     // TODO: make sure to destroy these buffers or write to them instead
     const frustumCornerDirectionsBuffer = createFloatUniformBuffer(
       device,
@@ -85,12 +103,6 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
       device,
       camera.position as number[],
       "camera position",
-    );
-
-    const transformationMatrixBuffer = createFloatUniformBuffer(
-      device,
-      voxelObjects.flatMap((voxelObject) => voxelObject.toArray()),
-      "voxel object",
     );
 
     const computePass = commandEncoder.beginComputePass();
@@ -104,10 +116,9 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
       return;
     }
 
-    const pointSampler = device.createSampler({
-      magFilter: "nearest",
-      minFilter: "nearest",
-    });
+    if (!transformationMatrixBuffer) {
+      return;
+    }
 
     const computeBindGroup = device.createBindGroup({
       layout: rayMarchPipeline.getBindGroupLayout(0),
@@ -158,10 +169,15 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
     // });
     // computePass.setBindGroup(1, volumeBindGroup);
 
+    const downscaledResolution = [
+      Math.ceil(resolution[0] / downscaleFactor),
+      Math.ceil(resolution[1] / downscaleFactor),
+    ];
+
     computePass.setBindGroup(0, computeBindGroup);
     computePass.dispatchWorkgroups(
-      Math.ceil(resolution[0] / 8),
-      Math.ceil(resolution[1] / 8),
+      Math.ceil(downscaledResolution[0] / 8),
+      Math.ceil(downscaledResolution[1] / 8),
     );
 
     computePass.setPipeline(depthMinPipeline);
@@ -174,7 +190,7 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
         },
         {
           binding: 1,
-          resource: outputTextureViews[3],
+          resource: outputTextureViews.depthAndClusterTextureView,
         },
         {
           binding: 2,
