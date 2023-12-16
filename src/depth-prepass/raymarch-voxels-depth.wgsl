@@ -4,7 +4,7 @@
 @group(0) @binding(3) var<uniform> cameraPosition : vec3<f32>;
 @group(0) @binding(4) var<uniform> voxelObjects : array<VoxelObject, VOXEL_OBJECT_COUNT>; // TODO: dynamic amount of these using string interpolation
 
-const DOWNSCALE_FACTOR = 8;
+const DOWNSCALE_FACTOR = 4;
 
 @group(1) @binding(0) var voxelsSampler : sampler;
 @group(1) @binding(1) var voxels : texture_3d<f32>;
@@ -129,7 +129,7 @@ fn main(
        let isBackwardsIntersection = intersect.tNear < 0.0 && !isStartingInBounds;
        if(!isBackwardsIntersection){
          closestIntersection = intersect.tNear;
-         hitObjectIndex = i;
+         hitObjectIndex = 0;
          break;
        }
      }

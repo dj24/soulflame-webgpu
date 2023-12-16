@@ -14,7 +14,7 @@ import {
   RenderPass,
 } from "../g-buffer/get-g-buffer-pass";
 
-const downscaleFactor = 8;
+const downscaleFactor = 4;
 
 export const getDepthPrepass = async (): Promise<RenderPass> => {
   let transformationMatrixBuffer: GPUBuffer;
@@ -86,25 +86,9 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
     commandEncoder,
     resolutionBuffer,
     outputTextureViews,
+    cameraPositionBuffer,
+    frustumCornerDirectionsBuffer,
   }: RenderArgs) => {
-    // voxelObjects = getObjectsWorker();
-    // downscaleFactor byte stride
-    const flatMappedDirections = getWorldSpaceFrustumCornerDirections(
-      camera,
-    ).flatMap((direction) => [...direction, 0]);
-
-    // TODO: make sure to destroy these buffers or write to them instead
-    const frustumCornerDirectionsBuffer = createFloatUniformBuffer(
-      device,
-      flatMappedDirections,
-      "frustum corner directions",
-    );
-    const cameraPostionBuffer = createFloatUniformBuffer(
-      device,
-      camera.position as number[],
-      "camera position",
-    );
-
     const computePass = commandEncoder.beginComputePass();
     computePass.setPipeline(rayMarchPipeline);
 
@@ -142,7 +126,7 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
         {
           binding: 3,
           resource: {
-            buffer: cameraPostionBuffer,
+            buffer: cameraPositionBuffer,
           },
         },
         {

@@ -2,19 +2,19 @@
 
 @group(1) @binding(0) var voxelsSampler : sampler;
 @group(1) @binding(1) var voxels : texture_3d<f32>;
-@group(0) @binding(0) var outputTex : texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(2) var<uniform> resolution : vec2<u32>;
 @group(0) @binding(3) var<uniform> frustumCornerDirections : FrustumCornerDirections;
 @group(0) @binding(4) var<uniform> cameraPosition : vec3<f32>;
 @group(0) @binding(5) var<uniform> voxelObjects : array<VoxelObject, VOXEL_OBJECT_COUNT>; // TODO: dynamic amount of these using string interpolation
 // TODO: maybe make a G-Buffer bind group to resuse across shaders
-@group(0) @binding(6) var normalTex : texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(6) var normalTex : texture_storage_2d<rgba8snorm, write>;
 @group(0) @binding(7) var albedoTex : texture_storage_2d<rgba8unorm, write>;
 //@group(0) @binding(8) var depthTex : texture_storage_2d<r32float, write>;
 @group(0) @binding(8) var depthTex : texture_2d<i32>;
 @group(0) @binding(9) var debugTex : texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(10) var skyTex : texture_cube<f32>;
 
-
+// TODO: move this to another file
 struct FrustumCornerDirections {
   topLeft : vec3<f32>,
   topRight : vec3<f32>,
@@ -131,28 +131,31 @@ fn main(
 ) {
 //  let tStart = textureLoad(depthTex, GlobalInvocationID.xy,0).r;
 //  if(tStart > 10000.0){
-//    textureStore(outputTex, GlobalInvocationID.xy, vec4(0.0,0.0,0.0,1.0));
 //    textureStore(debugTex, GlobalInvocationID.xy, vec4(1.0));
 //    return;
 //  }
-  let startingObjectIndex = textureLoad(depthTex, GlobalInvocationID.xy,0).r;
-
-  if(startingObjectIndex < 0){
-    textureStore(debugTex, GlobalInvocationID.xy, vec4(1.0));
-    return;
-  }
-
-  var voxelSize = 1.0;
   let pixel = vec2<f32>(f32(GlobalInvocationID.x), f32(resolution.y - GlobalInvocationID.y));
   let uv = pixel / vec2<f32>(resolution);
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
   var rayOrigin = cameraPosition;
-  var colour = vec3(0.0);
+  let startingObjectIndex = textureLoad(depthTex, GlobalInvocationID.xy,0).r;
+  var sky = textureSampleLevel(skyTex, voxelsSampler, rayDirection, 0.0).rgb;
+
+  if(startingObjectIndex < 0){
+    textureStore(debugTex, GlobalInvocationID.xy, vec4(1.0));
+    textureStore(albedoTex, GlobalInvocationID.xy, vec4(sky,1.0));
+    textureStore(normalTex, GlobalInvocationID.xy, vec4(0));
+    return;
+  }
+
+  var voxelSize = 1.0;
+
+  var colour = sky;
   var worldPos = vec3(0.0);
   var tNear = 999999.0;
   var occlusion = false;
   var normal = vec3(0.0);
-  var albedo = vec3(0.0);
+  var albedo = sky;
   var closestIntersection = 9999999.0;
 
   var stepsTaken = 0;
@@ -236,23 +239,19 @@ fn main(
     }
   }
 
-  var alpha = 0.0;
+  var alpha = 1.0;
 
   // output result
   if(occlusion){
     alpha = 1.0;
     colour = addBasicShading(albedo, normal);
+  } else{
+    colour = sky;
   }
 
   textureStore(normalTex, GlobalInvocationID.xy, vec4(normal,1));
   textureStore(albedoTex, GlobalInvocationID.xy, vec4(albedo,f32(closestIntersection) * 0.001));
-  textureStore(outputTex, GlobalInvocationID.xy, vec4(colour,alpha));
-//  textureStore(depthTex, GlobalInvocationID.xy, vec4(closestIntersection));
   let heatMap = mix(vec3(0.0,0.0,0.3),vec3(1.0,0.25,0.0),f32(stepsTaken) / f32(MAX_RAY_STEPS * 0.1));
   let heatMap2 = mix(vec3(0.0,1.0,0.0), vec3(1.0,0.0,0.0), f32(objectsTraversed) / 128.0);
-//  textureStore(debugTex, GlobalInvocationID.xy, vec4(t,1));
   textureStore(debugTex, GlobalInvocationID.xy, vec4(heatMap2,1));
-//textureStore(debugTex, GlobalInvocationID.xy, vec4(f32(startingObjectIndex) / 128.0));
-//  textureStore(debugTex, GlobalInvocationID.xy, vec4(rayDirection,1));
-//  textureStore(debugTex, GlobalInvocationID.xy, vec4(select(0.2, 1.0, stepsTaken > 128),0,0,1));
 }

@@ -9,19 +9,21 @@ import { create3dTexture } from "../create-3d-texture";
 import miniViking from "../voxel-models/mini-viking.vxm";
 import { getWorldSpaceFrustumCornerDirections } from "../get-frustum-corner-directions";
 
-// TODO: make this into more robust type, probably object
 type OutputTextureViews = {
   finalTexture: GPUTextureView;
   albedoTextureView?: GPUTextureView;
   normalTextureView?: GPUTextureView;
   depthAndClusterTextureView?: GPUTextureView;
   debugTextureView?: GPUTextureView;
+  skyTextureView?: GPUTextureView;
 };
 
 export type RenderArgs = {
   commandEncoder: GPUCommandEncoder;
   resolutionBuffer: GPUBuffer;
   outputTextureViews: OutputTextureViews;
+  frustumCornerDirectionsBuffer: GPUBuffer;
+  cameraPositionBuffer: GPUBuffer;
 };
 
 export type RenderPass = {
@@ -75,6 +77,8 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     commandEncoder,
     resolutionBuffer,
     outputTextureViews,
+    cameraPositionBuffer,
+    frustumCornerDirectionsBuffer,
   }: RenderArgs) => {
     getObjectTransformsWorker.postMessage({
       maxObjectCount: debugValues.maxObjectCount,
@@ -83,23 +87,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       translateX: debugValues.translateX,
       camera,
     });
-
-    // 4 byte stride
-    const flatMappedDirections = getWorldSpaceFrustumCornerDirections(
-      camera,
-    ).flatMap((direction) => [...direction, 0]);
-
-    // TODO: make sure to destroy these buffers or write to them instead
-    const frustumCornerDirectionsBuffer = createFloatUniformBuffer(
-      device,
-      flatMappedDirections,
-      "frustum corner directions",
-    );
-    const cameraPostionBuffer = createFloatUniformBuffer(
-      device,
-      camera.position as number[],
-      "camera position",
-    );
 
     if (!transformationMatrixBuffer) {
       return;
@@ -117,10 +104,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       layout: computePipeline.getBindGroupLayout(0),
       entries: [
         {
-          binding: 0,
-          resource: outputTextureViews.finalTexture,
-        },
-        {
           binding: 2,
           resource: {
             buffer: resolutionBuffer,
@@ -135,7 +118,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         {
           binding: 4,
           resource: {
-            buffer: cameraPostionBuffer,
+            buffer: cameraPositionBuffer,
           },
         },
         {
@@ -146,11 +129,11 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 6,
-          resource: outputTextureViews.albedoTextureView,
+          resource: outputTextureViews.normalTextureView,
         },
         {
           binding: 7,
-          resource: outputTextureViews.normalTextureView,
+          resource: outputTextureViews.albedoTextureView,
         },
         {
           binding: 8,
@@ -159,6 +142,10 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         {
           binding: 9,
           resource: outputTextureViews.debugTextureView,
+        },
+        {
+          binding: 10,
+          resource: outputTextureViews.skyTextureView,
         },
       ],
     });

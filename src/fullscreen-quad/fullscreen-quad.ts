@@ -44,32 +44,10 @@ export const fullscreenQuad = (device: GPUDevice) => {
           binding: 1,
           resource: args.outputTextureViews.finalTexture,
         },
-        {
-          binding: 2,
-          resource: args.outputTextureViews.albedoTextureView,
-        },
-        {
-          binding: 3,
-          resource: args.outputTextureViews.normalTextureView,
-        },
-        // {
-        //   binding: 4,
-        //   resource: args.outputTextureViews[3],
-        // },
-        {
-          binding: 5,
-          resource: {
-            buffer: args.resolutionBuffer,
-          },
-        },
         // {
         //   binding: 6,
-        //   resource: args.outputTextureViews.depthAndClusterTextureView,
+        //   resource: args.outputTextureViews.debugTextureView,
         // },
-        {
-          binding: 6,
-          resource: args.outputTextureViews.debugTextureView,
-        },
       ],
     });
     renderPass.setPipeline(renderPipeline);

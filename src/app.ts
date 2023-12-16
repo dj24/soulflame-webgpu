@@ -1,4 +1,8 @@
-import { createUniformBuffer, writeToUniformBuffer } from "./buffer-utils";
+import {
+  createFloatUniformBuffer,
+  createUniformBuffer,
+  writeToUniformBuffer,
+} from "./buffer-utils";
 import { RenderPass, getGBufferPass } from "./g-buffer/get-g-buffer-pass";
 import { Camera, moveCamera } from "./camera";
 import { DebugUI } from "./ui";
@@ -9,6 +13,9 @@ import miniViking from "./voxel-models/mini-viking.vxm";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
 import { DebugValuesStore } from "./debug-values-store";
+import { createTextureFromImage, createTextureFromImages } from "webgpu-utils";
+import { getReflectionsPass } from "./reflections-pass/get-reflections-pass";
+import { getWorldSpaceFrustumCornerDirections } from "./get-frustum-corner-directions";
 
 export const debugValues = new DebugValuesStore();
 
@@ -32,12 +39,15 @@ const debugUI = new DebugUI();
 
 let handleDownscaleChange: (event: CustomEvent) => void;
 
+let skyTextureView: GPUTextureView;
+
 const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let normalTexture: GPUTexture;
   let albedoTexture: GPUTexture;
   let outputTexture: GPUTexture;
   let cluserTexture: GPUTexture;
   let debugTexture: GPUTexture;
+
   let animationFrameId: ReturnType<typeof requestAnimationFrame>;
   let fixedIntervalId: ReturnType<typeof setInterval>;
   let timeBuffer: GPUBuffer;
@@ -75,7 +85,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
   const createOutputTextureView = () => {
     if (outputTexture) {
-      outputTexture.destroy();
+      return outputTexture.createView();
     }
     outputTexture = device.createTexture({
       size: [resolution[0], resolution[1], 1],
@@ -90,22 +100,19 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
   const createNormalTextureView = () => {
     if (normalTexture) {
-      normalTexture.destroy();
+      return normalTexture.createView();
     }
     normalTexture = device.createTexture({
       size: [resolution[0], resolution[1], 1],
-      format: "rgba8unorm",
-      usage:
-        GPUTextureUsage.TEXTURE_BINDING |
-        GPUTextureUsage.RENDER_ATTACHMENT |
-        GPUTextureUsage.STORAGE_BINDING,
+      format: "rgba8snorm",
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
     });
     return normalTexture.createView();
   };
 
   const createClusterTextureView = () => {
     if (cluserTexture) {
-      cluserTexture.destroy();
+      return cluserTexture.createView();
     }
     cluserTexture = device.createTexture({
       size: [resolution[0], resolution[1], 1],
@@ -120,7 +127,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
   const createAlbedoTextureView = () => {
     if (albedoTexture) {
-      albedoTexture.destroy();
+      return albedoTexture.createView();
     }
     albedoTexture = device.createTexture({
       size: [resolution[0], resolution[1], 1],
@@ -135,7 +142,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
   const createDebugTexture = () => {
     if (debugTexture) {
-      debugTexture.destroy();
+      return debugTexture.createView();
     }
     debugTexture = device.createTexture({
       size: [resolution[0], resolution[1], 1],
@@ -188,6 +195,25 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     const albedoTextureView = createAlbedoTextureView();
     const depthTextureView = createClusterTextureView();
     const debugTextureView = createDebugTexture();
+
+    // 4 byte stride
+    const flatMappedDirections = getWorldSpaceFrustumCornerDirections(
+      camera,
+    ).flatMap((direction) => [...direction, 0]);
+
+    // TODO: make sure to destroy these buffers or write to them instead
+    const frustumCornerDirectionsBuffer = createFloatUniformBuffer(
+      device,
+      flatMappedDirections,
+      "frustum corner directions",
+    );
+
+    const cameraPositionBuffer = createFloatUniformBuffer(
+      device,
+      camera.position as number[],
+      "camera position",
+    );
+
     computePasses.forEach(({ render }) => {
       render({
         commandEncoder,
@@ -198,7 +224,10 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
           normalTextureView,
           depthAndClusterTextureView: depthTextureView,
           debugTextureView,
+          skyTextureView,
         },
+        frustumCornerDirectionsBuffer,
+        cameraPositionBuffer,
       });
     });
     device.queue.submit([commandEncoder.finish()]);
@@ -220,9 +249,23 @@ if (navigator.gpu !== undefined) {
       device = newDevice;
       console.log(device.limits);
       console.log({ treeModel, miniViking });
+
+      const skyTexture = await createTextureFromImages(device, [
+        "cubemaps/town-square/posx.jpg",
+        "cubemaps/town-square/negx.jpg",
+        "cubemaps/town-square/posy.jpg",
+        "cubemaps/town-square/negy.jpg",
+        "cubemaps/town-square/posz.jpg",
+        "cubemaps/town-square/negz.jpg",
+      ]);
+      skyTextureView = skyTexture.createView({
+        dimension: "cube",
+      });
+
       renderLoop(device, [
         await getDepthPrepass(),
         await getGBufferPass(),
+        await getReflectionsPass(),
         fullscreenQuad(device),
       ]);
     });

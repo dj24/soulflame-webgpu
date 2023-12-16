@@ -32,7 +32,7 @@ const getObjectTransforms = ({
     let z = Math.floor(index / rows) * gapZ;
     mat4.translate(m, [translateX + x, y, z], m);
     mat4.translate(m, vec3.divScalar(objectSize, 2), m);
-    mat4.rotateY(m, performance.now() * 0.0005, m);
+    // mat4.rotateY(m, performance.now() * 0.0005, m);
     mat4.scale(m, [scale, scale, scale], m);
     mat4.translate(m, vec3.divScalar(objectSize, -2), m);
     return new VoxelObject(m, objectSize);
