@@ -10,6 +10,7 @@ import "./main.css";
 import { Vec2, vec2, vec3 } from "wgpu-matrix";
 import treeModel from "./voxel-models/fir-tree.vxm";
 import miniViking from "./voxel-models/mini-viking.vxm";
+import tower from "./voxel-models/tower.vxm";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
 import { DebugValuesStore } from "./debug-values-store";
@@ -248,7 +249,7 @@ if (navigator.gpu !== undefined) {
     adapter.requestDevice().then(async (newDevice) => {
       device = newDevice;
       console.log(device.limits);
-      console.log({ treeModel, miniViking });
+      console.log({ treeModel, miniViking, tower });
 
       const skyTexture = await createTextureFromImages(device, [
         "cubemaps/town-square/posx.jpg",
@@ -263,7 +264,7 @@ if (navigator.gpu !== undefined) {
       });
 
       renderLoop(device, [
-        await getDepthPrepass(),
+        // await getDepthPrepass(),
         await getGBufferPass(),
         await getReflectionsPass(),
         fullscreenQuad(device),

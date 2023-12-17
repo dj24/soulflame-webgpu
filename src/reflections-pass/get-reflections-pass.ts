@@ -1,4 +1,5 @@
 import reflections from "./reflections.wgsl";
+import randomCommon from "../random-common.wgsl";
 import { device, resolution } from "../app";
 import { RenderArgs, RenderPass } from "../g-buffer/get-g-buffer-pass";
 
@@ -30,11 +31,16 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
     return reflectionTexture.createView();
   };
 
+  const code = `
+        ${randomCommon}
+        ${reflections}
+        `;
+
   const getReflectionPipeline = device.createComputePipeline({
     layout: "auto",
     compute: {
       module: device.createShaderModule({
-        code: `${reflections}`,
+        code,
       }),
       entryPoint: "getReflections",
     },
@@ -44,7 +50,7 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
     layout: "auto",
     compute: {
       module: device.createShaderModule({
-        code: `${reflections}`,
+        code,
       }),
       entryPoint: "applyReflections",
     },
@@ -58,6 +64,16 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
   }: RenderArgs) => {
     const reflectionTextureView = createReflectionTextureView();
     const computePass = commandEncoder.beginComputePass();
+
+    const linearSampler = device.createSampler({
+      magFilter: "linear",
+      minFilter: "linear",
+    });
+
+    const pointSampler = device.createSampler({
+      magFilter: "nearest",
+      minFilter: "nearest",
+    });
 
     // Get reflections at half resolution
     const getReflectionsBindGroup = device.createBindGroup({
@@ -79,10 +95,7 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 4,
-          resource: device.createSampler({
-            magFilter: "linear",
-            minFilter: "linear",
-          }),
+          resource: linearSampler,
         },
         {
           binding: 5,
@@ -128,16 +141,17 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 4,
-          resource: device.createSampler({
-            magFilter: "linear",
-            minFilter: "linear",
-          }),
+          resource: linearSampler,
         },
         {
           binding: 5,
           resource: {
             buffer: frustumCornerDirectionsBuffer,
           },
+        },
+        {
+          binding: 6,
+          resource: pointSampler,
         },
       ],
     });

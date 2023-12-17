@@ -7,6 +7,7 @@ import {
 import { camera, device, debugValues, resolution } from "../app";
 import { create3dTexture } from "../create-3d-texture";
 import miniViking from "../voxel-models/mini-viking.vxm";
+import tower from "../voxel-models/tower.vxm";
 import { getWorldSpaceFrustumCornerDirections } from "../get-frustum-corner-directions";
 import {
   getObjectTransformsWorker,

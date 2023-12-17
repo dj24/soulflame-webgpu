@@ -12,9 +12,9 @@ fn main(
     var downscalePixel = vec2<i32>(GlobalInvocationID.xy / DOWNSCALE_FACTOR);
     var minDistance = textureLoad(inputTex, downscalePixel, 0).r;
     // TODO: maybe use downlscale of 5 so that the pixel is perfectly center in the kernel
-    for(var x = -2; x < 2; x++)
+    for(var x = -2; x < 3; x++)
       {
-          for(var y = -2; y < 2; y++)
+          for(var y = -2; y < 3; y++)
           {
               let currentSample = textureLoad(inputTex, downscalePixel + vec2(x, y), 0).r;
               if(currentSample < minDistance && currentSample > 0)

@@ -4,6 +4,7 @@
 @group(0) @binding(3) var reflectionsTex : texture_2d<f32>;
 @group(0) @binding(4) var linearSampler : sampler;
 @group(0) @binding(5) var<uniform> frustumCornerDirections : FrustumCornerDirections;
+@group(0) @binding(6) var pointSampler : sampler;
 
 // g-buffer
 @group(1) @binding(0) var normalTex : texture_2d<f32>;
@@ -11,6 +12,7 @@
 @group(1) @binding(2) var outputTex : texture_storage_2d<rgba8unorm, write>;
 
 const DOWNSCALE_FACTOR = 2;
+const PI = 3.14159265359;
 
 struct FrustumCornerDirections {
   topLeft : vec3<f32>,
@@ -33,6 +35,8 @@ fn addBasicShading(baseColour: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
   return mix(baseColour * 1.5,lambertianReflectance, 0.75);
 }
 
+const SCATTER_AMOUNT = 0.03;
+
 @compute @workgroup_size(8, 8, 1)
 fn getReflections(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
@@ -43,7 +47,8 @@ fn getReflections(
   let uv = vec2<f32>(pixel) / vec2<f32>(downscaledResolution);
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
   let normalSample = textureSampleLevel(normalTex, linearSampler, uv, 0.0).rgb;
-  let reflectionDirection = -reflect(normalSample, rayDirection);
+  let randomDirection = mix(normalSample,randomInHemisphere(uv, normalSample),SCATTER_AMOUNT);
+  let reflectionDirection = -reflect(randomDirection, rayDirection);
   let skySample = textureSampleLevel(skyTex, linearSampler, reflectionDirection, 0.0);
   textureStore(
     reflectionsStore,
@@ -61,17 +66,53 @@ fn applyReflections(
   let pixel = vec2<u32>(GlobalInvocationID.x, resolution.y - GlobalInvocationID.y);
   let uv = vec2<f32>(pixel) / vec2<f32>(resolution);
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
-  let normalSample = textureSampleLevel(normalTex,linearSampler, uv, 0.0).rgb;
-  let reflectionsSample = textureSampleLevel(reflectionsTex,linearSampler, uv, 0.0).rgb;
-  let albedoSample = textureSampleLevel(albedoTex,linearSampler, uv, 0.0).rgb;
-  var outputColor = albedoSample;
-  let reflectAmount = 0.75;
-  if(any(abs(normalSample) > vec3(0.0))) {
-    outputColor = addBasicShading(albedoSample, normalSample) * mix(vec3(1.0), reflectionsSample, reflectAmount);
+  let normalSample = textureSampleLevel(normalTex,pointSampler, uv, 0.0).rgb;
+  if(all(normalSample == vec3(0.0))) {
+    textureStore(
+      outputTex,
+      pixel,
+      vec4(0.0,0.0,0.0,1.0)
+    );
+    return;
   }
-  textureStore(
-    outputTex,
-    pixel,
-    vec4(outputColor,1.0)
-  );
+
+  var outputColor = vec3(0.0);
+  let reflectAmount = 0.5;
+
+  var closestUV = uv;
+  var closestNormal = normalSample;
+  for(var x = -DOWNSCALE_FACTOR * 8; x <= DOWNSCALE_FACTOR * 8; x+= DOWNSCALE_FACTOR)
+  {
+      for(var y = DOWNSCALE_FACTOR * 8; y <= DOWNSCALE_FACTOR * 8; y+= DOWNSCALE_FACTOR)
+      {
+        let offsetPixel = vec2<i32>(pixel) + vec2<i32>(x,y);
+        let offsetUv = vec2<f32>(offsetPixel) / vec2<f32>(resolution);
+        let offsetNormal = textureSampleLevel(normalTex,pointSampler, offsetUv, 0.0).rgb;
+        if(distance(offsetNormal, normalSample) < distance(closestNormal, normalSample)) {
+          closestUV = offsetUv;
+          closestNormal = offsetNormal;
+        }
+      }
+  }
+  let albedoSample = textureSampleLevel(albedoTex,linearSampler, closestUV, 0.0).rgb * 2.0;
+  let reflectionsSample = textureSampleLevel(reflectionsTex,linearSampler, closestUV, 0.0).rgb;
+
+  if(any(abs(normalSample) > vec3(0.0))) {
+    outputColor = reflectionsSample * albedoSample;
+//    outputColor = addBasicShading(albedoSample, normalSample) * mix(vec3(1.0), reflectionsSample, reflectAmount);
+  }
+  if(uv.x > 0.5){
+    textureStore(
+      outputTex,
+      pixel,
+      vec4(outputColor,1.0),
+    );
+  } else{
+    textureStore(
+      outputTex,
+      pixel,
+      vec4(textureSampleLevel(albedoTex,linearSampler, uv, 0.0).rgb * 2.0 * textureSampleLevel(reflectionsTex,linearSampler, uv, 0.0).rgb,1.0),
+    );
+  }
+
 }
