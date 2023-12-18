@@ -35,8 +35,6 @@ fn addBasicShading(baseColour: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
   return mix(baseColour * 1.5,lambertianReflectance, 0.75);
 }
 
-const SCATTER_AMOUNT = 0.03;
-
 @compute @workgroup_size(8, 8, 1)
 fn getReflections(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
@@ -44,7 +42,8 @@ fn getReflections(
 {
   let downscaledResolution = resolution / DOWNSCALE_FACTOR;
   let pixel = vec2<u32>(GlobalInvocationID.x, downscaledResolution.y - GlobalInvocationID.y);
-  let uv = vec2<f32>(pixel) / vec2<f32>(downscaledResolution);
+  let centerOfPixel = vec2<f32>(pixel) + vec2<f32>(0.5);
+  let uv = centerOfPixel / vec2<f32>(downscaledResolution);
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
   let normalSample = textureSampleLevel(normalTex, linearSampler, uv, 0.0).rgb;
   let randomDirection = mix(normalSample,randomInHemisphere(uv, normalSample),SCATTER_AMOUNT);
@@ -58,6 +57,31 @@ fn getReflections(
   );
 }
 
+fn haltonSequence(index: u32, base: u32, min: f32, max: f32) -> f32 {
+    var result: f32 = 0.0;
+    var f: f32 = 1.0;
+    var i: u32 = index;
+
+    while (i > 0) {
+        f = f / f32(base);
+        result = result + f * f32(i % base);
+        i = i / base;
+    }
+
+    return min + result * (max - min);
+}
+
+// Function to create 2D coordinates from pseudo Halton sequence
+fn halton2DCoordinates(index: u32) -> vec2<f32> {
+    let x: f32 = haltonSequence(index, 2, -1, 1);
+    let y: f32 = haltonSequence(index, 3, -1, 1); // You can use a different base for the Y coordinate
+
+    return vec2<f32>(x, y);
+}
+
+const SCATTER_AMOUNT = 0.01;
+const REFLECT_AMOUNT = 0.7;
+
 @compute @workgroup_size(8, 8, 1)
 fn applyReflections(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
@@ -66,53 +90,44 @@ fn applyReflections(
   let pixel = vec2<u32>(GlobalInvocationID.x, resolution.y - GlobalInvocationID.y);
   let uv = vec2<f32>(pixel) / vec2<f32>(resolution);
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
-  let normalSample = textureSampleLevel(normalTex,pointSampler, uv, 0.0).rgb;
+  var normalSample = textureSampleLevel(normalTex,pointSampler, uv, 0.0).rgb;
+  var albedoSample = textureSampleLevel(albedoTex,linearSampler, uv, 0.0).rgb;
+
   if(all(normalSample == vec3(0.0))) {
     textureStore(
       outputTex,
       pixel,
-      vec4(0.0,0.0,0.0,1.0)
+      vec4(albedoSample, 1.0),
     );
     return;
   }
 
   var outputColor = vec3(0.0);
-  let reflectAmount = 0.5;
+  var reflectionsSample = vec3(0.0);
+//  let haltonSamples = u32(10);
+//
+//  for (var i: u32 = 0; i < haltonSamples; i ++) {
+//    let pixelOffset = halton2DCoordinates(i) * DOWNSCALE_FACTOR;
+//    let currentPixel = vec2<i32>(pixel) + vec2<i32>(pixelOffset);
+//    let currentUV = vec2<f32>(currentPixel) / vec2<f32>(resolution);
+//    reflectionsSample += textureSampleLevel(reflectionsTex, linearSampler, currentUV, 0.0).rgb;
+//  }
+//
+//  reflectionsSample /= f32(haltonSamples);
 
-  var closestUV = uv;
-  var closestNormal = normalSample;
-  for(var x = -DOWNSCALE_FACTOR * 8; x <= DOWNSCALE_FACTOR * 8; x+= DOWNSCALE_FACTOR)
-  {
-      for(var y = DOWNSCALE_FACTOR * 8; y <= DOWNSCALE_FACTOR * 8; y+= DOWNSCALE_FACTOR)
-      {
-        let offsetPixel = vec2<i32>(pixel) + vec2<i32>(x,y);
-        let offsetUv = vec2<f32>(offsetPixel) / vec2<f32>(resolution);
-        let offsetNormal = textureSampleLevel(normalTex,pointSampler, offsetUv, 0.0).rgb;
-        if(distance(offsetNormal, normalSample) < distance(closestNormal, normalSample)) {
-          closestUV = offsetUv;
-          closestNormal = offsetNormal;
-        }
+    for(var x: i32 = -1; x < 2; x++) {
+      for(var y: i32 = -1; y < 2; y++) {
+        let currentPixel = vec2<i32>(pixel) + vec2<i32>(x,y) * 2;
+        let currentUV = vec2<f32>(currentPixel) / vec2<f32>(resolution);
+        reflectionsSample += textureSampleLevel(reflectionsTex, linearSampler, currentUV, 0.0).rgb;
       }
-  }
-  let albedoSample = textureSampleLevel(albedoTex,linearSampler, closestUV, 0.0).rgb * 2.0;
-  let reflectionsSample = textureSampleLevel(reflectionsTex,linearSampler, closestUV, 0.0).rgb;
+    }
+    reflectionsSample /= 9.0;
 
-  if(any(abs(normalSample) > vec3(0.0))) {
-    outputColor = reflectionsSample * albedoSample;
-//    outputColor = addBasicShading(albedoSample, normalSample) * mix(vec3(1.0), reflectionsSample, reflectAmount);
-  }
-  if(uv.x > 0.5){
-    textureStore(
-      outputTex,
-      pixel,
-      vec4(outputColor,1.0),
-    );
-  } else{
-    textureStore(
-      outputTex,
-      pixel,
-      vec4(textureSampleLevel(albedoTex,linearSampler, uv, 0.0).rgb * 2.0 * textureSampleLevel(reflectionsTex,linearSampler, uv, 0.0).rgb,1.0),
-    );
-  }
-
+  outputColor = addBasicShading(albedoSample, normalSample) * 2.0 * mix(vec3(1.0), reflectionsSample, REFLECT_AMOUNT);
+  textureStore(
+    outputTex,
+    pixel,
+    vec4(outputColor,1.0),
+  );
 }
