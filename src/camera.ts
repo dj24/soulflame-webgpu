@@ -2,7 +2,7 @@ import { camera, deltaTime, resolution } from "./app";
 import { KeyboardControls } from "./keyboard-controls";
 import { MouseControls } from "./mouse-controls";
 import { MoveableObject } from "./moveable-object";
-import { mat4, vec3, Vec3 } from "wgpu-matrix";
+import { mat4, quat, Quat, vec3, Vec3 } from "wgpu-matrix";
 import { animate, glide } from "motion";
 
 const keyboardControls = new KeyboardControls();
@@ -10,7 +10,6 @@ const keyboardControls = new KeyboardControls();
 
 export class Camera extends MoveableObject {
   fieldOfView: number;
-  direction: Vec3;
   near = 0.1;
   far = 100000;
 
@@ -19,9 +18,18 @@ export class Camera extends MoveableObject {
     fieldOfView: number;
     direction: Vec3;
   }) {
-    super({ position: options.position });
+    const rotation = quat.fromEuler(
+      options.direction[0],
+      options.direction[1],
+      options.direction[2],
+      "xyz",
+    );
+    super({ position: options.position, rotation });
     this.fieldOfView = options.fieldOfView;
-    this.direction = options.direction;
+  }
+
+  get direction() {
+    return vec3.transformQuat(vec3.create(0, 0, -1), this.rotation);
   }
 
   get right() {
@@ -30,7 +38,6 @@ export class Camera extends MoveableObject {
 
   get left() {
     return vec3.negate(this.right);
-    // return this.direction.cross(Vector3.up).normalize();
   }
 
   get up() {
@@ -40,10 +47,6 @@ export class Camera extends MoveableObject {
   get down() {
     return vec3.negate(this.up);
   }
-
-  rotateX(angle: number) {}
-
-  rotateY(angle: number) {}
 
   get viewMatrix() {
     const target = vec3.add(this.position, this.direction);
@@ -77,13 +80,14 @@ export class Camera extends MoveableObject {
 }
 
 export const moveCamera = () => {
-  const rotationSpeed = 0.001;
+  const rotationSpeed = 0.0001;
   // TODO: abstract this
-  // camera.rotateY(mouseControls.velocity.x * rotationSpeed);
-  // camera.rotateX(mouseControls.velocity.y * rotationSpeed);
-  if (!document.hasFocus()) {
-    return;
-  }
+  // camera.rotateY(-mouseControls.velocity[0] * rotationSpeed);
+  // camera.rotateX(mouseControls.velocity[1] * rotationSpeed);
+  // console.log(mouseControls.velocity);
+  // if (!document.hasFocus()) {
+  //   return;
+  // }
   const speed = 0.33 * deltaTime;
   let direction = vec3.zero();
   // TODO: Why is it backwards?
@@ -109,5 +113,12 @@ export const moveCamera = () => {
   camera.targetPosition = vec3.add(
     camera.targetPosition,
     vec3.mulScalar(direction, speed),
+  );
+  camera.targetRotation = quat.fromEuler(
+    // Math.sin(performance.now() * 0.0005) * 0.5 + 0.5,
+    0,
+    performance.now() * 0.0001,
+    0,
+    "xyz",
   );
 };

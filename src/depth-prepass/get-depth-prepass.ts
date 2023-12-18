@@ -6,9 +6,7 @@ import {
 } from "../buffer-utils";
 import { camera, device, debugValues, resolution } from "../app";
 import { create3dTexture } from "../create-3d-texture";
-import miniViking from "../voxel-models/mini-viking.vxm";
-import tower from "../voxel-models/tower.vxm";
-import { getWorldSpaceFrustumCornerDirections } from "../get-frustum-corner-directions";
+import cube from "../voxel-models/cube.vxm";
 import {
   getObjectTransformsWorker,
   RenderArgs,
@@ -64,8 +62,8 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
 
   const voxelTexture = await create3dTexture(
     device,
-    miniViking.sliceFilePaths,
-    miniViking.size,
+    cube.sliceFilePaths,
+    cube.size,
   );
 
   getObjectTransformsWorker.addEventListener(

@@ -45,14 +45,14 @@ fn getReflections(
   let centerOfPixel = vec2<f32>(pixel) + vec2<f32>(0.5);
   let uv = centerOfPixel / vec2<f32>(downscaledResolution);
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
-  let normalSample = textureSampleLevel(normalTex, linearSampler, uv, 0.0).rgb;
+  let normalSample = textureSampleLevel(normalTex, pointSampler, uv, 0.0).rgb;
   let randomDirection = mix(normalSample,randomInHemisphere(uv, normalSample),SCATTER_AMOUNT);
-  let reflectionDirection = -reflect(randomDirection, rayDirection);
-  let skySample = textureSampleLevel(skyTex, linearSampler, reflectionDirection, 0.0);
+  var reflectionDirection = reflect(-rayDirection, randomDirection);
+  reflectionDirection = vec3(-reflectionDirection.x, reflectionDirection.y, -reflectionDirection.z);
+  let skySample = textureSampleLevel(skyTex, pointSampler, reflectionDirection, 0.0);
   textureStore(
     reflectionsStore,
     pixel,
-    //vec4(uv,0.0,1.0)
     skySample
   );
 }
@@ -79,8 +79,18 @@ fn halton2DCoordinates(index: u32) -> vec2<f32> {
     return vec2<f32>(x, y);
 }
 
+// TODO: dynamic blur based on scatter amouint from brdf
 const SCATTER_AMOUNT = 0.01;
 const REFLECT_AMOUNT = 0.7;
+const SAMPLE_RADIUS = 2;
+
+const GAUSSIAN_SIGMA = 1.0;
+
+// Function to calculate the Gaussian weight
+fn gaussianWeight(offset: vec2<f32>) -> f32 {
+    let exponent = -dot(offset, offset) / (2.0 * GAUSSIAN_SIGMA * GAUSSIAN_SIGMA);
+    return exp(exponent) / (2.0 * 3.141592653589793 * GAUSSIAN_SIGMA * GAUSSIAN_SIGMA);
+}
 
 @compute @workgroup_size(8, 8, 1)
 fn applyReflections(
@@ -88,11 +98,12 @@ fn applyReflections(
 )
 {
   let pixel = vec2<u32>(GlobalInvocationID.x, resolution.y - GlobalInvocationID.y);
-  let uv = vec2<f32>(pixel) / vec2<f32>(resolution);
+  let centerOfPixel = vec2<f32>(pixel) + vec2<f32>(0.5);
+  let uv = centerOfPixel / vec2<f32>(resolution);
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
   var normalSample = textureSampleLevel(normalTex,pointSampler, uv, 0.0).rgb;
-  var albedoSample = textureSampleLevel(albedoTex,linearSampler, uv, 0.0).rgb;
-
+  var albedoSample = textureSampleLevel(albedoTex,pointSampler, uv, 0.0).rgb;
+  var foo = textureSampleLevel(albedoTex,linearSampler, uv, 0.0);
   if(all(normalSample == vec3(0.0))) {
     textureStore(
       outputTex,
@@ -104,30 +115,30 @@ fn applyReflections(
 
   var outputColor = vec3(0.0);
   var reflectionsSample = vec3(0.0);
-//  let haltonSamples = u32(10);
-//
-//  for (var i: u32 = 0; i < haltonSamples; i ++) {
-//    let pixelOffset = halton2DCoordinates(i) * DOWNSCALE_FACTOR;
-//    let currentPixel = vec2<i32>(pixel) + vec2<i32>(pixelOffset);
-//    let currentUV = vec2<f32>(currentPixel) / vec2<f32>(resolution);
-//    reflectionsSample += textureSampleLevel(reflectionsTex, linearSampler, currentUV, 0.0).rgb;
-//  }
-//
-//  reflectionsSample /= f32(haltonSamples);
+  let downscaledPixel = vec2<i32>(centerOfPixel / DOWNSCALE_FACTOR);
+  let centerOfDownscaledPixel = vec2<f32>(downscaledPixel) - vec2<f32>(1.0);
+  var sampleCount = 0.0;
 
-    for(var x: i32 = -1; x < 2; x++) {
-      for(var y: i32 = -1; y < 2; y++) {
-        let currentPixel = vec2<i32>(pixel) + vec2<i32>(x,y) * 2;
-        let currentUV = vec2<f32>(currentPixel) / vec2<f32>(resolution);
-        reflectionsSample += textureSampleLevel(reflectionsTex, linearSampler, currentUV, 0.0).rgb;
+  for(var x = -SAMPLE_RADIUS; x <= SAMPLE_RADIUS; x++) {
+    for(var y = -SAMPLE_RADIUS; y <= SAMPLE_RADIUS; y ++) {
+      let offset = vec2(f32(x),f32(y));
+      let weight = gaussianWeight(offset / f32(SAMPLE_RADIUS));
+      let currentPixel = centerOfDownscaledPixel + offset;
+      let currentUV = vec2<f32>(currentPixel) / vec2<f32>(resolution / DOWNSCALE_FACTOR);
+      let currentNormal = textureSampleLevel(normalTex,pointSampler, currentUV, 0.0).rgb;
+      if(all(normalSample == currentNormal)){
+        reflectionsSample += weight * textureSampleLevel(reflectionsTex,linearSampler, currentUV, 0.0).rgb;
+        sampleCount += weight;
       }
     }
-    reflectionsSample /= 9.0;
+  }
 
-  outputColor = addBasicShading(albedoSample, normalSample) * 2.0 * mix(vec3(1.0), reflectionsSample, REFLECT_AMOUNT);
+
+  reflectionsSample /= f32(sampleCount);
+
   textureStore(
     outputTex,
     pixel,
-    vec4(outputColor,1.0),
+    vec4(reflectionsSample * albedoSample,1.0),
   );
 }

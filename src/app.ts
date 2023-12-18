@@ -7,10 +7,8 @@ import { RenderPass, getGBufferPass } from "./g-buffer/get-g-buffer-pass";
 import { Camera, moveCamera } from "./camera";
 import { DebugUI } from "./ui";
 import "./main.css";
-import { Vec2, vec2, vec3 } from "wgpu-matrix";
-import treeModel from "./voxel-models/fir-tree.vxm";
-import miniViking from "./voxel-models/mini-viking.vxm";
-import tower from "./voxel-models/tower.vxm";
+import { quat, Vec2, vec2, vec3 } from "wgpu-matrix";
+import cube from "./voxel-models/cube.vxm";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
 import { DebugValuesStore } from "./debug-values-store";
@@ -249,8 +247,16 @@ if (navigator.gpu !== undefined) {
     adapter.requestDevice().then(async (newDevice) => {
       device = newDevice;
       console.log(device.limits);
-      console.log({ treeModel, miniViking, tower });
+      console.log({ cube });
 
+      // const skyTexture = await createTextureFromImages(device, [
+      //   "cubemaps/debug/posx.png",
+      //   "cubemaps/debug/negx.png",
+      //   "cubemaps/debug/posy.png",
+      //   "cubemaps/debug/negy.png",
+      //   "cubemaps/debug/posz.png",
+      //   "cubemaps/debug/negz.png",
+      // ]);
       const skyTexture = await createTextureFromImages(device, [
         "cubemaps/town-square/posx.jpg",
         "cubemaps/town-square/negx.jpg",
@@ -264,7 +270,8 @@ if (navigator.gpu !== undefined) {
       });
 
       renderLoop(device, [
-        // await getDepthPrepass(),
+        // TODO: use center of pixel instead for depth prepass
+        await getDepthPrepass(),
         await getGBufferPass(),
         await getReflectionsPass(),
         fullscreenQuad(device),

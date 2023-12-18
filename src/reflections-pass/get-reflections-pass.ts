@@ -93,15 +93,19 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
             buffer: resolutionBuffer,
           },
         },
-        {
-          binding: 4,
-          resource: linearSampler,
-        },
+        // {
+        //   binding: 4,
+        //   resource: linearSampler,
+        // },
         {
           binding: 5,
           resource: {
             buffer: frustumCornerDirectionsBuffer,
           },
+        },
+        {
+          binding: 6,
+          resource: pointSampler,
         },
       ],
     });

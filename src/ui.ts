@@ -3,7 +3,7 @@ import { animate, spring } from "motion";
 import { vec3 } from "wgpu-matrix";
 
 const startingCameraFieldOfView = 70;
-const startingCameraPosition = vec3.create(0, 64, 0);
+const startingCameraPosition = vec3.create(140, 56, 140);
 const startingCameraDirection = vec3.normalize(vec3.create(1, -0.33, 1));
 
 const animateCameraToStartingPosition = () => {
@@ -16,15 +16,9 @@ const animateCameraToStartingPosition = () => {
   const targetScale = 1;
   const targetTranslateX = 0;
   camera.targetPosition = startingCameraPosition;
+  // camera.targetRotation = vec3.(targetDirection);
   animate(
     (progress: number) => {
-      camera.direction = vec3.add(
-        startDirection,
-        vec3.mulScalar(
-          vec3.subtract(targetDirection, startDirection),
-          progress,
-        ),
-      );
       camera.fieldOfView =
         startFieldOfView + (targetFieldOfView - startFieldOfView) * progress;
       debugValues.scale = startScale + (targetScale - startScale) * progress;
