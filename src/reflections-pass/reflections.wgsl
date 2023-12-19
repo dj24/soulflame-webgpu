@@ -80,9 +80,9 @@ fn halton2DCoordinates(index: u32) -> vec2<f32> {
 }
 
 // TODO: dynamic blur based on scatter amouint from brdf
-const SCATTER_AMOUNT = 0.01;
+const SCATTER_AMOUNT = 0.05;
 const REFLECT_AMOUNT = 0.7;
-const SAMPLE_RADIUS = 2;
+const SAMPLE_RADIUS = 4;
 
 const GAUSSIAN_SIGMA = 1.0;
 

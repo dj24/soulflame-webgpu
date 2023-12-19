@@ -29,8 +29,8 @@ const getObjectTransforms = ({
   let voxelObjects = [...Array(maxObjectCount).keys()].map((index) => {
     let m = mat4.identity();
     let x = (index % rows) * gapX;
-    let y = 0;
     let z = Math.floor(index / rows) * gapZ;
+    let y = Math.sin(x + z) * 20;
     mat4.translate(m, [translateX + x, y, z], m);
     mat4.translate(m, vec3.divScalar(objectSize, 2), m);
     // mat4.rotateY(m, performance.now() * 0.0002, m);

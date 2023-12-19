@@ -125,41 +125,26 @@ fn transformNormal(inverseTransform: mat4x4<f32>, normal: vec3<f32>) -> vec3<f32
     return worldNormal;
 }
 
-@compute @workgroup_size(8, 8, 1)
-fn main(
-  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
-) {
-//  let tStart = textureLoad(depthTex, GlobalInvocationID.xy,0).r;
-//  if(tStart > 10000.0){
-//    textureStore(debugTex, GlobalInvocationID.xy, vec4(1.0));
-//    return;
-//  }
-  let pixel = vec2<f32>(f32(GlobalInvocationID.x), f32(resolution.y - GlobalInvocationID.y));
-  let uv = pixel / vec2<f32>(resolution);
-  var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
-  var rayOrigin = cameraPosition;
-  let startingObjectIndex = textureLoad(depthTex, GlobalInvocationID.xy,0).r;
-  var sky = textureSampleLevel(skyTex, voxelsSampler, rayDirection, 0.0).rgb;
 
-  if(startingObjectIndex < 0){
-    textureStore(debugTex, GlobalInvocationID.xy, vec4(1.0));
-    textureStore(albedoTex, GlobalInvocationID.xy, vec4(sky,1.0));
-    textureStore(normalTex, GlobalInvocationID.xy, vec4(0));
-    return;
-  }
+struct RayMarchResult {
+  colour: vec3<f32>,
+  normal: vec3<f32>,
+  hit: bool,
+}
+
+fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult {
+  var output = RayMarchResult();
+  output.hit = false;
+  output.colour = vec3(0.0);
+  output.normal = vec3(0.0);
 
   var voxelSize = 1.0;
-
-  var colour = sky;
   var worldPos = vec3(0.0);
   var tNear = 999999.0;
-  var occlusion = false;
-  var normal = vec3(0.0);
-  var albedo = sky;
   var closestIntersection = 9999999.0;
-
   var stepsTaken = 0;
   var objectsTraversed = 0;
+
   for (var voxelObjectIndex = startingObjectIndex; voxelObjectIndex < VOXEL_OBJECT_COUNT; voxelObjectIndex++) {
     var voxelObject = voxelObjects[voxelObjectIndex];
     objectsTraversed ++;
@@ -227,31 +212,48 @@ fn main(
       let foo = textureSampleLevel(voxels, voxelsSampler, vec3(currentIndex) / voxelObject.size, 0.0);
       if(foo.a > 0.0){
           closestIntersection = tIntersection;
-          normal = transformNormal(voxelObject.transform,objectNormal);
-          albedo = foo.rgb;
-          occlusion = true;
           worldPos = pos;
+          output.normal = transformNormal(voxelObject.transform,objectNormal);
+          output.colour = foo.rgb;
+          output.hit = true;
           break;
       }
     }
-    if(occlusion){
+    if(output.hit){
       break;
     }
   }
+  return output;
+}
 
-  var alpha = 1.0;
+@compute @workgroup_size(8, 8, 1)
+fn main(
+  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
+) {
+//  let tStart = textureLoad(depthTex, GlobalInvocationID.xy,0).r;
+//  if(tStart > 10000.0){
+//    textureStore(debugTex, GlobalInvocationID.xy, vec4(1.0));
+//    return;
+//  }
+  let pixel = vec2<f32>(f32(GlobalInvocationID.x), f32(resolution.y - GlobalInvocationID.y));
+  let uv = pixel / vec2<f32>(resolution);
+  var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
+  var rayOrigin = cameraPosition;
+  let startingObjectIndex = textureLoad(depthTex, GlobalInvocationID.xy,0).r;
+  var sky = textureSampleLevel(skyTex, voxelsSampler, rayDirection, 0.0).rgb;
 
-  // output result
-  if(occlusion){
-    alpha = 1.0;
-    colour = addBasicShading(albedo, normal);
-  } else{
-    colour = sky;
+  if(startingObjectIndex < 0){
+    textureStore(debugTex, GlobalInvocationID.xy, vec4(1.0));
+    textureStore(albedoTex, GlobalInvocationID.xy, vec4(sky,1.0));
+    textureStore(normalTex, GlobalInvocationID.xy, vec4(0));
+    return;
   }
 
-  textureStore(normalTex, GlobalInvocationID.xy, vec4(normal,1));
-  textureStore(albedoTex, GlobalInvocationID.xy, vec4(albedo,f32(closestIntersection) * 0.001));
-  let heatMap = mix(vec3(0.0,0.0,0.3),vec3(1.0,0.25,0.0),f32(stepsTaken) / f32(MAX_RAY_STEPS * 0.1));
-  let heatMap2 = mix(vec3(0.0,1.0,0.0), vec3(1.0,0.0,0.0), f32(objectsTraversed) / 128.0);
-  textureStore(debugTex, GlobalInvocationID.xy, vec4(heatMap2,1));
+  let rayMarchResult = rayMarch(startingObjectIndex, rayOrigin, rayDirection);
+
+  textureStore(normalTex, GlobalInvocationID.xy, vec4(rayMarchResult.normal,1));
+  textureStore(albedoTex, GlobalInvocationID.xy, vec4(rayMarchResult.colour,1));
+//  let heatMap = mix(vec3(0.0,0.0,0.3),vec3(1.0,0.25,0.0),f32(stepsTaken) / f32(MAX_RAY_STEPS * 0.1));
+//  let heatMap2 = mix(vec3(0.0,1.0,0.0), vec3(1.0,0.0,0.0), f32(objectsTraversed) / 128.0);
+//  textureStore(debugTex, GlobalInvocationID.xy, vec4(heatMap2,1));
 }

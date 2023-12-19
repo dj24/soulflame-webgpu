@@ -78,8 +78,6 @@ fn boxIntersection(
         return result;
     }
 
-
-
     result.tNear = tN;
     result.tFar = tF;
     result.normal = normal;
