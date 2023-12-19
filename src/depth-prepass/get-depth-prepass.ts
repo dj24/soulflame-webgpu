@@ -1,4 +1,7 @@
 import raymarchDepth from "./raymarch-voxels-depth.wgsl";
+import boxIntersection from "../shader/box-intersection.wgsl";
+import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
+import getRayDirection from "../shader/get-ray-direction.wgsl";
 import conservativeDepthMin from "./conservative-depth-min.wgsl";
 import {
   createFloatUniformBuffer,
@@ -14,7 +17,6 @@ import {
 } from "../g-buffer/get-g-buffer-pass";
 
 const downscaleFactor = 4;
-
 export const getDepthPrepass = async (): Promise<RenderPass> => {
   let transformationMatrixBuffer: GPUBuffer;
   let downscaledDepthTexture: GPUTexture;
@@ -44,6 +46,8 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
       module: device.createShaderModule({
         code: `
           const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
+          ${boxIntersection}
+          ${getRayDirection}
           ${raymarchDepth}`,
       }),
       entryPoint: "main",

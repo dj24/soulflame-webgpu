@@ -1,5 +1,7 @@
-import blurWGSL from "./raymarch-voxels.wgsl";
-import simpleSkyShader from "../composite/simple-sky.wgsl";
+import gBuffer from "./g-buffer.wgsl";
+import boxIntersection from "../shader/box-intersection.wgsl";
+import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
+import getRayDirection from "../shader/get-ray-direction.wgsl";
 import {
   createFloatUniformBuffer,
   writeToFloatUniformBuffer,
@@ -43,9 +45,11 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     compute: {
       module: device.createShaderModule({
         code: `
-          ${simpleSkyShader}
           const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
-          ${blurWGSL}`,
+          ${getRayDirection}
+          ${boxIntersection}
+          ${raymarchVoxels}
+          ${gBuffer}`,
       }),
       entryPoint: "main",
     },
