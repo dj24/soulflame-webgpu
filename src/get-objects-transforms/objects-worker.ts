@@ -33,25 +33,24 @@ const getObjectTransforms = ({
     let y = Math.sin(x + z) * 20;
     mat4.translate(m, [translateX + x, y, z], m);
     mat4.translate(m, vec3.divScalar(objectSize, 2), m);
-    // mat4.rotateY(m, performance.now() * 0.0002, m);
+    mat4.rotateY(m, 3 * Math.PI, m);
     mat4.scale(m, [scale, scale, scale], m);
     mat4.translate(m, vec3.divScalar(objectSize, -2), m);
     return new VoxelObject(m, objectSize);
   });
   // sort by distance to the camera
-  voxelObjects = voxelObjects.sort((a, b) => {
-    const aDistance = vec3.distance(a.worldSpaceCenter, camera.position);
-    const bDistance = vec3.distance(b.worldSpaceCenter, camera.position);
-    return aDistance - bDistance;
-  });
-
+  // voxelObjects = voxelObjects.sort((a, b) => {
+  //   const aDistance = vec3.distance(a.worldSpaceCenter, camera.position);
+  //   const bDistance = vec3.distance(b.worldSpaceCenter, camera.position);
+  //   return aDistance - bDistance;
+  // });
   let activeVoxelObjects = voxelObjects;
-
-  activeVoxelObjects = activeVoxelObjects.filter(
-    (voxelObject, index) => index <= objectCount,
-  );
-
+  //
+  // activeVoxelObjects = activeVoxelObjects.filter(
+  //   (voxelObject, index) => index <= objectCount,
+  // );
   activeVoxelObjects = activeVoxelObjects.slice(0, objectCount);
+
   const bufferPadding = [
     ...Array(maxObjectCount - activeVoxelObjects.length).keys(),
   ].map(() => new VoxelObject(mat4.identity(), [0, 0, 0]));

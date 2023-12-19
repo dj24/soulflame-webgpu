@@ -47,8 +47,13 @@ fn main(
 
   let rayMarchResult = rayMarch(startingObjectIndex, rayOrigin, rayDirection);
 
+  var colour = rayMarchResult.colour;
+  if(all(rayMarchResult.colour == vec3<f32>(0.0))){
+    colour = sky;
+  }
+
   textureStore(normalTex, GlobalInvocationID.xy, vec4(rayMarchResult.normal,1));
-  textureStore(albedoTex, GlobalInvocationID.xy, vec4(rayMarchResult.colour,1));
+  textureStore(albedoTex, GlobalInvocationID.xy, vec4(colour,1));
 //  let heatMap = mix(vec3(0.0,0.0,0.3),vec3(1.0,0.25,0.0),f32(stepsTaken) / f32(MAX_RAY_STEPS * 0.1));
 //  let heatMap2 = mix(vec3(0.0,1.0,0.0), vec3(1.0,0.0,0.0), f32(objectsTraversed) / 128.0);
 //  textureStore(debugTex, GlobalInvocationID.xy, vec4(heatMap2,1));

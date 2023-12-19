@@ -195,6 +195,13 @@ module.exports = function (source, ...args) {
     index++;
     let emissive = bufferReader.readUInt8(index);
     index++;
+
+    if (emissive === 1) {
+      alpha = 2;
+    } else {
+      alpha = 1;
+    }
+
     let color = [red, green, blue, alpha];
 
     colourArray[i] = color;
@@ -306,28 +313,27 @@ module.exports = function (source, ...args) {
       width,
       height,
     });
-
     for (const voxel of voxels) {
       let [x, y, z] = voxel.position;
       let [minX, minY, minZ] = bounds.min;
-      x -= minX - 1;
-      y -= minY - 1;
-      z -= minZ - 1;
+      x -= minX;
+      y -= minY;
+      z -= minZ;
 
       // y is inverted for some reason
-      // y = height - y;
+      // y = height - y - 1;
 
       if (z !== slice) {
         continue;
       }
 
-      const [r, g, b] = voxel.colour;
+      const [r, g, b, a] = voxel.colour;
       const index = (png.width * y + x) << 2;
 
       png.data[index] = r;
       png.data[index + 1] = g;
       png.data[index + 2] = b;
-      png.data[index + 3] = 255; // Alpha channel
+      png.data[index + 3] = a; // Alpha channel
     }
 
     // Save the PNG image as a file

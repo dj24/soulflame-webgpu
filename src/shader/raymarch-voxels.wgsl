@@ -65,7 +65,7 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
     var voxelOriginDifference = vec3<f32>(currentIndex) - scaledRayOrigin;
     var clampedVoxelBoundary = (voxelStep * 0.5) + 0.5; // 0 if <= 0, 1 if > 0
     var tMax = (voxelStep * voxelOriginDifference + clampedVoxelBoundary) * tDelta + EPSILON;
-    let maxSteps = max(voxelObject.size.x,voxelObject.size.y);
+    let maxSteps = max(voxelObject.size.x,voxelObject.size.y) * 2;
     var objectStepsTaken = 0;
     while(objectStepsTaken <= i32(maxSteps) && stepsTaken < MAX_RAY_STEPS)
     {

@@ -9,7 +9,7 @@ import {
 } from "../buffer-utils";
 import { camera, device, debugValues, resolution } from "../app";
 import { create3dTexture } from "../create-3d-texture";
-import cube from "../voxel-models/cube.vxm";
+import cornell from "../voxel-models/cornell.vxm";
 import {
   getObjectTransformsWorker,
   RenderArgs,
@@ -66,8 +66,8 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
 
   const voxelTexture = await create3dTexture(
     device,
-    cube.sliceFilePaths,
-    cube.size,
+    cornell.sliceFilePaths,
+    cornell.size,
   );
 
   getObjectTransformsWorker.addEventListener(

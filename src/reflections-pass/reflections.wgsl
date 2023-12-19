@@ -5,13 +5,13 @@
 @group(0) @binding(4) var linearSampler : sampler;
 @group(0) @binding(5) var<uniform> frustumCornerDirections : FrustumCornerDirections;
 @group(0) @binding(6) var pointSampler : sampler;
+@group(0) @binding(7) var<uniform> downscaleFactor : f32;
 
 // g-buffer
 @group(1) @binding(0) var normalTex : texture_2d<f32>;
 @group(1) @binding(1) var albedoTex : texture_2d<f32>;
 @group(1) @binding(2) var outputTex : texture_storage_2d<rgba8unorm, write>;
 
-const DOWNSCALE_FACTOR = 2;
 const PI = 3.14159265359;
 
 struct FrustumCornerDirections {
@@ -40,7 +40,7 @@ fn getReflections(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 )
 {
-  let downscaledResolution = resolution / DOWNSCALE_FACTOR;
+  let downscaledResolution = vec2<u32>(vec2<f32>(resolution) / downscaleFactor);
   let pixel = vec2<u32>(GlobalInvocationID.x, downscaledResolution.y - GlobalInvocationID.y);
   let centerOfPixel = vec2<f32>(pixel) + vec2<f32>(0.5);
   let uv = centerOfPixel / vec2<f32>(downscaledResolution);
@@ -80,9 +80,8 @@ fn halton2DCoordinates(index: u32) -> vec2<f32> {
 }
 
 // TODO: dynamic blur based on scatter amouint from brdf
-const SCATTER_AMOUNT = 0.05;
-const REFLECT_AMOUNT = 0.7;
-const SAMPLE_RADIUS = 4;
+const SCATTER_AMOUNT = 0.005;
+const SAMPLE_RADIUS = 2;
 
 const GAUSSIAN_SIGMA = 1.0;
 
@@ -115,7 +114,7 @@ fn applyReflections(
 
   var outputColor = vec3(0.0);
   var reflectionsSample = vec3(0.0);
-  let downscaledPixel = vec2<i32>(centerOfPixel / DOWNSCALE_FACTOR);
+  let downscaledPixel = vec2<i32>(centerOfPixel / downscaleFactor);
   let centerOfDownscaledPixel = vec2<f32>(downscaledPixel) - vec2<f32>(1.0);
   var sampleCount = 0.0;
 
@@ -124,10 +123,10 @@ fn applyReflections(
       let offset = vec2(f32(x),f32(y));
       let weight = gaussianWeight(offset / f32(SAMPLE_RADIUS));
       let currentPixel = centerOfDownscaledPixel + offset;
-      let currentUV = vec2<f32>(currentPixel) / vec2<f32>(resolution / DOWNSCALE_FACTOR);
+      let currentUV = vec2<f32>(currentPixel) / vec2<f32>(resolution / u32(downscaleFactor));
       let currentNormal = textureSampleLevel(normalTex,pointSampler, currentUV, 0.0).rgb;
       if(all(normalSample == currentNormal)){
-        reflectionsSample += weight * textureSampleLevel(reflectionsTex,linearSampler, currentUV, 0.0).rgb;
+        reflectionsSample += weight * textureSampleLevel(reflectionsTex,pointSampler, currentUV, 0.0).rgb;
         sampleCount += weight;
       }
     }

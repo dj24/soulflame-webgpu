@@ -7,8 +7,10 @@ import { RenderPass, getGBufferPass } from "./g-buffer/get-g-buffer-pass";
 import { Camera, moveCamera } from "./camera";
 import { DebugUI } from "./ui";
 import "./main.css";
-import { quat, Vec2, vec2, vec3 } from "wgpu-matrix";
+import { vec2, vec3 } from "wgpu-matrix";
 import cube from "./voxel-models/cube.vxm";
+import test from "./voxel-models/test.vxm";
+import cornellBox from "./voxel-models/cornell.vxm";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
 import { DebugValuesStore } from "./debug-values-store";
@@ -27,11 +29,11 @@ const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
 
-const startingCameraFieldOfView = 82.5;
+const startingCameraFieldOfView = 20;
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
-  position: vec3.create(0, 128, 0),
-  direction: vec3.normalize(vec3.create(-1, -0.33, 1)),
+  position: vec3.create(3, 4, 18.5),
+  direction: vec3.normalize(vec3.create(0, 0, 1)),
 });
 
 const debugUI = new DebugUI();
@@ -247,16 +249,7 @@ if (navigator.gpu !== undefined) {
     adapter.requestDevice().then(async (newDevice) => {
       device = newDevice;
       console.log(device.limits);
-      console.log({ cube });
-
-      // const skyTexture = await createTextureFromImages(device, [
-      //   "cubemaps/debug/posx.png",
-      //   "cubemaps/debug/negx.png",
-      //   "cubemaps/debug/posy.png",
-      //   "cubemaps/debug/negy.png",
-      //   "cubemaps/debug/posz.png",
-      //   "cubemaps/debug/negz.png",
-      // ]);
+      console.log({ cube, cornellBox, test });
       const skyTexture = await createTextureFromImages(device, [
         "cubemaps/town-square/posx.jpg",
         "cubemaps/town-square/negx.jpg",
@@ -273,7 +266,7 @@ if (navigator.gpu !== undefined) {
         // TODO: use center of pixel instead for depth prepass
         await getDepthPrepass(),
         await getGBufferPass(),
-        await getReflectionsPass(),
+        // await getReflectionsPass(),
         fullscreenQuad(device),
       ]);
     });

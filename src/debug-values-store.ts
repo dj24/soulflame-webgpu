@@ -5,8 +5,8 @@ export class DebugValuesStore {
   translateX;
 
   constructor() {
-    this.maxObjectCount = 128;
-    this.objectCount = 128;
+    this.maxObjectCount = 1;
+    this.objectCount = 1;
     this.scale = 1;
     this.translateX = 0;
   }

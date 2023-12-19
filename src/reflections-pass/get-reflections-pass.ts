@@ -2,8 +2,9 @@ import reflections from "./reflections.wgsl";
 import randomCommon from "../random-common.wgsl";
 import { device, resolution } from "../app";
 import { RenderArgs, RenderPass } from "../g-buffer/get-g-buffer-pass";
+import { createFloatUniformBuffer } from "../buffer-utils";
 
-const downscaleFactor = 2;
+const downscaleFactor = 1;
 
 export const getReflectionsPass = async (): Promise<RenderPass> => {
   let reflectionTexture: GPUTexture;
@@ -12,8 +13,6 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
     Math.ceil(resolution[0] / downscaleFactor),
     Math.ceil(resolution[1] / downscaleFactor),
   ];
-
-  console.log(resolution);
 
   const createReflectionTextureView = () => {
     if (reflectionTexture) {
@@ -75,6 +74,10 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
       minFilter: "nearest",
     });
 
+    const downscaleFactorBuffer = createFloatUniformBuffer(device, [
+      downscaleFactor,
+    ]);
+
     // Get reflections at half resolution
     const getReflectionsBindGroup = device.createBindGroup({
       layout: getReflectionPipeline.getBindGroupLayout(0),
@@ -106,6 +109,12 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
         {
           binding: 6,
           resource: pointSampler,
+        },
+        {
+          binding: 7,
+          resource: {
+            buffer: downscaleFactorBuffer,
+          },
         },
       ],
     });
@@ -156,6 +165,12 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
         {
           binding: 6,
           resource: pointSampler,
+        },
+        {
+          binding: 7,
+          resource: {
+            buffer: downscaleFactorBuffer,
+          },
         },
       ],
     });

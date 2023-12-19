@@ -9,6 +9,9 @@ import {
 import { camera, device, debugValues, resolution } from "../app";
 import { create3dTexture } from "../create-3d-texture";
 import cube from "../voxel-models/cube.vxm";
+import cornellBox from "../voxel-models/cornell.vxm";
+import { mat4 } from "wgpu-matrix";
+import { VoxelObject } from "../voxel-object";
 
 type OutputTextureViews = {
   finalTexture: GPUTextureView;
@@ -55,9 +58,21 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     },
   });
 
-  create3dTexture(device, cube.sliceFilePaths, cube.size).then((texture) => {
-    voxelTexture = texture;
-  });
+  create3dTexture(device, cornellBox.sliceFilePaths, cornellBox.size).then(
+    (texture) => {
+      voxelTexture = texture;
+    },
+  );
+
+  // const voxelObject = new VoxelObject(mat4.identity(), cornellBox.size);
+  //
+  // const voxelObjects = [voxelObject];
+  //
+  // transformationMatrixBuffer = createFloatUniformBuffer(
+  //   device,
+  //   voxelObjects.flatMap((voxelObject) => voxelObject.toArray()),
+  //   "voxel object",
+  // );
 
   getObjectTransformsWorker.addEventListener(
     "message",
@@ -87,7 +102,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       scale: debugValues.scale,
       translateX: debugValues.translateX,
       camera,
-      objectSize: cube.size,
+      objectSize: cornellBox.size,
     });
 
     if (!transformationMatrixBuffer) {

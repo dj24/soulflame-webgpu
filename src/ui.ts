@@ -1,40 +1,4 @@
 import { camera, canvas, debugValues } from "./app";
-import { animate, spring } from "motion";
-import { vec3 } from "wgpu-matrix";
-
-const startingCameraFieldOfView = 70;
-const startingCameraPosition = vec3.create(140, 56, 140);
-const startingCameraDirection = vec3.normalize(vec3.create(1, -0.33, 1));
-
-const animateCameraToStartingPosition = () => {
-  const targetDirection = startingCameraDirection;
-  const startDirection = camera.direction;
-  const targetFieldOfView = startingCameraFieldOfView;
-  const startFieldOfView = camera.fieldOfView;
-  const startScale = debugValues.scale;
-  const startTranslateX = debugValues.translateX;
-  const targetScale = 1;
-  const targetTranslateX = 0;
-  camera.targetPosition = startingCameraPosition;
-  // camera.targetRotation = vec3.(targetDirection);
-  animate(
-    (progress: number) => {
-      camera.fieldOfView =
-        startFieldOfView + (targetFieldOfView - startFieldOfView) * progress;
-      debugValues.scale = startScale + (targetScale - startScale) * progress;
-      debugValues.translateX =
-        startTranslateX + (targetTranslateX - startTranslateX) * progress;
-    },
-    {
-      easing: spring({
-        restDistance: 0.0001,
-        damping: 300,
-        stiffness: 700,
-        mass: 8,
-      }),
-    },
-  );
-};
 
 export class DebugUI {
   logElement;
@@ -78,8 +42,7 @@ export class DebugUI {
       debugValues.scale = parseFloat(event.detail);
     };
     window.addEventListener("changescale", handleScaleChange);
-    animateCameraToStartingPosition();
-    window.addEventListener("resetcamera", animateCameraToStartingPosition);
+    // window.addEventListener("resetcamera", animateCameraToStartingPosition);
     const handleObjectCountChange = (event: CustomEvent) => {
       debugValues.objectCount = parseFloat(event.detail);
     };
