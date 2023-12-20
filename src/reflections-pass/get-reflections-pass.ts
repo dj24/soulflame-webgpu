@@ -1,7 +1,9 @@
 import reflections from "./reflections.wgsl";
 import randomCommon from "../random-common.wgsl";
-import { device, resolution } from "../app";
-import { RenderArgs, RenderPass } from "../g-buffer/get-g-buffer-pass";
+import boxIntersection from "../shader/box-intersection.wgsl";
+import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
+import getRayDirection from "../shader/get-ray-direction.wgsl";
+import { device, RenderArgs, RenderPass, resolution } from "../app";
 import { createFloatUniformBuffer } from "../buffer-utils";
 
 const downscaleFactor = 1;
@@ -32,6 +34,7 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
 
   const code = `
         ${randomCommon}
+        ${getRayDirection}
         ${reflections}
         `;
 

@@ -1,9 +1,13 @@
 import {
   createFloatUniformBuffer,
   createUniformBuffer,
+  writeToFloatUniformBuffer,
   writeToUniformBuffer,
 } from "./buffer-utils";
-import { RenderPass, getGBufferPass } from "./g-buffer/get-g-buffer-pass";
+import {
+  getGBufferPass,
+  OutputTextureViews,
+} from "./g-buffer/get-g-buffer-pass";
 import { Camera, moveCamera } from "./camera";
 import { DebugUI } from "./ui";
 import "./main.css";
@@ -17,6 +21,23 @@ import { DebugValuesStore } from "./debug-values-store";
 import { createTextureFromImage, createTextureFromImages } from "webgpu-utils";
 import { getReflectionsPass } from "./reflections-pass/get-reflections-pass";
 import { getWorldSpaceFrustumCornerDirections } from "./get-frustum-corner-directions";
+import { create3dTexture } from "./create-3d-texture";
+import { getDiffusePass } from "./diffuse-pass/get-diffuse-pass";
+
+export type RenderArgs = {
+  commandEncoder: GPUCommandEncoder;
+  resolutionBuffer: GPUBuffer;
+  outputTextureViews: OutputTextureViews;
+  frustumCornerDirectionsBuffer: GPUBuffer;
+  cameraPositionBuffer: GPUBuffer;
+  voxelTextureView: GPUTextureView;
+  transformationMatrixBuffer: GPUBuffer;
+};
+
+export type RenderPass = {
+  fixedUpdate?: () => void;
+  render: (args: RenderArgs) => void;
+};
 
 export const debugValues = new DebugValuesStore();
 
@@ -41,6 +62,11 @@ const debugUI = new DebugUI();
 let handleDownscaleChange: (event: CustomEvent) => void;
 
 let skyTextureView: GPUTextureView;
+let voxelTextureView: GPUTextureView;
+
+export const getObjectTransformsWorker = new Worker(
+  new URL("./get-objects-transforms/objects-worker.ts", import.meta.url),
+);
 
 const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let normalTexture: GPUTexture;
@@ -53,6 +79,24 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let fixedIntervalId: ReturnType<typeof setInterval>;
   let timeBuffer: GPUBuffer;
   let resolutionBuffer: GPUBuffer;
+  let transformationMatrixBuffer: GPUBuffer;
+
+  // TODO: fix this
+  getObjectTransformsWorker.addEventListener(
+    "message",
+    (event: MessageEvent<number[]>) => {
+      console.log({ event, transformationMatrixBuffer });
+      if (transformationMatrixBuffer) {
+        writeToFloatUniformBuffer(transformationMatrixBuffer, event.data);
+      } else {
+        transformationMatrixBuffer = createFloatUniformBuffer(
+          device,
+          event.data,
+          "voxel object",
+        );
+      }
+    },
+  );
 
   canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
   gpuContext = canvas.getContext("webgpu");
@@ -168,6 +212,21 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     const newElapsedTime = performance.now() - startTime;
     deltaTime = newElapsedTime - elapsedTime;
     elapsedTime = newElapsedTime;
+
+    getObjectTransformsWorker.postMessage({
+      maxObjectCount: debugValues.maxObjectCount,
+      objectCount: debugValues.objectCount,
+      scale: debugValues.scale,
+      translateX: debugValues.translateX,
+      camera,
+      objectSize: cornellBox.size,
+    });
+
+    //TODO: handle loading this more gracefully
+    if (!transformationMatrixBuffer) {
+      return;
+    }
+
     moveCamera();
     camera.update();
 
@@ -229,6 +288,8 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         },
         frustumCornerDirectionsBuffer,
         cameraPositionBuffer,
+        voxelTextureView,
+        transformationMatrixBuffer,
       });
     });
     device.queue.submit([commandEncoder.finish()]);
@@ -262,11 +323,19 @@ if (navigator.gpu !== undefined) {
         dimension: "cube",
       });
 
+      const voxelTexture = await create3dTexture(
+        device,
+        cornellBox.sliceFilePaths,
+        cornellBox.size,
+      );
+      voxelTextureView = voxelTexture.createView();
+
       renderLoop(device, [
         // TODO: use center of pixel instead for depth prepass
         await getDepthPrepass(),
         await getGBufferPass(),
         // await getReflectionsPass(),
+        // await getDiffusePass(),
         fullscreenQuad(device),
       ]);
     });

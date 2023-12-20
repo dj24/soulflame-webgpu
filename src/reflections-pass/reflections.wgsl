@@ -14,27 +14,6 @@
 
 const PI = 3.14159265359;
 
-struct FrustumCornerDirections {
-  topLeft : vec3<f32>,
-  topRight : vec3<f32>,
-  bottomLeft : vec3<f32>,
-  bottomRight : vec3<f32>
-}
-
-fn calculateRayDirection(uv: vec2<f32>, directions: FrustumCornerDirections) -> vec3<f32> {
-  let topInterpolated = mix(directions.topLeft, directions.topRight, uv.x);
-  let bottomInterpolated = mix(directions.bottomLeft, directions.bottomRight, uv.x);
-  let finalInterpolated = mix(bottomInterpolated, topInterpolated, uv.y);
-  return normalize(finalInterpolated);
-}
-
-fn addBasicShading(baseColour: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
-  let lightDirection = normalize(vec3(0.5, 1.0, 0.5));
-  let cosTheta = max(dot(normal, lightDirection), 0.0);
-  let lambertianReflectance = cosTheta * baseColour;
-  return mix(baseColour * 1.5,lambertianReflectance, 0.75);
-}
-
 @compute @workgroup_size(8, 8, 1)
 fn getReflections(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>

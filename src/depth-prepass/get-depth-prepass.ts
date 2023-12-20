@@ -1,24 +1,17 @@
 import raymarchDepth from "./raymarch-voxels-depth.wgsl";
 import boxIntersection from "../shader/box-intersection.wgsl";
-import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
 import conservativeDepthMin from "./conservative-depth-min.wgsl";
 import {
-  createFloatUniformBuffer,
-  writeToFloatUniformBuffer,
-} from "../buffer-utils";
-import { camera, device, debugValues, resolution } from "../app";
-import { create3dTexture } from "../create-3d-texture";
-import cornell from "../voxel-models/cornell.vxm";
-import {
-  getObjectTransformsWorker,
-  RenderArgs,
+  device,
+  debugValues,
+  resolution,
   RenderPass,
-} from "../g-buffer/get-g-buffer-pass";
+  RenderArgs,
+} from "../app";
 
 const downscaleFactor = 4;
 export const getDepthPrepass = async (): Promise<RenderPass> => {
-  let transformationMatrixBuffer: GPUBuffer;
   let downscaledDepthTexture: GPUTexture;
 
   const createDownscaledDepthTextureView = () => {
@@ -64,48 +57,19 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
     },
   });
 
-  const voxelTexture = await create3dTexture(
-    device,
-    cornell.sliceFilePaths,
-    cornell.size,
-  );
-
-  getObjectTransformsWorker.addEventListener(
-    "message",
-    (event: MessageEvent<number[]>) => {
-      if (transformationMatrixBuffer) {
-        writeToFloatUniformBuffer(transformationMatrixBuffer, event.data);
-      } else {
-        transformationMatrixBuffer = createFloatUniformBuffer(
-          device,
-          event.data,
-          "voxel object",
-        );
-      }
-    },
-  );
-
   const render = ({
     commandEncoder,
     resolutionBuffer,
     outputTextureViews,
     cameraPositionBuffer,
     frustumCornerDirectionsBuffer,
+    voxelTextureView,
+    transformationMatrixBuffer,
   }: RenderArgs) => {
     const computePass = commandEncoder.beginComputePass();
     computePass.setPipeline(rayMarchPipeline);
 
     const downscaledDepthTextureView = createDownscaledDepthTextureView();
-
-    // TODO: find way to wait for loading more gracefully
-    if (!voxelTexture) {
-      computePass.end();
-      return;
-    }
-
-    if (!transformationMatrixBuffer) {
-      return;
-    }
 
     const computeBindGroup = device.createBindGroup({
       layout: rayMarchPipeline.getBindGroupLayout(0),
@@ -150,7 +114,7 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
     //     },
     //     {
     //       binding: 1,
-    //       resource: voxelTexture.createView(),
+    //       resource: voxelTextureView,
     //     },
     //   ],
     // });
