@@ -85,7 +85,6 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   getObjectTransformsWorker.addEventListener(
     "message",
     (event: MessageEvent<number[]>) => {
-      console.log({ event, transformationMatrixBuffer });
       if (transformationMatrixBuffer) {
         writeToFloatUniformBuffer(transformationMatrixBuffer, event.data);
       } else {
@@ -224,6 +223,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     //TODO: handle loading this more gracefully
     if (!transformationMatrixBuffer) {
+      animationFrameId = requestAnimationFrame(frame);
       return;
     }
 
@@ -329,7 +329,7 @@ if (navigator.gpu !== undefined) {
         cornellBox.size,
       );
       voxelTextureView = voxelTexture.createView();
-
+      console.log({ voxelTextureView });
       renderLoop(device, [
         // TODO: use center of pixel instead for depth prepass
         await getDepthPrepass(),
