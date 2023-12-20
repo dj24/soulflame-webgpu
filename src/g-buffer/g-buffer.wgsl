@@ -16,12 +16,6 @@ fn plainIntersect(ro: vec3<f32>, rd: vec3<f32>, p: vec4<f32>) -> f32 {
     return -(dot(ro, p.xyz) + p.w) / dot(rd, p.xyz);
 }
 
-struct VoxelObject {
-  transform: mat4x4<f32>,
-  size : vec3<f32>,
-  padding : f32
-}
-
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
@@ -45,9 +39,10 @@ fn main(
     return;
   }
 
-  let rayMarchResult = rayMarch(startingObjectIndex, rayOrigin, rayDirection);
+  let rayMarchResult = rayMarch(startingObjectIndex, rayOrigin, rayDirection, voxelObjects, voxelsSampler);
 
   var colour = rayMarchResult.colour;
+
   if(all(rayMarchResult.colour == vec3<f32>(0.0))){
     colour = sky;
   }

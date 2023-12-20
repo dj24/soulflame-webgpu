@@ -53,7 +53,7 @@ export let deltaTime = 0;
 const startingCameraFieldOfView = 20;
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
-  position: vec3.create(3, 4, 18.5),
+  position: vec3.create(3.5, 3.5, 20),
   direction: vec3.normalize(vec3.create(0, 0, 1)),
 });
 
@@ -332,10 +332,10 @@ if (navigator.gpu !== undefined) {
       console.log({ voxelTextureView });
       renderLoop(device, [
         // TODO: use center of pixel instead for depth prepass
-        await getDepthPrepass(),
+        // await getDepthPrepass(),
         await getGBufferPass(),
         // await getReflectionsPass(),
-        // await getDiffusePass(),
+        await getDiffusePass(),
         fullscreenQuad(device),
       ]);
     });

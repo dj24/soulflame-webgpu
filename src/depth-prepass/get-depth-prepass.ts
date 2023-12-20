@@ -1,6 +1,7 @@
 import raymarchDepth from "./raymarch-voxels-depth.wgsl";
 import boxIntersection from "../shader/box-intersection.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
+import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import conservativeDepthMin from "./conservative-depth-min.wgsl";
 import {
   device,
@@ -40,6 +41,7 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
         code: `
           const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
           ${boxIntersection}
+          ${raymarchVoxels}
           ${getRayDirection}
           ${raymarchDepth}`,
       }),

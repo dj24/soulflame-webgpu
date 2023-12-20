@@ -13,16 +13,6 @@ fn plainIntersect(ro: vec3<f32>, rd: vec3<f32>, p: vec4<f32>) -> f32 {
     return -(dot(ro, p.xyz) + p.w) / dot(rd, p.xyz);
 }
 
-struct VoxelObject {
-  transform: mat4x4<f32>,
-  size : vec3<f32>,
-  padding : f32
-}
-
-const EPSILON = 0.001;
-const BORDER_WIDTH = 0.05;
-const MAX_RAY_STEPS = 256;
-
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>

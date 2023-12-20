@@ -19,6 +19,7 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
         code: `
           const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
           ${randomCommon}
+          ${boxIntersection}
           ${getRayDirection}
           ${raymarchVoxels}
           ${diffuse}
@@ -35,6 +36,7 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
     voxelTextureView,
     resolutionBuffer,
     cameraPositionBuffer,
+    transformationMatrixBuffer,
   }: RenderArgs) => {
     const computePass = commandEncoder.beginComputePass();
 
@@ -52,12 +54,6 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
         {
           binding: 2,
           resource: outputTextureViews.finalTexture,
-        },
-        {
-          binding: 3,
-          resource: {
-            buffer: cameraPositionBuffer,
-          },
         },
       ],
     });
@@ -80,6 +76,25 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
           resource: {
             buffer: frustumCornerDirectionsBuffer,
           },
+        },
+        {
+          binding: 3,
+          resource: {
+            buffer: cameraPositionBuffer,
+          },
+        },
+        {
+          binding: 4,
+          resource: {
+            buffer: transformationMatrixBuffer,
+          },
+        },
+        {
+          binding: 5,
+          resource: device.createSampler({
+            magFilter: "nearest",
+            minFilter: "nearest",
+          }),
         },
       ],
     });

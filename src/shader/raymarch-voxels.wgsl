@@ -7,13 +7,19 @@ fn transformNormal(inverseTransform: mat4x4<f32>, normal: vec3<f32>) -> vec3<f32
     return worldNormal;
 }
 
+struct VoxelObject {
+  transform: mat4x4<f32>,
+  size : vec3<f32>,
+  padding : f32
+}
+
 struct RayMarchResult {
   colour: vec3<f32>,
   normal: vec3<f32>,
   hit: bool,
 }
 
-fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult {
+fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f32>, voxelObjects: array<VoxelObject, VOXEL_OBJECT_COUNT>, voxelsSampler: sampler) -> RayMarchResult {
   var output = RayMarchResult();
   output.hit = false;
   output.colour = vec3(0.0);
