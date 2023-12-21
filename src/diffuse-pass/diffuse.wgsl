@@ -21,20 +21,31 @@ fn main(
   let uv = vec2<f32>(pixel) / vec2<f32>(resolution);
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
   var rayOrigin = cameraPosition;
+  let foo = textureLoad(albedoTex, vec2(0,0), 0);
+  let normal = textureLoad(normalTex, pixel, 0).rgb;
 
   var rayColour = vec3(1.0);
-  for(var i = 0; i < 8; i++){
+  for(var i = 0; i < 2; i++){
     let rayMarchResult = rayMarch(0, rayOrigin, rayDirection, voxelObjects, voxelsSampler);
     if(!rayMarchResult.hit){
-      rayColour = vec3(0.0);
+      if(i == 0){
+        rayColour = vec3(0.0);
+      }
       break;
     }
-    var reflectionDirection = reflect(-rayDirection, rayMarchResult.normal);
+    rayOrigin = rayMarchResult.worldPos;
+    rayDirection = reflect(-rayDirection, rayMarchResult.normal);
+    rayColour *= 0.5 * rayMarchResult.colour;
+//    if(i == 1){
+//      rayColour = rayMarchResult.worldPos;
+//    } else{
+//      rayColour = vec3(0.5);
+//    }
   }
 
   textureStore(
       outputTex,
       pixel,
-      vec4(uv,0.0,1.0),
+      vec4(normal,1.0),
     );
 }
