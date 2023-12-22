@@ -36,16 +36,16 @@ fn main(
     rayOrigin = rayMarchResult.worldPos;
     rayDirection = reflect(-rayDirection, rayMarchResult.normal);
     rayColour *= 0.5 * rayMarchResult.colour;
-//    if(i == 1){
-//      rayColour = rayMarchResult.worldPos;
-//    } else{
-//      rayColour = vec3(0.5);
-//    }
+    if(i == 1){
+      rayColour = rayMarchResult.worldPos;
+    } else{
+      rayColour = vec3(0.5);
+    }
   }
 
   textureStore(
       outputTex,
       pixel,
-      vec4(normal,1.0),
+      vec4(rayColour,1.0),
     );
 }

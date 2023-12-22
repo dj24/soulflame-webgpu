@@ -26,7 +26,7 @@ struct RayMarchResult {
   hit: bool,
 }
 
-const MIN_RAY_DISTANCE = 0.5;
+const MIN_RAY_DISTANCE = 1;
 
 fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f32>, voxelObjects: array<VoxelObject, VOXEL_OBJECT_COUNT>, voxelsSampler: sampler) -> RayMarchResult {
   var output = RayMarchResult();
@@ -50,21 +50,26 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
       continue;
     }
 
-    let objectRayOrigin = (voxelObject.transform * vec4<f32>(rayOrigin, 1.0)).xyz;
+    var objectRayOrigin = (voxelObject.transform * vec4<f32>(rayOrigin, 1.0)).xyz;
     let objectRayDirection = (voxelObject.transform * vec4<f32>(rayDirection, 0.0)).xyz;
+
+    let isCameraInside = all(objectRayOrigin > vec3(0.0)) && all(objectRayOrigin < vec3(voxelObject.size));
+    if(isCameraInside){
+//      objectRayOrigin -= objectRayDirection *3;
+    }
+
     let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
-    tNear = intersect.tNear;
+    tNear = intersect.tNear - EPSILON;
 
     // bounding box is further away than the closest intersection, so we can skip this object
-    let isInsideAlreadyMarchedVoxel = tNear > closestIntersection - EPSILON;
+    let isInsideAlreadyMarchedVoxel = tNear > closestIntersection;
     if(isInsideAlreadyMarchedVoxel){
         continue;
     }
 
-    let boundingBoxSurfacePosition = objectRayOrigin + (tNear - EPSILON)  * objectRayDirection;
-    let isStartingInBounds = all(boundingBoxSurfacePosition > vec3(0.0)) && all(boundingBoxSurfacePosition < vec3(voxelObject.size / voxelSize));
-
-    let isBackwardsIntersection = tNear < 0.0 && !isStartingInBounds;
+    let boundingBoxSurfacePosition = objectRayOrigin + tNear * objectRayDirection;
+    let isStartingInBounds = all(objectRayOrigin > vec3(0.0)) && all(objectRayOrigin < vec3(voxelObject.size / voxelSize));
+    let isBackwardsIntersection = tNear < EPSILON && !isStartingInBounds;
     if(isBackwardsIntersection){
       continue;
     }
@@ -98,7 +103,7 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
       objectPos = objectRayOrigin + objectRayDirection * tIntersection;
       let isInBounds = all(currentIndex > vec3(-1.0)) && all(currentIndex < vec3(voxelObject.size / voxelSize));
       if(!isInBounds){
-          break;
+//          break;
       }
       // we marched further than the closest intersection, so we are "inside" voxels now
       let isInsideAlreadyMarchedVoxel = tIntersection > closestIntersection + EPSILON;

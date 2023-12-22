@@ -50,10 +50,10 @@ const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
 
-const startingCameraFieldOfView = 20;
+const startingCameraFieldOfView = 80;
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
-  position: vec3.create(3.5, 3.5, 20),
+  position: vec3.create(3.5, 3.5, 6.8),
   direction: vec3.normalize(vec3.create(0, 0, 1)),
 });
 
@@ -231,9 +231,9 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     camera.update();
 
     debugUI.log(`Position: ${camera.position[0].toFixed(
-      0,
-    )}, ${camera.position[1].toFixed(0)}, ${camera.position[2].toFixed(0)}
-    Resolution: ${resolution[0].toFixed(0)}x${resolution[1].toFixed(0)}
+      1,
+    )}, ${camera.position[1].toFixed(1)}, ${camera.position[2].toFixed(1)}
+    Resolution: ${resolution[0].toFixed(1)}x${resolution[1].toFixed(0)}
     Frame Time: ${deltaTime.toFixed(1)}ms
     Object Count: ${debugValues.objectCount}
     `);
