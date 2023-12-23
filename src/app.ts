@@ -14,6 +14,7 @@ import "./main.css";
 import { vec2, vec3 } from "wgpu-matrix";
 import cube from "./voxel-models/cube.vxm";
 import test from "./voxel-models/test.vxm";
+import building from "./voxel-models/building.vxm";
 import cornellBox from "./voxel-models/cornell.vxm";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
@@ -53,7 +54,7 @@ export let deltaTime = 0;
 const startingCameraFieldOfView = 80;
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
-  position: vec3.create(3.5, 3.5, 6.8),
+  position: vec3.create(3.5, 3.5, -6.8),
   direction: vec3.normalize(vec3.create(0, 0, 1)),
 });
 
@@ -229,6 +230,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     moveCamera();
     camera.update();
+    debugValues.update();
 
     debugUI.log(
       `
@@ -317,7 +319,7 @@ if (navigator.gpu !== undefined) {
     adapter.requestDevice().then(async (newDevice) => {
       device = newDevice;
       console.log(device.limits);
-      console.log({ cube, cornellBox, test });
+      console.log({ cube, cornellBox, test, building });
       const skyTexture = await createTextureFromImages(device, [
         "cubemaps/town-square/posx.jpg",
         "cubemaps/town-square/negx.jpg",
@@ -341,7 +343,7 @@ if (navigator.gpu !== undefined) {
         // TODO: use center of pixel instead for depth prepass
         // await getDepthPrepass(),
         await getGBufferPass(),
-        // await getReflectionsPass(),
+        await getReflectionsPass(),
         // await getDiffusePass(),
         fullscreenQuad(device),
       ]);

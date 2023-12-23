@@ -34,12 +34,12 @@ export class DebugUI {
     };
     window.addEventListener("changefov", handleFovChange);
     const handleTranslateChange = (event: CustomEvent) => {
-      debugValues.translateX = parseFloat(event.detail);
+      debugValues.targetTranslateX = parseFloat(event.detail);
     };
 
     window.addEventListener("changetranslate", handleTranslateChange);
     const handleScaleChange = (event: CustomEvent) => {
-      debugValues.scale = parseFloat(event.detail);
+      debugValues.targetScale = parseFloat(event.detail);
     };
     window.addEventListener("changescale", handleScaleChange);
     // window.addEventListener("resetcamera", animateCameraToStartingPosition);

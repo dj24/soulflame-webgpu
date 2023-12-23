@@ -33,7 +33,7 @@ const getObjectTransforms = ({
     let y = Math.sin(x + z) * 20;
     mat4.translate(m, [translateX + x, y, z], m);
     mat4.translate(m, vec3.divScalar(objectSize, 2), m);
-    mat4.rotateY(m, 3 * Math.PI, m);
+    mat4.rotateY(m, 0, m);
     mat4.scale(m, [scale, scale, scale], m);
     mat4.translate(m, vec3.divScalar(objectSize, -2), m);
     return new VoxelObject(m, objectSize);

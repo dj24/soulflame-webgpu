@@ -38,7 +38,7 @@ fn main(
   let rayMarchResult = rayMarch(startingObjectIndex, rayOrigin, rayDirection, voxelObjects, voxelsSampler);
 
   var colour = rayMarchResult.colour;
-  colour = abs(rayMarchResult.worldPos) %1;
+//  colour = abs(rayMarchResult.worldPos) %1;
   if(all(rayMarchResult.colour == vec3<f32>(0.0))){
     colour = sky;
   }

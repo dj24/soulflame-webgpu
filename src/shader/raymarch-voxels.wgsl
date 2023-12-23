@@ -110,7 +110,7 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
       if(isInsideAlreadyMarchedVoxel){
           break;
       }
-      let foo = textureSampleLevel(voxels, voxelsSampler, vec3(currentIndex) / voxelObject.size, 0.0);
+      let foo = textureLoad(voxels, vec3<u32>(currentIndex), 0);
       if(foo.a > 0.0 && tIntersection > MIN_RAY_DISTANCE){
           closestIntersection = tIntersection;
           output.worldPos = transformPosition(voxelObject.transform, objectPos);
