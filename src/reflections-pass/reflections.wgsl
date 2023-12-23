@@ -24,7 +24,7 @@ fn getReflections(
   let centerOfPixel = vec2<f32>(pixel) + vec2<f32>(0.5);
   let uv = centerOfPixel / vec2<f32>(downscaledResolution);
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
-  let normalSample = textureSampleLevel(normalTex, pointSampler, uv, 0.0).rgb;
+  let normalSample = textureLoad(normalTex, pixel, 0).rgb;
   let randomDirection = mix(normalSample,randomInHemisphere(uv, normalSample),SCATTER_AMOUNT);
   var reflectionDirection = reflect(-rayDirection, randomDirection);
   reflectionDirection = vec3(-reflectionDirection.x, reflectionDirection.y, -reflectionDirection.z);

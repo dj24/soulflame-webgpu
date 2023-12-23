@@ -17,11 +17,11 @@ fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 )
 {
-  let pixel = GlobalInvocationID.xy;
+  let pixel = vec2(GlobalInvocationID.x, resolution.y - GlobalInvocationID.y);
   let uv = vec2<f32>(pixel) / vec2<f32>(resolution);
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
   var rayOrigin = cameraPosition;
-  let foo = textureLoad(albedoTex, vec2(0,0), 0);
+  let foo = textureLoad(albedoTex, pixel, 0).rgb;
   let normal = textureLoad(normalTex, pixel, 0).rgb;
 
   var rayColour = vec3(1.0);
@@ -37,9 +37,9 @@ fn main(
     rayDirection = reflect(-rayDirection, rayMarchResult.normal);
     rayColour *= 0.5 * rayMarchResult.colour;
     if(i == 1){
-      rayColour = rayMarchResult.worldPos;
+      rayColour = vec3(1,0,1);
     } else{
-      rayColour = vec3(0.5);
+      rayColour = foo;
     }
   }
 

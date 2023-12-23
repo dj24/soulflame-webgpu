@@ -20,36 +20,29 @@ fn plainIntersect(ro: vec3<f32>, rd: vec3<f32>, p: vec4<f32>) -> f32 {
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
-//  let tStart = textureLoad(depthTex, GlobalInvocationID.xy,0).r;
-//  if(tStart > 10000.0){
-//    textureStore(debugTex, GlobalInvocationID.xy, vec4(1.0));
-//    return;
-//  }
-  let pixel = vec2<f32>(f32(GlobalInvocationID.x), f32(resolution.y - GlobalInvocationID.y));
-  let uv = pixel / vec2<f32>(resolution);
+  let pixel = vec2(GlobalInvocationID.x, resolution.y - GlobalInvocationID.y);
+  let uv = vec2<f32>(pixel) / vec2<f32>(resolution);
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
   var rayOrigin = cameraPosition;
   let startingObjectIndex = textureLoad(depthTex, GlobalInvocationID.xy,0).r;
-  var sky = textureSampleLevel(skyTex, voxelsSampler, rayDirection, 0.0).rgb;
+  var sky = textureSampleLevel(skyTex, voxelsSampler, vec3(rayDirection.x, -rayDirection.y, rayDirection.z), 0.0).rgb;
 
   if(startingObjectIndex < 0){
-    textureStore(debugTex, GlobalInvocationID.xy, vec4(1.0));
-    textureStore(albedoTex, GlobalInvocationID.xy, vec4(sky,1.0));
-    textureStore(normalTex, GlobalInvocationID.xy, vec4(0));
+    textureStore(debugTex, pixel, vec4(1.0));
+    textureStore(albedoTex, pixel, vec4(sky,1.0));
+    textureStore(normalTex, pixel, vec4(0));
     return;
   }
 
   let rayMarchResult = rayMarch(startingObjectIndex, rayOrigin, rayDirection, voxelObjects, voxelsSampler);
 
   var colour = rayMarchResult.colour;
+  colour = rayMarchResult.worldPos % 1;
 
   if(all(rayMarchResult.colour == vec3<f32>(0.0))){
     colour = sky;
   }
 
-  textureStore(normalTex, GlobalInvocationID.xy, vec4(rayMarchResult.normal,1));
-  textureStore(albedoTex, GlobalInvocationID.xy, vec4(colour,1));
-//  let heatMap = mix(vec3(0.0,0.0,0.3),vec3(1.0,0.25,0.0),f32(stepsTaken) / f32(MAX_RAY_STEPS * 0.1));
-//  let heatMap2 = mix(vec3(0.0,1.0,0.0), vec3(1.0,0.0,0.0), f32(objectsTraversed) / 128.0);
-//  textureStore(debugTex, GlobalInvocationID.xy, vec4(heatMap2,1));
+  textureStore(normalTex, pixel, vec4(rayMarchResult.normal,1));
+  textureStore(albedoTex, pixel, vec4(colour,1));
 }

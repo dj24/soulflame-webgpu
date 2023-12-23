@@ -244,6 +244,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     } else {
       timeBuffer = createUniformBuffer([elapsedTime]);
     }
+
     if (resolutionBuffer) {
       writeToUniformBuffer(resolutionBuffer, [resolution[0], resolution[1]]);
     } else {
@@ -335,7 +336,7 @@ if (navigator.gpu !== undefined) {
         // await getDepthPrepass(),
         await getGBufferPass(),
         // await getReflectionsPass(),
-        await getDiffusePass(),
+        // await getDiffusePass(),
         fullscreenQuad(device),
       ]);
     });
