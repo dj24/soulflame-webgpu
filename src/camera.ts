@@ -18,34 +18,28 @@ export class Camera extends MoveableObject {
     fieldOfView: number;
     direction: Vec3;
   }) {
-    const rotation = quat.fromEuler(
-      options.direction[0],
-      options.direction[1],
-      options.direction[2],
-      "xyz",
-    );
-    super({ position: options.position, rotation });
+    super({ position: options.position, rotation: quat.identity() });
     this.fieldOfView = options.fieldOfView;
   }
 
   get direction() {
-    return vec3.transformQuat(vec3.create(0, 0, -1), this.rotation);
+    return vec3.transformQuat(vec3.create(0, 0, 1), this.rotation);
   }
 
   get right() {
-    return vec3.normalize(vec3.cross(vec3.create(0, 1, 0), this.direction));
+    return vec3.transformQuat(vec3.create(1, 0, 0), this.rotation);
   }
 
   get left() {
-    return vec3.negate(this.right);
+    return vec3.transformQuat(vec3.create(-1, 0, 0), this.rotation);
   }
 
   get up() {
-    return vec3.normalize(vec3.cross(this.direction, this.right));
+    return vec3.transformQuat(vec3.create(0, 1, 0), this.rotation);
   }
 
   get down() {
-    return vec3.negate(this.up);
+    return vec3.transformQuat(vec3.create(0, -1, 0), this.rotation);
   }
 
   get viewMatrix() {
@@ -92,10 +86,10 @@ export const moveCamera = () => {
   let direction = vec3.zero();
   // TODO: Why is it backwards?
   if (keyboardControls.pressed.a) {
-    direction = vec3.add(direction, camera.right);
+    direction = vec3.add(direction, camera.left);
   }
   if (keyboardControls.pressed.d) {
-    direction = vec3.add(direction, camera.left);
+    direction = vec3.add(direction, camera.right);
   }
   if (keyboardControls.pressed.w) {
     direction = vec3.add(direction, camera.direction);

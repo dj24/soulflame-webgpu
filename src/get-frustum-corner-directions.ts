@@ -14,10 +14,10 @@ const getNearPlaneCornerPositions = (camera: Camera): Corners => {
   const nearHeight =
     2 * Math.tan(((camera.fieldOfView / 180) * Math.PI) / 2) * camera.near;
   const nearWidth = nearHeight * aspectRatio;
-  const topLeft = vec3.create(-nearWidth / 2, nearHeight / 2, -camera.near); //0, Near Top Left
-  const topRight = vec3.create(nearWidth / 2, nearHeight / 2, -camera.near); //1, Near Top Right
-  const bottomRight = vec3.create(nearWidth / 2, -nearHeight / 2, -camera.near); //2, Near Bottom Right
-  const bottomLeft = vec3.create(-nearWidth / 2, -nearHeight / 2, -camera.near); //3, Near Bottom Left
+  const bottomLeft = vec3.create(-nearWidth / 2, -nearHeight / 2, -camera.near); //0, Near Top Left
+  const bottomRight = vec3.create(nearWidth / 2, -nearHeight / 2, -camera.near); //1, Near Top Right
+  const topRight = vec3.create(nearWidth / 2, nearHeight / 2, -camera.near); //2, Near Bottom Right
+  const topLeft = vec3.create(-nearWidth / 2, nearHeight / 2, -camera.near); //3, Near Bottom Left
   return [topLeft, topRight, bottomLeft, bottomRight];
 };
 

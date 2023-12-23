@@ -230,13 +230,19 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     moveCamera();
     camera.update();
 
-    debugUI.log(`Position: ${camera.position[0].toFixed(
-      1,
-    )}, ${camera.position[1].toFixed(1)}, ${camera.position[2].toFixed(1)}
+    debugUI.log(
+      `
+      Direction: ${camera.direction[0].toFixed(
+        1,
+      )}, ${camera.direction[1].toFixed(1)}, ${camera.direction[2].toFixed(1)}
+      Position: ${camera.position[0].toFixed(1)}, ${camera.position[1].toFixed(
+        1,
+      )}, ${camera.position[2].toFixed(1)}
     Resolution: ${resolution[0].toFixed(1)}x${resolution[1].toFixed(0)}
     Frame Time: ${deltaTime.toFixed(1)}ms
     Object Count: ${debugValues.objectCount}
-    `);
+    `,
+    );
 
     const commandEncoder = device.createCommandEncoder();
     if (timeBuffer) {

@@ -20,29 +20,29 @@ fn plainIntersect(ro: vec3<f32>, rd: vec3<f32>, p: vec4<f32>) -> f32 {
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
-  let pixel = vec2(GlobalInvocationID.x, resolution.y - GlobalInvocationID.y);
-  let uv = vec2<f32>(pixel) / vec2<f32>(resolution);
+  var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
+  uv = vec2(uv.x, 1.0 - uv.y);
+  var pixel = uv * vec2<f32>(resolution);
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
   var rayOrigin = cameraPosition;
   let startingObjectIndex = textureLoad(depthTex, GlobalInvocationID.xy,0).r;
-  var sky = textureSampleLevel(skyTex, voxelsSampler, vec3(rayDirection.x, -rayDirection.y, rayDirection.z), 0.0).rgb;
+  var sky = textureSampleLevel(skyTex, voxelsSampler, rayDirection, 0.0).rgb;
 
   if(startingObjectIndex < 0){
-    textureStore(debugTex, pixel, vec4(1.0));
-    textureStore(albedoTex, pixel, vec4(sky,1.0));
-    textureStore(normalTex, pixel, vec4(0));
+    textureStore(debugTex, GlobalInvocationID.xy, vec4(1.0));
+    textureStore(albedoTex, GlobalInvocationID.xy, vec4(sky,1.0));
+    textureStore(normalTex, GlobalInvocationID.xy, vec4(0));
     return;
   }
 
   let rayMarchResult = rayMarch(startingObjectIndex, rayOrigin, rayDirection, voxelObjects, voxelsSampler);
 
   var colour = rayMarchResult.colour;
-  colour = rayMarchResult.worldPos % 1;
-
+  colour = abs(rayMarchResult.worldPos) %1;
   if(all(rayMarchResult.colour == vec3<f32>(0.0))){
     colour = sky;
   }
 
-  textureStore(normalTex, pixel, vec4(rayMarchResult.normal,1));
-  textureStore(albedoTex, pixel, vec4(colour,1));
+  textureStore(normalTex, GlobalInvocationID.xy, vec4(rayMarchResult.normal,1));
+  textureStore(albedoTex, GlobalInvocationID.xy, vec4(colour,1));
 }
