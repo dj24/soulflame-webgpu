@@ -58,7 +58,7 @@ fn nearZero(e : vec3<f32>) -> bool {
 }
 
 fn randomInHemisphere(co : vec2<f32>, normal : vec3<f32>) -> vec3<f32> {
-    let inUnitSphere = randomInUnitSphere(co);
+    let inUnitSphere = randomUnitVector(co);
     if (dot(inUnitSphere, normal) > 0.0) {
         return inUnitSphere;
     }

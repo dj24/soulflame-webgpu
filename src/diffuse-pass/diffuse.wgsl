@@ -25,38 +25,31 @@ fn main(
   let foo = textureLoad(albedoTex, GlobalInvocationID.xy, 0).rgb;
   let normal = textureLoad(normalTex, GlobalInvocationID.xy, 0).rgb;
 
-// TODO: get this fro skybox
-  var rayColour = vec3(1.0);
+// TODO: get this from skybox
+  var skyColour = vec3(0.4,0.7, 1.0);
+  var rayColour = skyColour * 3.0;
   let iterations = 3;
   for(var i = 0; i < iterations; i++){
     let rayMarchResult = rayMarch(0, rayOrigin, rayDirection, voxelObjects, voxelsSampler);
-    if(!rayMarchResult.hit){
+
+    let isValidHit = rayMarchResult.hit && distance(rayMarchResult.worldPos, rayOrigin) > EPSILON;
+
+    if(!isValidHit){
       if(i == 0){
-        rayColour = vec3(0.0);
+        rayColour = skyColour;
       }
+      rayColour = vec3(0.0);
       break;
     }
-//    let distanceToPrevious = distance(rayOrigin, rayMarchResult.worldPos);
-//    if(distanceToPrevious < 0.01){
-//      break;
-//    }
-    let scatterAmount = 0.4;
+    let scatterAmount = 0.3;
     let randomDirection = mix(rayMarchResult.normal,randomInHemisphere(uv, rayMarchResult.normal),scatterAmount);
     rayDirection = -reflect(-rayDirection, randomDirection);
-    rayOrigin = rayMarchResult.worldPos;
+    rayOrigin = rayMarchResult.worldPos + rayMarchResult.normal * 0.001;
 
     let isBlue = rayMarchResult.colour.b == 1 && rayMarchResult.colour.r == 0 && rayMarchResult.colour.g == 0;
     let rayEnergy = 0.5;
+
     rayColour = rayColour * rayMarchResult.colour * rayEnergy;
-//    rayColour = rayDirection;
-//    rayColour = floor(rayOrigin) / 7;
-//     rayColour = rayDirection;
-//rayColour = vec3(distance(cameraPosition,rayMarchResult.worldPos)) * 0.02;
-//    if(i == 1){
-//      rayColour = (rayMarchResult.worldPos % 2) * 0.5;
-//    } else{
-//      rayColour = foo;
-//    }
   }
 
   textureStore(
