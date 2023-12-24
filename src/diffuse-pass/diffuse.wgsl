@@ -28,7 +28,7 @@ fn main(
 // TODO: get this from skybox
   var skyColour = vec3(0.4,0.7, 1.0);
   var rayColour = skyColour * 3.0;
-  let iterations = 3;
+  let iterations =2;
   for(var i = 0; i < iterations; i++){
     let rayMarchResult = rayMarch(0, rayOrigin, rayDirection, voxelObjects, voxelsSampler);
 
