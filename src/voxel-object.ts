@@ -1,4 +1,4 @@
-import {mat4, Mat4, vec3, Vec3} from "wgpu-matrix";
+import { mat4, Mat4, vec3, Vec3 } from "wgpu-matrix";
 
 export class VoxelObject {
   transform: Mat4;
@@ -28,6 +28,6 @@ export class VoxelObject {
   }
 
   toArray() {
-    return [...this.inverseTransform, ...this.size, 0.0]; //padding for 4 byte stride
+    return [...this.transform, ...this.inverseTransform, ...this.size, 0.0]; //padding for 4 byte stride
   }
 }

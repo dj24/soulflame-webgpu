@@ -9,6 +9,7 @@ type GetObjectsArgs = {
   objectCount: number;
   scale: number;
   translateX: number;
+  rotateY: number;
   camera: Camera;
   objectSize: Vec3;
 };
@@ -19,6 +20,7 @@ const getObjectTransforms = ({
   objectCount,
   scale,
   translateX,
+  rotateY,
   camera,
   objectSize,
 }: GetObjectsArgs) => {
@@ -26,24 +28,34 @@ const getObjectTransforms = ({
   const gapX = objectSize[0] + spaceBetweenObjects;
   const gapZ = objectSize[2] + spaceBetweenObjects;
   const rows = 12;
-  let voxelObjects = [...Array(maxObjectCount).keys()].map((index) => {
-    let m = mat4.identity();
-    let x = (index % rows) * gapX;
-    let z = Math.floor(index / rows) * gapZ;
-    let y = Math.sin(x + z) * 20;
-    mat4.translate(m, [translateX + x, y, z], m);
-    mat4.translate(m, vec3.divScalar(objectSize, 2), m);
-    mat4.rotateY(m, 0, m);
-    mat4.scale(m, [scale, scale, scale], m);
-    mat4.translate(m, vec3.divScalar(objectSize, -2), m);
-    return new VoxelObject(m, objectSize);
-  });
+  // let voxelObjects = [...Array(maxObjectCount).keys()].map((index) => {
+  //   let m = mat4.identity();
+  //   let x = (index % rows) * gapX;
+  //   let z = Math.floor(index / rows) * gapZ;
+  //   let y = Math.sin(x + z) * 20;
+  //   mat4.translate(m, [translateX + x, y, z], m);
+  //   mat4.translate(m, vec3.divScalar(objectSize, 2), m);
+  //   mat4.rotateY(m, rotateY, m);
+  //   mat4.scale(m, [scale, scale, scale], m);
+  //   mat4.translate(m, vec3.divScalar(objectSize, -2), m);
+  //   return new VoxelObject(m, objectSize);
+  // });
   // sort by distance to the camera
   // voxelObjects = voxelObjects.sort((a, b) => {
   //   const aDistance = vec3.distance(a.worldSpaceCenter, camera.position);
   //   const bDistance = vec3.distance(b.worldSpaceCenter, camera.position);
   //   return aDistance - bDistance;
   // });
+  let m = mat4.identity();
+  let x = 0;
+  let z = 0;
+  let y = 0;
+  mat4.translate(m, [translateX + x, y, z], m);
+  mat4.translate(m, vec3.divScalar(objectSize, 2), m);
+  mat4.rotateY(m, rotateY, m);
+  mat4.scale(m, [scale, scale, scale], m);
+  mat4.translate(m, vec3.divScalar(objectSize, -2), m);
+  let voxelObjects = [new VoxelObject(m, objectSize)];
   let activeVoxelObjects = voxelObjects;
   //
   // activeVoxelObjects = activeVoxelObjects.filter(

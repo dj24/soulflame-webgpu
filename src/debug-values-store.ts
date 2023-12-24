@@ -9,6 +9,8 @@ export class DebugValuesStore {
   targetScale;
   translateX;
   targetTranslateX;
+  rotateY;
+  targetRotateY;
 
   constructor() {
     this.maxObjectCount = 1;
@@ -17,6 +19,8 @@ export class DebugValuesStore {
     this.translateX = 0;
     this.targetScale = 1;
     this.targetTranslateX = 0;
+    this.rotateY = 0;
+    this.targetRotateY = 0;
   }
 
   update() {
@@ -35,6 +39,17 @@ export class DebugValuesStore {
       (progress: number) => {
         const distance = this.targetTranslateX - this.translateX;
         this.translateX = this.translateX + distance * progress;
+      },
+      {
+        easing: glide({
+          velocity: 0.0002 * deltaTime,
+        }),
+      },
+    );
+    animate(
+      (progress: number) => {
+        const distance = this.targetRotateY - this.rotateY;
+        this.rotateY = this.rotateY + distance * progress;
       },
       {
         easing: glide({

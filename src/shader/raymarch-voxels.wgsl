@@ -8,13 +8,14 @@ fn transformNormal(inverseTransform: mat4x4<f32>, normal: vec3<f32>) -> vec3<f32
 }
 
 // Function to transform an object space position to world space
-fn transformPosition(inverseTransform: mat4x4<f32>, position: vec3<f32>) -> vec3<f32> {
-    let worldPosition = (vec4<f32>(position, 1.0) * inverseTransform).xyz;
+fn transformPosition(transform: mat4x4<f32>, position: vec3<f32>) -> vec3<f32> {
+    let worldPosition = (transform * vec4<f32>(position, 1.0)).xyz;
     return worldPosition;
 }
 
 struct VoxelObject {
   transform: mat4x4<f32>,
+  inverseTransform: mat4x4<f32>,
   size : vec3<f32>,
   padding : f32
 }
@@ -25,8 +26,6 @@ struct RayMarchResult {
   worldPos: vec3<f32>,
   hit: bool,
 }
-
-const MIN_RAY_DISTANCE = 1;
 
 fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f32>, voxelObjects: array<VoxelObject, VOXEL_OBJECT_COUNT>, voxelsSampler: sampler) -> RayMarchResult {
   var output = RayMarchResult();
@@ -50,8 +49,8 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
       continue;
     }
 
-    var objectRayOrigin = (voxelObject.transform * vec4<f32>(rayOrigin, 1.0)).xyz;
-    let objectRayDirection = (voxelObject.transform * vec4<f32>(rayDirection, 0.0)).xyz;
+    var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
+    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
 
     let isCameraInside = all(objectRayOrigin > vec3(0.0)) && all(objectRayOrigin < vec3(voxelObject.size));
     if(isCameraInside){
@@ -80,7 +79,7 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
     var voxelStep = sign(objectRayDirection);
     var tDelta = vec3(voxelSize / abs(objectRayDirection));
     var scaledStartingPoint = objectPos / voxelSize;
-    var scaledRayOrigin = vec3<f32>(objectRayOrigin) / voxelSize;
+    let scaledRayOrigin = vec3<f32>(objectRayOrigin) / voxelSize;
     var currentIndex = floor(scaledStartingPoint);
     var voxelOriginDifference = vec3<f32>(currentIndex) - scaledRayOrigin;
     var clampedVoxelBoundary = (voxelStep * 0.5) + 0.5; // 0 if <= 0, 1 if > 0
@@ -111,10 +110,11 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
           break;
       }
       let foo = textureLoad(voxels, vec3<u32>(currentIndex), 0);
-      if(foo.a > 0.0 && tIntersection > MIN_RAY_DISTANCE){
+      let hasChangedVoxel = any(floor(scaledRayOrigin) != currentIndex);
+      if(foo.a > 0.0 && tIntersection > EPSILON && hasChangedVoxel){
           closestIntersection = tIntersection;
           output.worldPos = transformPosition(voxelObject.transform, objectPos);
-          output.normal = transformNormal(voxelObject.transform,objectNormal);
+          output.normal = transformNormal(voxelObject.inverseTransform,objectNormal);
           output.colour = foo.rgb;
           output.hit = true;
           break;

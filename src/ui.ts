@@ -2,6 +2,7 @@ import { camera, canvas, debugValues } from "./app";
 
 export class DebugUI {
   logElement;
+  isMouseDown = false;
   constructor() {
     document.getElementById("reset").addEventListener("click", (event) => {
       window.dispatchEvent(new CustomEvent(`resetcamera`));
@@ -34,7 +35,7 @@ export class DebugUI {
     };
     window.addEventListener("changefov", handleFovChange);
     const handleTranslateChange = (event: CustomEvent) => {
-      debugValues.targetTranslateX = parseFloat(event.detail);
+      debugValues.targetTranslateX = parseFloat(event.detail) * 0.01;
     };
 
     window.addEventListener("changetranslate", handleTranslateChange);
@@ -42,11 +43,36 @@ export class DebugUI {
       debugValues.targetScale = parseFloat(event.detail);
     };
     window.addEventListener("changescale", handleScaleChange);
-    // window.addEventListener("resetcamera", animateCameraToStartingPosition);
+    window.addEventListener("resetcamera", () => {
+      debugValues.targetTranslateX = 0;
+      debugValues.targetScale = 1;
+      debugValues.targetRotateY = 0;
+    });
     const handleObjectCountChange = (event: CustomEvent) => {
       debugValues.objectCount = parseFloat(event.detail);
     };
     window.addEventListener("changeobjectcount", handleObjectCountChange);
+
+    document
+      .getElementById("webgpu-canvas")
+      .addEventListener("mousedown", () => {
+        this.isMouseDown = true;
+      });
+    document.getElementById("webgpu-canvas").addEventListener("mouseup", () => {
+      this.isMouseDown = false;
+    });
+    document
+      .getElementById("webgpu-canvas")
+      .addEventListener("mouseleave", () => {
+        this.isMouseDown = false;
+      });
+    window.addEventListener("mousemove", (event) => {
+      if (!this.isMouseDown) {
+        return;
+      }
+      debugValues.targetRotateY -= event.movementX * 0.005;
+      // console.log(event.movementX, event.movementY);
+    });
   }
 
   log(text: string) {

@@ -218,6 +218,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       objectCount: debugValues.objectCount,
       scale: debugValues.scale,
       translateX: debugValues.translateX,
+      rotateY: debugValues.rotateY,
       camera,
       objectSize: cornellBox.size,
     });
@@ -344,7 +345,7 @@ if (navigator.gpu !== undefined) {
         // await getDepthPrepass(),
         await getGBufferPass(),
         await getReflectionsPass(),
-        // await getDiffusePass(),
+        await getDiffusePass(),
         fullscreenQuad(device),
       ]);
     });

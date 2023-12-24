@@ -17,15 +17,18 @@ fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 )
 {
-  let pixel = vec2(GlobalInvocationID.x, resolution.y - GlobalInvocationID.y);
-  let uv = vec2<f32>(pixel) / vec2<f32>(resolution);
+  var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
+  uv = vec2(uv.x, 1.0 - uv.y);
+  var pixel = uv * vec2<f32>(resolution);
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
   var rayOrigin = cameraPosition;
-  let foo = textureLoad(albedoTex, pixel, 0).rgb;
-  let normal = textureLoad(normalTex, pixel, 0).rgb;
+  let foo = textureLoad(albedoTex, GlobalInvocationID.xy, 0).rgb;
+  let normal = textureLoad(normalTex, GlobalInvocationID.xy, 0).rgb;
 
+// TODO: get this fro skybox
   var rayColour = vec3(1.0);
-  for(var i = 0; i < 2; i++){
+  let iterations = 3;
+  for(var i = 0; i < iterations; i++){
     let rayMarchResult = rayMarch(0, rayOrigin, rayDirection, voxelObjects, voxelsSampler);
     if(!rayMarchResult.hit){
       if(i == 0){
@@ -33,19 +36,32 @@ fn main(
       }
       break;
     }
+//    let distanceToPrevious = distance(rayOrigin, rayMarchResult.worldPos);
+//    if(distanceToPrevious < 0.01){
+//      break;
+//    }
+    let scatterAmount = 0.4;
+    let randomDirection = mix(rayMarchResult.normal,randomInHemisphere(uv, rayMarchResult.normal),scatterAmount);
+    rayDirection = -reflect(-rayDirection, randomDirection);
     rayOrigin = rayMarchResult.worldPos;
-    rayDirection = reflect(-rayDirection, rayMarchResult.normal);
-    rayColour *= 0.5 * rayMarchResult.colour;
-    if(i == 1){
-      rayColour = vec3(1,0,1);
-    } else{
-      rayColour = foo;
-    }
+
+    let isBlue = rayMarchResult.colour.b == 1 && rayMarchResult.colour.r == 0 && rayMarchResult.colour.g == 0;
+    let rayEnergy = 0.5;
+    rayColour = rayColour * rayMarchResult.colour * rayEnergy;
+//    rayColour = rayDirection;
+//    rayColour = floor(rayOrigin) / 7;
+//     rayColour = rayDirection;
+//rayColour = vec3(distance(cameraPosition,rayMarchResult.worldPos)) * 0.02;
+//    if(i == 1){
+//      rayColour = (rayMarchResult.worldPos % 2) * 0.5;
+//    } else{
+//      rayColour = foo;
+//    }
   }
 
   textureStore(
       outputTex,
-      pixel,
+      GlobalInvocationID.xy,
       vec4(rayColour,1.0),
     );
 }

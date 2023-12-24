@@ -36,32 +36,9 @@ fn getReflections(
   );
 }
 
-fn haltonSequence(index: u32, base: u32, min: f32, max: f32) -> f32 {
-    var result: f32 = 0.0;
-    var f: f32 = 1.0;
-    var i: u32 = index;
-
-    while (i > 0) {
-        f = f / f32(base);
-        result = result + f * f32(i % base);
-        i = i / base;
-    }
-
-    return min + result * (max - min);
-}
-
-// Function to create 2D coordinates from pseudo Halton sequence
-fn halton2DCoordinates(index: u32) -> vec2<f32> {
-    let x: f32 = haltonSequence(index, 2, -1, 1);
-    let y: f32 = haltonSequence(index, 3, -1, 1); // You can use a different base for the Y coordinate
-
-    return vec2<f32>(x, y);
-}
-
 // TODO: dynamic blur based on scatter amouint from brdf
 const SCATTER_AMOUNT = 0.005;
 const SAMPLE_RADIUS = 2;
-
 const GAUSSIAN_SIGMA = 1.0;
 
 // Function to calculate the Gaussian weight
