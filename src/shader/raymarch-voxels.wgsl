@@ -52,11 +52,6 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
     var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
 
-    let isCameraInside = all(objectRayOrigin > vec3(0.0)) && all(objectRayOrigin < vec3(voxelObject.size));
-    if(isCameraInside){
-//      objectRayOrigin -= objectRayDirection *3;
-    }
-
     let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
     tNear = intersect.tNear - EPSILON;
 
@@ -101,7 +96,7 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
       currentIndex += mask * voxelStep;
       objectNormal = vec3(mask * -voxelStep);
       objectPos = objectRayOrigin + objectRayDirection * tIntersection;
-      let isInBounds = all(currentIndex > vec3(-1.0)) && all(currentIndex < vec3(voxelObject.size / voxelSize));
+      let isInBounds = all(currentIndex >= vec3(-0.0)) && all(currentIndex < vec3(voxelObject.size / voxelSize));
       if(!isInBounds){
 //          break;
       }
@@ -116,6 +111,7 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
           output.worldPos = transformPosition(voxelObject.transform, objectPos);
           output.normal = transformNormal(voxelObject.inverseTransform,objectNormal);
           output.colour = foo.rgb;
+          output.colour = vec3<f32>(currentIndex) / vec3<f32>(voxelObject.size);
           output.hit = true;
           break;
       }
