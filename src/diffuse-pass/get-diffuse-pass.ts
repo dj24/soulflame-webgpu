@@ -105,6 +105,9 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
       `,
       }),
       entryPoint: "main",
+      constants: {
+        scatterAmount: 0.0, // "depth"
+      },
     },
   });
 
