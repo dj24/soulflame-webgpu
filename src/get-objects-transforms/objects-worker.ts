@@ -29,7 +29,7 @@ const getOuterBox = (objectSize: Vec3, rotateY: number) => {
 
 const getInnerBox = (objectSize: Vec3, rotateY: number) => {
   let m = mat4.identity();
-  let x = -6;
+  let x = 0;
   let z = 0;
   let y = 0;
   mat4.translate(m, [x, y, z], m);
@@ -72,11 +72,11 @@ const getObjectTransforms = ({
     getInnerBox(objectSize, rotateY),
   ];
   // sort by distance to the camera
-  voxelObjects = voxelObjects.sort((a, b) => {
-    const aDistance = vec3.distance(a.worldSpaceCenter, camera.position);
-    const bDistance = vec3.distance(b.worldSpaceCenter, camera.position);
-    return aDistance - bDistance;
-  });
+  // voxelObjects = voxelObjects.sort((a, b) => {
+  //   const aDistance = vec3.distance(a.worldSpaceCenter, camera.position);
+  //   const bDistance = vec3.distance(b.worldSpaceCenter, camera.position);
+  //   return aDistance - bDistance;
+  // });
   let activeVoxelObjects = voxelObjects;
   //
   // activeVoxelObjects = activeVoxelObjects.filter(

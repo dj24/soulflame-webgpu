@@ -344,8 +344,8 @@ if (navigator.gpu !== undefined) {
         // TODO: use center of pixel instead for depth prepass
         // await getDepthPrepass(),
         await getGBufferPass(),
-        await getReflectionsPass(),
-        await getDiffusePass(),
+        // await getReflectionsPass(),
+        // await getDiffusePass(),
         fullscreenQuad(device),
       ]);
     });

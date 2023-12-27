@@ -1,4 +1,4 @@
-const EPSILON = 0.001;
+const EPSILON = 0.0001;
 const MAX_RAY_STEPS = 512;
 
 // Function to transform a normal vector from object to world space
@@ -80,7 +80,7 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
     var clampedVoxelBoundary = (voxelStep * 0.5) + 0.5; // 0 if <= 0, 1 if > 0
     var tMax = (voxelStep * voxelOriginDifference + clampedVoxelBoundary) * tDelta + EPSILON;
     //    let maxSteps = max(voxelObject.size.x,voxelObject.size.y) * 2;
-    let maxSteps = 1000;
+    let maxSteps = 100;
     var objectStepsTaken = 0;
     while(objectStepsTaken <= i32(maxSteps) && stepsTaken < MAX_RAY_STEPS)
     {
@@ -98,7 +98,7 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
       objectPos = objectRayOrigin + objectRayDirection * tIntersection;
       let isInBounds = all(currentIndex >= vec3(-0.0)) && all(currentIndex < vec3(voxelObject.size / voxelSize));
       if(!isInBounds){
-//          break;
+          break;
       }
       // we marched further than the closest intersection, so we are "inside" voxels now
       let isInsideAlreadyMarchedVoxel = tIntersection > closestIntersection + EPSILON;
@@ -111,13 +111,9 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
           output.worldPos = transformPosition(voxelObject.transform, objectPos);
           output.normal = transformNormal(voxelObject.inverseTransform,objectNormal);
           output.colour = foo.rgb;
-          output.colour = vec3<f32>(currentIndex) / vec3<f32>(voxelObject.size);
+//          output.colour = vec3<f32>(currentIndex) / vec3<f32>(voxelObject.size);
           output.hit = true;
-          break;
       }
-    }
-    if(output.hit){
-      break;
     }
   }
   return output;
