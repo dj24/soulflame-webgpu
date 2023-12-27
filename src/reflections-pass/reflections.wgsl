@@ -68,7 +68,6 @@ fn applyReflections(
     return;
   }
 
-  var outputColor = vec3(0.0);
   var reflectionsSample = vec3(0.0);
   let downscaledPixel = vec2<i32>(centerOfPixel / downscaleFactor);
   let centerOfDownscaledPixel = vec2<f32>(downscaledPixel) - vec2<f32>(1.0);

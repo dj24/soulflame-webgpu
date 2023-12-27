@@ -23,6 +23,7 @@ const isNullCharacter = (byte) => {
 // Version of vxm file must be >= 11
 module.exports = function (source, ...args) {
   let fileNameParts = this.resourcePath.split("/");
+  let paletteTexture = [];
   // Windows fix
   if (fileNameParts.length < 2) {
     fileNameParts = this.resourcePath.split("\\");
@@ -199,7 +200,7 @@ module.exports = function (source, ...args) {
     if (emissive === 1) {
       alpha = 2;
     } else {
-      alpha = 1;
+      alpha = 255;
     }
 
     let color = [red, green, blue, alpha];
@@ -307,6 +308,25 @@ module.exports = function (source, ...args) {
   });
 
   let sliceFilePaths = [];
+
+  const png = new PNG({
+    width: paletteTexture.length,
+    height: 1,
+    colorType: 6,
+    deflateLevel: 0,
+  });
+
+  for (let i = 0; i < paletteTexture.length; i++) {
+    const [r, g, b, a] = paletteTexture[i];
+    const index = i << 2;
+    png.data[index] = r;
+    png.data[index + 1] = g;
+    png.data[index + 2] = b;
+    png.data[index + 3] = a; // Alpha channel
+  }
+  const palettePngFileName = `${directoryPath}/palette.png`;
+  const paletteStream = fs.createWriteStream(palettePngFileName);
+  png.pack().pipe(paletteStream);
 
   for (let slice = 0; slice < depth; slice++) {
     const png = new PNG({

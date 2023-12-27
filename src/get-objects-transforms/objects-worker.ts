@@ -14,6 +14,32 @@ type GetObjectsArgs = {
   objectSize: Vec3;
 };
 
+const getOuterBox = (objectSize: Vec3, rotateY: number) => {
+  let m = mat4.identity();
+  let x = 0;
+  let z = 0;
+  let y = 0;
+  mat4.translate(m, [x, y, z], m);
+  mat4.translate(m, vec3.divScalar(objectSize, 2), m);
+  mat4.scale(m, [1, 1, 1], m);
+  mat4.rotateY(m, rotateY, m);
+  mat4.translate(m, vec3.divScalar(objectSize, -2), m);
+  return new VoxelObject(m, objectSize);
+};
+
+const getInnerBox = (objectSize: Vec3, rotateY: number) => {
+  let m = mat4.identity();
+  let x = -6;
+  let z = 0;
+  let y = 0;
+  mat4.translate(m, [x, y, z], m);
+  mat4.translate(m, vec3.divScalar(objectSize, 2), m);
+  mat4.scale(m, [0.5, 0.5, 0.5], m);
+  mat4.rotateY(m, rotateY, m);
+  mat4.translate(m, vec3.divScalar(objectSize, -2), m);
+  return new VoxelObject(m, objectSize);
+};
+
 // TODO: allow dynamic objects to be passed, probably via object atlas
 const getObjectTransforms = ({
   maxObjectCount,
@@ -40,22 +66,17 @@ const getObjectTransforms = ({
   //   mat4.translate(m, vec3.divScalar(objectSize, -2), m);
   //   return new VoxelObject(m, objectSize);
   // });
+
+  let voxelObjects = [
+    getOuterBox(objectSize, rotateY),
+    getInnerBox(objectSize, rotateY),
+  ];
   // sort by distance to the camera
-  // voxelObjects = voxelObjects.sort((a, b) => {
-  //   const aDistance = vec3.distance(a.worldSpaceCenter, camera.position);
-  //   const bDistance = vec3.distance(b.worldSpaceCenter, camera.position);
-  //   return aDistance - bDistance;
-  // });
-  let m = mat4.identity();
-  let x = 0;
-  let z = 0;
-  let y = 0;
-  mat4.translate(m, [translateX + x, y, z], m);
-  mat4.translate(m, vec3.divScalar(objectSize, 2), m);
-  mat4.rotateY(m, rotateY, m);
-  mat4.scale(m, [scale, scale, scale], m);
-  mat4.translate(m, vec3.divScalar(objectSize, -2), m);
-  let voxelObjects = [new VoxelObject(m, objectSize)];
+  voxelObjects = voxelObjects.sort((a, b) => {
+    const aDistance = vec3.distance(a.worldSpaceCenter, camera.position);
+    const bDistance = vec3.distance(b.worldSpaceCenter, camera.position);
+    return aDistance - bDistance;
+  });
   let activeVoxelObjects = voxelObjects;
   //
   // activeVoxelObjects = activeVoxelObjects.filter(
