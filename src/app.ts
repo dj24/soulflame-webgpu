@@ -16,6 +16,7 @@ import cube from "./voxel-models/cube.vxm";
 import test from "./voxel-models/test.vxm";
 import building from "./voxel-models/building.vxm";
 import cornellBox from "./voxel-models/cornell.vxm";
+import miniViking from "./voxel-models/mini-viking.vxm";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
 import { DebugValuesStore } from "./debug-values-store";
@@ -221,7 +222,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       translateX: debugValues.translateX,
       rotateY: debugValues.rotateY,
       camera,
-      objectSize: cornellBox.size,
+      objectSize: [50, 50, 50],
     });
 
     //TODO: handle loading this more gracefully
@@ -321,7 +322,7 @@ if (navigator.gpu !== undefined) {
     adapter.requestDevice().then(async (newDevice) => {
       device = newDevice;
       console.log(device.limits);
-      console.log({ cube, cornellBox, test, building });
+      console.log({ cube, cornellBox, test, building, miniViking });
       const skyTexture = await createTextureFromImages(device, [
         "cubemaps/town-square/posx.jpg",
         "cubemaps/town-square/negx.jpg",
@@ -333,24 +334,22 @@ if (navigator.gpu !== undefined) {
       skyTextureView = skyTexture.createView({
         dimension: "cube",
       });
-
       const volumeAtlas = getVolumeAtlas(device);
-      console.log("volume atlas", volumeAtlas);
-      volumeAtlas.addVolume(
-        await create3dTexture(
-          device,
-          cornellBox.sliceFilePaths,
-          cornellBox.size,
-          "cornell box",
-        ),
+      const cornellBoxTexture = await create3dTexture(
+        device,
+        cornellBox.sliceFilePaths,
+        cornellBox.size,
+        "cornell box",
       );
-      volumeAtlas.addVolume(
-        await create3dTexture(device, cube.sliceFilePaths, cube.size, "cube"),
+      volumeAtlas.addVolume(cornellBoxTexture);
+      const miniVikingTexture = await create3dTexture(
+        device,
+        miniViking.sliceFilePaths,
+        miniViking.size,
+        "cube",
       );
-      volumeAtlas.removeVolume(vec3.create(0, 0, 0), vec3.create(4, 4, 4));
-      console.log("volume atlas", volumeAtlas);
+      volumeAtlas.addVolume(miniVikingTexture);
       voxelTextureView = volumeAtlas.getAtlasTextureView();
-
       renderLoop(device, [
         // TODO: use center of pixel instead for depth prepass
         // await getDepthPrepass(),

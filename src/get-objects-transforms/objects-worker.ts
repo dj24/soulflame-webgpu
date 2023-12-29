@@ -14,30 +14,33 @@ type GetObjectsArgs = {
   objectSize: Vec3;
 };
 
-const getOuterBox = (objectSize: Vec3, rotateY: number) => {
+const vikingSize = [18, 15, 8];
+const cornellSize = [7, 7, 7];
+
+const getOuterBox = (rotateY: number) => {
   let m = mat4.identity();
   let x = 0;
   let z = 0;
   let y = 0;
   mat4.translate(m, [x, y, z], m);
-  mat4.translate(m, vec3.divScalar(objectSize, 2), m);
+  mat4.translate(m, vec3.divScalar(cornellSize, 2), m);
   mat4.scale(m, [1, 1, 1], m);
   mat4.rotateY(m, rotateY, m);
-  mat4.translate(m, vec3.divScalar(objectSize, -2), m);
-  return new VoxelObject(m, objectSize);
+  mat4.translate(m, vec3.divScalar(cornellSize, -2), m);
+  return new VoxelObject(m, cornellSize, [0, 0, 0]);
 };
 
-const getInnerBox = (objectSize: Vec3, rotateY: number) => {
+const getInnerBox = (rotateY: number) => {
   let m = mat4.identity();
-  let x = 0;
+  let x = -5;
   let z = 0;
-  let y = 0;
+  let y = -5;
   mat4.translate(m, [x, y, z], m);
-  mat4.translate(m, vec3.divScalar(objectSize, 2), m);
-  mat4.scale(m, [0.5, 0.5, 0.5], m);
+  mat4.translate(m, vec3.divScalar(vikingSize, 2), m);
+  mat4.scale(m, [0.2, 0.2, 0.2], m);
   mat4.rotateY(m, rotateY, m);
-  mat4.translate(m, vec3.divScalar(objectSize, -2), m);
-  return new VoxelObject(m, objectSize);
+  mat4.translate(m, vec3.divScalar(vikingSize, -2), m);
+  return new VoxelObject(m, vikingSize, [cornellSize[0], 0, 0]);
 };
 
 // TODO: allow dynamic objects to be passed, probably via object atlas
@@ -50,10 +53,10 @@ const getObjectTransforms = ({
   camera,
   objectSize,
 }: GetObjectsArgs) => {
-  const spaceBetweenObjects = 16;
-  const gapX = objectSize[0] + spaceBetweenObjects;
-  const gapZ = objectSize[2] + spaceBetweenObjects;
-  const rows = 12;
+  // const spaceBetweenObjects = 16;
+  // const gapX = objectSize[0] + spaceBetweenObjects;
+  // const gapZ = objectSize[2] + spaceBetweenObjects;
+  // const rows = 12;
   // let voxelObjects = [...Array(maxObjectCount).keys()].map((index) => {
   //   let m = mat4.identity();
   //   let x = (index % rows) * gapX;
@@ -67,10 +70,7 @@ const getObjectTransforms = ({
   //   return new VoxelObject(m, objectSize);
   // });
 
-  let voxelObjects = [
-    getOuterBox(objectSize, rotateY),
-    getInnerBox(objectSize, rotateY),
-  ];
+  let voxelObjects = [getInnerBox(rotateY), getOuterBox(rotateY)];
   // sort by distance to the camera
   // voxelObjects = voxelObjects.sort((a, b) => {
   //   const aDistance = vec3.distance(a.worldSpaceCenter, camera.position);
@@ -84,9 +84,10 @@ const getObjectTransforms = ({
   // );
   activeVoxelObjects = activeVoxelObjects.slice(0, objectCount);
 
+  // TODO: figure out what this does
   const bufferPadding = [
     ...Array(maxObjectCount - activeVoxelObjects.length).keys(),
-  ].map(() => new VoxelObject(mat4.identity(), [0, 0, 0]));
+  ].map(() => new VoxelObject(mat4.identity(), [0, 0, 0], [0, 0, 0]));
   voxelObjects = [...activeVoxelObjects, ...bufferPadding];
 
   return voxelObjects;

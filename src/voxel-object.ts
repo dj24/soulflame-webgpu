@@ -4,11 +4,12 @@ export class VoxelObject {
   transform: Mat4;
   inverseTransform: Mat4;
   size: Vec3;
-  constructor(m: Mat4, s: Vec3) {
-    this.transform = m;
-    this.size = s;
-    this.inverseTransform = mat4.create();
-    mat4.invert(this.transform, this.inverseTransform);
+  atlasLocation: Vec3;
+  constructor(transform: Mat4, size: Vec3, atlasLocation: Vec3) {
+    this.transform = transform;
+    this.size = size;
+    this.inverseTransform = mat4.invert(this.transform);
+    this.atlasLocation = atlasLocation;
   }
 
   get worldSpaceBounds() {
@@ -28,6 +29,13 @@ export class VoxelObject {
   }
 
   toArray() {
-    return [...this.transform, ...this.inverseTransform, ...this.size, 0.0]; //padding for 4 byte stride
+    return [
+      ...this.transform,
+      ...this.inverseTransform,
+      ...this.size,
+      0.0, //padding for 4 byte stride
+      ...this.atlasLocation,
+      0.0, //padding for 4 byte stride
+    ];
   }
 }

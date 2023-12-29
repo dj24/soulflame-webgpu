@@ -17,7 +17,9 @@ struct VoxelObject {
   transform: mat4x4<f32>,
   inverseTransform: mat4x4<f32>,
   size : vec3<f32>,
-  padding : f32
+  sizePadding : f32,
+  atlasLocation : vec3<f32>,
+  atlasLocationPadding : f32,
 }
 
 struct RayMarchResult {
@@ -105,7 +107,7 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
       if(isInsideAlreadyMarchedVoxel){
           break;
       }
-      let foo = textureLoad(voxels, vec3<u32>(currentIndex), 0);
+      let foo = textureLoad(voxels, vec3<u32>(currentIndex) + vec3<u32>(voxelObject.atlasLocation), 0);
       if(foo.a > 0.0 && tIntersection > EPSILON){
           closestIntersection = tIntersection;
           output.worldPos = transformPosition(voxelObject.transform, objectPos);

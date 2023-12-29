@@ -24,7 +24,6 @@ export const getVolumeAtlas = (device: GPUDevice) => {
    */
   const addVolume = (texture: GPUTexture) => {
     const { width, height, depthOrArrayLayers } = texture;
-
     if (!atlasTexture) {
       const commandEncoder = device.createCommandEncoder();
       atlasTexture = device.createTexture({
@@ -52,10 +51,7 @@ export const getVolumeAtlas = (device: GPUDevice) => {
       device.queue.submit([commandEncoder.finish()]);
       return;
     }
-
-    const commandEncoder = device.createCommandEncoder();
     const newWidth = atlasTexture.width + width;
-    const label = atlasTexture.label;
     if (newWidth > device.limits.maxTextureDimension3D) {
       throw new Error(
         `Error adding volume to atlas: adding volume would exceed device max texture dimension of ${device.limits.maxTextureDimension3D}`,
@@ -72,19 +68,16 @@ export const getVolumeAtlas = (device: GPUDevice) => {
         ),
       },
       ...descriptorPartial,
-      label: `${label}, ${texture.label || "unnamed volume"}`,
+      label: `${atlasTexture.label}, ${texture.label || "unnamed volume"}`,
     });
+    const commandEncoder = device.createCommandEncoder();
     // Copy the old atlas texture into the new larger one
     commandEncoder.copyTextureToTexture(
       {
         texture: atlasTexture,
-        mipLevel: 0, // Assuming mip level 0 for simplicity
-        origin: { x: 0, y: 0, z: 0 }, // Specify the source origin
       },
       {
         texture: newAtlasTexture,
-        mipLevel: 0, // Assuming mip level 0 for simplicity
-        origin: { x: 0, y: 0, z: 0 }, // Specify the destination origin (z-axis slice)
       },
       {
         width: atlasTexture.width,
@@ -92,17 +85,13 @@ export const getVolumeAtlas = (device: GPUDevice) => {
         depthOrArrayLayers: atlasTexture.depthOrArrayLayers,
       },
     );
-    atlasTexture = newAtlasTexture;
     commandEncoder.copyTextureToTexture(
       {
         texture,
-        mipLevel: 0, // Assuming mip level 0 for simplicity
-        origin: { x: 0, y: 0, z: 0 }, // Specify the source origin
       },
       {
         texture: newAtlasTexture,
-        mipLevel: 0, // Assuming mip level 0 for simplicity
-        origin: { x: atlasTexture.width - width - 1, y: 0, z: 0 }, // Specify the destination origin (z-axis slice)
+        origin: { x: newAtlasTexture.width - width, y: 0, z: 0 }, // Specify the destination origin (z-axis slice)
       },
       {
         width,
@@ -111,6 +100,7 @@ export const getVolumeAtlas = (device: GPUDevice) => {
       },
     );
     device.queue.submit([commandEncoder.finish()]);
+    atlasTexture = newAtlasTexture;
     oldAtlasTexture.destroy();
   };
 
@@ -190,7 +180,9 @@ export const getVolumeAtlas = (device: GPUDevice) => {
    * @returns {GPUTextureView} - view of the atlas texture
    */
   const getAtlasTextureView = (): GPUTextureView => {
-    return atlasTexture.createView();
+    const view = atlasTexture.createView();
+    view.label = atlasTexture.label;
+    return view;
   };
 
   return { addVolume, removeVolume, getAtlasTextureView };

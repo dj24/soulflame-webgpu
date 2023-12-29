@@ -10,7 +10,7 @@
 @group(1) @binding(1) var albedoTex : texture_2d<f32>;
 @group(1) @binding(2) var outputTex : texture_storage_2d<rgba8unorm, write>;
 
-override scatterAmount: f32 = 4.0;
+override scatterAmount: f32 =5.0;
 
 // TODO: raymarch from surface instead of from camera
 @compute @workgroup_size(8, 8, 1)
