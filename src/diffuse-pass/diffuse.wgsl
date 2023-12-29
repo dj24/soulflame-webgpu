@@ -10,7 +10,7 @@
 @group(1) @binding(1) var albedoTex : texture_2d<f32>;
 @group(1) @binding(2) var outputTex : texture_storage_2d<rgba8unorm, write>;
 
-override scatterAmount: f32 =5.0;
+override scatterAmount: f32 =0.05;
 
 // TODO: raymarch from surface instead of from camera
 @compute @workgroup_size(8, 8, 1)
@@ -25,7 +25,7 @@ fn main(
   let foo = textureLoad(albedoTex, GlobalInvocationID.xy, 0).rgb;
   let normalSample = textureLoad(normalTex, GlobalInvocationID.xy, 0).rgb;
   var averageRayColour = vec3(0.0);
-  var totalSamples =2;
+  var totalSamples =1;
   var skyColour = vec3(1.0);
 
   for(var s = 0; s < totalSamples; s++){
@@ -33,7 +33,7 @@ fn main(
       var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
       var rayOrigin = cameraPosition;
       var rayColour = skyColour;
-      let bounces =3;
+      let bounces =8;
       for(var bounce = 0; bounce < bounces; bounce++){
         let rayMarchResult = rayMarch(0, rayOrigin, rayDirection, voxelObjects, voxelsSampler);
         let isValidHit = rayMarchResult.hit && distance(rayMarchResult.worldPos, rayOrigin) > EPSILON;

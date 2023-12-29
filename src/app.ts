@@ -349,13 +349,14 @@ if (navigator.gpu !== undefined) {
         "cube",
       );
       volumeAtlas.addVolume(miniVikingTexture);
+      volumeAtlas.removeVolume([1, 1, 6], [6, 6, 7]);
       voxelTextureView = volumeAtlas.getAtlasTextureView();
       renderLoop(device, [
         // TODO: use center of pixel instead for depth prepass
         // await getDepthPrepass(),
         await getGBufferPass(),
         // await getReflectionsPass(),
-        // await getDiffusePass(),
+        await getDiffusePass(),
         fullscreenQuad(device),
       ]);
     });
