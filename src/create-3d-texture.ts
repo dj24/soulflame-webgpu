@@ -5,13 +5,18 @@ export const create3dTexture = async (
   device: GPUDevice,
   paths: string[],
   size: Vec3,
+  label?: string,
 ): Promise<GPUTexture> => {
   const [width, height, depth] = size;
   const texture = device.createTexture({
     size: { width, height, depthOrArrayLayers: depth },
     format: "rgba8unorm",
-    usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+    usage:
+      GPUTextureUsage.COPY_DST |
+      GPUTextureUsage.TEXTURE_BINDING |
+      GPUTextureUsage.COPY_SRC,
     dimension: "3d",
+    label,
   });
 
   const commandEncoder = device.createCommandEncoder();

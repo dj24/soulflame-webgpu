@@ -24,6 +24,7 @@ import { getReflectionsPass } from "./reflections-pass/get-reflections-pass";
 import { getWorldSpaceFrustumCornerDirections } from "./get-frustum-corner-directions";
 import { create3dTexture } from "./create-3d-texture";
 import { getDiffusePass } from "./diffuse-pass/get-diffuse-pass";
+import { getVolumeAtlas } from "./volume-atlas";
 
 export type RenderArgs = {
   commandEncoder: GPUCommandEncoder;
@@ -333,13 +334,23 @@ if (navigator.gpu !== undefined) {
         dimension: "cube",
       });
 
-      const voxelTexture = await create3dTexture(
-        device,
-        cornellBox.sliceFilePaths,
-        cornellBox.size,
+      const volumeAtlas = getVolumeAtlas(device);
+      console.log("volume atlas", volumeAtlas);
+      volumeAtlas.addVolume(
+        await create3dTexture(
+          device,
+          cornellBox.sliceFilePaths,
+          cornellBox.size,
+          "cornell box",
+        ),
       );
-      voxelTextureView = voxelTexture.createView();
-      console.log({ voxelTextureView });
+      volumeAtlas.addVolume(
+        await create3dTexture(device, cube.sliceFilePaths, cube.size, "cube"),
+      );
+      volumeAtlas.removeVolume(vec3.create(0, 0, 0), vec3.create(4, 4, 4));
+      console.log("volume atlas", volumeAtlas);
+      voxelTextureView = volumeAtlas.getAtlasTextureView();
+
       renderLoop(device, [
         // TODO: use center of pixel instead for depth prepass
         // await getDepthPrepass(),
