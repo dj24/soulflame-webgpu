@@ -25,7 +25,7 @@ import { getReflectionsPass } from "./reflections-pass/get-reflections-pass";
 import { getWorldSpaceFrustumCornerDirections } from "./get-frustum-corner-directions";
 import { create3dTexture } from "./create-3d-texture";
 import { getDiffusePass } from "./diffuse-pass/get-diffuse-pass";
-import { getVolumeAtlas } from "./volume-atlas";
+import { getVolumeAtlas, VolumeAtlas } from "./volume-atlas";
 
 export type RenderArgs = {
   commandEncoder: GPUCommandEncoder;
@@ -53,6 +53,8 @@ let downscale = 1;
 const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
+
+let volumeAtlas: VolumeAtlas;
 
 const startingCameraFieldOfView = 80;
 export let camera = new Camera({
@@ -286,7 +288,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       camera.position as number[],
       "camera position",
     );
-
+    voxelTextureView = volumeAtlas.getAtlasTextureView();
     computePasses.forEach(({ render }) => {
       render({
         commandEncoder,
@@ -323,8 +325,6 @@ if (navigator.gpu !== undefined) {
   navigator.gpu.requestAdapter().then((adapter) => {
     adapter.requestDevice().then(async (newDevice) => {
       device = newDevice;
-      console.log(device.limits);
-      console.log({ cube, cornellBox, test, building, miniViking });
       const skyTexture = await createTextureFromImages(device, [
         "cubemaps/town-square/posx.jpg",
         "cubemaps/town-square/negx.jpg",
@@ -336,7 +336,7 @@ if (navigator.gpu !== undefined) {
       skyTextureView = skyTexture.createView({
         dimension: "cube",
       });
-      const volumeAtlas = getVolumeAtlas(device);
+      volumeAtlas = getVolumeAtlas(device);
       const cornellBoxTexture = await create3dTexture(
         device,
         cornellBox.sliceFilePaths,
@@ -344,17 +344,20 @@ if (navigator.gpu !== undefined) {
         "cornell box",
       );
       volumeAtlas.addVolume(cornellBoxTexture);
-      const miniVikingTexture = await create3dTexture(
-        device,
-        miniViking.sliceFilePaths,
-        miniViking.size,
-        "cube",
-      );
-      volumeAtlas.addVolume(miniVikingTexture);
+
+      setTimeout(() => {
+        create3dTexture(
+          device,
+          miniViking.sliceFilePaths,
+          miniViking.size,
+          "cube",
+        ).then((miniVikingTexture) => {
+          volumeAtlas.addVolume(miniVikingTexture);
+        });
+      }, 1000);
       // volumeAtlas.removeVolume([1, 1, 6], [6, 6, 7]);
       // volumeAtlas.removeVolume([1, 1, 1], [6, 6, 2]);
-      volumeAtlas.removeVolume([0, 6, 0], [7, 7, 7]);
-      voxelTextureView = volumeAtlas.getAtlasTextureView();
+      // volumeAtlas.removeVolume([0, 6, 0], [7, 7, 7]);
       renderLoop(device, [
         // TODO: use center of pixel instead for depth prepass
         // await getDepthPrepass(),

@@ -32,7 +32,7 @@ fn lambertianReflectance(normal: vec3<f32>, co: vec2<f32>) -> f32 {
     return lambertianTerm;
 }
 
-override reflectance: f32 = 0.6;
+override reflectance: f32 = 0.8;
 
 // TODO: raymarch from surface instead of from camera
 @compute @workgroup_size(8, 8, 1)
@@ -42,17 +42,17 @@ fn main(
 {
   var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
   uv = vec2(uv.x, 1.0 - uv.y);
-  let bounces = 1;
+  let bounces = 2;
   var pixel = uv * vec2<f32>(resolution);
 
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
   let normalSample = textureLoad(normalTex, GlobalInvocationID.xy, 0).rgb;
   let depthSample = textureLoad(depthTex, GlobalInvocationID.xy, 0).r;
-  let worldPos = reconstructPosition(cameraPosition, rayDirection, depthSample);
+  let worldPos = reconstructPosition(cameraPosition, rayDirection, depthSample) + normalSample * EPSILON; // EPSILON accounts for floating point errors
   var averageRayColour = vec3(0.0);
   var skyColour = vec3(1.0);
 
-  rayDirection = normalSample + randomUnitVector(uv);
+  rayDirection = randomInHemisphere(uv, normalSample);
   var rayColour = skyColour;
   var rayOrigin = worldPos;
 
@@ -65,7 +65,7 @@ fn main(
       rayColour = vec3(1.0-attenuation) + attenuation * skyColour;
       break;
     }
-    rayDirection = rayMarchResult.normal + randomUnitVector(uv);
+    rayDirection = randomInHemisphere(uv, rayMarchResult.normal);
     rayOrigin = rayMarchResult.worldPos;
     rayColour = rayColour * (rayMarchResult.colour * reflectance);
   }
@@ -73,6 +73,6 @@ fn main(
   textureStore(
       diffuseStore,
       GlobalInvocationID.xy,
-      vec4(rayColour,1.0),
+      vec4(rayColour, 1.0),
     );
 }

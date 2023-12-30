@@ -9,6 +9,13 @@ const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
     GPUTextureUsage.STORAGE_BINDING,
   dimension: "3d",
 };
+
+export type VolumeAtlas = {
+  addVolume: (texture: GPUTexture) => void;
+  removeVolume: (startIndex: Vec3, endIndex: Vec3) => void;
+  getAtlasTextureView: () => GPUTextureView;
+};
+
 /**
  * Factory function for creating and managing a volume atlas
  * The atlas is a 3d texture that contains multiple voxel models, packing them along the x-axis
@@ -16,7 +23,7 @@ const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
  * @param device - The GPU device
  * @returns { atlasTexture, addVolume, removeVolume }
  */
-export const getVolumeAtlas = (device: GPUDevice) => {
+export const getVolumeAtlas = (device: GPUDevice): VolumeAtlas => {
   let atlasTexture: GPUTexture = null;
   /**
    * Add a volume to the atlas

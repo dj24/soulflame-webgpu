@@ -288,8 +288,8 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
         {
           binding: 2,
           resource: device.createSampler({
-            magFilter: "nearest",
-            minFilter: "nearest",
+            magFilter: "linear",
+            minFilter: "linear",
           }),
         },
       ],

@@ -1,6 +1,6 @@
 @group(0) @binding(0) var<uniform> resolution : vec2<u32>;
 @group(0) @binding(1) var diffuseTex : texture_2d<f32>;
-@group(0) @binding(2) var diffuseSampler : sampler;
+@group(0) @binding(2) var linearSampler : sampler;
 
 // g-buffer
 @group(1) @binding(0) var normalTex : texture_2d<f32>;
@@ -8,9 +8,9 @@
 @group(1) @binding(2) var outputTex : texture_storage_2d<rgba8unorm, write>;
 @group(1) @binding(3) var depthTex : texture_2d<f32>;
 
-const SAMPLE_RADIUS = 3;
+const SAMPLE_RADIUS = 2;
 const SAMPLE_STEP = 1;
-const GAUSSIAN_SIGMA = 1.0;
+const GAUSSIAN_SIGMA = 0.5;
 const DEPTH_THRESHOLD = 1.0;
 
 // Function to calculate the Gaussian weight
@@ -33,7 +33,7 @@ fn main(
     textureStore(
       outputTex,
       vec2<u32>(pixel),
-      vec4(albedoSample,1.0),
+      vec4(normalSample,1.0),
     );
     return;
   }
@@ -50,7 +50,7 @@ fn main(
       let currentNormal = textureLoad(normalTex,vec2<u32>(currentPixel), 0).rgb;
       let isWithinDepthThreshold = abs(depthSample - textureLoad(depthTex,vec2<u32>(currentPixel), 0).r) < DEPTH_THRESHOLD;
       if(all(normalSample == currentNormal) && isWithinDepthThreshold) {
-        outputSample += weight * textureLoad(diffuseTex, vec2<u32>(currentPixel), 0).rgb;
+        outputSample += weight * textureSampleLevel(diffuseTex, linearSampler, currentUV, 0.0).rgb;
         sampleCount += weight;
       }
     }
