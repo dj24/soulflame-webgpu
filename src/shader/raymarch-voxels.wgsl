@@ -55,7 +55,7 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
 
     let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
-    tNear = intersect.tNear - EPSILON;
+    tNear = intersect.tNear + EPSILON;
 
     // bounding box is further away than the closest intersection, so we can skip this object
     let isInsideAlreadyMarchedVoxel = tNear > closestIntersection;
@@ -64,7 +64,7 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
     }
 
     let boundingBoxSurfacePosition = objectRayOrigin + tNear * objectRayDirection;
-    let isStartingInBounds = all(objectRayOrigin > vec3(0.0)) && all(objectRayOrigin < vec3(voxelObject.size / voxelSize));
+    let isStartingInBounds = all(objectRayOrigin >= vec3(-1.0)) && all(objectRayOrigin < vec3(voxelObject.size / voxelSize));
     let isBackwardsIntersection = tNear < EPSILON && !isStartingInBounds;
     if(isBackwardsIntersection){
       continue;
@@ -80,30 +80,20 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
     var currentIndex = floor(scaledStartingPoint);
     var voxelOriginDifference = vec3<f32>(currentIndex) - scaledRayOrigin;
     var clampedVoxelBoundary = (voxelStep * 0.5) + 0.5; // 0 if <= 0, 1 if > 0
-    var tMax = (voxelStep * voxelOriginDifference + clampedVoxelBoundary) * tDelta + EPSILON;
-    //    let maxSteps = max(voxelObject.size.x,voxelObject.size.y) * 2;
-    let maxSteps = 100;
+    var tMax = (voxelStep * voxelOriginDifference + clampedVoxelBoundary) * tDelta;
+    let maxSteps = max(voxelObject.size.x,voxelObject.size.y) * 2;
     var objectStepsTaken = 0;
     while(objectStepsTaken <= i32(maxSteps) && stepsTaken < MAX_RAY_STEPS)
     {
       stepsTaken ++;
       objectStepsTaken ++;
       tIntersection = min(min(tMax.x, tMax.y), tMax.z);
-      let mask = vec3(
-          select(0.0, 1.0, tMax.x == tIntersection),
-          select(0.0, 1.0, tMax.y == tIntersection),
-          select(0.0, 1.0, tMax.z == tIntersection)
-      );
-      tMax += mask * tDelta;
-      currentIndex += mask * voxelStep;
-      objectNormal = vec3(mask * -voxelStep);
-      objectPos = objectRayOrigin + objectRayDirection * tIntersection;
       let isInBounds = all(currentIndex >= vec3(-1.0)) && all(currentIndex <= vec3(voxelObject.size / voxelSize));
       if(!isInBounds){
           break;
       }
       // we marched further than the closest intersection, so we are "inside" voxels now
-      let isInsideAlreadyMarchedVoxel = tIntersection > closestIntersection + EPSILON;
+      let isInsideAlreadyMarchedVoxel = tIntersection > closestIntersection;
       if(isInsideAlreadyMarchedVoxel){
           break;
       }
@@ -116,6 +106,16 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
 //          output.colour = vec3<f32>(currentIndex) / vec3<f32>(voxelObject.size);
           output.hit = true;
       }
+      // Iterate to next voxel
+      let mask = vec3(
+          select(0.0, 1.0, tMax.x == tIntersection),
+          select(0.0, 1.0, tMax.y == tIntersection),
+          select(0.0, 1.0, tMax.z == tIntersection)
+      );
+      tMax += mask * tDelta;
+      currentIndex += mask * voxelStep;
+      objectNormal = vec3(mask * -voxelStep);
+      objectPos = objectRayOrigin + objectRayDirection * tIntersection;
     }
   }
   return output;

@@ -23,7 +23,7 @@ module.exports = () => {
         },
         {
           test: /\.(png|jpg|jpeg)$/i,
-          type: "asset/resource",
+          loader: "file-loader",
         },
         {
           test: /\.vxm$/,

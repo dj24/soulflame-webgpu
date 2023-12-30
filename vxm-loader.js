@@ -183,7 +183,6 @@ module.exports = function (source, ...args) {
   index++;
 
   paletteTexture = []; // array of vector4, [x,y,z,w]
-  colourArray = [];
 
   for (let i = 0; i < materialAmount; ++i) {
     let blue = bufferReader.readUInt8(index);
@@ -205,7 +204,6 @@ module.exports = function (source, ...args) {
 
     let color = [red, green, blue, alpha];
 
-    colourArray[i] = color;
     paletteTexture[i] = color;
   }
 
@@ -316,6 +314,13 @@ module.exports = function (source, ...args) {
     deflateLevel: 0,
   });
 
+  let emissiveVoxels = [];
+  for (const voxel of voxels) {
+    if (voxel.colour[3] === 2) {
+      emissiveVoxels.push(voxel);
+    }
+  }
+
   for (let i = 0; i < paletteTexture.length; i++) {
     const [r, g, b, a] = paletteTexture[i];
     const index = i << 2;
@@ -332,6 +337,8 @@ module.exports = function (source, ...args) {
     const png = new PNG({
       width,
       height,
+      colorType: 6,
+      deflateLevel: 0,
     });
     for (const voxel of voxels) {
       let [x, y, z] = voxel.position;
@@ -380,6 +387,7 @@ module.exports = function (source, ...args) {
     bounds,
     voxels,
     sliceFilePaths,
+    emissiveVoxels,
   };
 
   console.timeEnd(timeLabel);

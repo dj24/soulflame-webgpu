@@ -1,4 +1,5 @@
 import diffuse from "./diffuse.wgsl";
+import diffuseBlur from "./blur-diffuse.wgsl";
 import randomCommon from "../random-common.wgsl";
 import boxIntersection from "../shader/box-intersection.wgsl";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
@@ -11,7 +12,6 @@ import {
   resolution,
 } from "../app";
 
-// TODO: move resolution and time into constants instead of buffer
 export const getDiffusePass = async (): Promise<RenderPass> => {
   const gBufferBindGroupLayout = device.createBindGroupLayout({
     entries: [
@@ -34,6 +34,13 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
         visibility: GPUShaderStage.COMPUTE,
         storageTexture: {
           format: "rgba8unorm",
+        },
+      },
+      {
+        binding: 3,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "unfilterable-float",
         },
       },
     ],
@@ -84,15 +91,53 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
           type: "non-filtering",
         },
       },
+      {
+        binding: 6,
+        visibility: GPUShaderStage.COMPUTE,
+        storageTexture: {
+          format: "rgba8unorm",
+        },
+      },
+      {
+        binding: 7,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
     ],
   });
 
-  const pipelineLayout = device.createPipelineLayout({
-    bindGroupLayouts: [uniformsBindGroupLayout, gBufferBindGroupLayout],
+  const blurBindGroupLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+        },
+      },
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        sampler: {
+          type: "filtering",
+        },
+      },
+    ],
   });
 
   const diffusePipeline = device.createComputePipeline({
-    layout: pipelineLayout,
+    layout: device.createPipelineLayout({
+      bindGroupLayouts: [uniformsBindGroupLayout, gBufferBindGroupLayout],
+    }),
     compute: {
       module: device.createShaderModule({
         code: `
@@ -109,21 +154,33 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
   });
 
   const diffuseBlurPipeline = device.createComputePipeline({
-    layout: pipelineLayout,
+    layout: device.createPipelineLayout({
+      bindGroupLayouts: [blurBindGroupLayout, gBufferBindGroupLayout],
+    }),
     compute: {
       module: device.createShaderModule({
-        code: `
-          const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
-          ${randomCommon}
-          ${boxIntersection}
-          ${getRayDirection}
-          ${raymarchVoxels}
-          ${diffuse}
-      `,
+        code: diffuseBlur,
       }),
-      entryPoint: "blur",
+      entryPoint: "main",
     },
   });
+
+  let diffuseTexture: GPUTexture;
+
+  const createDiffuseTextureView = () => {
+    if (diffuseTexture) {
+      return diffuseTexture.createView();
+    }
+    diffuseTexture = device.createTexture({
+      size: [resolution[0], resolution[1], 1],
+      format: "rgba8unorm",
+      usage:
+        GPUTextureUsage.TEXTURE_BINDING |
+        GPUTextureUsage.RENDER_ATTACHMENT |
+        GPUTextureUsage.STORAGE_BINDING,
+    });
+    return diffuseTexture.createView();
+  };
 
   const render = ({
     commandEncoder,
@@ -133,6 +190,7 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
     resolutionBuffer,
     cameraPositionBuffer,
     transformationMatrixBuffer,
+    timeBuffer,
   }: RenderArgs) => {
     const computePass = commandEncoder.beginComputePass();
 
@@ -150,6 +208,10 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
         {
           binding: 2,
           resource: outputTextureViews.finalTexture,
+        },
+        {
+          binding: 3,
+          resource: outputTextureViews.depthAndClusterTextureView,
         },
       ],
     });
@@ -192,6 +254,16 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
             minFilter: "nearest",
           }),
         },
+        {
+          binding: 6,
+          resource: createDiffuseTextureView(),
+        },
+        {
+          binding: 7,
+          resource: {
+            buffer: timeBuffer,
+          },
+        },
       ],
     });
 
@@ -200,11 +272,34 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
     computePass.setBindGroup(1, gBuffer);
     computePass.dispatchWorkgroups(resolution[0] / 8, resolution[1] / 8);
 
+    const blurUniforms = device.createBindGroup({
+      layout: diffuseBlurPipeline.getBindGroupLayout(0),
+      entries: [
+        {
+          binding: 0,
+          resource: {
+            buffer: resolutionBuffer,
+          },
+        },
+        {
+          binding: 1,
+          resource: createDiffuseTextureView(),
+        },
+        {
+          binding: 2,
+          resource: device.createSampler({
+            magFilter: "nearest",
+            minFilter: "nearest",
+          }),
+        },
+      ],
+    });
+
     // TODO: create temp texture for blurring like reflections
-    // computePass.setPipeline(diffuseBlurPipeline);
-    // computePass.setBindGroup(0, uniforms);
-    // computePass.setBindGroup(1, gBuffer);
-    // computePass.dispatchWorkgroups(resolution[0] / 8, resolution[1] / 8);
+    computePass.setPipeline(diffuseBlurPipeline);
+    computePass.setBindGroup(0, blurUniforms);
+    computePass.setBindGroup(1, gBuffer);
+    computePass.dispatchWorkgroups(resolution[0] / 8, resolution[1] / 8);
 
     computePass.end();
   };

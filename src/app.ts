@@ -35,6 +35,7 @@ export type RenderArgs = {
   cameraPositionBuffer: GPUBuffer;
   voxelTextureView: GPUTextureView;
   transformationMatrixBuffer: GPUBuffer;
+  timeBuffer: GPUBuffer;
 };
 
 export type RenderPass = {
@@ -75,7 +76,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let normalTexture: GPUTexture;
   let albedoTexture: GPUTexture;
   let outputTexture: GPUTexture;
-  let cluserTexture: GPUTexture;
+  let depthTexture: GPUTexture;
   let debugTexture: GPUTexture;
 
   let animationFrameId: ReturnType<typeof requestAnimationFrame>;
@@ -157,19 +158,19 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     return normalTexture.createView();
   };
 
-  const createClusterTextureView = () => {
-    if (cluserTexture) {
-      return cluserTexture.createView();
+  const createDepthTextureView = () => {
+    if (depthTexture) {
+      return depthTexture.createView();
     }
-    cluserTexture = device.createTexture({
+    depthTexture = device.createTexture({
       size: [resolution[0], resolution[1], 1],
-      format: "rg32sint",
+      format: "r32float",
       usage:
         GPUTextureUsage.TEXTURE_BINDING |
         GPUTextureUsage.RENDER_ATTACHMENT |
         GPUTextureUsage.STORAGE_BINDING,
     });
-    return cluserTexture.createView();
+    return depthTexture.createView();
   };
 
   const createAlbedoTextureView = () => {
@@ -265,7 +266,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     const outputTextureView = createOutputTextureView();
     const normalTextureView = createNormalTextureView();
     const albedoTextureView = createAlbedoTextureView();
-    const depthTextureView = createClusterTextureView();
+    const depthTextureView = createDepthTextureView();
     const debugTextureView = createDebugTexture();
 
     // 4 byte stride
@@ -290,6 +291,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       render({
         commandEncoder,
         resolutionBuffer,
+        timeBuffer,
         outputTextureViews: {
           finalTexture: outputTextureView,
           albedoTextureView,
@@ -349,14 +351,16 @@ if (navigator.gpu !== undefined) {
         "cube",
       );
       volumeAtlas.addVolume(miniVikingTexture);
-      volumeAtlas.removeVolume([1, 1, 6], [6, 6, 7]);
+      // volumeAtlas.removeVolume([1, 1, 6], [6, 6, 7]);
+      // volumeAtlas.removeVolume([1, 1, 1], [6, 6, 2]);
+      volumeAtlas.removeVolume([0, 6, 0], [7, 7, 7]);
       voxelTextureView = volumeAtlas.getAtlasTextureView();
       renderLoop(device, [
         // TODO: use center of pixel instead for depth prepass
         // await getDepthPrepass(),
         await getGBufferPass(),
-        // await getReflectionsPass(),
         await getDiffusePass(),
+        // await getReflectionsPass(),
         fullscreenQuad(device),
       ]);
     });
