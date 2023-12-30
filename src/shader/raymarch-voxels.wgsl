@@ -88,7 +88,7 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
       stepsTaken ++;
       objectStepsTaken ++;
       tIntersection = min(min(tMax.x, tMax.y), tMax.z);
-      let isInBounds = all(currentIndex >= vec3(-1.0)) && all(currentIndex <= vec3(voxelObject.size / voxelSize));
+      let isInBounds = all(currentIndex >= vec3(0.0)) && all(currentIndex <= vec3(voxelObject.size / voxelSize));
       if(!isInBounds){
           break;
       }

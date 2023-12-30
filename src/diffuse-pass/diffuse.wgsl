@@ -32,7 +32,7 @@ fn lambertianReflectance(normal: vec3<f32>, co: vec2<f32>) -> f32 {
     return lambertianTerm;
 }
 
-override reflectance: f32 = 0.5;
+override reflectance: f32 = 0.6;
 
 // TODO: raymarch from surface instead of from camera
 @compute @workgroup_size(8, 8, 1)
@@ -42,7 +42,7 @@ fn main(
 {
   var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
   uv = vec2(uv.x, 1.0 - uv.y);
-  let bounces = 2;
+  let bounces = 1;
   var pixel = uv * vec2<f32>(resolution);
 
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);

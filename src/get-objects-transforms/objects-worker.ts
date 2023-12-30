@@ -34,7 +34,7 @@ const getInnerBox = (rotateY: number) => {
   let m = mat4.identity();
   let x = -5;
   let z = 0;
-  let y = -5;
+  let y = -4.9;
   mat4.translate(m, [x, y, z], m);
   mat4.translate(m, vec3.divScalar(vikingSize, 2), m);
   mat4.scale(m, [0.2, 0.2, 0.2], m);
