@@ -11,9 +11,13 @@ const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
 };
 
 export type VolumeAtlas = {
-  addVolume: (texture: GPUTexture) => void;
-  removeVolume: (startIndex: Vec3, endIndex: Vec3) => void;
+  addVolume: (texture: GPUTexture, label: string) => void;
+  removeVolume: (label: string) => void;
   getAtlasTextureView: () => GPUTextureView;
+};
+
+export type VolumeAtlasDictionary = {
+  [key: string]: { location: Vec3; size: Vec3 };
 };
 
 /**
@@ -21,15 +25,23 @@ export type VolumeAtlas = {
  * The atlas is a 3d texture that contains multiple voxel models, packing them along the x-axis
  * TODO: allow for overflows into the y-axis, and perhaps z-axis
  * @param device - The GPU device
- * @returns { atlasTexture, addVolume, removeVolume }
+ * @returns { getAtlasTextureView, addVolume, removeVolume }
  */
 export const getVolumeAtlas = (device: GPUDevice): VolumeAtlas => {
   let atlasTexture: GPUTexture = null;
+  let dictionary: VolumeAtlasDictionary = {};
+
   /**
    * Add a volume to the atlas
    * @param texture - 3d texture to copy into the atlas
+   * @param label - label to use for the volume in the dictionary
    */
-  const addVolume = (texture: GPUTexture) => {
+  const addVolume = (texture: GPUTexture, label: string) => {
+    if (dictionary[label]) {
+      throw new Error(
+        `Error adding volume to atlas: volume with label ${label} already exists`,
+      );
+    }
     const { width, height, depthOrArrayLayers } = texture;
     if (!atlasTexture) {
       const commandEncoder = device.createCommandEncoder();
@@ -109,21 +121,31 @@ export const getVolumeAtlas = (device: GPUDevice): VolumeAtlas => {
     device.queue.submit([commandEncoder.finish()]);
     atlasTexture = newAtlasTexture;
     oldAtlasTexture.destroy();
+    dictionary[label] = {
+      location: [newAtlasTexture.width - width, 0, 0],
+      size: [width, height, depthOrArrayLayers],
+    };
   };
 
   /**
    * Remove a volume from the atlas
    * TODO: shift the atlas texture to fill the gap
    * TODO: check if out of bounds to allow for 8,8,1 num threads
-   * @param startIndex - start texel of the volume to remove
-   * @param endIndex - end texel of the volume to remove
+   * @param label - label of the volume to remove
    */
-  const removeVolume = (startIndex: Vec3, endIndex: Vec3) => {
+  const removeVolume = (label: string) => {
+    if (!dictionary[label]) {
+      throw new Error(
+        `Error removing volume from atlas: volume with label ${label} does not exist`,
+      );
+    }
     if (!atlasTexture) {
       throw new Error(
         "Error removing from atlas: No atlas texture to remove volume from",
       );
     }
+    const { location: startIndex, size } = dictionary[label];
+    const endIndex = vec3.add(startIndex, size);
     const sizeOfRemoval = vec3.subtract(endIndex, startIndex);
     if (
       sizeOfRemoval[0] > atlasTexture.width ||

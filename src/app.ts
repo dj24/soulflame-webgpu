@@ -12,11 +12,8 @@ import { Camera, moveCamera } from "./camera";
 import { DebugUI } from "./ui";
 import "./main.css";
 import { vec2, vec3 } from "wgpu-matrix";
-import cube from "./voxel-models/cube.vxm";
-import test from "./voxel-models/test.vxm";
-import building from "./voxel-models/building.vxm";
 import cornellBox from "./voxel-models/cornell.vxm";
-import miniViking from "./voxel-models/mini-viking.vxm";
+import teapot from "./voxel-models/teapot.vxm";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
 import { DebugValuesStore } from "./debug-values-store";
@@ -49,7 +46,7 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.zero();
-let downscale = 1;
+let downscale = 1.0;
 const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
@@ -343,21 +340,26 @@ if (navigator.gpu !== undefined) {
         cornellBox.size,
         "cornell box",
       );
-      volumeAtlas.addVolume(cornellBoxTexture);
+      volumeAtlas.addVolume(cornellBoxTexture, "cornell box");
+      cornellBoxTexture.destroy();
 
       setTimeout(() => {
         create3dTexture(
           device,
-          miniViking.sliceFilePaths,
-          miniViking.size,
+          teapot.sliceFilePaths,
+          teapot.size,
           "cube",
-        ).then((miniVikingTexture) => {
-          volumeAtlas.addVolume(miniVikingTexture);
+        ).then((teapotTexture) => {
+          volumeAtlas.addVolume(teapotTexture, "teapot");
+          console.log({ teapot, teapotTexture });
+          teapotTexture.destroy();
         });
       }, 1000);
-      // volumeAtlas.removeVolume([1, 1, 6], [6, 6, 7]);
-      // volumeAtlas.removeVolume([1, 1, 1], [6, 6, 2]);
-      // volumeAtlas.removeVolume([0, 6, 0], [7, 7, 7]);
+
+      setTimeout(() => {
+        // volumeAtlas.removeVolume("teapot");
+      }, 2000);
+
       renderLoop(device, [
         // TODO: use center of pixel instead for depth prepass
         // await getDepthPrepass(),

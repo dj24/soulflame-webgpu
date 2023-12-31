@@ -8,7 +8,7 @@
 @group(1) @binding(2) var outputTex : texture_storage_2d<rgba8unorm, write>;
 @group(1) @binding(3) var depthTex : texture_2d<f32>;
 
-const SAMPLE_RADIUS = 2;
+const SAMPLE_RADIUS = 1;
 const SAMPLE_STEP = 1;
 const GAUSSIAN_SIGMA = 0.5;
 const DEPTH_THRESHOLD = 1.0;

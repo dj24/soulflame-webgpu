@@ -1,6 +1,7 @@
 import { mat4, vec3, Vec3 } from "wgpu-matrix";
 import { VoxelObject } from "../voxel-object";
 import { Camera } from "../camera";
+import { debugValues } from "../app";
 
 const ctx: Worker = self as any;
 
@@ -14,7 +15,7 @@ type GetObjectsArgs = {
   objectSize: Vec3;
 };
 
-const vikingSize = [18, 15, 8];
+const teapotSize = [126, 61, 79];
 const cornellSize = [7, 7, 7];
 
 const getOuterBox = (rotateY: number) => {
@@ -24,23 +25,26 @@ const getOuterBox = (rotateY: number) => {
   let y = 0;
   mat4.translate(m, [x, y, z], m);
   mat4.translate(m, vec3.divScalar(cornellSize, 2), m);
-  mat4.scale(m, [1, 1, 1], m);
+  let scale = 1.5;
+  mat4.scale(m, [scale, scale, scale], m);
   mat4.rotateY(m, rotateY, m);
   mat4.translate(m, vec3.divScalar(cornellSize, -2), m);
   return new VoxelObject(m, cornellSize, [0, 0, 0]);
 };
 
-const getInnerBox = (rotateY: number) => {
+const getInnerBox = (rotateY: number, x = 0, scale = 1) => {
   let m = mat4.identity();
-  let x = -5;
   let z = 0;
-  let y = -4.5 + Math.sin(performance.now() * 0.002) * 0.2;
-  mat4.translate(m, [x, y, z], m);
-  mat4.translate(m, vec3.divScalar(vikingSize, 2), m);
-  mat4.scale(m, [0.2, 0.2, 0.2], m);
-  mat4.rotateY(m, rotateY, m);
-  mat4.translate(m, vec3.divScalar(vikingSize, -2), m);
-  return new VoxelObject(m, vikingSize, [cornellSize[0], 0, 0]);
+  let y = 0;
+  mat4.translate(m, [x * 2, y, z], m);
+  let scaleFactor = scale * 0.05;
+  mat4.scale(m, [scaleFactor, scaleFactor, scaleFactor], m);
+  mat4.translate(m, vec3.divScalar(teapotSize, 2), m);
+
+  mat4.rotateY(m, rotateY - 1, m);
+
+  mat4.translate(m, vec3.divScalar(teapotSize, -2), m);
+  return new VoxelObject(m, teapotSize, [cornellSize[0], 0, 0]);
 };
 
 // TODO: allow dynamic objects to be passed, probably via object atlas
@@ -70,7 +74,7 @@ const getObjectTransforms = ({
   //   return new VoxelObject(m, objectSize);
   // });
 
-  let voxelObjects = [getInnerBox(rotateY), getOuterBox(rotateY)];
+  let voxelObjects = [getInnerBox(rotateY, translateX, scale), getOuterBox(0)];
   // sort by distance to the camera
   // voxelObjects = voxelObjects.sort((a, b) => {
   //   const aDistance = vec3.distance(a.worldSpaceCenter, camera.position);
