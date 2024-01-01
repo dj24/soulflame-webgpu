@@ -1,6 +1,8 @@
 import { camera, deltaTime } from "./app";
 import { quat, Quat, vec3, Vec3 } from "wgpu-matrix";
 import { animate, glide } from "motion";
+import { haltonSequence } from "./halton-sequence";
+import { haltonJitter } from "./jitter-view-projection";
 
 export class MoveableObject {
   position: Vec3;
@@ -53,5 +55,12 @@ export class MoveableObject {
         }),
       },
     );
+  }
+
+  getJitteredPosition(frameNumber: number): Vec3 {
+    const haltonOffset = haltonJitter(frameNumber);
+    const right = vec3.mulScalar(camera.right, haltonOffset[0]);
+    const up = vec3.mulScalar(camera.up, haltonOffset[1]);
+    return vec3.add(vec3.add(this.position, right), up);
   }
 }

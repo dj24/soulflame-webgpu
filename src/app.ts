@@ -50,6 +50,7 @@ let downscale = 2.0;
 const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
+let frameCount = 0;
 
 let volumeAtlas: VolumeAtlas;
 
@@ -214,6 +215,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     const newElapsedTime = performance.now() - startTime;
     deltaTime = newElapsedTime - elapsedTime;
     elapsedTime = newElapsedTime;
+    frameCount++;
 
     getObjectTransformsWorker.postMessage({
       maxObjectCount: debugValues.maxObjectCount,
@@ -235,14 +237,18 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     camera.update();
     debugValues.update();
 
+    const jitteredCameraPosition = camera.getJitteredPosition(frameCount);
+
     debugUI.log(
       `
       Direction: ${camera.direction[0].toFixed(
         1,
       )}, ${camera.direction[1].toFixed(1)}, ${camera.direction[2].toFixed(1)}
-      Position: ${camera.position[0].toFixed(1)}, ${camera.position[1].toFixed(
+      Position: ${jitteredCameraPosition[0].toFixed(
         1,
-      )}, ${camera.position[2].toFixed(1)}
+      )}, ${jitteredCameraPosition[1].toFixed(
+        1,
+      )}, ${jitteredCameraPosition[2].toFixed(1)}
     Resolution: ${resolution[0].toFixed(1)}x${resolution[1].toFixed(0)}
     Frame Time: ${deltaTime.toFixed(1)}ms
     Object Count: ${debugValues.objectCount}
@@ -282,7 +288,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     const cameraPositionBuffer = createFloatUniformBuffer(
       device,
-      camera.position as number[],
+      jitteredCameraPosition as number[],
       "camera position",
     );
     voxelTextureView = volumeAtlas.getAtlasTextureView();
