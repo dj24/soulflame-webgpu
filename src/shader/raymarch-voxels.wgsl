@@ -38,7 +38,7 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
 
   var voxelSize = 1.0;
   var tNear = 999999.0;
-  var closestIntersection = 9999999.0;
+  var clostestDistance = 9999999.0;
   var stepsTaken = 0;
   var objectsTraversed = 0;
 
@@ -56,12 +56,6 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
 
     let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
     tNear = intersect.tNear + EPSILON;
-
-    // bounding box is further away than the closest intersection, so we can skip this object
-    let isInsideAlreadyMarchedVoxel = tNear > closestIntersection;
-    if(isInsideAlreadyMarchedVoxel){
-        continue;
-    }
 
     let boundingBoxSurfacePosition = objectRayOrigin + tNear * objectRayDirection;
     let isStartingInBounds = all(objectRayOrigin >= vec3(-1.0)) && all(objectRayOrigin < vec3(voxelObject.size / voxelSize));
@@ -90,20 +84,22 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
 
     while(objectStepsTaken <= i32(maxSteps) && stepsTaken < MAX_RAY_STEPS)
     {
+      let worldPos = transformPosition(voxelObject.transform, objectPos);
+      let hitDistance = distance(worldPos, rayOrigin);
+
       stepsTaken ++;
       objectStepsTaken ++;
+      tIntersection = min(min(tMax.x, tMax.y), tMax.z);
 
       let isInBounds = all(currentIndex >= vec3(0.0)) && all(currentIndex <= vec3(voxelObject.size / voxelSize));
       if(!isInBounds){
           break;
       }
-      let isInsideAlreadyMarchedVoxel = tIntersection > closestIntersection;
-      if(isInsideAlreadyMarchedVoxel){
-          break;
-      }
+
       let foo = textureLoad(voxels, vec3<u32>(currentIndex) + vec3<u32>(voxelObject.atlasLocation), 0);
-      if(foo.a > 0.0&& tIntersection > EPSILON){
-          closestIntersection = tIntersection;
+
+      if(foo.a > 0.0 && tIntersection > EPSILON && hitDistance < clostestDistance){
+          clostestDistance = hitDistance;
           output.worldPos = transformPosition(voxelObject.transform, objectPos);
           output.normal = transformNormal(voxelObject.inverseTransform,objectNormal);
           output.colour = foo.rgb;
@@ -121,7 +117,6 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
       currentIndex += mask * voxelStep;
       objectNormal = vec3(mask * -voxelStep);
       objectPos = objectRayOrigin + objectRayDirection * tIntersection;
-      tIntersection = min(min(tMax.x, tMax.y), tMax.z);
     }
   }
   return output;

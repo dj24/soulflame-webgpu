@@ -71,8 +71,8 @@ fn main(
   }
 
   textureStore(
-      diffuseStore,
-      GlobalInvocationID.xy,
-      vec4(rayColour, 1.0),
-    );
+    diffuseStore,
+    GlobalInvocationID.xy,
+    vec4(rayColour, 1.0),
+  );
 }

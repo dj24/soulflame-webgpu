@@ -46,7 +46,7 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.zero();
-let downscale = 1.0;
+let downscale = 2.0;
 const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
@@ -364,7 +364,7 @@ if (navigator.gpu !== undefined) {
         // TODO: use center of pixel instead for depth prepass
         // await getDepthPrepass(),
         await getGBufferPass(),
-        await getDiffusePass(),
+        // await getDiffusePass(),
         // await getReflectionsPass(),
         fullscreenQuad(device),
       ]);
