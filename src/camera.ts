@@ -1,9 +1,10 @@
-import { camera, deltaTime, resolution } from "./app";
+import { camera, deltaTime, frameCount, resolution } from "./app";
 import { KeyboardControls } from "./keyboard-controls";
 import { MouseControls } from "./mouse-controls";
 import { MoveableObject } from "./moveable-object";
 import { mat4, quat, Quat, vec3, Vec3 } from "wgpu-matrix";
 import { animate, glide } from "motion";
+import { haltonJitter } from "./jitter-view-projection";
 
 const keyboardControls = new KeyboardControls();
 // const mouseControls = new MouseControls();
@@ -44,7 +45,8 @@ export class Camera extends MoveableObject {
 
   get viewMatrix() {
     const target = vec3.add(this.position, this.direction);
-    return mat4.lookAt(this.position, target, this.up);
+    const view = mat4.lookAt(this.position, target, this.up);
+    return haltonJitter(frameCount, view);
   }
 
   get inverseViewMatrix() {
@@ -98,10 +100,10 @@ export const moveCamera = () => {
     direction = vec3.subtract(direction, camera.direction);
   }
   if (keyboardControls.pressed[" "]) {
-    direction = vec3.add(direction, camera.up);
+    direction = vec3.add(direction, camera.down);
   }
   if (keyboardControls.pressed.control) {
-    direction = vec3.add(direction, camera.down);
+    direction = vec3.add(direction, camera.up);
   }
   direction = vec3.normalize(direction);
   camera.targetPosition = vec3.add(

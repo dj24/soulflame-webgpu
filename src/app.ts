@@ -11,7 +11,7 @@ import {
 import { Camera, moveCamera } from "./camera";
 import { DebugUI } from "./ui";
 import "./main.css";
-import { vec2, vec3 } from "wgpu-matrix";
+import { Mat4, mat4, vec2, vec3 } from "wgpu-matrix";
 import cornellBox from "./voxel-models/cornell.vxm";
 import teapot from "./voxel-models/teapot.vxm";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
@@ -23,6 +23,7 @@ import { getWorldSpaceFrustumCornerDirections } from "./get-frustum-corner-direc
 import { create3dTexture } from "./create-3d-texture";
 import { getDiffusePass } from "./diffuse-pass/get-diffuse-pass";
 import { getVolumeAtlas, VolumeAtlas } from "./volume-atlas";
+import { haltonJitter } from "./jitter-view-projection";
 
 export type RenderArgs = {
   commandEncoder: GPUCommandEncoder;
@@ -46,11 +47,11 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.zero();
-let downscale = 2.0;
+let downscale = 4.0;
 const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
-let frameCount = 0;
+export let frameCount = 0;
 
 let volumeAtlas: VolumeAtlas;
 
@@ -84,6 +85,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let timeBuffer: GPUBuffer;
   let resolutionBuffer: GPUBuffer;
   let transformationMatrixBuffer: GPUBuffer;
+  let previousViewProjectionMatrix: Mat4;
 
   // TODO: fix this
   getObjectTransformsWorker.addEventListener(
@@ -237,7 +239,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     camera.update();
     debugValues.update();
 
-    const jitteredCameraPosition = camera.getJitteredPosition(frameCount);
+    const jitteredCameraPosition = mat4.getTranslation(camera.viewMatrix);
 
     debugUI.log(
       `
@@ -313,6 +315,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     });
     device.queue.submit([commandEncoder.finish()]);
     animationFrameId = requestAnimationFrame(frame);
+    previousViewProjectionMatrix = camera.viewProjectionMatrix;
   };
 
   const resizeObserver = new ResizeObserver(reset);

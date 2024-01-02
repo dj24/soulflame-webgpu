@@ -34,8 +34,8 @@ export const fullscreenQuad = (device: GPUDevice) => {
         {
           binding: 0,
           resource: device.createSampler({
-            magFilter: "linear",
-            minFilter: "linear",
+            magFilter: "nearest",
+            minFilter: "nearest",
           }),
         },
         {
