@@ -1,9 +1,7 @@
 import { camera, deltaTime, frameCount, resolution } from "./app";
 import { KeyboardControls } from "./keyboard-controls";
-import { MouseControls } from "./mouse-controls";
 import { MoveableObject } from "./moveable-object";
-import { mat4, quat, Quat, vec3, Vec3 } from "wgpu-matrix";
-import { animate, glide } from "motion";
+import { mat4, quat, vec3, Vec3 } from "wgpu-matrix";
 import { haltonJitter } from "./jitter-view-projection";
 
 const keyboardControls = new KeyboardControls();
@@ -21,34 +19,29 @@ export class Camera extends MoveableObject {
   }) {
     super({
       position: options.position,
-      rotation: quat.identity(),
+      rotation: quat.fromEuler(0, 0, 0, "xyz"),
     });
     this.fieldOfView = options.fieldOfView;
   }
 
   get direction() {
-    // return vec3.transformQuat(vec3.create(0, 0, 1), this.rotation);
-    return vec3.create(0, 0, 1);
+    return vec3.transformQuat(vec3.create(0, 0, 1), this.rotation);
   }
 
   get right() {
-    // return vec3.transformQuat(vec3.create(1, 0, 0), this.rotation);
-    return vec3.create(1, 0, 0);
+    return vec3.transformQuat(vec3.create(1, 0, 0), this.rotation);
   }
 
   get left() {
-    // return vec3.transformQuat(vec3.create(-1, 0, 0), this.rotation);
-    return vec3.create(-1, 0, 0);
+    return vec3.transformQuat(vec3.create(-1, 0, 0), this.rotation);
   }
 
   get up() {
-    // return vec3.transformQuat(vec3.create(0, 1, 0), this.rotation);
-    return vec3.create(0, 1, 0);
+    return vec3.transformQuat(vec3.create(0, 1, 0), this.rotation);
   }
 
   get down() {
-    // return vec3.transformQuat(vec3.create(0, -1, 0), this.rotation);
-    return vec3.create(0, -1, 0);
+    return vec3.transformQuat(vec3.create(0, -1, 0), this.rotation);
   }
 
   get viewMatrix() {
@@ -61,7 +54,7 @@ export class Camera extends MoveableObject {
     return mat4.invert(this.viewMatrix);
   }
 
-  get perspectiveMatrix() {
+  get projectionMatrix() {
     return mat4.perspective(
       this.fieldOfView,
       resolution[0] / resolution[1],
@@ -70,16 +63,12 @@ export class Camera extends MoveableObject {
     );
   }
 
-  get projectionMatrix() {
-    return mat4.multiply(this.perspectiveMatrix, this.viewMatrix);
-  }
-
   get inverseProjectionMatrix() {
     return mat4.invert(this.projectionMatrix);
   }
 
   get viewProjectionMatrix() {
-    return mat4.mul(this.projectionMatrix, this.viewMatrix);
+    return mat4.mul(this.viewMatrix, this.projectionMatrix);
   }
 }
 
@@ -108,10 +97,10 @@ export const moveCamera = () => {
     direction = vec3.subtract(direction, camera.direction);
   }
   if (keyboardControls.pressed[" "]) {
-    direction = vec3.add(direction, camera.up);
+    direction = vec3.add(direction, camera.down);
   }
   if (keyboardControls.pressed.control) {
-    direction = vec3.add(direction, camera.down);
+    direction = vec3.add(direction, camera.up);
   }
   direction = vec3.normalize(direction);
   camera.targetPosition = vec3.add(

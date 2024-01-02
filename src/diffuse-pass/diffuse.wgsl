@@ -52,7 +52,7 @@ fn main(
   var averageRayColour = vec3(0.0);
   var skyColour = vec3(1.0);
 
-  rayDirection = randomInHemisphere(uv, normalSample);
+  rayDirection = randomInHemisphere(uv * sin(time * 0.00125), normalSample);
   var rayColour = skyColour;
   var rayOrigin = worldPos;
 

@@ -48,7 +48,7 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.zero();
-let downscale = 4.0;
+let downscale = 3.0;
 const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
@@ -220,18 +220,6 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     return velocityTexture.createView();
   };
 
-  if (viewProjectionMatricesBuffer) {
-    writeToUniformBuffer(viewProjectionMatricesBuffer, [
-      ...camera.viewProjectionMatrix,
-      ...previousViewProjectionMatrix,
-    ]);
-  } else {
-    viewProjectionMatricesBuffer = createUniformBuffer([
-      ...camera.viewProjectionMatrix,
-      ...previousViewProjectionMatrix,
-    ]);
-  }
-
   const fixedUpdate = () => {
     computePasses.forEach(({ fixedUpdate }) => {
       if (fixedUpdate) {
@@ -255,6 +243,20 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       camera,
       objectSize: [50, 50, 50],
     });
+
+    const bufferContents = [
+      ...camera.viewProjectionMatrix,
+      ...previousViewProjectionMatrix,
+    ];
+
+    if (viewProjectionMatricesBuffer) {
+      writeToFloatUniformBuffer(viewProjectionMatricesBuffer, bufferContents);
+    } else {
+      viewProjectionMatricesBuffer = createFloatUniformBuffer(
+        device,
+        bufferContents,
+      );
+    }
 
     //TODO: handle loading this more gracefully
     if (!transformationMatrixBuffer) {
@@ -316,9 +318,9 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     const commandEncoder = device.createCommandEncoder();
     if (timeBuffer) {
-      writeToUniformBuffer(timeBuffer, [elapsedTime]);
+      writeToFloatUniformBuffer(timeBuffer, [elapsedTime]);
     } else {
-      timeBuffer = createUniformBuffer([elapsedTime]);
+      timeBuffer = createFloatUniformBuffer(device, [elapsedTime]);
     }
 
     if (resolutionBuffer) {
@@ -378,6 +380,8 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     previousViewProjectionMatrix = camera.viewProjectionMatrix;
   };
 
+  init();
+
   const resizeObserver = new ResizeObserver(reset);
   handleDownscaleChange = (event) => {
     downscale = event.detail;
@@ -433,7 +437,7 @@ if (navigator.gpu !== undefined) {
         // TODO: use center of pixel instead for depth prepass
         // await getDepthPrepass(),
         await getGBufferPass(),
-        // await getDiffusePass(),
+        await getDiffusePass(),
         // await getReflectionsPass(),
         fullscreenQuad(device),
       ]);
