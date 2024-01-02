@@ -20,6 +20,7 @@ export type OutputTextureViews = {
   finalTexture: GPUTextureView;
   albedoTextureView?: GPUTextureView;
   normalTextureView?: GPUTextureView;
+  velocityTextureView?: GPUTextureView;
   depthAndClusterTextureView?: GPUTextureView;
   debugTextureView?: GPUTextureView;
   skyTextureView?: GPUTextureView;
@@ -49,6 +50,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     frustumCornerDirectionsBuffer,
     voxelTextureView,
     transformationMatrixBuffer,
+    viewProjectionMatricesBuffer,
   }: RenderArgs) => {
     const computePass = commandEncoder.beginComputePass();
     computePass.setPipeline(computePipeline);
@@ -99,7 +101,13 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 9,
-          resource: outputTextureViews.skyTextureView,
+          resource: outputTextureViews.velocityTextureView,
+        },
+        {
+          binding: 10,
+          resource: {
+            buffer: viewProjectionMatricesBuffer,
+          },
         },
       ],
     });

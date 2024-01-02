@@ -8,6 +8,7 @@ export const haltonJitter = (frameNumber: number, viewMatrix: Mat4): Mat4 => {
   const haltonY = 2 * haltonSequence(jitterIndex + 1, 3) - 1;
   const jitterX = haltonX / resolution[0];
   const jitterY = haltonY / resolution[1];
+
   const jitterAmount = 1;
   const newJitterAmount = vec3.mulScalar(
     vec3.create(jitterX, jitterY, 0),

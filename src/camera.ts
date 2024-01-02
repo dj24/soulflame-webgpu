@@ -19,33 +19,41 @@ export class Camera extends MoveableObject {
     fieldOfView: number;
     direction: Vec3;
   }) {
-    super({ position: options.position, rotation: quat.identity() });
+    super({
+      position: options.position,
+      rotation: quat.identity(),
+    });
     this.fieldOfView = options.fieldOfView;
   }
 
   get direction() {
-    return vec3.transformQuat(vec3.create(0, 0, 1), this.rotation);
+    // return vec3.transformQuat(vec3.create(0, 0, 1), this.rotation);
+    return vec3.create(0, 0, 1);
   }
 
   get right() {
-    return vec3.transformQuat(vec3.create(1, 0, 0), this.rotation);
+    // return vec3.transformQuat(vec3.create(1, 0, 0), this.rotation);
+    return vec3.create(1, 0, 0);
   }
 
   get left() {
-    return vec3.transformQuat(vec3.create(-1, 0, 0), this.rotation);
+    // return vec3.transformQuat(vec3.create(-1, 0, 0), this.rotation);
+    return vec3.create(-1, 0, 0);
   }
 
   get up() {
-    return vec3.transformQuat(vec3.create(0, 1, 0), this.rotation);
+    // return vec3.transformQuat(vec3.create(0, 1, 0), this.rotation);
+    return vec3.create(0, 1, 0);
   }
 
   get down() {
-    return vec3.transformQuat(vec3.create(0, -1, 0), this.rotation);
+    // return vec3.transformQuat(vec3.create(0, -1, 0), this.rotation);
+    return vec3.create(0, -1, 0);
   }
 
   get viewMatrix() {
-    const target = vec3.add(this.position, this.direction);
-    const view = mat4.lookAt(this.position, target, this.up);
+    const eye = this.position;
+    const view = mat4.lookAt(eye, vec3.add(eye, this.direction), this.up);
     return haltonJitter(frameCount, view);
   }
 
@@ -100,21 +108,14 @@ export const moveCamera = () => {
     direction = vec3.subtract(direction, camera.direction);
   }
   if (keyboardControls.pressed[" "]) {
-    direction = vec3.add(direction, camera.down);
+    direction = vec3.add(direction, camera.up);
   }
   if (keyboardControls.pressed.control) {
-    direction = vec3.add(direction, camera.up);
+    direction = vec3.add(direction, camera.down);
   }
   direction = vec3.normalize(direction);
   camera.targetPosition = vec3.add(
     camera.targetPosition,
     vec3.mulScalar(direction, speed),
   );
-  // camera.targetRotation = quat.fromEuler(
-  //   // Math.sin(performance.now() * 0.0005) * 0.5 + 0.5,
-  //   0,
-  //   performance.now() * 0.0001,
-  //   0,
-  //   "xyz",
-  // );
 };

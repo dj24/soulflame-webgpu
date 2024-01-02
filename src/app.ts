@@ -34,6 +34,7 @@ export type RenderArgs = {
   voxelTextureView: GPUTextureView;
   transformationMatrixBuffer: GPUBuffer;
   timeBuffer: GPUBuffer;
+  viewProjectionMatricesBuffer?: GPUBuffer;
 };
 
 export type RenderPass = {
@@ -58,8 +59,8 @@ let volumeAtlas: VolumeAtlas;
 const startingCameraFieldOfView = 80;
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
-  position: vec3.create(3.5, 3.5, -6.8),
-  direction: vec3.normalize(vec3.create(0, 0, 1)),
+  position: vec3.create(3.5, -3.5, -6.2),
+  direction: vec3.create(),
 });
 
 const debugUI = new DebugUI();
@@ -79,13 +80,15 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let outputTexture: GPUTexture;
   let depthTexture: GPUTexture;
   let debugTexture: GPUTexture;
+  let velocityTexture: GPUTexture;
 
   let animationFrameId: ReturnType<typeof requestAnimationFrame>;
   let fixedIntervalId: ReturnType<typeof setInterval>;
   let timeBuffer: GPUBuffer;
   let resolutionBuffer: GPUBuffer;
   let transformationMatrixBuffer: GPUBuffer;
-  let previousViewProjectionMatrix: Mat4;
+  let viewProjectionMatricesBuffer: GPUBuffer;
+  let previousViewProjectionMatrix = mat4.create();
 
   // TODO: fix this
   getObjectTransformsWorker.addEventListener(
@@ -205,6 +208,30 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     return debugTexture.createView();
   };
 
+  const createVelocityTexture = () => {
+    if (velocityTexture) {
+      return velocityTexture.createView();
+    }
+    velocityTexture = device.createTexture({
+      size: [resolution[0], resolution[1], 1],
+      format: "rgba8snorm",
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
+    });
+    return velocityTexture.createView();
+  };
+
+  if (viewProjectionMatricesBuffer) {
+    writeToUniformBuffer(viewProjectionMatricesBuffer, [
+      ...camera.viewProjectionMatrix,
+      ...previousViewProjectionMatrix,
+    ]);
+  } else {
+    viewProjectionMatricesBuffer = createUniformBuffer([
+      ...camera.viewProjectionMatrix,
+      ...previousViewProjectionMatrix,
+    ]);
+  }
+
   const fixedUpdate = () => {
     computePasses.forEach(({ fixedUpdate }) => {
       if (fixedUpdate) {
@@ -254,6 +281,36 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     Resolution: ${resolution[0].toFixed(1)}x${resolution[1].toFixed(0)}
     Frame Time: ${deltaTime.toFixed(1)}ms
     Object Count: ${debugValues.objectCount}
+    
+    
+    ${camera.viewProjectionMatrix[0].toFixed(
+      1,
+    )}, ${camera.viewProjectionMatrix[1].toFixed(
+      1,
+    )}, ${camera.viewProjectionMatrix[2].toFixed(
+      1,
+    )}, ${camera.viewProjectionMatrix[3].toFixed(1)}
+    ${camera.viewProjectionMatrix[4].toFixed(
+      1,
+    )}, ${camera.viewProjectionMatrix[5].toFixed(
+      1,
+    )}, ${camera.viewProjectionMatrix[6].toFixed(
+      1,
+    )}, ${camera.viewProjectionMatrix[7].toFixed(1)}
+    ${camera.viewProjectionMatrix[8].toFixed(
+      1,
+    )}, ${camera.viewProjectionMatrix[9].toFixed(
+      1,
+    )}, ${camera.viewProjectionMatrix[10].toFixed(
+      1,
+    )}, ${camera.viewProjectionMatrix[11].toFixed(1)}
+    ${camera.viewProjectionMatrix[12].toFixed(
+      1,
+    )}, ${camera.viewProjectionMatrix[13].toFixed(
+      1,
+    )}, ${camera.viewProjectionMatrix[14].toFixed(
+      1,
+    )}, ${camera.viewProjectionMatrix[15].toFixed(1)}
     `,
     );
 
@@ -275,6 +332,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     const albedoTextureView = createAlbedoTextureView();
     const depthTextureView = createDepthTextureView();
     const debugTextureView = createDebugTexture();
+    const velocityTextureView = createVelocityTexture();
 
     // 4 byte stride
     const flatMappedDirections = getWorldSpaceFrustumCornerDirections(
@@ -306,11 +364,13 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
           depthAndClusterTextureView: depthTextureView,
           debugTextureView,
           skyTextureView,
+          velocityTextureView,
         },
         frustumCornerDirectionsBuffer,
         cameraPositionBuffer,
         voxelTextureView,
         transformationMatrixBuffer,
+        viewProjectionMatricesBuffer,
       });
     });
     device.queue.submit([commandEncoder.finish()]);
