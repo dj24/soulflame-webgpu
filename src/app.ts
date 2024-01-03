@@ -24,6 +24,7 @@ import { create3dTexture } from "./create-3d-texture";
 import { getDiffusePass } from "./diffuse-pass/get-diffuse-pass";
 import { getVolumeAtlas, VolumeAtlas } from "./volume-atlas";
 import { haltonJitter } from "./jitter-view-projection";
+import { getTaaPass } from "./taa-pass/get-taa-pass";
 
 export type RenderArgs = {
   commandEncoder: GPUCommandEncoder;
@@ -439,6 +440,7 @@ if (navigator.gpu !== undefined) {
         await getGBufferPass(),
         await getDiffusePass(),
         // await getReflectionsPass(),
+        await getTaaPass(),
         fullscreenQuad(device),
       ]);
     });
