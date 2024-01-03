@@ -16,14 +16,14 @@ import {
 } from "../app";
 import cornellBox from "../voxel-models/cornell.vxm";
 
-export type OutputTextureViews = {
-  finalTexture: GPUTextureView;
-  albedoTextureView?: GPUTextureView;
-  normalTextureView?: GPUTextureView;
-  velocityTextureView?: GPUTextureView;
-  depthAndClusterTextureView?: GPUTextureView;
-  debugTextureView?: GPUTextureView;
-  skyTextureView?: GPUTextureView;
+export type OutputTextures = {
+  finalTexture: GPUTexture;
+  albedoTexture?: GPUTexture;
+  normalTexture?: GPUTexture;
+  velocityTexture?: GPUTexture;
+  depthAndClusterTexture?: GPUTexture;
+  debugTexture?: GPUTexture;
+  skyTexture?: GPUTexture;
 };
 
 export const getGBufferPass = async (): Promise<RenderPass> => {
@@ -45,7 +45,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
   const render = ({
     commandEncoder,
     resolutionBuffer,
-    outputTextureViews,
+    outputTextures,
     cameraPositionBuffer,
     frustumCornerDirectionsBuffer,
     voxelTextureView,
@@ -89,19 +89,19 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 6,
-          resource: outputTextureViews.normalTextureView,
+          resource: outputTextures.normalTexture.createView(),
         },
         {
           binding: 7,
-          resource: outputTextureViews.albedoTextureView,
+          resource: outputTextures.albedoTexture.createView(),
         },
         {
           binding: 8,
-          resource: outputTextureViews.depthAndClusterTextureView,
+          resource: outputTextures.depthAndClusterTexture.createView(),
         },
         {
           binding: 9,
-          resource: outputTextureViews.velocityTextureView,
+          resource: outputTextures.velocityTexture.createView(),
         },
         {
           binding: 10,

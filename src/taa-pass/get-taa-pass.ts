@@ -8,28 +8,17 @@ export const getTaaPass = async (): Promise<RenderPass> => {
   let currentFrameTexture: GPUTexture;
 
   const createHistoryTextureView = () => {
-    if (historyTexture) {
-      return historyTexture.createView();
+    if (!historyTexture) {
+      historyTexture = device.createTexture({
+        size: [resolution[0], resolution[1], 1],
+        format: "rgba8unorm",
+        usage:
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.STORAGE_BINDING |
+          GPUTextureUsage.COPY_SRC,
+      });
     }
-    historyTexture = device.createTexture({
-      size: [resolution[0], resolution[1], 1],
-      format: "rgba8unorm",
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
-    });
     return historyTexture.createView();
-  };
-
-  // Need to make output texture as we cant read and write to same texture in same pass
-  const createCurrentFrameTextureView = () => {
-    if (currentFrameTexture) {
-      return currentFrameTexture.createView();
-    }
-    currentFrameTexture = device.createTexture({
-      size: [resolution[0], resolution[1], 1],
-      format: "rgba8unorm",
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
-    });
-    return currentFrameTexture.createView();
   };
 
   const taaPipeline = device.createComputePipeline({
@@ -44,12 +33,23 @@ export const getTaaPass = async (): Promise<RenderPass> => {
   const render = ({
     commandEncoder,
     resolutionBuffer,
-    outputTextureViews,
+    outputTextures,
     frustumCornerDirectionsBuffer,
   }: RenderArgs) => {
+    if (!currentFrameTexture) {
+      currentFrameTexture = device.createTexture({
+        size: [resolution[0], resolution[1], 1],
+        format: "rgba8unorm",
+        usage:
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.STORAGE_BINDING |
+          GPUTextureUsage.COPY_DST,
+      });
+    }
+
     commandEncoder.copyTextureToTexture(
       {
-        texture: outputTextureViews.finalTexture, // TODO: pass texture as well as view
+        texture: outputTextures.finalTexture, // TODO: pass texture as well as view
       },
       {
         texture: currentFrameTexture,
@@ -69,19 +69,20 @@ export const getTaaPass = async (): Promise<RenderPass> => {
       entries: [
         {
           binding: 0,
-          resource: createCurrentFrameTextureView(),
+          resource: outputTextures.finalTexture.createView(),
         },
         {
           binding: 1,
-          resource: outputTextureViews.velocityTextureView,
+          resource: outputTextures.velocityTexture.createView(),
         },
+        // TODO: change currentFrameTexture to a copy of history texture here
         {
           binding: 2,
           resource: createHistoryTextureView(),
         },
         {
           binding: 3,
-          resource: outputTextureViews.finalTexture,
+          resource: createHistoryTextureView(),
         },
         {
           binding: 4,
@@ -95,6 +96,20 @@ export const getTaaPass = async (): Promise<RenderPass> => {
     computePass.setBindGroup(0, bindGroup);
     computePass.dispatchWorkgroups(resolution[0] / 8, resolution[1] / 8);
     computePass.end();
+
+    commandEncoder.copyTextureToTexture(
+      {
+        texture: historyTexture,
+      },
+      {
+        texture: outputTextures.finalTexture,
+      },
+      {
+        width: historyTexture.width,
+        height: historyTexture.height,
+        depthOrArrayLayers: 1, // Copy one layer (z-axis slice)
+      },
+    );
   };
 
   return { render };

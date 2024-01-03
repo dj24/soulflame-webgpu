@@ -61,7 +61,7 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
   const render = ({
     commandEncoder,
     resolutionBuffer,
-    outputTextureViews,
+    outputTextures,
     frustumCornerDirectionsBuffer,
   }: RenderArgs) => {
     const reflectionTextureView = createReflectionTextureView();
@@ -91,7 +91,7 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 1,
-          resource: outputTextureViews.skyTextureView,
+          resource: outputTextures.skyTexture.createView(),
         },
         {
           binding: 2,
@@ -127,7 +127,7 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
       entries: [
         {
           binding: 0,
-          resource: outputTextureViews.normalTextureView,
+          resource: outputTextures.normalTexture.createView(),
         },
       ],
     });
@@ -183,15 +183,15 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
       entries: [
         {
           binding: 2,
-          resource: outputTextureViews.finalTexture,
+          resource: outputTextures.finalTexture.createView(),
         },
         {
           binding: 1,
-          resource: outputTextureViews.albedoTextureView,
+          resource: outputTextures.albedoTexture.createView(),
         },
         {
           binding: 0,
-          resource: outputTextureViews.normalTextureView,
+          resource: outputTextures.normalTexture.createView(),
         },
       ],
     });

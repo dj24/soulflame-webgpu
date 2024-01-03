@@ -184,7 +184,7 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
 
   const render = ({
     commandEncoder,
-    outputTextureViews,
+    outputTextures,
     frustumCornerDirectionsBuffer,
     voxelTextureView,
     resolutionBuffer,
@@ -199,19 +199,19 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
       entries: [
         {
           binding: 0,
-          resource: outputTextureViews.normalTextureView,
+          resource: outputTextures.normalTexture.createView(),
         },
         {
           binding: 1,
-          resource: outputTextureViews.albedoTextureView,
+          resource: outputTextures.albedoTexture.createView(),
         },
         {
           binding: 2,
-          resource: outputTextureViews.finalTexture,
+          resource: outputTextures.finalTexture.createView(),
         },
         {
           binding: 3,
-          resource: outputTextureViews.depthAndClusterTextureView,
+          resource: outputTextures.depthAndClusterTexture.createView(),
         },
       ],
     });

@@ -55,5 +55,6 @@ fn main(
 
     let result: vec3<f32> = (sourceSample * sourceWeight + historySample * historyWeight) / max(sourceWeight + historyWeight, 0.0001);
 
-    textureStore(HistoryWrite, id.xy, vec4<f32>(result, 1.0));
+    textureStore(HistoryWrite, id.xy, vec4<f32>(historySample, 1.0));
+
 }

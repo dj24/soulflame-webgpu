@@ -4,10 +4,7 @@ import {
   writeToFloatUniformBuffer,
   writeToUniformBuffer,
 } from "./buffer-utils";
-import {
-  getGBufferPass,
-  OutputTextureViews,
-} from "./g-buffer/get-g-buffer-pass";
+import { getGBufferPass, OutputTextures } from "./g-buffer/get-g-buffer-pass";
 import { Camera, moveCamera } from "./camera";
 import { DebugUI } from "./ui";
 import "./main.css";
@@ -29,7 +26,7 @@ import { getTaaPass } from "./taa-pass/get-taa-pass";
 export type RenderArgs = {
   commandEncoder: GPUCommandEncoder;
   resolutionBuffer: GPUBuffer;
-  outputTextureViews: OutputTextureViews;
+  outputTextures: OutputTextures;
   frustumCornerDirectionsBuffer: GPUBuffer;
   cameraPositionBuffer: GPUBuffer;
   voxelTextureView: GPUTextureView;
@@ -49,7 +46,7 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.zero();
-let downscale = 3.0;
+let downscale = 2.0;
 const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
@@ -68,9 +65,8 @@ const debugUI = new DebugUI();
 
 let handleDownscaleChange: (event: CustomEvent) => void;
 
-let skyTextureView: GPUTextureView;
 let voxelTextureView: GPUTextureView;
-
+let skyTexture: GPUTexture;
 export const getObjectTransformsWorker = new Worker(
   new URL("./get-objects-transforms/objects-worker.ts", import.meta.url),
 );
@@ -137,88 +133,85 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     fixedIntervalId = setInterval(fixedUpdate, 1000 / 60);
   };
 
-  const createOutputTextureView = () => {
-    if (outputTexture) {
-      return outputTexture.createView();
+  const createOutputTexture = () => {
+    if (!outputTexture) {
+      outputTexture = device.createTexture({
+        size: [resolution[0], resolution[1], 1],
+        format: "rgba8unorm",
+        usage:
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.COPY_DST |
+          GPUTextureUsage.COPY_SRC |
+          GPUTextureUsage.STORAGE_BINDING,
+      });
     }
-    outputTexture = device.createTexture({
-      size: [resolution[0], resolution[1], 1],
-      format: "rgba8unorm",
-      usage:
-        GPUTextureUsage.TEXTURE_BINDING |
-        GPUTextureUsage.RENDER_ATTACHMENT |
-        GPUTextureUsage.STORAGE_BINDING,
-    });
-    return outputTexture.createView();
+    return outputTexture;
   };
 
-  const createNormalTextureView = () => {
-    if (normalTexture) {
-      return normalTexture.createView();
+  const createNormalTexture = () => {
+    if (!normalTexture) {
+      normalTexture = device.createTexture({
+        size: [resolution[0], resolution[1], 1],
+        format: "rgba8snorm",
+        usage:
+          GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
+      });
     }
-    normalTexture = device.createTexture({
-      size: [resolution[0], resolution[1], 1],
-      format: "rgba8snorm",
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
-    });
-    return normalTexture.createView();
+    return normalTexture;
   };
 
-  const createDepthTextureView = () => {
-    if (depthTexture) {
-      return depthTexture.createView();
+  const createDepthTexture = () => {
+    if (!depthTexture) {
+      depthTexture = device.createTexture({
+        size: [resolution[0], resolution[1], 1],
+        format: "r32float",
+        usage:
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.RENDER_ATTACHMENT |
+          GPUTextureUsage.STORAGE_BINDING,
+      });
     }
-    depthTexture = device.createTexture({
-      size: [resolution[0], resolution[1], 1],
-      format: "r32float",
-      usage:
-        GPUTextureUsage.TEXTURE_BINDING |
-        GPUTextureUsage.RENDER_ATTACHMENT |
-        GPUTextureUsage.STORAGE_BINDING,
-    });
-    return depthTexture.createView();
+    return depthTexture;
   };
 
-  const createAlbedoTextureView = () => {
-    if (albedoTexture) {
-      return albedoTexture.createView();
+  const createAlbedoTexture = () => {
+    if (!albedoTexture) {
+      albedoTexture = device.createTexture({
+        size: [resolution[0], resolution[1], 1],
+        format: "rgba8unorm",
+        usage:
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.RENDER_ATTACHMENT |
+          GPUTextureUsage.STORAGE_BINDING,
+      });
     }
-    albedoTexture = device.createTexture({
-      size: [resolution[0], resolution[1], 1],
-      format: "rgba8unorm",
-      usage:
-        GPUTextureUsage.TEXTURE_BINDING |
-        GPUTextureUsage.RENDER_ATTACHMENT |
-        GPUTextureUsage.STORAGE_BINDING,
-    });
-    return albedoTexture.createView();
+    return albedoTexture;
   };
 
   const createDebugTexture = () => {
-    if (debugTexture) {
-      return debugTexture.createView();
+    if (!debugTexture) {
+      debugTexture = device.createTexture({
+        size: [resolution[0], resolution[1], 1],
+        format: "rgba8unorm",
+        usage:
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.RENDER_ATTACHMENT |
+          GPUTextureUsage.STORAGE_BINDING,
+      });
     }
-    debugTexture = device.createTexture({
-      size: [resolution[0], resolution[1], 1],
-      format: "rgba8unorm",
-      usage:
-        GPUTextureUsage.TEXTURE_BINDING |
-        GPUTextureUsage.RENDER_ATTACHMENT |
-        GPUTextureUsage.STORAGE_BINDING,
-    });
-    return debugTexture.createView();
+    return debugTexture;
   };
 
   const createVelocityTexture = () => {
-    if (velocityTexture) {
-      return velocityTexture.createView();
+    if (!velocityTexture) {
+      velocityTexture = device.createTexture({
+        size: [resolution[0], resolution[1], 1],
+        format: "rgba8snorm",
+        usage:
+          GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
+      });
     }
-    velocityTexture = device.createTexture({
-      size: [resolution[0], resolution[1], 1],
-      format: "rgba8snorm",
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
-    });
-    return velocityTexture.createView();
+    return velocityTexture;
   };
 
   const fixedUpdate = () => {
@@ -330,13 +323,6 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       resolutionBuffer = createUniformBuffer([resolution[0], resolution[1]]);
     }
 
-    const outputTextureView = createOutputTextureView();
-    const normalTextureView = createNormalTextureView();
-    const albedoTextureView = createAlbedoTextureView();
-    const depthTextureView = createDepthTextureView();
-    const debugTextureView = createDebugTexture();
-    const velocityTextureView = createVelocityTexture();
-
     // 4 byte stride
     const flatMappedDirections = getWorldSpaceFrustumCornerDirections(
       camera,
@@ -354,20 +340,28 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       jitteredCameraPosition as number[],
       "camera position",
     );
+
+    createAlbedoTexture();
+    createNormalTexture();
+    createDepthTexture();
+    createDebugTexture();
+    createVelocityTexture();
+    createOutputTexture();
+
     voxelTextureView = volumeAtlas.getAtlasTextureView();
     computePasses.forEach(({ render }) => {
       render({
         commandEncoder,
         resolutionBuffer,
         timeBuffer,
-        outputTextureViews: {
-          finalTexture: outputTextureView,
-          albedoTextureView,
-          normalTextureView,
-          depthAndClusterTextureView: depthTextureView,
-          debugTextureView,
-          skyTextureView,
-          velocityTextureView,
+        outputTextures: {
+          finalTexture: outputTexture,
+          albedoTexture,
+          normalTexture,
+          depthAndClusterTexture: depthTexture,
+          debugTexture,
+          skyTexture,
+          velocityTexture,
         },
         frustumCornerDirectionsBuffer,
         cameraPositionBuffer,
@@ -396,7 +390,7 @@ if (navigator.gpu !== undefined) {
   navigator.gpu.requestAdapter().then((adapter) => {
     adapter.requestDevice().then(async (newDevice) => {
       device = newDevice;
-      const skyTexture = await createTextureFromImages(device, [
+      skyTexture = await createTextureFromImages(device, [
         "cubemaps/town-square/posx.jpg",
         "cubemaps/town-square/negx.jpg",
         "cubemaps/town-square/posy.jpg",
@@ -404,9 +398,6 @@ if (navigator.gpu !== undefined) {
         "cubemaps/town-square/posz.jpg",
         "cubemaps/town-square/negz.jpg",
       ]);
-      skyTextureView = skyTexture.createView({
-        dimension: "cube",
-      });
       volumeAtlas = getVolumeAtlas(device);
       const cornellBoxTexture = await create3dTexture(
         device,
