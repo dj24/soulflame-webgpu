@@ -11,6 +11,7 @@ import {
   RenderPass,
   resolution,
 } from "../app";
+import { createTextureFromImage } from "webgpu-utils";
 
 export const getDiffusePass = async (): Promise<RenderPass> => {
   const gBufferBindGroupLayout = device.createBindGroupLayout({
@@ -105,6 +106,13 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
           type: "uniform",
         },
       },
+      {
+        binding: 8,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+        },
+      },
     ],
   });
 
@@ -166,6 +174,13 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
   });
 
   let diffuseTexture: GPUTexture;
+  const blueNoiseTexture = await createTextureFromImage(
+    device,
+    "blue-noise-rg.png",
+    {
+      usage: GPUTextureUsage.COPY_SRC,
+    },
+  );
 
   const createDiffuseTextureView = () => {
     if (diffuseTexture) {
@@ -263,6 +278,10 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
           resource: {
             buffer: timeBuffer,
           },
+        },
+        {
+          binding: 8,
+          resource: blueNoiseTexture.createView(),
         },
       ],
     });

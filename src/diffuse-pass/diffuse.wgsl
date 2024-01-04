@@ -6,6 +6,7 @@
 @group(0) @binding(5) var voxelsSampler : sampler;
 @group(0) @binding(6) var diffuseStore : texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(7) var<uniform> time : f32;
+@group(0) @binding(8) var blueNoise : texture_2d<f32>;
 
 // g-buffer
 @group(1) @binding(0) var normalTex : texture_2d<f32>;
@@ -19,7 +20,7 @@ fn reconstructPosition(cameraPosition: vec3<f32>, rayDirection: vec3<f32>, depth
 }
 
 const PI = 3.1415926535897932384626433832795;
-
+const BLUE_NOISE_TEXTURE_SIZE = 512;
 // Function to compute Lambertian diffuse reflection
 fn lambertianReflectance(normal: vec3<f32>, co: vec2<f32>) -> f32 {
     // Generate a random direction in the hemisphere
@@ -42,7 +43,7 @@ fn main(
 {
   var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
   uv = vec2(uv.x, 1.0 - uv.y);
-  let bounces =2;
+  let bounces =8;
   var pixel = uv * vec2<f32>(resolution);
 
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
@@ -52,7 +53,9 @@ fn main(
   var averageRayColour = vec3(0.0);
   var skyColour = vec3(1.0);
 
-  rayDirection = randomInHemisphere(uv, normalSample);
+
+  let blueNoiseSample = textureLoad(blueNoise, (GlobalInvocationID.xy + vec2(u32(time * 50.0),0)) % BLUE_NOISE_TEXTURE_SIZE, 0).rg;
+  rayDirection = randomInHemisphere(blueNoiseSample, normalSample);
   var rayColour = skyColour;
   var rayOrigin = worldPos;
 
@@ -65,7 +68,7 @@ fn main(
       rayColour = vec3(1.0-attenuation) + attenuation * skyColour;
       break;
     }
-    rayDirection = randomInHemisphere(uv + sin(time * 0.05) * 50.0, rayMarchResult.normal);
+    rayDirection = randomInHemisphere(uv, rayMarchResult.normal);
     rayOrigin = rayMarchResult.worldPos;
     rayColour = rayColour * (rayMarchResult.colour * reflectance);
   }
