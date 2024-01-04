@@ -70,6 +70,10 @@ export class Camera extends MoveableObject {
   get viewProjectionMatrix() {
     return mat4.mul(this.viewMatrix, this.projectionMatrix);
   }
+
+  get inverseViewProjectionMatrix() {
+    return mat4.invert(this.viewProjectionMatrix);
+  }
 }
 
 export const moveCamera = () => {

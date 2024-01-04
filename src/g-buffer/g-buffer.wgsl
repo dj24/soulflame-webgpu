@@ -48,9 +48,9 @@ fn main(
 
   let currentClipSpace = viewProjections.viewProjection * vec4(worldPos, 1.0);
   let previousClipSpace = viewProjections.previousViewProjection * vec4(worldPos, 1.0);
-  let currentNDC = currentClipSpace.xy / previousClipSpace.w;
-  let previousNDC = previousClipSpace.xy / previousClipSpace.w;
+  let currentNDC = currentClipSpace.xyz / currentClipSpace.w;
+  let previousNDC = previousClipSpace.xyz / previousClipSpace.w;
   let velocity = currentNDC - previousNDC;
 
-  textureStore(velocityTex, GlobalInvocationID.xy, vec4(velocity, 0,0));
+  textureStore(velocityTex, GlobalInvocationID.xy, vec4(velocity,0));
 }

@@ -42,7 +42,7 @@ fn main(
 {
   var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
   uv = vec2(uv.x, 1.0 - uv.y);
-  let bounces =4;
+  let bounces =2;
   var pixel = uv * vec2<f32>(resolution);
 
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
@@ -65,7 +65,7 @@ fn main(
       rayColour = vec3(1.0-attenuation) + attenuation * skyColour;
       break;
     }
-    rayDirection = randomInHemisphere(uv, rayMarchResult.normal);
+    rayDirection = randomInHemisphere(uv + sin(time * 0.05) * 50.0, rayMarchResult.normal);
     rayOrigin = rayMarchResult.worldPos;
     rayColour = rayColour * (rayMarchResult.colour * reflectance);
   }

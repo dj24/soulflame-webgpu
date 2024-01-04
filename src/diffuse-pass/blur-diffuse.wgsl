@@ -10,7 +10,7 @@
 
 const SAMPLE_RADIUS = 1;
 const SAMPLE_STEP = 1;
-const GAUSSIAN_SIGMA = 0.001;
+const GAUSSIAN_SIGMA = 0.01;
 const DEPTH_THRESHOLD = 1.0;
 
 // Function to calculate the Gaussian weight

@@ -15,7 +15,7 @@ export const getTaaPass = async (): Promise<RenderPass> => {
         usage:
           GPUTextureUsage.TEXTURE_BINDING |
           GPUTextureUsage.STORAGE_BINDING |
-          GPUTextureUsage.COPY_SRC,
+          GPUTextureUsage.COPY_DST,
       });
     }
     return historyTexture.createView();
@@ -69,16 +69,15 @@ export const getTaaPass = async (): Promise<RenderPass> => {
       entries: [
         {
           binding: 0,
-          resource: outputTextures.finalTexture.createView(),
+          resource: currentFrameTexture.createView(),
         },
         {
           binding: 1,
           resource: outputTextures.velocityTexture.createView(),
         },
-        // TODO: change currentFrameTexture to a copy of history texture here
         {
           binding: 2,
-          resource: createHistoryTextureView(),
+          resource: outputTextures.finalTexture.createView(),
         },
         {
           binding: 3,
@@ -99,10 +98,10 @@ export const getTaaPass = async (): Promise<RenderPass> => {
 
     commandEncoder.copyTextureToTexture(
       {
-        texture: historyTexture,
+        texture: outputTextures.finalTexture,
       },
       {
-        texture: outputTextures.finalTexture,
+        texture: historyTexture,
       },
       {
         width: historyTexture.width,

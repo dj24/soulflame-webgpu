@@ -140,7 +140,6 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         format: "rgba8unorm",
         usage:
           GPUTextureUsage.TEXTURE_BINDING |
-          GPUTextureUsage.COPY_DST |
           GPUTextureUsage.COPY_SRC |
           GPUTextureUsage.STORAGE_BINDING,
       });
@@ -238,8 +237,13 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       objectSize: [50, 50, 50],
     });
 
+    // const bufferContents = [
+    //   ...camera.viewProjectionMatrix,
+    //   ...previousViewProjectionMatrix,
+    // ];
+
     const bufferContents = [
-      ...camera.viewProjectionMatrix,
+      ...camera.inverseViewProjectionMatrix,
       ...previousViewProjectionMatrix,
     ];
 
@@ -372,7 +376,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     });
     device.queue.submit([commandEncoder.finish()]);
     animationFrameId = requestAnimationFrame(frame);
-    previousViewProjectionMatrix = camera.viewProjectionMatrix;
+    previousViewProjectionMatrix = camera.inverseViewProjectionMatrix;
   };
 
   init();
