@@ -16,6 +16,7 @@ fn transformPosition(transform: mat4x4<f32>, position: vec3<f32>) -> vec3<f32> {
 struct VoxelObject {
   transform: mat4x4<f32>,
   inverseTransform: mat4x4<f32>,
+  previousTransform: mat4x4<f32>,
   size : vec3<f32>,
   sizePadding : f32,
   atlasLocation : vec3<f32>,
@@ -27,6 +28,8 @@ struct RayMarchResult {
   normal: vec3<f32>,
   worldPos: vec3<f32>,
   hit: bool,
+  modelMatrix: mat4x4<f32>,
+  previousModelMatrix: mat4x4<f32>,
 }
 
 fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f32>, voxelObjects: array<VoxelObject, VOXEL_OBJECT_COUNT>, voxelsSampler: sampler) -> RayMarchResult {
@@ -35,6 +38,8 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
   output.colour = vec3(0.0);
   output.normal = vec3(0.0);
   output.worldPos = vec3(0.0);
+  output.modelMatrix = mat4x4<f32>(vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0));
+  output.previousModelMatrix = mat4x4<f32>(vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0));
 
   var voxelSize = 1.0;
   var tNear = 999999.0;
@@ -104,6 +109,8 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
           output.normal = transformNormal(voxelObject.inverseTransform,objectNormal);
           output.colour = foo.rgb;
           output.hit = true;
+          output.modelMatrix = voxelObject.transform;
+          output.previousModelMatrix = voxelObject.previousTransform;
           break; // Found hit in this object, continue to next
       }
 

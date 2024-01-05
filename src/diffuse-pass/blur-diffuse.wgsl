@@ -10,8 +10,8 @@
 
 const SAMPLE_RADIUS = 1;
 const SAMPLE_STEP = 1;
-const GAUSSIAN_SIGMA = 0.001;
-const DEPTH_THRESHOLD = 1.0;
+const GAUSSIAN_SIGMA = 0.125;
+const DEPTH_THRESHOLD = 0.5;
 
 // Function to calculate the Gaussian weight
 fn gaussianWeight(offset: vec2<f32>) -> f32 {
@@ -61,6 +61,6 @@ fn main(
   textureStore(
     outputTex,
     vec2<u32>(pixel),
-    vec4(outputSample,1.0),
+    vec4(outputColour,1.0),
   );
 }

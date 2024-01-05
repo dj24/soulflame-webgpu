@@ -46,8 +46,10 @@ fn main(
 
   let worldPos = rayMarchResult.worldPos;
 
-  let currentClipSpace = viewProjections.viewProjection * vec4(worldPos, 1.0);
-  let previousClipSpace = viewProjections.previousViewProjection * vec4(worldPos, 1.0);
+  let inverseMvp = viewProjections.viewProjection * rayMarchResult.modelMatrix ;
+  let previousInverseMvp = viewProjections.previousViewProjection *  rayMarchResult.previousModelMatrix;
+  let currentClipSpace = inverseMvp * vec4(worldPos, 1.0);
+  let previousClipSpace = previousInverseMvp * vec4(worldPos, 1.0);
   let currentNDC = currentClipSpace.xyz / currentClipSpace.w;
   let previousNDC = previousClipSpace.xyz / previousClipSpace.w;
   let velocity = currentNDC - previousNDC;

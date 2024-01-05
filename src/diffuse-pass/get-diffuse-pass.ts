@@ -289,7 +289,7 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
     computePass.setPipeline(diffusePipeline);
     computePass.setBindGroup(0, uniforms);
     computePass.setBindGroup(1, gBuffer);
-    computePass.dispatchWorkgroups(resolution[0] / 8, resolution[1] / 8);
+    computePass.dispatchWorkgroups(resolution[0] / 16, resolution[1] / 16);
 
     const blurUniforms = device.createBindGroup({
       layout: diffuseBlurPipeline.getBindGroupLayout(0),

@@ -34,6 +34,8 @@ fn lambertianReflectance(normal: vec3<f32>, co: vec2<f32>) -> f32 {
 }
 
 override reflectance: f32 = 0.5;
+const SAMPLES_PER_PIXEL = 2;
+const DOWNSCALE = 2;
 
 // TODO: raymarch from surface instead of from camera
 @compute @workgroup_size(8, 8, 1)
@@ -41,41 +43,75 @@ fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 )
 {
-  var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
-  uv = vec2(uv.x, 1.0 - uv.y);
-  let bounces =8;
-  var pixel = uv * vec2<f32>(resolution);
-
-  var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
-  let normalSample = textureLoad(normalTex, GlobalInvocationID.xy, 0).rgb;
-  let depthSample = textureLoad(depthTex, GlobalInvocationID.xy, 0).r;
-  let worldPos = reconstructPosition(cameraPosition, rayDirection, depthSample) + normalSample * EPSILON; // EPSILON accounts for floating point errors
   var averageRayColour = vec3(0.0);
-  var skyColour = vec3(1.0);
+  let frameIndex = u32(time);
+  // TODO: make better sequence
+  var outputPixel = GlobalInvocationID.xy * 2 + vec2(frameIndex % 2, (frameIndex / 2) %2); // (0,1), (1,0),
+
+  var uv = vec2<f32>(outputPixel) / vec2<f32>(resolution);
+  uv = vec2(uv.x, 1.0 - uv.y);
+  let bounces = 1;
+
+  for(var s = 0; s < SAMPLES_PER_PIXEL; s++){
+    var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
+    let normalSample = textureLoad(normalTex, outputPixel, 0).rgb;
+    let depthSample = textureLoad(depthTex, outputPixel, 0).r;
+    let worldPos = reconstructPosition(cameraPosition, rayDirection, depthSample) + normalSample * EPSILON; // EPSILON accounts for floating point errors
+    var skyColour = vec3(1.0);
+
+//  var blueNoiseSamplePosition = outputPixel + vec2((frameIndex % 8) * 64,(frameIndex + 1 % 8) * 64) + u32(s);
+//  switch (frameIndex % 4){
+//    case 0: {
+//      blueNoiseSamplePosition = vec2(blueNoiseSamplePosition.x, BLUE_NOISE_TEXTURE_SIZE - blueNoiseSamplePosition.y);
+//      break;
+//    }
+//    case 1: {
+//      blueNoiseSamplePosition = vec2(BLUE_NOISE_TEXTURE_SIZE - blueNoiseSamplePosition.x, blueNoiseSamplePosition.y);
+//      break;
+//    }
+//    case 2: {
+//      blueNoiseSamplePosition = vec2(BLUE_NOISE_TEXTURE_SIZE - blueNoiseSamplePosition.x, BLUE_NOISE_TEXTURE_SIZE - blueNoiseSamplePosition.y);
+//      break;
+//    }
+//    case 3: {
+//      break;
+//    }
+//    default: {
+//      break;
+//    }
+//  }
+    var blueNoiseSamplePosition = outputPixel;
 
 
-  let blueNoiseSample = textureLoad(blueNoise, (GlobalInvocationID.xy + vec2(u32(time * 50.0),0)) % BLUE_NOISE_TEXTURE_SIZE, 0).rg;
-  rayDirection = randomInHemisphere(blueNoiseSample, normalSample);
-  var rayColour = skyColour;
-  var rayOrigin = worldPos;
+    let blueNoiseSample = textureLoad(blueNoise, blueNoiseSamplePosition % BLUE_NOISE_TEXTURE_SIZE, 0).rg;
+    rayDirection = randomInHemisphere(blueNoiseSample, normalSample);
+    var rayColour = skyColour;
+    var rayOrigin = worldPos;
 
-  for(var bounce = 0; bounce < bounces; bounce++){
-    let rayMarchResult = rayMarch(0, rayOrigin, rayDirection, voxelObjects, voxelsSampler);
-    let isValidHit = rayMarchResult.hit && distance(rayMarchResult.worldPos, rayOrigin) > EPSILON;
-    if(!isValidHit){
-      var unitDirection = unitVector(rayDirection);
-      var attenuation = reflectance * (unitDirection.y + 1.0);
-      rayColour = vec3(1.0-attenuation) + attenuation * skyColour;
-      break;
+    for(var bounce = 0; bounce < bounces; bounce++){
+      let rayMarchResult = rayMarch(0, rayOrigin, rayDirection, voxelObjects, voxelsSampler);
+      let isValidHit = rayMarchResult.hit && distance(rayMarchResult.worldPos, rayOrigin) > EPSILON;
+      if(!isValidHit){
+        var unitDirection = unitVector(rayDirection);
+        var attenuation = reflectance * (unitDirection.y + 1.0);
+        rayColour = vec3(1.0-attenuation) + attenuation * skyColour;
+        break;
+      }
+      rayDirection = randomInHemisphere(blueNoiseSample, rayMarchResult.normal);
+      rayOrigin = rayMarchResult.worldPos;
+      rayColour = rayColour * (rayMarchResult.colour * reflectance);
     }
-    rayDirection = randomInHemisphere(uv, rayMarchResult.normal);
-    rayOrigin = rayMarchResult.worldPos;
-    rayColour = rayColour * (rayMarchResult.colour * reflectance);
+    averageRayColour = averageRayColour + rayColour;
   }
+  averageRayColour = averageRayColour / f32(SAMPLES_PER_PIXEL);
 
-  textureStore(
-    diffuseStore,
-    GlobalInvocationID.xy,
-    vec4(rayColour, 1.0),
-  );
+  for(var x = 0; x < DOWNSCALE; x++){
+    for(var y = 0; y < DOWNSCALE; y++){
+      textureStore(
+        diffuseStore,
+        GlobalInvocationID.xy * 2 + vec2(u32(x), u32(y)),
+        vec4(averageRayColour, 1.0),
+      );
+    }
+  }
 }

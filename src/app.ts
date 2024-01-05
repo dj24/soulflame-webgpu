@@ -435,7 +435,7 @@ if (navigator.gpu !== undefined) {
         await getGBufferPass(),
         await getDiffusePass(),
         // await getReflectionsPass(),
-        await getTaaPass(),
+        // await getTaaPass(),
         fullscreenQuad(device),
       ]);
     });
