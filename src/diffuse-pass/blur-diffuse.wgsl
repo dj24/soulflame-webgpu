@@ -67,10 +67,10 @@ fn main(
   }
 
   outputSample /= sampleCount;
-  var outputColour = mix(outputSample, vec3(1.0), 0.25) * albedoSample;
+  var outputColour = mix(outputSample, vec3(1.0), 0.0) * albedoSample;
   textureStore(
     outputTex,
     vec2<u32>(pixel),
-    vec4(outputColour,1.0),
+    vec4(outputSample,1.0),
   );
 }

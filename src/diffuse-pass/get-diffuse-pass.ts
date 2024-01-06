@@ -300,26 +300,26 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
       ],
     });
 
-    computePass.setPipeline(diffusePipeline);
-    // computePass.setPipeline(radianceCachePipeline);
+    // computePass.setPipeline(diffusePipeline);
+    computePass.setPipeline(radianceCachePipeline);
     computePass.setBindGroup(0, uniforms);
     computePass.setBindGroup(1, gBuffer);
 
-    const numThreadsX = 8;
-    const numThreadsY = 8;
-    const halfResolution = [resolution[0] / 2, resolution[1] / 2];
-    computePass.dispatchWorkgroups(
-      halfResolution[0] / numThreadsX,
-      halfResolution[1] / numThreadsY,
-    );
-
-    // const radianceCacheDownscale = 64;
     // const numThreadsX = 8;
     // const numThreadsY = 8;
+    // const halfResolution = [resolution[0] / 2, resolution[1] / 2];
     // computePass.dispatchWorkgroups(
-    //   Math.ceil(resolution[0] / numThreadsX / radianceCacheDownscale),
-    //   Math.ceil(resolution[1] / numThreadsY / radianceCacheDownscale),
+    //   halfResolution[0] / numThreadsX,
+    //   halfResolution[1] / numThreadsY,
     // );
+
+    const radianceCacheDownscale = 32;
+    const numThreadsX = 8;
+    const numThreadsY = 8;
+    computePass.dispatchWorkgroups(
+      Math.ceil(resolution[0] / numThreadsX / radianceCacheDownscale),
+      Math.ceil(resolution[1] / numThreadsY / radianceCacheDownscale),
+    );
 
     // Denoise (basic clamped blur for now)
     const blurUniforms = device.createBindGroup({

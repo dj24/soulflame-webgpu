@@ -127,41 +127,42 @@ fn main(
   );
 }
 
-const RADIANCE_CACHE_DOWNSCALE = 64;
-const RADIANCE_CACHE_SAMPLES = 32;
-const RADIANCE_CACHE_BOUNCES = 1;
+const RADIANCE_CACHE_DOWNSCALE = 32;
+const RADIANCE_CACHE_SAMPLES = 4;
+const RADIANCE_CACHE_BOUNCES = 2;
 
 // TODO: reproject previous cache values
 @compute @workgroup_size(8, 8, 1)
 fn radianceCache(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ){
-var averageRayColour = vec3(0.0);
+  var averageRayColour = vec3(0.0);
   let frameIndex = u32(frameIndex);
   var outputPixel = GlobalInvocationID.xy * RADIANCE_CACHE_DOWNSCALE;
-  var uv = vec2<f32>(outputPixel) / vec2<f32>(resolution);
+  var cachePoint = outputPixel + RADIANCE_CACHE_DOWNSCALE / 2;
+  var uv = vec2<f32>(cachePoint) / vec2<f32>(resolution);
   uv = vec2(uv.x, 1.0 - uv.y);
 
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
-  let normalSample = textureLoad(normalTex, outputPixel, 0).rgb;
-  let depthSample = textureLoad(depthTex, outputPixel, 0).r;
+  let normalSample = textureLoad(normalTex, cachePoint, 0).rgb;
+  let depthSample = textureLoad(depthTex, cachePoint, 0).r;
   // TODO: vary the position to change each frame
   let worldPos = reconstructPosition(cameraPosition, rayDirection, depthSample) + normalSample * EPSILON; // EPSILON accounts for floating point errors
 
   for(var s = 0; s < RADIANCE_CACHE_SAMPLES; s++){
-    let blueNoiseSamplePosition = outputPixel + vec2(frameIndex, u32(s));
+    let blueNoiseSamplePosition = cachePoint + vec2(u32(s),0);
     let blueNoiseSample = textureLoad(blueNoise, blueNoiseSamplePosition % BLUE_NOISE_TEXTURE_SIZE, 0).rg;
     rayDirection = randomInHemisphere(blueNoiseSample, normalSample);
     var rayColour = SKY_COLOUR;
     var rayOrigin = worldPos;
     for(var bounce = 0; bounce < RADIANCE_CACHE_BOUNCES; bounce++){
       let bounce = getBounce(rayColour, rayOrigin, rayDirection, blueNoiseSample, uv);
+      if(!bounce.isValidHit){
+              break;
+            }
       rayColour = bounce.rayColour;
       rayDirection = bounce.rayDirection;
       rayOrigin = bounce.rayOrigin;
-      if(!bounce.isValidHit){
-        break;
-      }
     }
     averageRayColour = averageRayColour + rayColour;
   }
