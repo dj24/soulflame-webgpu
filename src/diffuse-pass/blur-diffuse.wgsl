@@ -10,7 +10,7 @@
 
 const SAMPLE_RADIUS = 1;
 const SAMPLE_STEP = 1;
-const GAUSSIAN_SIGMA = 0.125;
+const GAUSSIAN_SIGMA = 0.1;
 const DEPTH_THRESHOLD = 0.5;
 
 // Function to calculate the Gaussian weight
@@ -25,9 +25,19 @@ fn main(
 )
 {
   var pixel = vec2<f32>(GlobalInvocationID.xy);
+
   var normalSample = textureLoad(normalTex,GlobalInvocationID.xy, 0).rgb;
   var albedoSample = textureLoad(albedoTex,GlobalInvocationID.xy, 0).rgb;
   var depthSample = textureLoad(depthTex,GlobalInvocationID.xy, 0).r;
+
+  // DEBUG
+//  var diffuseSample = textureLoad(diffuseTex,GlobalInvocationID.xy, 0).rgb;
+//    textureStore(
+//      outputTex,
+//      vec2<u32>(pixel),
+//      vec4(diffuseSample * albedoSample,1.0),
+//    );
+//    return;
 
   if(all(normalSample == vec3(0.0))) {
     textureStore(
@@ -57,7 +67,7 @@ fn main(
   }
 
   outputSample /= sampleCount;
-  var outputColour = outputSample * albedoSample;
+  var outputColour = mix(outputSample, vec3(1.0), 0.25) * albedoSample;
   textureStore(
     outputTex,
     vec2<u32>(pixel),

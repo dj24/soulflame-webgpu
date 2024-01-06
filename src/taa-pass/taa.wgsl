@@ -12,6 +12,9 @@ fn rcp(x: f32) -> f32 {
 @group(0) @binding(2) var HistoryWrite : texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(3) var HistoryRead : texture_2d<f32>;
 @group(0) @binding(4) var<uniform> resolution : vec2<u32>;
+@group(0) @binding(5) var Depth : texture_2d<f32>;
+
+const DEPTH_THRESHOLD : f32 = 0.01;
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
@@ -28,6 +31,20 @@ fn main(
     let previousPixel: vec2<u32> = vec2<u32>(round(previousUv * texSize));
 
     var historySample: vec3<f32> = textureLoad(HistoryRead, previousPixel, 0).rgb;
+
+    // Sample depth from the Depth texture
+    let depthSample: f32 = textureLoad(Depth, id.xy, 0).r;
+    let depthAtPreviousPixel: f32 = textureLoad(Depth, previousPixel, 0).r;
+
+    // Calculate depth difference between source and history samples
+    let depthDifference: f32 = abs(depthSample - depthAtPreviousPixel);
+
+    // Apply depth clamping
+    if (depthDifference > DEPTH_THRESHOLD) {
+        // Discard or handle the pixel differently
+        // For example, you can discard the pixel or use a different blending approach.
+        return;
+    }
 
     var minCol: vec3<f32> = sourceSample;
     var maxCol: vec3<f32> = sourceSample;
@@ -55,10 +72,5 @@ fn main(
 
     let result: vec3<f32> = (sourceSample * sourceWeight + historySample * historyWeight) / max(sourceWeight + historyWeight, 0.0001);
 
-
-        textureStore(HistoryWrite, id.xy, vec4<f32>(result, 1.0));
-
-//        textureStore(HistoryWrite, id.xy, vec4<f32>(sourceSample, 1.0));
-
-
+    textureStore(HistoryWrite, id.xy, vec4<f32>(result, 1.0));
 }

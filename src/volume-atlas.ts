@@ -24,6 +24,7 @@ export type VolumeAtlasDictionary = {
  * Factory function for creating and managing a volume atlas
  * The atlas is a 3d texture that contains multiple voxel models, packing them along the x-axis
  * TODO: allow for overflows into the y-axis, and perhaps z-axis
+ * TODO: add surface cache for GI
  * @param device - The GPU device
  * @returns { getAtlasTextureView, addVolume, removeVolume }
  */

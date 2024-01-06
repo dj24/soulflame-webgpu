@@ -142,22 +142,36 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
     ],
   });
 
-  const diffusePipeline = device.createComputePipeline({
-    layout: device.createPipelineLayout({
-      bindGroupLayouts: [uniformsBindGroupLayout, gBufferBindGroupLayout],
-    }),
-    compute: {
-      module: device.createShaderModule({
-        code: `
+  const diffuseCode = `
           const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
           ${randomCommon}
           ${boxIntersection}
           ${getRayDirection}
           ${raymarchVoxels}
           ${diffuse}
-      `,
+      `;
+
+  const diffusePipeline = device.createComputePipeline({
+    layout: device.createPipelineLayout({
+      bindGroupLayouts: [uniformsBindGroupLayout, gBufferBindGroupLayout],
+    }),
+    compute: {
+      module: device.createShaderModule({
+        code: diffuseCode,
       }),
       entryPoint: "main",
+    },
+  });
+
+  const radianceCachePipeline = device.createComputePipeline({
+    layout: device.createPipelineLayout({
+      bindGroupLayouts: [uniformsBindGroupLayout, gBufferBindGroupLayout],
+    }),
+    compute: {
+      module: device.createShaderModule({
+        code: diffuseCode,
+      }),
+      entryPoint: "radianceCache",
     },
   });
 
@@ -287,10 +301,27 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
     });
 
     computePass.setPipeline(diffusePipeline);
+    // computePass.setPipeline(radianceCachePipeline);
     computePass.setBindGroup(0, uniforms);
     computePass.setBindGroup(1, gBuffer);
-    computePass.dispatchWorkgroups(resolution[0] / 16, resolution[1] / 16);
 
+    const numThreadsX = 8;
+    const numThreadsY = 8;
+    const halfResolution = [resolution[0] / 2, resolution[1] / 2];
+    computePass.dispatchWorkgroups(
+      halfResolution[0] / numThreadsX,
+      halfResolution[1] / numThreadsY,
+    );
+
+    // const radianceCacheDownscale = 64;
+    // const numThreadsX = 8;
+    // const numThreadsY = 8;
+    // computePass.dispatchWorkgroups(
+    //   Math.ceil(resolution[0] / numThreadsX / radianceCacheDownscale),
+    //   Math.ceil(resolution[1] / numThreadsY / radianceCacheDownscale),
+    // );
+
+    // Denoise (basic clamped blur for now)
     const blurUniforms = device.createBindGroup({
       layout: diffuseBlurPipeline.getBindGroupLayout(0),
       entries: [
@@ -314,7 +345,6 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
       ],
     });
 
-    // TODO: create temp texture for blurring like reflections
     computePass.setPipeline(diffuseBlurPipeline);
     computePass.setBindGroup(0, blurUniforms);
     computePass.setBindGroup(1, gBuffer);
