@@ -1,4 +1,9 @@
-@group(0) @binding(0) var<uniform> resolution : vec2<u32>;
+struct RadianceCacheEntry {
+  worldPosition: vec3<f32>,
+  normal: vec3<f32>,
+  colour: vec3<f32>,
+}
+
 @group(0) @binding(1) var voxels : texture_3d<f32>;
 @group(0) @binding(2) var<uniform> frustumCornerDirections : FrustumCornerDirections;
 @group(0) @binding(3) var<uniform> cameraPosition : vec3<f32>;
@@ -7,13 +12,13 @@
 @group(0) @binding(6) var diffuseStore : texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(7) var<uniform> frameIndex : u32;
 @group(0) @binding(8) var blueNoise : texture_2d<f32>;
+@group(0) @binding(9) var<storage, read_write> radianceCache : array<RadianceCacheEntry>;
 
 // g-buffer
 @group(1) @binding(0) var normalTex : texture_2d<f32>;
 @group(1) @binding(1) var albedoTex : texture_2d<f32>;
 @group(1) @binding(2) var outputTex : texture_storage_2d<rgba8unorm, write>;
 @group(1) @binding(3) var depthTex : texture_2d<f32>;
-
 
 fn reconstructPosition(cameraPosition: vec3<f32>, rayDirection: vec3<f32>, depth: f32) -> vec3<f32> {
   return cameraPosition + rayDirection * depth;
@@ -85,6 +90,16 @@ fn getBounce(rayColour: vec3<f32>, rayOrigin: vec3<f32>, rayDirection: vec3<f32>
   return output;
 }
 
+// Convert 2D index to 1D
+fn convert2DTo1D(size: vec2<u32>, index2D: vec2<u32>) -> u32 {
+    return index2D.y * size.x + index2D.x;
+}
+
+// Convert 1D index to 2D
+fn convert1DTo2D(size: vec2<u32>, index1D: u32) -> vec2<u32> {
+    return vec2(index1D % size.x, index1D / size.x);
+}
+
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
@@ -94,7 +109,11 @@ fn main(
   let frameIndex = u32(frameIndex);
   var outputPixel = GlobalInvocationID.xy * 2 + vec2(frameIndex % 2, (frameIndex / 2) %2); // (0,1), (1,0),
 
-  var uv = vec2<f32>(outputPixel) / vec2<f32>(resolution);
+  let radianceCachePosition = outputPixel / RADIANCE_CACHE_DOWNSCALE;
+  let cacheSize = textureDimensions(diffuseStore) / RADIANCE_CACHE_DOWNSCALE;
+  let radianceCacheEntry = radianceCache[convert2DTo1D(cacheSize, radianceCachePosition)];
+
+  var uv = vec2<f32>(outputPixel) / vec2<f32>(textureDimensions(normalTex).xy);
   uv = vec2(uv.x, 1.0 - uv.y);
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
   let normalSample = textureLoad(normalTex, outputPixel, 0).rgb;
@@ -120,6 +139,10 @@ fn main(
   }
   averageRayColour = averageRayColour / f32(SAMPLES_PER_PIXEL);
 
+  if(distance(worldPos, radianceCacheEntry.worldPosition) < 0.05){
+    averageRayColour = abs(radianceCacheEntry.normal);
+  }
+
   textureStore(
     diffuseStore,
     outputPixel,
@@ -133,14 +156,14 @@ const RADIANCE_CACHE_BOUNCES = 2;
 
 // TODO: reproject previous cache values
 @compute @workgroup_size(8, 8, 1)
-fn radianceCache(
+fn getRadianceCache(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ){
   var averageRayColour = vec3(0.0);
   let frameIndex = u32(frameIndex);
   var outputPixel = GlobalInvocationID.xy * RADIANCE_CACHE_DOWNSCALE;
   var cachePoint = outputPixel + RADIANCE_CACHE_DOWNSCALE / 2;
-  var uv = vec2<f32>(cachePoint) / vec2<f32>(resolution);
+  var uv = vec2<f32>(cachePoint) / vec2<f32>(textureDimensions(normalTex).xy);
   uv = vec2(uv.x, 1.0 - uv.y);
 
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
@@ -168,14 +191,20 @@ fn radianceCache(
   }
   averageRayColour = averageRayColour / f32(RADIANCE_CACHE_SAMPLES);
 
-  for(var x = 0; x < RADIANCE_CACHE_DOWNSCALE; x++){
-    for(var y = 0; y < RADIANCE_CACHE_DOWNSCALE; y++){
-        textureStore(
-          diffuseStore,
-          GlobalInvocationID.xy * RADIANCE_CACHE_DOWNSCALE + vec2(u32(x), u32(y)),
-          vec4(averageRayColour,1.0),
-        );
-    }
-  }
+//  for(var x = 0; x < RADIANCE_CACHE_DOWNSCALE; x++){
+//    for(var y = 0; y < RADIANCE_CACHE_DOWNSCALE; y++){
+//        textureStore(
+//          diffuseStore,
+//          GlobalInvocationID.xy * RADIANCE_CACHE_DOWNSCALE + vec2(u32(x), u32(y)),
+//          vec4(averageRayColour,1.0),
+//        );
+//    }
+//  }
 
+  let cacheSize = textureDimensions(diffuseStore) / RADIANCE_CACHE_DOWNSCALE;
+  var radianceCacheEntry = RadianceCacheEntry();
+  radianceCacheEntry.worldPosition = worldPos;
+  radianceCacheEntry.normal = normalSample;
+  radianceCacheEntry.colour = averageRayColour;
+  radianceCache[convert2DTo1D(cacheSize, GlobalInvocationID.xy)] = radianceCacheEntry;
 }

@@ -50,13 +50,6 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
   const uniformsBindGroupLayout = device.createBindGroupLayout({
     entries: [
       {
-        binding: 0,
-        visibility: GPUShaderStage.COMPUTE,
-        buffer: {
-          type: "uniform",
-        },
-      },
-      {
         binding: 1,
         visibility: GPUShaderStage.COMPUTE,
         texture: {
@@ -111,6 +104,13 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
         visibility: GPUShaderStage.COMPUTE,
         texture: {
           sampleType: "float",
+        },
+      },
+      {
+        binding: 9,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "storage",
         },
       },
     ],
@@ -171,7 +171,7 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
       module: device.createShaderModule({
         code: diffuseCode,
       }),
-      entryPoint: "radianceCache",
+      entryPoint: "getRadianceCache",
     },
   });
 
@@ -187,7 +187,6 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
     },
   });
 
-  let diffuseTexture: GPUTexture;
   const blueNoiseTexture = await createTextureFromImage(
     device,
     "blue-noise-rg.png",
@@ -195,6 +194,8 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
       usage: GPUTextureUsage.COPY_SRC,
     },
   );
+
+  let diffuseTexture: GPUTexture;
 
   const createDiffuseTextureView = () => {
     if (diffuseTexture) {
@@ -209,6 +210,30 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
         GPUTextureUsage.STORAGE_BINDING,
     });
     return diffuseTexture.createView();
+  };
+
+  const numThreadsX = 8;
+  const numThreadsY = 8;
+
+  const radianceCacheDownscale = 32;
+
+  let screenSpaceRadianceCacheBuffer: GPUBuffer;
+
+  const bytesBerCacheEntry = 16 * 3; // 16 bytes (4 per component, 4 padding) for colour, normal and worldPosition
+
+  const getScreenSpaceRadianceCacheBuffer = (width: number, height: number) => {
+    const totalSize = width * height * bytesBerCacheEntry;
+    if (
+      screenSpaceRadianceCacheBuffer &&
+      screenSpaceRadianceCacheBuffer.size == totalSize
+    ) {
+      return screenSpaceRadianceCacheBuffer;
+    }
+    screenSpaceRadianceCacheBuffer = device.createBuffer({
+      size: totalSize,
+      usage: GPUBufferUsage.STORAGE,
+    });
+    return screenSpaceRadianceCacheBuffer;
   };
 
   const render = ({
@@ -245,15 +270,19 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
       ],
     });
 
+    const radianceCacheSize = [
+      Math.ceil(resolution[0] / radianceCacheDownscale),
+      Math.ceil(resolution[1] / radianceCacheDownscale),
+    ];
+
+    const radianceCacheBuffer = getScreenSpaceRadianceCacheBuffer(
+      radianceCacheSize[0],
+      radianceCacheSize[1],
+    );
+
     const uniforms = device.createBindGroup({
       layout: diffusePipeline.getBindGroupLayout(0),
       entries: [
-        {
-          binding: 0,
-          resource: {
-            buffer: resolutionBuffer,
-          },
-        },
         {
           binding: 1,
           resource: voxelTextureView,
@@ -297,28 +326,29 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
           binding: 8,
           resource: blueNoiseTexture.createView(),
         },
+        {
+          binding: 9,
+          resource: {
+            buffer: radianceCacheBuffer,
+          },
+        },
       ],
     });
 
-    // computePass.setPipeline(diffusePipeline);
-    computePass.setPipeline(radianceCachePipeline);
     computePass.setBindGroup(0, uniforms);
     computePass.setBindGroup(1, gBuffer);
 
-    // const numThreadsX = 8;
-    // const numThreadsY = 8;
-    // const halfResolution = [resolution[0] / 2, resolution[1] / 2];
-    // computePass.dispatchWorkgroups(
-    //   halfResolution[0] / numThreadsX,
-    //   halfResolution[1] / numThreadsY,
-    // );
-
-    const radianceCacheDownscale = 32;
-    const numThreadsX = 8;
-    const numThreadsY = 8;
+    computePass.setPipeline(radianceCachePipeline);
     computePass.dispatchWorkgroups(
-      Math.ceil(resolution[0] / numThreadsX / radianceCacheDownscale),
-      Math.ceil(resolution[1] / numThreadsY / radianceCacheDownscale),
+      Math.ceil(radianceCacheSize[0] / numThreadsX),
+      Math.ceil(radianceCacheSize[1] / numThreadsY),
+    );
+
+    const halfResolution = [resolution[0] / 2, resolution[1] / 2];
+    computePass.setPipeline(diffusePipeline);
+    computePass.dispatchWorkgroups(
+      halfResolution[0] / numThreadsX,
+      halfResolution[1] / numThreadsY,
     );
 
     // Denoise (basic clamped blur for now)

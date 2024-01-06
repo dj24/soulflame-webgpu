@@ -280,37 +280,6 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       )}, ${jitteredCameraPosition[2].toFixed(1)}
     Resolution: ${resolution[0].toFixed(1)}x${resolution[1].toFixed(0)}
     Frame Time: ${deltaTime.toFixed(1)}ms
-    Object Count: ${debugValues.objectCount}
-    
-    
-    ${camera.viewProjectionMatrix[0].toFixed(
-      1,
-    )}, ${camera.viewProjectionMatrix[1].toFixed(
-      1,
-    )}, ${camera.viewProjectionMatrix[2].toFixed(
-      1,
-    )}, ${camera.viewProjectionMatrix[3].toFixed(1)}
-    ${camera.viewProjectionMatrix[4].toFixed(
-      1,
-    )}, ${camera.viewProjectionMatrix[5].toFixed(
-      1,
-    )}, ${camera.viewProjectionMatrix[6].toFixed(
-      1,
-    )}, ${camera.viewProjectionMatrix[7].toFixed(1)}
-    ${camera.viewProjectionMatrix[8].toFixed(
-      1,
-    )}, ${camera.viewProjectionMatrix[9].toFixed(
-      1,
-    )}, ${camera.viewProjectionMatrix[10].toFixed(
-      1,
-    )}, ${camera.viewProjectionMatrix[11].toFixed(1)}
-    ${camera.viewProjectionMatrix[12].toFixed(
-      1,
-    )}, ${camera.viewProjectionMatrix[13].toFixed(
-      1,
-    )}, ${camera.viewProjectionMatrix[14].toFixed(
-      1,
-    )}, ${camera.viewProjectionMatrix[15].toFixed(1)}
     `,
     );
 
@@ -435,7 +404,7 @@ if (navigator.gpu !== undefined) {
         await getGBufferPass(),
         await getDiffusePass(),
         // await getReflectionsPass(),
-        await getTaaPass(),
+        // await getTaaPass(),
         fullscreenQuad(device),
       ]);
     });
