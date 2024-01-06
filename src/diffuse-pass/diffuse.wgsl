@@ -120,28 +120,43 @@ fn main(
   let depthSample = textureLoad(depthTex, outputPixel, 0).r;
   let worldPos = reconstructPosition(cameraPosition, rayDirection, depthSample) + normalSample * EPSILON; // EPSILON accounts for floating point errors
 
-  for(var s = 0; s < SAMPLES_PER_PIXEL; s++){
-    let blueNoiseSamplePosition = outputPixel + vec2(frameIndex * 16, 512 - u32(s) * 32);
-    let blueNoiseSample = textureLoad(blueNoise, blueNoiseSamplePosition % BLUE_NOISE_TEXTURE_SIZE, 0).rg;
-    rayDirection = cosineWeightedSample(blueNoiseSample, normalSample);
-    var rayColour = SKY_COLOUR;
-    var rayOrigin = worldPos;
-    for(var bounce = 0; bounce < BOUNCES; bounce++){
-      let bounce = getBounce(rayColour, rayOrigin, rayDirection, blueNoiseSample, uv);
-      rayColour = bounce.rayColour;
-      rayDirection = bounce.rayDirection;
-      rayOrigin = bounce.rayOrigin;
-      if(!bounce.isValidHit){
-        break;
-      }
-    }
-    averageRayColour = averageRayColour + rayColour;
-  }
-  averageRayColour = averageRayColour / f32(SAMPLES_PER_PIXEL);
+//  for(var s = 0; s < SAMPLES_PER_PIXEL; s++){
+//    let blueNoiseSamplePosition = outputPixel + vec2(frameIndex * 16, 512 - u32(s) * 32);
+//    let blueNoiseSample = textureLoad(blueNoise, blueNoiseSamplePosition % BLUE_NOISE_TEXTURE_SIZE, 0).rg;
+//    rayDirection = cosineWeightedSample(blueNoiseSample, normalSample);
+//    var rayColour = SKY_COLOUR;
+//    var rayOrigin = worldPos;
+//    for(var bounce = 0; bounce < BOUNCES; bounce++){
+//      let bounce = getBounce(rayColour, rayOrigin, rayDirection, blueNoiseSample, uv);
+//      rayColour = bounce.rayColour;
+//      rayDirection = bounce.rayDirection;
+//      rayOrigin = bounce.rayOrigin;
+//      if(!bounce.isValidHit){
+//        break;
+//      }
+//    }
+//    averageRayColour = averageRayColour + rayColour;
+//  }
+//  averageRayColour = averageRayColour / f32(SAMPLES_PER_PIXEL);
 
-  if(distance(worldPos, radianceCacheEntry.worldPosition) < 0.05){
-    averageRayColour = abs(radianceCacheEntry.normal);
+  var totalWeight = 0.0;
+  let radius = 2;
+  for(var x = -radius; x <= radius; x++){
+    for(var y = -radius; y <= radius; y++){
+      let neighbourPosition = vec2<i32>(radianceCachePosition) + vec2(x,y);
+      let neighbour = radianceCache[convert2DTo1D(cacheSize, vec2<u32>(neighbourPosition))];
+      var weight = pow(dot(neighbour.normal, normalSample),2);
+      weight += sqrt(0.01 / distance(worldPos, neighbour.worldPosition));
+      totalWeight = totalWeight + weight;
+      averageRayColour = averageRayColour + neighbour.colour * weight;
+    }
   }
+
+  averageRayColour = averageRayColour / totalWeight;
+//
+//  if(distance(worldPos, radianceCacheEntry.worldPosition) < 0.025){
+//    averageRayColour = vec3(1.0,0.0,0.0);
+//  }
 
   textureStore(
     diffuseStore,
@@ -151,8 +166,8 @@ fn main(
 }
 
 const RADIANCE_CACHE_DOWNSCALE = 32;
-const RADIANCE_CACHE_SAMPLES = 4;
-const RADIANCE_CACHE_BOUNCES = 2;
+const RADIANCE_CACHE_SAMPLES = 8;
+const RADIANCE_CACHE_BOUNCES = 4;
 
 // TODO: reproject previous cache values
 @compute @workgroup_size(8, 8, 1)
@@ -162,7 +177,13 @@ fn getRadianceCache(
   var averageRayColour = vec3(0.0);
   let frameIndex = u32(frameIndex);
   var outputPixel = GlobalInvocationID.xy * RADIANCE_CACHE_DOWNSCALE;
-  var cachePoint = outputPixel + RADIANCE_CACHE_DOWNSCALE / 2;
+  var cachePoint = vec2<i32>(outputPixel);
+
+  cachePoint = cachePoint + RADIANCE_CACHE_DOWNSCALE / 2;
+    let randomOffset = vec2<i32>(randomInUnitDisk(vec2<f32>(GlobalInvocationID.xy) + vec2(f32(frameIndex % 64), f32(frameIndex % 32))) * 8.0);
+
+//  cachePoint = cachePoint + randomOffset;
+
   var uv = vec2<f32>(cachePoint) / vec2<f32>(textureDimensions(normalTex).xy);
   uv = vec2(uv.x, 1.0 - uv.y);
 
@@ -173,7 +194,7 @@ fn getRadianceCache(
   let worldPos = reconstructPosition(cameraPosition, rayDirection, depthSample) + normalSample * EPSILON; // EPSILON accounts for floating point errors
 
   for(var s = 0; s < RADIANCE_CACHE_SAMPLES; s++){
-    let blueNoiseSamplePosition = cachePoint + vec2(u32(s),0);
+    let blueNoiseSamplePosition = cachePoint + vec2(s,0);
     let blueNoiseSample = textureLoad(blueNoise, blueNoiseSamplePosition % BLUE_NOISE_TEXTURE_SIZE, 0).rg;
     rayDirection = randomInHemisphere(blueNoiseSample, normalSample);
     var rayColour = SKY_COLOUR;
@@ -191,20 +212,11 @@ fn getRadianceCache(
   }
   averageRayColour = averageRayColour / f32(RADIANCE_CACHE_SAMPLES);
 
-//  for(var x = 0; x < RADIANCE_CACHE_DOWNSCALE; x++){
-//    for(var y = 0; y < RADIANCE_CACHE_DOWNSCALE; y++){
-//        textureStore(
-//          diffuseStore,
-//          GlobalInvocationID.xy * RADIANCE_CACHE_DOWNSCALE + vec2(u32(x), u32(y)),
-//          vec4(averageRayColour,1.0),
-//        );
-//    }
-//  }
-
   let cacheSize = textureDimensions(diffuseStore) / RADIANCE_CACHE_DOWNSCALE;
   var radianceCacheEntry = RadianceCacheEntry();
-  radianceCacheEntry.worldPosition = worldPos;
-  radianceCacheEntry.normal = normalSample;
-  radianceCacheEntry.colour = averageRayColour;
+  let blendAmount = 0.66;
+  radianceCacheEntry.worldPosition = mix(radianceCache[convert2DTo1D(cacheSize, GlobalInvocationID.xy)].worldPosition,worldPos,blendAmount);
+  radianceCacheEntry.normal = mix(radianceCache[convert2DTo1D(cacheSize, GlobalInvocationID.xy)].normal,normalSample,blendAmount);
+  radianceCacheEntry.colour = mix(radianceCache[convert2DTo1D(cacheSize, GlobalInvocationID.xy)].colour,averageRayColour,blendAmount);
   radianceCache[convert2DTo1D(cacheSize, GlobalInvocationID.xy)] = radianceCacheEntry;
 }
