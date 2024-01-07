@@ -84,12 +84,6 @@ export const getTaaPass = async (): Promise<RenderPass> => {
           resource: createHistoryTextureView(),
         },
         {
-          binding: 4,
-          resource: {
-            buffer: resolutionBuffer,
-          },
-        },
-        {
           binding: 5,
           resource: outputTextures.depthAndClusterTexture.createView(),
         },

@@ -32,12 +32,13 @@ struct RayMarchResult {
   previousModelMatrix: mat4x4<f32>,
 }
 
-fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f32>, voxelObjects: array<VoxelObject, VOXEL_OBJECT_COUNT>, voxelsSampler: sampler) -> RayMarchResult {
+fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f32>, voxelObjects: array<VoxelObject, VOXEL_OBJECT_COUNT>) -> RayMarchResult {
   var output = RayMarchResult();
   output.hit = false;
   output.colour = vec3(0.0);
   output.normal = vec3(0.0);
-  output.worldPos = vec3(0.0);
+  // TODO: output distance instead - this is a hack to make sure the distance is high when we hit nothing
+  output.worldPos = vec3(99999999999.0);
   output.modelMatrix = mat4x4<f32>(vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0));
   output.previousModelMatrix = mat4x4<f32>(vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0));
 
@@ -129,7 +130,7 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
   return output;
 }
 
-fn rayMarchFixedStep(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f32>, voxelObjects: array<VoxelObject, VOXEL_OBJECT_COUNT>, voxelsSampler: sampler) -> RayMarchResult {
+fn rayMarchFixedStep(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f32>, voxelObjects: array<VoxelObject, VOXEL_OBJECT_COUNT>) -> RayMarchResult {
   var output = RayMarchResult();
   output.hit = false;
   output.colour = vec3(0.0);

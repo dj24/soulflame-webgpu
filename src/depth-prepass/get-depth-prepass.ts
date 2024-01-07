@@ -16,21 +16,20 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
   let downscaledDepthTexture: GPUTexture;
 
   const createDownscaledDepthTextureView = () => {
-    if (downscaledDepthTexture) {
-      downscaledDepthTexture.destroy();
+    if (!downscaledDepthTexture) {
+      downscaledDepthTexture = device.createTexture({
+        size: [
+          Math.ceil(resolution[0] / downscaleFactor),
+          Math.ceil(resolution[1] / downscaleFactor),
+          1,
+        ],
+        format: "r32float",
+        usage:
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.RENDER_ATTACHMENT |
+          GPUTextureUsage.STORAGE_BINDING,
+      });
     }
-    downscaledDepthTexture = device.createTexture({
-      size: [
-        Math.ceil(resolution[0] / downscaleFactor),
-        Math.ceil(resolution[1] / downscaleFactor),
-        1,
-      ],
-      format: "rg32sint",
-      usage:
-        GPUTextureUsage.TEXTURE_BINDING |
-        GPUTextureUsage.RENDER_ATTACHMENT |
-        GPUTextureUsage.STORAGE_BINDING,
-    });
     return downscaledDepthTexture.createView();
   };
 
@@ -104,23 +103,12 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
             buffer: transformationMatrixBuffer,
           },
         },
+        {
+          binding: 5,
+          resource: voxelTextureView,
+        },
       ],
     });
-
-    // const volumeBindGroup = device.createBindGroup({
-    //   layout: rayMarchPipeline.getBindGroupLayout(1),
-    //   entries: [
-    //     {
-    //       binding: 0,
-    //       resource: pointSampler,
-    //     },
-    //     {
-    //       binding: 1,
-    //       resource: voxelTextureView,
-    //     },
-    //   ],
-    // });
-    // computePass.setBindGroup(1, volumeBindGroup);
 
     const downscaledResolution = [
       Math.ceil(resolution[0] / downscaleFactor),
@@ -163,5 +151,5 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
     computePass.end();
   };
 
-  return { render };
+  return { render: () => {} };
 };

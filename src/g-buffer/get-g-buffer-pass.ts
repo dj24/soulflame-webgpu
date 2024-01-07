@@ -55,20 +55,9 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     const computePass = commandEncoder.beginComputePass();
     computePass.setPipeline(computePipeline);
 
-    const pointSampler = device.createSampler({
-      magFilter: "nearest", // Nearest-neighbor interpolation for magnification
-      minFilter: "nearest", // Nearest-neighbor interpolation for minification
-    });
-
     const computeBindGroup = device.createBindGroup({
       layout: computePipeline.getBindGroupLayout(0),
       entries: [
-        {
-          binding: 2,
-          resource: {
-            buffer: resolutionBuffer,
-          },
-        },
         {
           binding: 3,
           resource: {
@@ -116,10 +105,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       layout: computePipeline.getBindGroupLayout(1),
       entries: [
         {
-          binding: 0,
-          resource: pointSampler,
-        },
-        {
           binding: 1,
           resource: voxelTextureView,
         },
@@ -133,6 +118,20 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       Math.ceil(resolution[1] / 8),
     );
     computePass.end();
+
+    commandEncoder.copyTextureToTexture(
+      {
+        texture: outputTextures.albedoTexture, // TODO: pass texture as well as view
+      },
+      {
+        texture: outputTextures.finalTexture,
+      },
+      {
+        width: outputTextures.finalTexture.width,
+        height: outputTextures.finalTexture.height,
+        depthOrArrayLayers: 1, // Copy one layer (z-axis slice)
+      },
+    );
   };
 
   return { render };

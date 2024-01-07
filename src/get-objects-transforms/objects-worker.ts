@@ -74,7 +74,7 @@ const getObjectTransforms = ({
 }: GetObjectsArgs) => {
   updateInnerBox(teaPot, rotateY, translateX, scale);
 
-  let voxelObjects = [cornellBox, teaPot];
+  let voxelObjects = [teaPot];
 
   let activeVoxelObjects = voxelObjects;
 

@@ -72,7 +72,7 @@ fn getBounce(rayColour: vec3<f32>, rayOrigin: vec3<f32>, rayDirection: vec3<f32>
   output.rayColour = rayColour;
   output.rayDirection = vec3(0.0);
   output.rayOrigin = rayOrigin;
-  let rayMarchResult = rayMarch(0, rayOrigin, rayDirection, voxelObjects, voxelsSampler);
+  let rayMarchResult = rayMarch(0, rayOrigin, rayDirection, voxelObjects);
   // TODO: find better way of sampling instead of rejecting samples here
   let hitDistance = distance(rayMarchResult.worldPos, rayOrigin);
   let isValidHit = rayMarchResult.hit && hitDistance < 16.0;

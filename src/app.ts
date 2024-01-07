@@ -46,7 +46,7 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.zero();
-let downscale = 1.5;
+let downscale = 2.0;
 const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
@@ -79,12 +79,14 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let debugTexture: GPUTexture;
   let velocityTexture: GPUTexture;
 
-  let animationFrameId: ReturnType<typeof requestAnimationFrame>;
-  let fixedIntervalId: ReturnType<typeof setInterval>;
   let timeBuffer: GPUBuffer;
   let resolutionBuffer: GPUBuffer;
   let transformationMatrixBuffer: GPUBuffer;
   let viewProjectionMatricesBuffer: GPUBuffer;
+
+  let animationFrameId: ReturnType<typeof requestAnimationFrame>;
+  let fixedIntervalId: ReturnType<typeof setInterval>;
+
   let previousViewProjectionMatrix = mat4.create();
 
   // TODO: fix this
@@ -141,6 +143,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         usage:
           GPUTextureUsage.TEXTURE_BINDING |
           GPUTextureUsage.COPY_SRC |
+          GPUTextureUsage.COPY_DST |
           GPUTextureUsage.STORAGE_BINDING,
       });
     }
@@ -181,7 +184,8 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         usage:
           GPUTextureUsage.TEXTURE_BINDING |
           GPUTextureUsage.RENDER_ATTACHMENT |
-          GPUTextureUsage.STORAGE_BINDING,
+          GPUTextureUsage.STORAGE_BINDING |
+          GPUTextureUsage.COPY_SRC,
       });
     }
     return albedoTexture;
@@ -236,11 +240,6 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       camera,
       objectSize: [50, 50, 50],
     });
-
-    // const bufferContents = [
-    //   ...camera.viewProjectionMatrix,
-    //   ...previousViewProjectionMatrix,
-    // ];
 
     const bufferContents = [
       ...camera.inverseViewProjectionMatrix,
@@ -381,18 +380,16 @@ if (navigator.gpu !== undefined) {
       volumeAtlas.addVolume(cornellBoxTexture, "cornell box");
       cornellBoxTexture.destroy();
 
-      setTimeout(() => {
-        create3dTexture(
-          device,
-          teapot.sliceFilePaths,
-          teapot.size,
-          "cube",
-        ).then((teapotTexture) => {
-          volumeAtlas.addVolume(teapotTexture, "teapot");
-          console.log({ teapot, teapotTexture });
-          teapotTexture.destroy();
-        });
-      }, 1000);
+      create3dTexture(
+        device,
+        teapot.sliceFilePaths,
+        teapot.size,
+        "teapot",
+      ).then((teapotTexture) => {
+        volumeAtlas.addVolume(teapotTexture, "teapot");
+        console.log({ teapot, teapotTexture });
+        teapotTexture.destroy();
+      });
 
       setTimeout(() => {
         // volumeAtlas.removeVolume("teapot");
@@ -400,9 +397,9 @@ if (navigator.gpu !== undefined) {
 
       renderLoop(device, [
         // TODO: use center of pixel instead for depth prepass
-        // await getDepthPrepass(),
+        await getDepthPrepass(),
         await getGBufferPass(),
-        await getDiffusePass(),
+        // await getDiffusePass(),
         // await getReflectionsPass(),
         // await getTaaPass(),
         fullscreenQuad(device),

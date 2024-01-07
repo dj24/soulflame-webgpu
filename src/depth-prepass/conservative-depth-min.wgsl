@@ -1,5 +1,5 @@
-@group(0) @binding(0) var inputTex : texture_2d<i32>;
-@group(0) @binding(1) var outputTex : texture_storage_2d<rg32sint, write>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
+@group(0) @binding(1) var outputTex : texture_storage_2d<r32float, write>;
 @group(0) @binding(2) var<uniform> resolution : vec2<u32>;
 
 const DOWNSCALE_FACTOR = 4;
@@ -24,5 +24,5 @@ fn main(
               }
           }
       }
-    textureStore(outputTex, GlobalInvocationID.xy, vec4(minDistance, 0, 0, 0));
+    textureStore(outputTex, GlobalInvocationID.xy, vec4(f32(minDistance), 0, 0, 0));
 }
