@@ -48,7 +48,7 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.zero();
-let downscale = 1.0;
+let downscale = 0.4;
 const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
@@ -214,7 +214,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     if (!velocityTexture) {
       velocityTexture = device.createTexture({
         size: [resolution[0], resolution[1], 1],
-        format: "rgba8snorm",
+        format: "r32float",
         usage:
           GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
       });
@@ -247,8 +247,12 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       objectSize: [50, 50, 50],
     });
 
+    // const bufferContents = [
+    //   ...camera.inverseViewProjectionMatrix,
+    //   ...previousViewProjectionMatrix,
+    // ];
     const bufferContents = [
-      ...camera.inverseViewProjectionMatrix,
+      ...camera.viewProjectionMatrix,
       ...previousViewProjectionMatrix,
     ];
 
@@ -273,8 +277,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     const jitteredCameraPosition = mat4.getTranslation(camera.viewMatrix);
 
-    debugUI.log(`${frameTimeTracker.toString()}
-    ${resolution[0]} x ${resolution[1]}`);
+    debugUI.log(`${resolution[0]} x ${resolution[1]}`);
 
     if (timeBuffer) {
       writeToUniformBuffer(timeBuffer, [frameCount]);
@@ -315,13 +318,30 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     let commandBuffers = [];
 
+    // Clear Albedo every frame
+
+    const commandEncoder = device.createCommandEncoder();
+
+    // Create a render pass and encode it into the command encoder
+    const renderPass = commandEncoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: albedoTexture.createView(),
+          loadOp: "clear",
+          clearValue: [0.3, 0.3, 0.3, 1],
+          storeOp: "store", // 'clear' if you want to clear, 'store' if you want to preserve existing contents
+        },
+      ],
+    });
+    renderPass.end();
+    commandBuffers.push(commandEncoder.finish());
+
     voxelTextureView = volumeAtlas.getAtlasTextureView();
 
     for (const computePass of computePasses) {
       const { render, label } = computePass;
-      const commandEncoder = device.createCommandEncoder();
       const commandBuffer = render({
-        commandEncoder,
+        commandEncoder: device.createCommandEncoder(),
         resolutionBuffer,
         timeBuffer,
         outputTextures: {
@@ -346,6 +366,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     // await device.queue.onSubmittedWorkDone();
     animationFrameId = requestAnimationFrame(frame);
     previousViewProjectionMatrix = camera.inverseViewProjectionMatrix;
+    // previousViewProjectionMatrix = camera.viewProjectionMatrix;
   };
 
   init();
@@ -392,7 +413,7 @@ const start = () => {
 
         renderLoop(device, [
           // TODO: use center of pixel instead for depth prepass
-          await getDepthPrepass(),
+          // await getDepthPrepass(),
           await getGBufferPass(),
           // await getDiffusePass(),
           // await getReflectionsPass(),

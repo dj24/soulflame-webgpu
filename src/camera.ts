@@ -68,7 +68,7 @@ export class Camera extends MoveableObject {
   }
 
   get viewProjectionMatrix() {
-    return mat4.mul(this.viewMatrix, this.projectionMatrix);
+    return mat4.mul(this.projectionMatrix, this.viewMatrix);
   }
 
   get inverseViewProjectionMatrix() {
@@ -101,10 +101,10 @@ export const moveCamera = () => {
     direction = vec3.subtract(direction, camera.direction);
   }
   if (keyboardControls.pressed[" "]) {
-    direction = vec3.add(direction, camera.down);
+    direction = vec3.add(direction, camera.up);
   }
   if (keyboardControls.pressed.control) {
-    direction = vec3.add(direction, camera.up);
+    direction = vec3.add(direction, camera.down);
   }
   direction = vec3.normalize(direction);
   camera.targetPosition = vec3.add(

@@ -49,7 +49,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     binding: 7,
     visibility: GPUShaderStage.COMPUTE,
     storageTexture: {
-      format: "rgba8snorm",
+      format: "r32float",
       viewDimension: "2d",
     },
   };
@@ -118,7 +118,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           ${raymarchVoxels}
           ${gBuffer}`,
       }),
-      entryPoint: "main",
+      entryPoint: "projectVoxels",
     },
   });
 
@@ -185,13 +185,15 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       ],
     });
 
-    const rayPerThreadGroup = 4;
+    // const workGroupsX = Math.ceil(resolution[0] / 8);
+    // const workGroupsY = Math.ceil(resolution[1] / 8);
 
-    const workGroupsX = Math.ceil(resolution[0] / 8 / rayPerThreadGroup);
-    const workGroupsY = Math.ceil(resolution[1] / 8 / rayPerThreadGroup);
+    const workGroupsX = Math.ceil(64);
+    const workGroupsY = Math.ceil(64);
+    const workGroupsZ = Math.ceil(64);
 
     computePass.setBindGroup(0, computeBindGroup);
-    computePass.dispatchWorkgroups(workGroupsX, workGroupsY);
+    computePass.dispatchWorkgroups(workGroupsX, workGroupsY, workGroupsZ);
     computePass.end();
 
     commandEncoder.copyTextureToTexture(

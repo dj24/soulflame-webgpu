@@ -18,7 +18,7 @@ fn main(
   let uv = pixel / vec2<f32>(downscaledResolution);
   var rayOrigin = cameraPosition;
   var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
-  let rayMarchResult = rayMarch(0, rayOrigin, rayDirection, voxelObjects);
+  let rayMarchResult = rayMarch( rayOrigin, rayDirection, voxelObjects);
   let depth = distance(rayOrigin, rayMarchResult.worldPos);
   textureStore(outputTex, GlobalInvocationID.xy, vec4(depth, 0,0, 0));
 

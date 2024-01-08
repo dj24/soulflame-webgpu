@@ -32,7 +32,7 @@ struct RayMarchResult {
   previousModelMatrix: mat4x4<f32>,
 }
 
-fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f32>, voxelObjects: array<VoxelObject, VOXEL_OBJECT_COUNT>) -> RayMarchResult {
+fn rayMarch(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, voxelObjects: array<VoxelObject, VOXEL_OBJECT_COUNT>) -> RayMarchResult {
   var output = RayMarchResult();
   output.hit = false;
   output.colour = vec3(0.0);
@@ -51,7 +51,7 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
   let foo = textureLoad(voxels, vec3(0), 0);
 
 
-  for (var voxelObjectIndex = startingObjectIndex; voxelObjectIndex < VOXEL_OBJECT_COUNT; voxelObjectIndex++) {
+  for (var voxelObjectIndex = 0; voxelObjectIndex < VOXEL_OBJECT_COUNT; voxelObjectIndex++) {
     var voxelObject = voxelObjects[voxelObjectIndex];
     objectsTraversed ++;
 
@@ -69,14 +69,6 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
     let hitDistance = distance(worldPos, rayOrigin);
     if(!intersect.isHit){
       continue;
-    } else if(hitDistance < clostestDistance){
-      clostestDistance = hitDistance;
-      output.worldPos = worldPos;
-      output.colour = worldPos;
-      output.hit = true;
-      output.modelMatrix = voxelObject.transform;
-      output.previousModelMatrix = voxelObject.previousTransform;
-      continue;
     }
 
     let boundingBoxSurfacePosition = objectRayOrigin + tNear * objectRayDirection;
@@ -86,66 +78,63 @@ fn rayMarch(startingObjectIndex: i32, rayOrigin: vec3<f32>, rayDirection: vec3<f
       continue;
     }
 
-    continue;
-
-
      // RAYMARCH
-//    var tIntersection = tNear;
-//    var objectPos = boundingBoxSurfacePosition;
-//    var voxelStep = sign(objectRayDirection);
-//    var tDelta = vec3(voxelSize / abs(objectRayDirection));
-//    let scaledRayOrigin = vec3<f32>(objectRayOrigin) / voxelSize;
-//    var currentIndex = floor(objectPos / voxelSize);
-//    var voxelOriginDifference = currentIndex - scaledRayOrigin;
-//    var clampedVoxelBoundary = (voxelStep * 0.5) + 0.5; // 0 if <= 0, 1 if > 0
-//    var tMax = (voxelStep * voxelOriginDifference + clampedVoxelBoundary) * tDelta;
-//    let maxSteps = max(voxelObject.size.x,voxelObject.size.y) * 2;
-//    var objectStepsTaken = 0;
-//    let mask = vec3(
-//        select(0.0, 1.0, tMax.x == tIntersection),
-//        select(0.0, 1.0, tMax.y == tIntersection),
-//        select(0.0, 1.0, tMax.z == tIntersection)
-//    );
-//    var objectNormal = intersect.normal;
+    var tIntersection = tNear;
+    var objectPos = boundingBoxSurfacePosition;
+    var voxelStep = sign(objectRayDirection);
+    var tDelta = vec3(voxelSize / abs(objectRayDirection));
+    let scaledRayOrigin = vec3<f32>(objectRayOrigin) / voxelSize;
+    var currentIndex = floor(objectPos / voxelSize);
+    var voxelOriginDifference = currentIndex - scaledRayOrigin;
+    var clampedVoxelBoundary = (voxelStep * 0.5) + 0.5; // 0 if <= 0, 1 if > 0
+    var tMax = (voxelStep * voxelOriginDifference + clampedVoxelBoundary) * tDelta;
+    let maxSteps = max(voxelObject.size.x,voxelObject.size.y) * 2;
+    var objectStepsTaken = 0;
+    let mask = vec3(
+        select(0.0, 1.0, tMax.x == tIntersection),
+        select(0.0, 1.0, tMax.y == tIntersection),
+        select(0.0, 1.0, tMax.z == tIntersection)
+    );
+    var objectNormal = intersect.normal;
 
-//    while(objectStepsTaken <= i32(maxSteps) && stepsTaken < MAX_RAY_STEPS)
-//    {
-//      let worldPos = transformPosition(voxelObject.transform, objectPos);
-//      let hitDistance = distance(worldPos, rayOrigin);
-//
-//      stepsTaken ++;
-//      objectStepsTaken ++;
-//      tIntersection = min(min(tMax.x, tMax.y), tMax.z);
-//
-//      let isInBounds = all(currentIndex >= vec3(0.0)) && all(currentIndex <= vec3(voxelObject.size / voxelSize));
-//      if(!isInBounds){
-//          break;
-//      }
-//
-//      let foo = textureLoad(voxels, vec3<u32>(currentIndex) + vec3<u32>(voxelObject.atlasLocation), 0);
-//
-//      if(foo.a > 0.0 && tIntersection > EPSILON && hitDistance < clostestDistance){
-//          clostestDistance = hitDistance;
-//          output.worldPos = transformPosition(voxelObject.transform, objectPos);
-//          output.normal = transformNormal(voxelObject.inverseTransform,objectNormal);
-//          output.colour = foo.rgb;
-//          output.hit = true;
-//          output.modelMatrix = voxelObject.transform;
-//          output.previousModelMatrix = voxelObject.previousTransform;
-//          break; // Found hit in this object, continue to next
-//      }
-//
-//      // Iterate to next voxel
-//      let mask = vec3(
-//          select(0.0, 1.0, tMax.x == tIntersection),
-//          select(0.0, 1.0, tMax.y == tIntersection),
-//          select(0.0, 1.0, tMax.z == tIntersection)
-//      );
-//      tMax += mask * tDelta;
-//      currentIndex += mask * voxelStep;
-//      objectNormal = vec3(mask * -voxelStep);
-//      objectPos = objectRayOrigin + objectRayDirection * tIntersection;
-//    }
+    while(objectStepsTaken <= i32(maxSteps) && stepsTaken < MAX_RAY_STEPS)
+    {
+      let worldPos = transformPosition(voxelObject.transform, objectPos);
+      let hitDistance = distance(worldPos, rayOrigin);
+
+      stepsTaken ++;
+      objectStepsTaken ++;
+      tIntersection = min(min(tMax.x, tMax.y), tMax.z);
+
+      let isInBounds = all(currentIndex >= vec3(0.0)) && all(currentIndex <= vec3(voxelObject.size / voxelSize));
+      if(!isInBounds){
+          break;
+      }
+
+      let foo = textureLoad(voxels, vec3<u32>(currentIndex) + vec3<u32>(voxelObject.atlasLocation), 0);
+
+      if(foo.a > 0.0 && tIntersection > EPSILON && hitDistance < clostestDistance){
+          clostestDistance = hitDistance;
+          output.worldPos = transformPosition(voxelObject.transform, objectPos);
+          output.normal = transformNormal(voxelObject.inverseTransform,objectNormal);
+          output.colour = foo.rgb;
+          output.hit = true;
+          output.modelMatrix = voxelObject.transform;
+          output.previousModelMatrix = voxelObject.previousTransform;
+          break; // Found hit in this object, continue to next
+      }
+
+      // Iterate to next voxel
+      let mask = vec3(
+          select(0.0, 1.0, tMax.x == tIntersection),
+          select(0.0, 1.0, tMax.y == tIntersection),
+          select(0.0, 1.0, tMax.z == tIntersection)
+      );
+      tMax += mask * tDelta;
+      currentIndex += mask * voxelStep;
+      objectNormal = vec3(mask * -voxelStep);
+      objectPos = objectRayOrigin + objectRayDirection * tIntersection;
+    }
   }
   return output;
 }
