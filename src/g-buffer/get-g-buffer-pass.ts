@@ -27,8 +27,88 @@ export type OutputTextures = {
 };
 
 export const getGBufferPass = async (): Promise<RenderPass> => {
+  const normalEntry: GPUBindGroupLayoutEntry = {
+    binding: 4,
+    visibility: GPUShaderStage.COMPUTE,
+    storageTexture: {
+      format: "rgba8snorm",
+      viewDimension: "2d",
+    },
+  };
+
+  const albedoEntry: GPUBindGroupLayoutEntry = {
+    binding: 5,
+    visibility: GPUShaderStage.COMPUTE,
+    storageTexture: {
+      format: "rgba8unorm",
+      viewDimension: "2d",
+    },
+  };
+
+  const velocityEntry: GPUBindGroupLayoutEntry = {
+    binding: 7,
+    visibility: GPUShaderStage.COMPUTE,
+    storageTexture: {
+      format: "rgba8snorm",
+      viewDimension: "2d",
+    },
+  };
+
+  const uniformsBindGroupLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+          viewDimension: "3d",
+        },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
+      {
+        binding: 3,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
+      normalEntry,
+      albedoEntry,
+      {
+        binding: 6,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "unfilterable-float",
+        },
+      },
+      velocityEntry,
+      {
+        binding: 8,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
+    ],
+  });
+
   const computePipeline = device.createComputePipeline({
-    layout: "auto",
+    layout: device.createPipelineLayout({
+      bindGroupLayouts: [uniformsBindGroupLayout],
+    }),
     compute: {
       module: device.createShaderModule({
         code: `
@@ -56,44 +136,48 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     computePass.setPipeline(computePipeline);
 
     const computeBindGroup = device.createBindGroup({
-      layout: computePipeline.getBindGroupLayout(0),
+      layout: uniformsBindGroupLayout,
       entries: [
         {
-          binding: 3,
+          binding: 0,
+          resource: voxelTextureView,
+        },
+        {
+          binding: 1,
           resource: {
             buffer: frustumCornerDirectionsBuffer,
           },
         },
         {
-          binding: 4,
+          binding: 2,
           resource: {
             buffer: cameraPositionBuffer,
           },
         },
         {
-          binding: 5,
+          binding: 3,
           resource: {
             buffer: transformationMatrixBuffer,
           },
         },
         {
-          binding: 6,
+          binding: 4,
           resource: outputTextures.normalTexture.createView(),
         },
         {
-          binding: 7,
+          binding: 5,
           resource: outputTextures.albedoTexture.createView(),
         },
         {
-          binding: 8,
+          binding: 6,
           resource: outputTextures.depthAndClusterTexture.createView(),
         },
         {
-          binding: 9,
+          binding: 7,
           resource: outputTextures.velocityTexture.createView(),
         },
         {
-          binding: 10,
+          binding: 8,
           resource: {
             buffer: viewProjectionMatricesBuffer,
           },
@@ -101,22 +185,13 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       ],
     });
 
-    const volumeBindGroup = device.createBindGroup({
-      layout: computePipeline.getBindGroupLayout(1),
-      entries: [
-        {
-          binding: 1,
-          resource: voxelTextureView,
-        },
-      ],
-    });
+    const rayPerThreadGroup = 4;
+
+    const workGroupsX = Math.ceil(resolution[0] / 8 / rayPerThreadGroup);
+    const workGroupsY = Math.ceil(resolution[1] / 8 / rayPerThreadGroup);
 
     computePass.setBindGroup(0, computeBindGroup);
-    computePass.setBindGroup(1, volumeBindGroup);
-    computePass.dispatchWorkgroups(
-      Math.ceil(resolution[0] / 8),
-      Math.ceil(resolution[1] / 8),
-    );
+    computePass.dispatchWorkgroups(workGroupsX, workGroupsY);
     computePass.end();
 
     commandEncoder.copyTextureToTexture(
@@ -132,7 +207,8 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         depthOrArrayLayers: 1, // Copy one layer (z-axis slice)
       },
     );
+    return commandEncoder.finish();
   };
 
-  return { render };
+  return { render, label: "G-Buffer" };
 };

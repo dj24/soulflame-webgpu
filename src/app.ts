@@ -22,6 +22,7 @@ import { getDiffusePass } from "./diffuse-pass/get-diffuse-pass";
 import { getVolumeAtlas, VolumeAtlas } from "./volume-atlas";
 import { haltonJitter } from "./jitter-view-projection";
 import { getTaaPass } from "./taa-pass/get-taa-pass";
+import { getFrameTimeTracker } from "./frametime-tracker";
 
 export type RenderArgs = {
   commandEncoder: GPUCommandEncoder;
@@ -37,7 +38,8 @@ export type RenderArgs = {
 
 export type RenderPass = {
   fixedUpdate?: () => void;
-  render: (args: RenderArgs) => void;
+  render: (args: RenderArgs) => GPUCommandBuffer;
+  label?: string;
 };
 
 export const debugValues = new DebugValuesStore();
@@ -46,7 +48,7 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.zero();
-let downscale = 2.0;
+let downscale = 1.0;
 const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
@@ -63,6 +65,8 @@ export let camera = new Camera({
 
 const debugUI = new DebugUI();
 
+const frameTimeTracker = getFrameTimeTracker();
+
 let handleDownscaleChange: (event: CustomEvent) => void;
 
 let voxelTextureView: GPUTextureView;
@@ -70,6 +74,8 @@ let skyTexture: GPUTexture;
 export const getObjectTransformsWorker = new Worker(
   new URL("./get-objects-transforms/objects-worker.ts", import.meta.url),
 );
+
+let animationFrameId: ReturnType<typeof requestAnimationFrame>;
 
 const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let normalTexture: GPUTexture;
@@ -84,7 +90,6 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let transformationMatrixBuffer: GPUBuffer;
   let viewProjectionMatricesBuffer: GPUBuffer;
 
-  let animationFrameId: ReturnType<typeof requestAnimationFrame>;
   let fixedIntervalId: ReturnType<typeof setInterval>;
 
   let previousViewProjectionMatrix = mat4.create();
@@ -228,6 +233,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   const frame = async () => {
     const newElapsedTime = performance.now() - startTime;
     deltaTime = newElapsedTime - elapsedTime;
+    frameTimeTracker.addSample("Frame Time", deltaTime);
     elapsedTime = newElapsedTime;
     frameCount++;
 
@@ -267,22 +273,9 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     const jitteredCameraPosition = mat4.getTranslation(camera.viewMatrix);
 
-    debugUI.log(
-      `
-      Direction: ${camera.direction[0].toFixed(
-        1,
-      )}, ${camera.direction[1].toFixed(1)}, ${camera.direction[2].toFixed(1)}
-      Position: ${jitteredCameraPosition[0].toFixed(
-        1,
-      )}, ${jitteredCameraPosition[1].toFixed(
-        1,
-      )}, ${jitteredCameraPosition[2].toFixed(1)}
-    Resolution: ${resolution[0].toFixed(1)}x${resolution[1].toFixed(0)}
-    Frame Time: ${deltaTime.toFixed(1)}ms
-    `,
-    );
+    debugUI.log(`${frameTimeTracker.toString()}
+    ${resolution[0]} x ${resolution[1]}`);
 
-    const commandEncoder = device.createCommandEncoder();
     if (timeBuffer) {
       writeToUniformBuffer(timeBuffer, [frameCount]);
     } else {
@@ -320,9 +313,14 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     createVelocityTexture();
     createOutputTexture();
 
+    let commandBuffers = [];
+
     voxelTextureView = volumeAtlas.getAtlasTextureView();
-    computePasses.forEach(({ render }) => {
-      render({
+
+    for (const computePass of computePasses) {
+      const { render, label } = computePass;
+      const commandEncoder = device.createCommandEncoder();
+      const commandBuffer = render({
         commandEncoder,
         resolutionBuffer,
         timeBuffer,
@@ -341,71 +339,74 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         transformationMatrixBuffer,
         viewProjectionMatricesBuffer,
       });
-    });
-    device.queue.submit([commandEncoder.finish()]);
+      commandBuffers.push(commandBuffer);
+    }
+
+    device.queue.submit(commandBuffers);
+    // await device.queue.onSubmittedWorkDone();
     animationFrameId = requestAnimationFrame(frame);
     previousViewProjectionMatrix = camera.inverseViewProjectionMatrix;
   };
 
   init();
-
-  const resizeObserver = new ResizeObserver(reset);
-  handleDownscaleChange = (event) => {
-    downscale = event.detail;
-    reset();
-  };
-  window.addEventListener("changedownscale", handleDownscaleChange);
-  resizeObserver.observe(canvas.parentElement);
 };
 
-if (navigator.gpu !== undefined) {
-  navigator.gpu.requestAdapter().then((adapter) => {
-    adapter.requestDevice().then(async (newDevice) => {
-      device = newDevice;
-      skyTexture = await createTextureFromImages(device, [
-        "cubemaps/town-square/posx.jpg",
-        "cubemaps/town-square/negx.jpg",
-        "cubemaps/town-square/posy.jpg",
-        "cubemaps/town-square/negy.jpg",
-        "cubemaps/town-square/posz.jpg",
-        "cubemaps/town-square/negz.jpg",
-      ]);
-      volumeAtlas = getVolumeAtlas(device);
-      const cornellBoxTexture = await create3dTexture(
-        device,
-        cornellBox.sliceFilePaths,
-        cornellBox.size,
-        "cornell box",
-      );
-      volumeAtlas.addVolume(cornellBoxTexture, "cornell box");
-      cornellBoxTexture.destroy();
+const start = () => {
+  cancelAnimationFrame(animationFrameId);
+  if (navigator.gpu !== undefined) {
+    navigator.gpu.requestAdapter().then((adapter) => {
+      adapter.requestDevice().then(async (newDevice) => {
+        device = newDevice;
+        skyTexture = await createTextureFromImages(device, [
+          "cubemaps/town-square/posx.jpg",
+          "cubemaps/town-square/negx.jpg",
+          "cubemaps/town-square/posy.jpg",
+          "cubemaps/town-square/negy.jpg",
+          "cubemaps/town-square/posz.jpg",
+          "cubemaps/town-square/negz.jpg",
+        ]);
+        volumeAtlas = getVolumeAtlas(device);
+        const cornellBoxTexture = await create3dTexture(
+          device,
+          cornellBox.sliceFilePaths,
+          cornellBox.size,
+          "cornell box",
+        );
+        volumeAtlas.addVolume(cornellBoxTexture, "cornell box");
+        cornellBoxTexture.destroy();
 
-      create3dTexture(
-        device,
-        teapot.sliceFilePaths,
-        teapot.size,
-        "teapot",
-      ).then((teapotTexture) => {
-        volumeAtlas.addVolume(teapotTexture, "teapot");
-        console.log({ teapot, teapotTexture });
-        teapotTexture.destroy();
+        create3dTexture(
+          device,
+          teapot.sliceFilePaths,
+          teapot.size,
+          "teapot",
+        ).then((teapotTexture) => {
+          volumeAtlas.addVolume(teapotTexture, "teapot");
+          console.log({ teapot, teapotTexture });
+          teapotTexture.destroy();
+        });
+
+        setTimeout(() => {
+          // volumeAtlas.removeVolume("teapot");
+        }, 2000);
+
+        renderLoop(device, [
+          // TODO: use center of pixel instead for depth prepass
+          await getDepthPrepass(),
+          await getGBufferPass(),
+          // await getDiffusePass(),
+          // await getReflectionsPass(),
+          // await getTaaPass(),
+          fullscreenQuad(device),
+        ]);
       });
-
-      setTimeout(() => {
-        // volumeAtlas.removeVolume("teapot");
-      }, 2000);
-
-      renderLoop(device, [
-        // TODO: use center of pixel instead for depth prepass
-        await getDepthPrepass(),
-        await getGBufferPass(),
-        // await getDiffusePass(),
-        // await getReflectionsPass(),
-        // await getTaaPass(),
-        fullscreenQuad(device),
-      ]);
     });
-  });
-} else {
-  console.error("WebGPU not supported");
-}
+  } else {
+    console.error("WebGPU not supported");
+  }
+};
+
+start();
+
+// const resizeObserver = new ResizeObserver(start);
+// resizeObserver.observe(canvas.parentElement);

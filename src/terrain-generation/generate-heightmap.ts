@@ -1,6 +1,6 @@
 import terrainHeight from "./terrain-height.wgsl";
 
-export const generateHeightmap = (device: GPUDevice): GPUTexture => {
+export const generateHeightmap = (device: GPUDevice): void => {
   const computePipeline = device.createComputePipeline({
     layout: "auto",
     compute: {

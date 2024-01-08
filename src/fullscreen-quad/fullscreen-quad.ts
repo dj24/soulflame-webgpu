@@ -16,7 +16,7 @@ export const fullscreenQuad = (device: GPUDevice) => {
       targets: [{ format: navigator.gpu.getPreferredCanvasFormat() }],
     },
   });
-  const render = (args: RenderArgs) => {
+  const render = (args: RenderArgs): GPUCommandBuffer => {
     const renderPass = args.commandEncoder.beginRenderPass({
       colorAttachments: [
         {
@@ -32,13 +32,6 @@ export const fullscreenQuad = (device: GPUDevice) => {
       layout: renderPipeline.getBindGroupLayout(0),
       entries: [
         {
-          binding: 0,
-          resource: device.createSampler({
-            magFilter: "nearest",
-            minFilter: "nearest",
-          }),
-        },
-        {
           binding: 1,
           resource: args.outputTextures.finalTexture.createView(),
         },
@@ -48,6 +41,7 @@ export const fullscreenQuad = (device: GPUDevice) => {
     renderPass.setBindGroup(0, bindGroup);
     renderPass.draw(6);
     renderPass.end();
+    return args.commandEncoder.finish();
   };
 
   return { render };

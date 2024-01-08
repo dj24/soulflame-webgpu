@@ -2,6 +2,7 @@ struct BoxIntersectionResult {
     tNear: f32,
     tFar: f32,
     normal: vec3<f32>,
+    isHit: bool,
 }
 
 fn boxIntersection(
@@ -10,6 +11,9 @@ fn boxIntersection(
     boxSize: vec3<f32>,
 ) -> BoxIntersectionResult {
     var result = BoxIntersectionResult();
+    result.isHit = false;
+    result.tNear = -1.0;
+    result.tFar = -1.0;
     let offsetRayOrigin = ro - boxSize;
     let m: vec3<f32> = 1.0 / rd;
     let n: vec3<f32> = m * offsetRayOrigin;
@@ -19,9 +23,6 @@ fn boxIntersection(
     let tN: f32 = max(max(t1.x, t1.y), t1.z);
     let tF: f32 = min(min(t2.x, t2.y), t2.z);
     if (tN > tF || tF < 0.0) {
-        result.tNear = -1.0;
-        result.tFar = -1.0;
-        result.normal = vec3(0.0);
         return result;
     }
     // Check if the ray starts inside the volume
@@ -34,13 +35,11 @@ fn boxIntersection(
     normal *= -sign(rd);
     // Check if the intersection is in the correct direction, only if inside the volume
     if (insideVolume && dot(normal, rd) < 0.0) {
-        result.tNear = -1.0;
-        result.tFar = -1.0;
-        result.normal = vec3(0.0);
         return result;
     }
     result.tNear = tN;
     result.tFar = tF;
     result.normal = normal;
+    result.isHit = true;
     return result;
 }

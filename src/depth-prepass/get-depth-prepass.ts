@@ -82,29 +82,23 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
         {
           binding: 1,
           resource: {
-            buffer: resolutionBuffer,
+            buffer: frustumCornerDirectionsBuffer,
           },
         },
         {
           binding: 2,
           resource: {
-            buffer: frustumCornerDirectionsBuffer,
+            buffer: cameraPositionBuffer,
           },
         },
         {
           binding: 3,
           resource: {
-            buffer: cameraPositionBuffer,
-          },
-        },
-        {
-          binding: 4,
-          resource: {
             buffer: transformationMatrixBuffer,
           },
         },
         {
-          binding: 5,
+          binding: 4,
           resource: voxelTextureView,
         },
       ],
@@ -149,7 +143,8 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
     );
 
     computePass.end();
+    return commandEncoder.finish();
   };
 
-  return { render: () => {} };
+  return { render, label: "Depth Prepass" };
 };
