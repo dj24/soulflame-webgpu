@@ -100,6 +100,13 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           type: "uniform",
         },
       },
+      {
+        binding: 9,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "storage",
+        },
+      },
     ],
   });
 
@@ -120,6 +127,31 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     },
   });
 
+  const bufferTotexturePipeline = device.createComputePipeline({
+    layout: device.createPipelineLayout({
+      bindGroupLayouts: [uniformsBindGroupLayout],
+    }),
+    compute: {
+      module: device.createShaderModule({
+        code: `
+          const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
+          ${getRayDirection}
+          ${boxIntersection}
+          ${raymarchVoxels}
+          ${gBuffer}`,
+      }),
+      entryPoint: "bufferToScreen",
+    },
+  });
+
+  let outputBuffer = device.createBuffer({
+    size: resolution[0] * resolution[1] * 16, // 4 bytes per pixel, 1 for each colour channel
+    usage:
+      GPUBufferUsage.STORAGE |
+      GPUBufferUsage.COPY_SRC |
+      GPUBufferUsage.COPY_DST,
+  });
+
   const render = ({
     commandEncoder,
     resolutionBuffer,
@@ -130,8 +162,22 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     transformationMatrixBuffer,
     viewProjectionMatricesBuffer,
   }: RenderArgs) => {
+    commandEncoder.clearBuffer(outputBuffer);
+
     const computePass = commandEncoder.beginComputePass();
-    computePass.setPipeline(computePipeline);
+
+    const bufferSize = resolution[0] * resolution[1] * 16;
+
+    if (bufferSize !== outputBuffer.size) {
+      outputBuffer.destroy();
+      outputBuffer = device.createBuffer({
+        size: resolution[0] * resolution[1] * 16, // 4 bytes per pixel, 1 for each colour channel
+        usage:
+          GPUBufferUsage.STORAGE |
+          GPUBufferUsage.COPY_SRC |
+          GPUBufferUsage.COPY_DST,
+      });
+    }
 
     const computeBindGroup = device.createBindGroup({
       layout: uniformsBindGroupLayout,
@@ -180,6 +226,12 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
             buffer: viewProjectionMatricesBuffer,
           },
         },
+        {
+          binding: 9,
+          resource: {
+            buffer: outputBuffer,
+          },
+        },
       ],
     });
 
@@ -190,8 +242,13 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     const workGroupsY = Math.ceil(teapot.size[1]);
     const workGroupsZ = Math.ceil(teapot.size[2]);
 
+    computePass.setPipeline(computePipeline);
     computePass.setBindGroup(0, computeBindGroup);
     computePass.dispatchWorkgroups(workGroupsX, workGroupsY, workGroupsZ);
+
+    computePass.setPipeline(bufferTotexturePipeline);
+    computePass.setBindGroup(0, computeBindGroup);
+    computePass.dispatchWorkgroups(resolution[0] / 8, resolution[1] / 8);
     computePass.end();
 
     commandEncoder.copyTextureToTexture(
@@ -207,6 +264,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         depthOrArrayLayers: 1, // Copy one layer (z-axis slice)
       },
     );
+
     return commandEncoder.finish();
   };
 

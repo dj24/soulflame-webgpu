@@ -3,6 +3,10 @@ struct ViewProjectionMatrices {
   previousViewProjection : mat4x4<f32>
 };
 
+struct OutputBufferElement {
+  colour : vec4<f32>,
+}
+
 @group(0) @binding(0) var voxels : texture_3d<f32>;
 @group(0) @binding(1) var<uniform> frustumCornerDirections : FrustumCornerDirections;
 @group(0) @binding(2) var<uniform> cameraPosition : vec3<f32>;
@@ -14,6 +18,7 @@ struct ViewProjectionMatrices {
 //@group(0) @binding(7) var depthWrite : texture_storage_2d<r32float, write>;
 @group(0) @binding(7) var velocityTex : texture_storage_2d<r32float, write>;
 @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;
+@group(0) @binding(9) var<storage, read_write> outputBuffer : array<OutputBufferElement>;
 
 
 fn plainIntersect(ro: vec3<f32>, rd: vec3<f32>, p: vec4<f32>) -> f32 {
@@ -66,15 +71,29 @@ fn main(
   textureStore(velocityTex, pixel, vec4(velocity,0));
 }
 
+// Convert 2D index to 1D
+fn convert2DTo1D(size: vec2<u32>, index2D: vec2<u32>) -> u32 {
+    return index2D.y * size.x + index2D.x;
+}
+
+// Convert 1D index to 2D
+fn convert1DTo2D(size: vec2<u32>, index1D: u32) -> vec2<u32> {
+    return vec2(index1D % size.x, index1D / size.x);
+}
+
 fn drawLine(v1: vec2<f32>, v2: vec2<f32>) {
   let v1Vec = vec2<f32>(v1.x, v1.y);
   let v2Vec = vec2<f32>(v2.x, v2.y);
-
+  let texSize = textureDimensions(albedoTex);
   let dist = i32(distance(v1Vec, v2Vec));
   for (var i = 0; i < dist; i = i + 1) {
     let x = u32(v1.x + f32(v2.x - v1.x) * (f32(i) / f32(dist)));
     let y = u32(v1.y + f32(v2.y - v1.y) * (f32(i) / f32(dist)));
-    textureStore(albedoTex, vec2<u32>(x,y), vec4(1.0));
+    if(x >= texSize.x || y >= texSize.y || x < 0 || y < 0) {
+      continue;
+    }
+    let bufferIndex = convert2DTo1D(texSize, vec2<u32>(x, y));
+    outputBuffer[bufferIndex].colour = vec4(1.0);
   }
 }
 
@@ -132,13 +151,54 @@ fn projectVoxels(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>, 
   if(foo.a == 0.0){
     return;
   }
+
   switch (edgeId){
+    // Back
     case 0: {
       drawLine(pixels[0], pixels[1]);
+      break;
+    }
+    case 1: {
+      drawLine(pixels[1], pixels[3]);
+      break;
+    }
+    case 2: {
+      drawLine(pixels[3], pixels[2]);
+      break;
+    }
+    case 3: {
+      drawLine(pixels[2], pixels[0]);
+      break;
+    }
+   // Front
+    case 4: {
+      drawLine(pixels[4], pixels[5]);
+      break;
+    }
+    case 5: {
+      drawLine(pixels[5], pixels[7]);
+      break;
+    }
+    case 6: {
+      drawLine(pixels[7], pixels[6]);
+      break;
+    }
+    case 7: {
+      drawLine(pixels[6], pixels[4]);
       break;
     }
     default :{
       break;
     }
   }
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn bufferToScreen(
+  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
+) {
+  let bufferIndex = GlobalInvocationID.x * GlobalInvocationID.y;
+  let bufferElement = outputBuffer[bufferIndex];
+  let pixel = convert1DTo2D(textureDimensions(albedoTex), bufferIndex);
+  textureStore(albedoTex, pixel, bufferElement.colour);
 }
