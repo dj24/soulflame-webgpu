@@ -66,50 +66,79 @@ fn main(
   textureStore(velocityTex, pixel, vec4(velocity,0));
 }
 
-@compute @workgroup_size(4, 4, 4)
-fn projectVoxels(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
+fn drawLine(v1: vec2<f32>, v2: vec2<f32>) {
+  let v1Vec = vec2<f32>(v1.x, v1.y);
+  let v2Vec = vec2<f32>(v2.x, v2.y);
+
+  let dist = i32(distance(v1Vec, v2Vec));
+  for (var i = 0; i < dist; i = i + 1) {
+    let x = u32(v1.x + f32(v2.x - v1.x) * (f32(i) / f32(dist)));
+    let y = u32(v1.y + f32(v2.y - v1.y) * (f32(i) / f32(dist)));
+    textureStore(albedoTex, vec2<u32>(x,y), vec4(1.0));
+  }
+}
+
+fn drawQuad(v1: vec2<f32>, v2: vec2<f32>, v3: vec2<f32>, v4: vec2<f32>) {
+  drawLine(v1, v2);
+  drawLine(v2, v3);
+  drawLine(v3, v4);
+  drawLine(v4, v1);
+}
+
+fn getVoxelVertices(voxel: vec3<f32>) -> array<vec4<f32>, 8> {
+  let voxelVertices = array<vec4<f32>, 8>(
+    vec4(voxel + vec3<f32>(0.0, 0.0, 0.0),1),
+    vec4(voxel + vec3<f32>(1.0, 0.0, 0.0),1),
+    vec4(voxel + vec3<f32>(0.0, 1.0, 0.0),1),
+    vec4(voxel + vec3<f32>(1.0, 1.0, 0.0),1),
+    vec4(voxel + vec3<f32>(0.0, 0.0, 1.0),1),
+    vec4(voxel + vec3<f32>(1.0, 0.0, 1.0),1),
+    vec4(voxel + vec3<f32>(0.0, 1.0, 1.0),1),
+    vec4(voxel +  vec3<f32>(1.0, 1.0, 1.0),1)
+  );
+  return voxelVertices;
+}
+
+var<workgroup> vertices: array<vec4<f32>, 8>;
+var<workgroup> pixels: array<vec2<f32>, 8>;
+var<workgroup> mvp: mat4x4<f32>;
+
+@compute @workgroup_size(8, 1, 1)
+fn projectVoxels(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>, @builtin(local_invocation_id) LocalInvocationID : vec3<u32>) {
+  var voxelId = GlobalInvocationID;
+  voxelId.x /= 8;
+  let edgeId = LocalInvocationID.x;
   var voxelObject = voxelObjects[0];
-  let voxelId = GlobalInvocationID;
-  var voxel = textureLoad(voxels, voxelId, 0);
-  let viewProjectionMatrix = viewProjections.viewProjection;
-  let modelMatrix = voxelObject.transform;
-  let mvp =  viewProjectionMatrix * modelMatrix;
 
-  let centerOfVoxel = vec3<f32>(voxelId) + vec3<f32>(0.5);
+  if(edgeId == 0){
+    let viewProjectionMatrix = viewProjections.viewProjection;
+    let modelMatrix = voxelObject.transform;
+    mvp =  viewProjectionMatrix * modelMatrix;
+    vertices = getVoxelVertices(vec3<f32>(voxelId));
+  }
 
-  var clipSpace = mvp * vec4(centerOfVoxel, 1.0);
-  if(clipSpace.z < -1.0) {
-    return;
-  }
-  let ndc = clipSpace.xyz / clipSpace.w;
-  if(ndc.x < -1.0 || ndc.x > 1.0 || ndc.y < -1.0 || ndc.y > 1.0 || ndc.z < -1.0 || ndc.z > 1.0) {
-    return;
-  }
-  let worldPos = (modelMatrix * vec4(centerOfVoxel, 1.0)).xyz;
+  workgroupBarrier();
+
+  let vertex = vertices[edgeId];
+  let clipSpaceVertex = mvp * vertex;
+  var ndc = clipSpaceVertex.xyz / clipSpaceVertex.w;
+  ndc = clamp(ndc, vec3<f32>(-1.0), vec3<f32>(1.0));
   var uv = (ndc.xy + vec2<f32>(1.0)) / vec2<f32>(2.0);
-//  uv.y = 1.0 - uv.y;
-  let pixel = vec2<i32>(uv * vec2<f32>(textureDimensions(albedoTex)));
+  pixels[edgeId] = vec2<f32>(uv * vec2<f32>(textureDimensions(albedoTex)));
 
+  workgroupBarrier();
 
-//  for(var x = 0; x < 128; x+=4) {
-//    for(var y = 0; y < 128; y+=4) {
-//      textureStore(albedoTex, vec2(x,y), vec4(1.0,0,0,1));
-//    }
-//  }
-
-  var r = 4;
   let foo = textureLoad(voxels, vec3<u32>(voxelId) + vec3<u32>(voxelObject.atlasLocation), 0);
-  let colour = vec3<f32>(voxelId) / vec3<f32>(voxelObject.size);
-  if(foo.a > 0.0){
-    for(var x = -r; x <= r; x++) {
-      for(var y = -r; y <= r; y++) {
-        let distancetoCenter = distance(vec2(0.0), vec2(f32(x),f32(y)));
-        if(distancetoCenter > f32(r)) {
-          continue;
-        }
-        textureStore(albedoTex, pixel + vec2<i32>(x,y), vec4(colour,1));
-      }
+  if(foo.a == 0.0){
+    return;
+  }
+  switch (edgeId){
+    case 0: {
+      drawLine(pixels[0], pixels[1]);
+      break;
+    }
+    default :{
+      break;
     }
   }
-
 }

@@ -2,10 +2,8 @@ import gBuffer from "./g-buffer.wgsl";
 import boxIntersection from "../shader/box-intersection.wgsl";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
-import {
-  createFloatUniformBuffer,
-  writeToFloatUniformBuffer,
-} from "../buffer-utils";
+import teapot from "../voxel-models/teapot.vxm";
+
 import {
   camera,
   device,
@@ -188,9 +186,9 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     // const workGroupsX = Math.ceil(resolution[0] / 8);
     // const workGroupsY = Math.ceil(resolution[1] / 8);
 
-    const workGroupsX = Math.ceil(64);
-    const workGroupsY = Math.ceil(64);
-    const workGroupsZ = Math.ceil(64);
+    const workGroupsX = Math.ceil(teapot.size[0]);
+    const workGroupsY = Math.ceil(teapot.size[1]);
+    const workGroupsZ = Math.ceil(teapot.size[2]);
 
     computePass.setBindGroup(0, computeBindGroup);
     computePass.dispatchWorkgroups(workGroupsX, workGroupsY, workGroupsZ);
