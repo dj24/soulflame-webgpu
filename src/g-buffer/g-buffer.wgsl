@@ -3,9 +3,6 @@ struct ViewProjectionMatrices {
   previousViewProjection : mat4x4<f32>
 };
 
-struct OutputBufferElement {
-  colour : vec4<f32>,
-}
 
 @group(0) @binding(0) var voxels : texture_3d<f32>;
 @group(0) @binding(1) var<uniform> frustumCornerDirections : FrustumCornerDirections;
@@ -18,7 +15,8 @@ struct OutputBufferElement {
 //@group(0) @binding(7) var depthWrite : texture_storage_2d<r32float, write>;
 @group(0) @binding(7) var velocityTex : texture_storage_2d<r32float, write>;
 @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;
-@group(0) @binding(9) var<storage, read_write> outputBuffer : array<OutputBufferElement>;
+@group(0) @binding(9) var<storage, read_write> pixelBuffer : array<atomic<u32>>;
+@group(0) @binding(10) var<uniform> resolution : vec2<u32>;
 
 
 fn plainIntersect(ro: vec3<f32>, rd: vec3<f32>, p: vec4<f32>) -> f32 {
@@ -82,123 +80,157 @@ fn convert1DTo2D(size: vec2<u32>, index1D: u32) -> vec2<u32> {
 }
 
 fn drawLine(v1: vec2<f32>, v2: vec2<f32>) {
-  let v1Vec = vec2<f32>(v1.x, v1.y);
-  let v2Vec = vec2<f32>(v2.x, v2.y);
-  let texSize = textureDimensions(albedoTex);
-  let dist = i32(distance(v1Vec, v2Vec));
-  for (var i = 0; i < dist; i = i + 1) {
-    let x = u32(v1.x + f32(v2.x - v1.x) * (f32(i) / f32(dist)));
-    let y = u32(v1.y + f32(v2.y - v1.y) * (f32(i) / f32(dist)));
-    if(x >= texSize.x || y >= texSize.y || x < 0 || y < 0) {
-      continue;
-    }
-    let bufferIndex = convert2DTo1D(texSize, vec2<u32>(x, y));
-    outputBuffer[bufferIndex].colour = vec4(1.0);
+  let dist = distance(v1, v2);
+  for (var i = 0.0; i < dist; i += 1.0) {
+    let x = u32(v1.x + (v2.x - v1.x) * (i / dist));
+    let y = u32(v1.y + (v2.y - v1.y) * (i / dist));
+    let bufferIndex = convert2DTo1D(resolution, vec2<u32>(x, y));
+    atomicStore(&pixelBuffer[bufferIndex], 255u);
   }
 }
 
-fn drawQuad(v1: vec2<f32>, v2: vec2<f32>, v3: vec2<f32>, v4: vec2<f32>) {
-  drawLine(v1, v2);
-  drawLine(v2, v3);
-  drawLine(v3, v4);
-  drawLine(v4, v1);
+fn getVoxelVertices(voxel: vec3<f32>) -> array<vec3<f32>, 8> {
+  return array<vec3<f32>, 8>(
+     voxel + vec3<f32>(0.0, 0.0, 0.0),
+     voxel + vec3<f32>(1.0, 0.0, 0.0),
+     voxel + vec3<f32>(0.0, 1.0, 0.0),
+     voxel + vec3<f32>(1.0, 1.0, 0.0),
+     voxel + vec3<f32>(0.0, 0.0, 1.0),
+     voxel + vec3<f32>(1.0, 0.0, 1.0),
+     voxel + vec3<f32>(0.0, 1.0, 1.0),
+     voxel +  vec3<f32>(1.0, 1.0, 1.0)
+   );
 }
 
-fn getVoxelVertices(voxel: vec3<f32>) -> array<vec4<f32>, 8> {
-  let voxelVertices = array<vec4<f32>, 8>(
-    vec4(voxel + vec3<f32>(0.0, 0.0, 0.0),1),
-    vec4(voxel + vec3<f32>(1.0, 0.0, 0.0),1),
-    vec4(voxel + vec3<f32>(0.0, 1.0, 0.0),1),
-    vec4(voxel + vec3<f32>(1.0, 1.0, 0.0),1),
-    vec4(voxel + vec3<f32>(0.0, 0.0, 1.0),1),
-    vec4(voxel + vec3<f32>(1.0, 0.0, 1.0),1),
-    vec4(voxel + vec3<f32>(0.0, 1.0, 1.0),1),
-    vec4(voxel +  vec3<f32>(1.0, 1.0, 1.0),1)
+fn barycentric(v1: vec2<f32>, v2: vec2<f32>, v3: vec2<f32>, p: vec2<f32>) -> vec3<f32> {
+  let u = cross(
+    vec3<f32>(v3.x - v1.x, v2.x - v1.x, v1.x - p.x),
+    vec3<f32>(v3.y - v1.y, v2.y - v1.y, v1.y - p.y)
   );
-  return voxelVertices;
+
+  if (abs(u.z) < 1.0) {
+    return vec3<f32>(-1.0, 1.0, 1.0);
+  }
+
+  return vec3<f32>(1.0 - (u.x+u.y)/u.z, u.y/u.z, u.x/u.z);
 }
 
-var<workgroup> vertices: array<vec4<f32>, 8>;
-var<workgroup> pixels: array<vec2<f32>, 8>;
-var<workgroup> mvp: mat4x4<f32>;
+fn get_min_max(v1: vec2<f32>, v2: vec2<f32>, v3: vec2<f32>) -> vec4<f32> {
+  var min_max = vec4<f32>();
+  min_max.x = min(min(v1.x, v2.x), v3.x);
+  min_max.y = min(min(v1.y, v2.y), v3.y);
+  min_max.z = max(max(v1.x, v2.x), v3.x);
+  min_max.w = max(max(v1.y, v2.y), v3.y);
 
-@compute @workgroup_size(8, 1, 1)
-fn projectVoxels(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>, @builtin(local_invocation_id) LocalInvocationID : vec3<u32>) {
+  return min_max;
+}
+
+fn get_min_max4(v1: vec2<f32>, v2: vec2<f32>, v3: vec2<f32>, v4: vec2<f32>) -> vec4<f32> {
+  var min_max = vec4<f32>();
+
+  let foo = min(min(v1.xy, v2.xy), min(v3.xy, v4.xy));
+  let bar = max(max(v1.xy, v2.xy), max(v3.xy, v4.xy));
+
+  return vec4(foo, bar);
+}
+
+fn draw_triangle(v1: vec2<f32>, v2: vec2<f32>, v3: vec2<f32>) {
+  let min_max = get_min_max(v1, v2, v3);
+  let startX = u32(min_max.x);
+  let startY = u32(min_max.y);
+  let endX = u32(min_max.z);
+  let endY = u32(min_max.w);
+
+  for (var x: u32 = startX; x <= endX; x = x + 1u) {
+    for (var y: u32 = startY; y <= endY; y = y + 1u) {
+      let bc = barycentric(v1, v2, v3, vec2<f32>(f32(x), f32(y)));
+      if (bc.x < 0.0 || bc.y < 0.0 || bc.z < 0.0) {
+        continue;
+      }
+      let bufferIndex = convert2DTo1D(resolution, vec2<u32>(x, y));
+      atomicStore(&pixelBuffer[bufferIndex], 255u);
+    }
+  }
+}
+
+fn draw_quad(v1: vec2<f32>, v2: vec2<f32>, v3: vec2<f32>, v4: vec2<f32>) {
+  let min_max = get_min_max4(v1, v2, v3, v4);
+  let startX = u32(min_max.x);
+  let startY = u32(min_max.y);
+  let endX = u32(min_max.z);
+  let endY = u32(min_max.w);
+
+  for (var x: u32 = startX; x <= endX; x = x + 1u) {
+    for (var y: u32 = startY; y <= endY; y = y + 1u) {
+      let bc1 = barycentric(v1, v2, v4, vec2<f32>(f32(x), f32(y)));
+      let bc2 = barycentric(v2, v3, v4, vec2<f32>(f32(x), f32(y)));
+
+      // Check if the point is inside both triangles
+      if ((bc1.x >= 0.0 && bc1.y >= 0.0 && bc1.z >= 0.0) &&
+          (bc2.x >= 0.0 && bc2.y >= 0.0 && bc2.z >= 0.0)) {
+        let bufferIndex = convert2DTo1D(resolution, vec2<u32>(x, y));
+        atomicStore(&pixelBuffer[bufferIndex], 255u);
+      }
+    }
+  }
+}
+
+@compute @workgroup_size(4, 4, 4)
+fn projectVoxels(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
   var voxelId = GlobalInvocationID;
-  voxelId.x /= 8;
-  let edgeId = LocalInvocationID.x;
   var voxelObject = voxelObjects[0];
 
-  if(edgeId == 0){
-    let viewProjectionMatrix = viewProjections.viewProjection;
-    let modelMatrix = voxelObject.transform;
-    mvp =  viewProjectionMatrix * modelMatrix;
-    vertices = getVoxelVertices(vec3<f32>(voxelId));
+  let viewProjectionMatrix = viewProjections.viewProjection;
+  let modelMatrix = voxelObject.transform;
+  let mvp =  viewProjectionMatrix * modelMatrix;
+  let clipSpaceVoxel = mvp * vec4(vec3<f32>(voxelId), 1.0);
+//  if(clipSpaceVoxel.x > 1.0 || clipSpaceVoxel.x < -1.0) {
+  if(clipSpaceVoxel.z < 1.5) {
+    return;
   }
 
-  workgroupBarrier();
+  let vertices = getVoxelVertices(vec3<f32>(voxelId));
+  var pixels = array<vec2<f32>, 8>();
 
-  let vertex = vertices[edgeId];
-  let clipSpaceVertex = mvp * vertex;
-  var ndc = clipSpaceVertex.xyz / clipSpaceVertex.w;
-  ndc = clamp(ndc, vec3<f32>(-1.0), vec3<f32>(1.0));
-  var uv = (ndc.xy + vec2<f32>(1.0)) / vec2<f32>(2.0);
-  pixels[edgeId] = vec2<f32>(uv * vec2<f32>(textureDimensions(albedoTex)));
+  for(var i = 0; i < 8; i++) {
+    let clipSpaceVertex = mvp * vec4(vertices[i],1.0);
+    var ndc = clipSpaceVertex.xyz / clipSpaceVertex.w;
+    ndc = clamp(ndc, vec3<f32>(-1.0), vec3<f32>(1.0));
 
-  workgroupBarrier();
+    var uv = (ndc.xy + vec2<f32>(1.0)) / vec2<f32>(2.0);
+    pixels[i] = vec2<f32>(uv * vec2<f32>(resolution));
+  }
 
   let foo = textureLoad(voxels, vec3<u32>(voxelId) + vec3<u32>(voxelObject.atlasLocation), 0);
   if(foo.a == 0.0){
     return;
   }
 
-  switch (edgeId){
-    // Back
-    case 0: {
-      drawLine(pixels[0], pixels[1]);
-      break;
-    }
-    case 1: {
-      drawLine(pixels[1], pixels[3]);
-      break;
-    }
-    case 2: {
-      drawLine(pixels[3], pixels[2]);
-      break;
-    }
-    case 3: {
-      drawLine(pixels[2], pixels[0]);
-      break;
-    }
-   // Front
-    case 4: {
-      drawLine(pixels[4], pixels[5]);
-      break;
-    }
-    case 5: {
-      drawLine(pixels[5], pixels[7]);
-      break;
-    }
-    case 6: {
-      drawLine(pixels[7], pixels[6]);
-      break;
-    }
-    case 7: {
-      drawLine(pixels[6], pixels[4]);
-      break;
-    }
-    default :{
-      break;
-    }
-  }
+  draw_triangle(pixels[0], pixels[1], pixels[2]);
+  draw_triangle(pixels[1], pixels[2], pixels[3]);
+
+  draw_triangle(pixels[4], pixels[5], pixels[6]);
+  draw_triangle(pixels[5], pixels[6], pixels[7]);
+
+  draw_triangle(pixels[0], pixels[1], pixels[4]);
+  draw_triangle(pixels[1], pixels[4], pixels[5]);
+
+  draw_triangle(pixels[2], pixels[3], pixels[6]);
+  draw_triangle(pixels[3], pixels[6], pixels[7]);
+
+  draw_triangle(pixels[0], pixels[2], pixels[4]);
+  draw_triangle(pixels[2], pixels[4], pixels[6]);
+
+  draw_triangle(pixels[1], pixels[3], pixels[5]);
+  draw_triangle(pixels[3], pixels[5], pixels[7]);
 }
 
 @compute @workgroup_size(8, 8, 1)
 fn bufferToScreen(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
-  let bufferIndex = GlobalInvocationID.x * GlobalInvocationID.y;
-  let bufferElement = outputBuffer[bufferIndex];
+  let bufferIndex = convert2DTo1D(textureDimensions(albedoTex), GlobalInvocationID.xy);
+  let colour = vec4(f32(atomicLoad(&pixelBuffer[bufferIndex])));
   let pixel = convert1DTo2D(textureDimensions(albedoTex), bufferIndex);
-  textureStore(albedoTex, pixel, bufferElement.colour);
+  textureStore(albedoTex, pixel, colour);
 }

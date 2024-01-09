@@ -107,6 +107,13 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           type: "storage",
         },
       },
+      {
+        binding: 10,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
     ],
   });
 
@@ -171,7 +178,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     if (bufferSize !== outputBuffer.size) {
       outputBuffer.destroy();
       outputBuffer = device.createBuffer({
-        size: resolution[0] * resolution[1] * 16, // 4 bytes per pixel, 1 for each colour channel
+        size: bufferSize, // 4 bytes per pixel, 1 for each colour channel
         usage:
           GPUBufferUsage.STORAGE |
           GPUBufferUsage.COPY_SRC |
@@ -232,15 +239,21 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
             buffer: outputBuffer,
           },
         },
+        {
+          binding: 10,
+          resource: {
+            buffer: resolutionBuffer,
+          },
+        },
       ],
     });
 
     // const workGroupsX = Math.ceil(resolution[0] / 8);
     // const workGroupsY = Math.ceil(resolution[1] / 8);
 
-    const workGroupsX = Math.ceil(teapot.size[0]);
-    const workGroupsY = Math.ceil(teapot.size[1]);
-    const workGroupsZ = Math.ceil(teapot.size[2]);
+    const workGroupsX = Math.ceil(teapot.size[0] / 4);
+    const workGroupsY = Math.ceil(teapot.size[1] / 4);
+    const workGroupsZ = Math.ceil(teapot.size[2] / 4);
 
     computePass.setPipeline(computePipeline);
     computePass.setBindGroup(0, computeBindGroup);
