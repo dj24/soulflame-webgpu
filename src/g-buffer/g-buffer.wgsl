@@ -134,7 +134,7 @@ fn get_min_max4(v1: vec2<f32>, v2: vec2<f32>, v3: vec2<f32>, v4: vec2<f32>) -> v
   return vec4(foo, bar);
 }
 
-fn draw_triangle(v1: vec2<f32>, v2: vec2<f32>, v3: vec2<f32>) {
+fn draw_triangle(v1: vec2<f32>, v2: vec2<f32>, v3: vec2<f32>, value: u32) {
   let min_max = get_min_max(v1, v2, v3);
   let startX = u32(min_max.x);
   let startY = u32(min_max.y);
@@ -148,7 +148,7 @@ fn draw_triangle(v1: vec2<f32>, v2: vec2<f32>, v3: vec2<f32>) {
         continue;
       }
       let bufferIndex = convert2DTo1D(resolution, vec2<u32>(x, y));
-      atomicStore(&pixelBuffer[bufferIndex], 255u);
+      atomicStore(&pixelBuffer[bufferIndex], value);
     }
   }
 }
@@ -175,16 +175,31 @@ fn draw_quad(v1: vec2<f32>, v2: vec2<f32>, v3: vec2<f32>, v4: vec2<f32>) {
   }
 }
 
+fn project(mvp: mat4x4<f32>, p: vec3<f32>) -> vec2<f32> {
+  let clipSpaceVertex = mvp * vec4(p,1.0);
+  var ndc = clipSpaceVertex.xyz / clipSpaceVertex.w;
+  ndc = clamp(ndc, vec3<f32>(-1.0), vec3<f32>(1.0));
+  var uv = (ndc.xy + vec2<f32>(1.0)) / vec2<f32>(2.0);
+  return vec2<f32>(uv * vec2<f32>(resolution));
+}
+
 @compute @workgroup_size(4, 4, 4)
 fn projectVoxels(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
   var voxelId = GlobalInvocationID;
   var voxelObject = voxelObjects[0];
 
+  // Empty voxel
+  let foo = textureLoad(voxels, vec3<u32>(voxelId) + vec3<u32>(voxelObject.atlasLocation), 0);
+  if(foo.a == 0.0){
+    return;
+  }
+
   let viewProjectionMatrix = viewProjections.viewProjection;
   let modelMatrix = voxelObject.transform;
   let mvp =  viewProjectionMatrix * modelMatrix;
   let clipSpaceVoxel = mvp * vec4(vec3<f32>(voxelId), 1.0);
-//  if(clipSpaceVoxel.x > 1.0 || clipSpaceVoxel.x < -1.0) {
+
+  // TODO: this is a hack to get rid of the voxels that are behind the camera
   if(clipSpaceVoxel.z < 1.5) {
     return;
   }
@@ -193,36 +208,31 @@ fn projectVoxels(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) 
   var pixels = array<vec2<f32>, 8>();
 
   for(var i = 0; i < 8; i++) {
-    let clipSpaceVertex = mvp * vec4(vertices[i],1.0);
-    var ndc = clipSpaceVertex.xyz / clipSpaceVertex.w;
-    ndc = clamp(ndc, vec3<f32>(-1.0), vec3<f32>(1.0));
-
-    var uv = (ndc.xy + vec2<f32>(1.0)) / vec2<f32>(2.0);
-    pixels[i] = vec2<f32>(uv * vec2<f32>(resolution));
+    pixels[i] = project(mvp, vertices[i]);
   }
 
-  let foo = textureLoad(voxels, vec3<u32>(voxelId) + vec3<u32>(voxelObject.atlasLocation), 0);
-  if(foo.a == 0.0){
-    return;
-  }
+  let voxelWorldPos = (modelMatrix * vec4(vec3<f32>(voxelId), 1.0)).xyz;
+  let distanceToCamera = distance(voxelWorldPos, cameraPosition);
+  let colour = vec4<f32>(f32(voxelId.x % 8),f32(voxelId.y % 8),f32(voxelId.z % 8), 1.0) / 8.0;
+  let packedColour =  pack4x8unorm(colour);
 
-  draw_triangle(pixels[0], pixels[1], pixels[2]);
-  draw_triangle(pixels[1], pixels[2], pixels[3]);
+  draw_triangle(pixels[0], pixels[1], pixels[2],packedColour);
+  draw_triangle(pixels[1], pixels[2], pixels[3],packedColour);
 
-  draw_triangle(pixels[4], pixels[5], pixels[6]);
-  draw_triangle(pixels[5], pixels[6], pixels[7]);
+  draw_triangle(pixels[4], pixels[5], pixels[6],packedColour);
+  draw_triangle(pixels[5], pixels[6], pixels[7],packedColour);
 
-  draw_triangle(pixels[0], pixels[1], pixels[4]);
-  draw_triangle(pixels[1], pixels[4], pixels[5]);
+  draw_triangle(pixels[0], pixels[1], pixels[4],packedColour);
+  draw_triangle(pixels[1], pixels[4], pixels[5],packedColour);
 
-  draw_triangle(pixels[2], pixels[3], pixels[6]);
-  draw_triangle(pixels[3], pixels[6], pixels[7]);
+  draw_triangle(pixels[2], pixels[3], pixels[6],packedColour);
+  draw_triangle(pixels[3], pixels[6], pixels[7],packedColour);
 
-  draw_triangle(pixels[0], pixels[2], pixels[4]);
-  draw_triangle(pixels[2], pixels[4], pixels[6]);
+  draw_triangle(pixels[0], pixels[2], pixels[4],packedColour);
+  draw_triangle(pixels[2], pixels[4], pixels[6],packedColour);
 
-  draw_triangle(pixels[1], pixels[3], pixels[5]);
-  draw_triangle(pixels[3], pixels[5], pixels[7]);
+  draw_triangle(pixels[1], pixels[3], pixels[5],packedColour);
+  draw_triangle(pixels[3], pixels[5], pixels[7],packedColour);
 }
 
 @compute @workgroup_size(8, 8, 1)
@@ -230,7 +240,8 @@ fn bufferToScreen(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
   let bufferIndex = convert2DTo1D(textureDimensions(albedoTex), GlobalInvocationID.xy);
-  let colour = vec4(f32(atomicLoad(&pixelBuffer[bufferIndex])));
+  let bufferElement = atomicLoad(&pixelBuffer[bufferIndex]);
+  let unpackedColour = unpack4x8unorm(bufferElement);
   let pixel = convert1DTo2D(textureDimensions(albedoTex), bufferIndex);
-  textureStore(albedoTex, pixel, colour);
+  textureStore(albedoTex, pixel, unpackedColour);
 }

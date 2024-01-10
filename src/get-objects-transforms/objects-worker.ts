@@ -1,6 +1,7 @@
 import { mat4, vec3, Vec3 } from "wgpu-matrix";
 import { VoxelObject } from "../voxel-object";
 import { Camera } from "../camera";
+import dragonVolume from "../voxel-models/dragon.vxm";
 import { debugValues } from "../app";
 
 const ctx: Worker = self as any;
@@ -36,9 +37,9 @@ const getInnerBox = () => {
   let m = mat4.identity();
   let scaleFactor = 0.05;
   mat4.scale(m, [scaleFactor, scaleFactor, scaleFactor], m);
-  mat4.translate(m, vec3.divScalar(teapotSize, 2), m);
-  mat4.translate(m, vec3.divScalar(teapotSize, -2), m);
-  return new VoxelObject(m, teapotSize, [cornellSize[0], 0, 0]);
+  mat4.translate(m, vec3.divScalar(dragonVolume.size, 2), m);
+  mat4.translate(m, vec3.divScalar(dragonVolume.size, -2), m);
+  return new VoxelObject(m, dragonVolume.size, [cornellSize[0], 0, 0]);
 };
 
 const updateInnerBox = (
@@ -54,9 +55,9 @@ const updateInnerBox = (
   mat4.translate(m, [x, y, z], m);
   let scaleFactor = scale * 0.05;
   mat4.scale(m, [scaleFactor, scaleFactor, scaleFactor], m);
-  mat4.translate(m, vec3.divScalar(teapotSize, 2), m);
+  mat4.translate(m, vec3.divScalar(voxelObject.size, 2), m);
   mat4.rotateY(m, rotateY - 1, m);
-  mat4.translate(m, vec3.divScalar(teapotSize, -2), m);
+  mat4.translate(m, vec3.divScalar(voxelObject.size, -2), m);
   voxelObject.transform = m;
   voxelObject.inverseTransform = mat4.invert(m);
 };

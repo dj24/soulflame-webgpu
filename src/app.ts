@@ -10,7 +10,7 @@ import { DebugUI } from "./ui";
 import "./main.css";
 import { Mat4, mat4, vec2, vec3 } from "wgpu-matrix";
 import cornellBox from "./voxel-models/cornell.vxm";
-import teapot from "./voxel-models/teapot.vxm";
+import dragon from "./voxel-models/dragon.vxm";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
 import { DebugValuesStore } from "./debug-values-store";
@@ -59,7 +59,7 @@ let volumeAtlas: VolumeAtlas;
 const startingCameraFieldOfView = 80;
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
-  position: vec3.create(3.5, -3.5, -6.2),
+  position: vec3.create(3.5, 3.5, -6.2),
   direction: vec3.create(),
 });
 
@@ -398,17 +398,17 @@ const start = () => {
 
         create3dTexture(
           device,
-          teapot.sliceFilePaths,
-          teapot.size,
-          "teapot",
-        ).then((teapotTexture) => {
-          volumeAtlas.addVolume(teapotTexture, "teapot");
-          console.log({ teapot, teapotTexture });
-          teapotTexture.destroy();
+          dragon.sliceFilePaths,
+          dragon.size,
+          "dragon",
+        ).then((dragonTexture) => {
+          volumeAtlas.addVolume(dragonTexture, "dragon");
+          console.log({ dragon, dragonTexture });
+          dragonTexture.destroy();
         });
 
         setTimeout(() => {
-          // volumeAtlas.removeVolume("teapot");
+          // volumeAtlas.removeVolume("dragon");
         }, 2000);
 
         renderLoop(device, [
