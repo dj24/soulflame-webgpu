@@ -29,11 +29,11 @@ export class Camera extends MoveableObject {
   }
 
   get right() {
-    return vec3.transformQuat(vec3.create(1, 0, 0), this.rotation);
+    return vec3.transformQuat(vec3.create(-1, 0, 0), this.rotation);
   }
 
   get left() {
-    return vec3.transformQuat(vec3.create(-1, 0, 0), this.rotation);
+    return vec3.transformQuat(vec3.create(1, 0, 0), this.rotation);
   }
 
   get up() {

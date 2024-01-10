@@ -70,7 +70,7 @@ export class DebugUI {
       if (!this.isMouseDown) {
         return;
       }
-      debugValues.targetRotateY -= event.movementX * 0.005;
+      debugValues.targetRotateY += event.movementX * 0.005;
       // console.log(event.movementX, event.movementY);
     });
   }

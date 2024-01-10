@@ -173,7 +173,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
 
     const computePass = commandEncoder.beginComputePass();
 
-    const bufferSize = resolution[0] * resolution[1] * 16;
+    const bufferSize = resolution[0] * resolution[1] * 8; // 4 bytes for colour, 4 bytes for distance
 
     if (bufferSize !== outputBuffer.size) {
       outputBuffer.destroy();

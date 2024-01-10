@@ -11,6 +11,7 @@ import "./main.css";
 import { Mat4, mat4, vec2, vec3 } from "wgpu-matrix";
 import cornellBox from "./voxel-models/cornell.vxm";
 import dragon from "./voxel-models/dragon.vxm";
+import treehouse from "./voxel-models/treehouse.vxm";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
 import { DebugValuesStore } from "./debug-values-store";
@@ -56,7 +57,7 @@ export let frameCount = 0;
 
 let volumeAtlas: VolumeAtlas;
 
-const startingCameraFieldOfView = 80;
+const startingCameraFieldOfView = 80 * (Math.PI / 180);
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
   position: vec3.create(3.5, 3.5, -6.2),
@@ -254,6 +255,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     const bufferContents = [
       ...camera.viewProjectionMatrix,
       ...previousViewProjectionMatrix,
+      ...camera.inverseViewProjectionMatrix,
     ];
 
     if (viewProjectionMatricesBuffer) {
@@ -403,7 +405,7 @@ const start = () => {
           "dragon",
         ).then((dragonTexture) => {
           volumeAtlas.addVolume(dragonTexture, "dragon");
-          console.log({ dragon, dragonTexture });
+          console.log({ dragon, dragonTexture, treehouse });
           dragonTexture.destroy();
         });
 

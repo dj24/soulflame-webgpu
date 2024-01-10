@@ -1,8 +1,14 @@
 struct ViewProjectionMatrices {
   viewProjection : mat4x4<f32>,
-  previousViewProjection : mat4x4<f32>
+  previousViewProjection : mat4x4<f32>,
+  inverseViewProjection : mat4x4<f32>,
 };
 
+
+struct PixelBufferElement {
+  colour : u32,
+  distance : atomic<u32>
+};
 
 @group(0) @binding(0) var voxels : texture_3d<f32>;
 @group(0) @binding(1) var<uniform> frustumCornerDirections : FrustumCornerDirections;
@@ -15,7 +21,7 @@ struct ViewProjectionMatrices {
 //@group(0) @binding(7) var depthWrite : texture_storage_2d<r32float, write>;
 @group(0) @binding(7) var velocityTex : texture_storage_2d<r32float, write>;
 @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;
-@group(0) @binding(9) var<storage, read_write> pixelBuffer : array<atomic<u32>>;
+@group(0) @binding(9) var<storage, read_write> pixelBuffer : array<PixelBufferElement>;
 @group(0) @binding(10) var<uniform> resolution : vec2<u32>;
 
 
@@ -85,7 +91,7 @@ fn drawLine(v1: vec2<f32>, v2: vec2<f32>) {
     let x = u32(v1.x + (v2.x - v1.x) * (i / dist));
     let y = u32(v1.y + (v2.y - v1.y) * (i / dist));
     let bufferIndex = convert2DTo1D(resolution, vec2<u32>(x, y));
-    atomicStore(&pixelBuffer[bufferIndex], 255u);
+//    atomicStore(&pixelBuffer[bufferIndex].colour, 255u);
   }
 }
 
@@ -102,7 +108,50 @@ fn getVoxelVertices(voxel: vec3<f32>) -> array<vec3<f32>, 8> {
    );
 }
 
-fn barycentric(v1: vec2<f32>, v2: vec2<f32>, v3: vec2<f32>, p: vec2<f32>) -> vec3<f32> {
+fn getVoxelNormals(voxel: vec3<f32>) -> array<vec3<f32>, 6> {
+  return array<vec3<f32>, 6>(
+    vec3<f32>(0.0, 0.0, -1.0),
+    vec3<f32>(0.0, 0.0, 1.0),
+    vec3<f32>(0.0, -1.0, 0.0),
+    vec3<f32>(0.0, 1.0, 0.0),
+    vec3<f32>(1.0, 0.0, 0.0),
+    vec3<f32>(-1.0, 0.0, 0.0)
+
+  );
+}
+
+struct Quad {
+  v1 : vec3<f32>,
+  v2 : vec3<f32>,
+  v3 : vec3<f32>,
+  v4 : vec3<f32>,
+  normal : vec3<f32>
+};
+
+fn getVoxelQuads(voxel: vec3<f32>) -> array<Quad, 6> {
+  let vertices = getVoxelVertices(voxel);
+  let normals = getVoxelNormals(voxel);
+  return array<Quad, 6>(
+    Quad(vertices[0], vertices[1], vertices[2], vertices[3], normals[0]),
+    Quad(vertices[4], vertices[5], vertices[6], vertices[7], normals[1]),
+    Quad(vertices[0], vertices[1], vertices[4], vertices[5], normals[2]),
+    Quad(vertices[2], vertices[3], vertices[6], vertices[7], normals[3]),
+    Quad(vertices[0], vertices[2], vertices[4], vertices[6], normals[4]),
+    Quad(vertices[1], vertices[3], vertices[5], vertices[7], normals[5])
+  );
+}
+
+fn drawQuad(mvp: mat4x4<f32>, quad: Quad, packedColour: u32) {
+  let v1 = project(mvp, quad.v1);
+  let v2 = project(mvp, quad.v2);
+  let v3 = project(mvp, quad.v3);
+  let v4 = project(mvp, quad.v4);
+
+  draw_triangle(v1, v2, v3, packedColour);
+  draw_triangle(v2, v3, v4, packedColour);
+}
+
+fn barycentric(v1: vec3<f32>, v2: vec3<f32>, v3: vec3<f32>, p: vec2<f32>) -> vec3<f32> {
   let u = cross(
     vec3<f32>(v3.x - v1.x, v2.x - v1.x, v1.x - p.x),
     vec3<f32>(v3.y - v1.y, v2.y - v1.y, v1.y - p.y)
@@ -115,7 +164,7 @@ fn barycentric(v1: vec2<f32>, v2: vec2<f32>, v3: vec2<f32>, p: vec2<f32>) -> vec
   return vec3<f32>(1.0 - (u.x+u.y)/u.z, u.y/u.z, u.x/u.z);
 }
 
-fn get_min_max(v1: vec2<f32>, v2: vec2<f32>, v3: vec2<f32>) -> vec4<f32> {
+fn get_min_max(v1: vec3<f32>, v2: vec3<f32>, v3: vec3<f32>) -> vec4<f32> {
   var min_max = vec4<f32>();
   min_max.x = min(min(v1.x, v2.x), v3.x);
   min_max.y = min(min(v1.y, v2.y), v3.y);
@@ -125,16 +174,14 @@ fn get_min_max(v1: vec2<f32>, v2: vec2<f32>, v3: vec2<f32>) -> vec4<f32> {
   return min_max;
 }
 
-fn get_min_max4(v1: vec2<f32>, v2: vec2<f32>, v3: vec2<f32>, v4: vec2<f32>) -> vec4<f32> {
-  var min_max = vec4<f32>();
+// Hack to allow us to use atomic min, we cant use it on floats
+const DEPTH_PRECISION = 1000000.0;
 
-  let foo = min(min(v1.xy, v2.xy), min(v3.xy, v4.xy));
-  let bar = max(max(v1.xy, v2.xy), max(v3.xy, v4.xy));
-
-  return vec4(foo, bar);
-}
-
-fn draw_triangle(v1: vec2<f32>, v2: vec2<f32>, v3: vec2<f32>, value: u32) {
+/**
+  * Writes screen space triangle to pixel buffer
+  * For each vertex, x and y are screen coordinates, z is depth
+*/
+fn draw_triangle(v1: vec3<f32>, v2: vec3<f32>, v3: vec3<f32>, packedColour: u32) {
   let min_max = get_min_max(v1, v2, v3);
   let startX = u32(min_max.x);
   let startY = u32(min_max.y);
@@ -143,96 +190,66 @@ fn draw_triangle(v1: vec2<f32>, v2: vec2<f32>, v3: vec2<f32>, value: u32) {
 
   for (var x: u32 = startX; x <= endX; x = x + 1u) {
     for (var y: u32 = startY; y <= endY; y = y + 1u) {
-      let bc = barycentric(v1, v2, v3, vec2<f32>(f32(x), f32(y)));
+      let bc = barycentric(v1, v2, v3, vec2(f32(x), f32(y)));
       if (bc.x < 0.0 || bc.y < 0.0 || bc.z < 0.0) {
         continue;
       }
       let bufferIndex = convert2DTo1D(resolution, vec2<u32>(x, y));
-      atomicStore(&pixelBuffer[bufferIndex], value);
-    }
-  }
-}
-
-fn draw_quad(v1: vec2<f32>, v2: vec2<f32>, v3: vec2<f32>, v4: vec2<f32>) {
-  let min_max = get_min_max4(v1, v2, v3, v4);
-  let startX = u32(min_max.x);
-  let startY = u32(min_max.y);
-  let endX = u32(min_max.z);
-  let endY = u32(min_max.w);
-
-  for (var x: u32 = startX; x <= endX; x = x + 1u) {
-    for (var y: u32 = startY; y <= endY; y = y + 1u) {
-      let bc1 = barycentric(v1, v2, v4, vec2<f32>(f32(x), f32(y)));
-      let bc2 = barycentric(v2, v3, v4, vec2<f32>(f32(x), f32(y)));
-
-      // Check if the point is inside both triangles
-      if ((bc1.x >= 0.0 && bc1.y >= 0.0 && bc1.z >= 0.0) &&
-          (bc2.x >= 0.0 && bc2.y >= 0.0 && bc2.z >= 0.0)) {
-        let bufferIndex = convert2DTo1D(resolution, vec2<u32>(x, y));
-        atomicStore(&pixelBuffer[bufferIndex], 255u);
+      let depth = bc.x * v1.z + bc.y * v2.z + bc.z * v3.z;
+      let intDepth = u32(depth * DEPTH_PRECISION);
+      let currentDepth = atomicLoad(&pixelBuffer[bufferIndex].distance);
+      if(intDepth < currentDepth || currentDepth == 0u) {
+        pixelBuffer[bufferIndex].colour = packedColour;
+        atomicStore(&pixelBuffer[bufferIndex].distance, intDepth);
       }
     }
   }
 }
 
-fn project(mvp: mat4x4<f32>, p: vec3<f32>) -> vec2<f32> {
+fn project(mvp: mat4x4<f32>, p: vec3<f32>) -> vec3<f32> {
   let clipSpaceVertex = mvp * vec4(p,1.0);
   var ndc = clipSpaceVertex.xyz / clipSpaceVertex.w;
   ndc = clamp(ndc, vec3<f32>(-1.0), vec3<f32>(1.0));
   var uv = (ndc.xy + vec2<f32>(1.0)) / vec2<f32>(2.0);
-  return vec2<f32>(uv * vec2<f32>(resolution));
+  uv.y = 1.0 - uv.y;
+  let screenSpaceVertex = vec2<f32>(uv * vec2<f32>(resolution));
+  return vec3<f32>(screenSpaceVertex, clipSpaceVertex.z);
 }
 
 @compute @workgroup_size(4, 4, 4)
 fn projectVoxels(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
-  var voxelId = GlobalInvocationID;
-  var voxelObject = voxelObjects[0];
+  for(var x = 0; x < 1; x++){
+    for(var z = 0; z < 1; z++){
+      var voxelId = GlobalInvocationID;
+      var voxelObject = voxelObjects[0];
 
-  // Empty voxel
-  let foo = textureLoad(voxels, vec3<u32>(voxelId) + vec3<u32>(voxelObject.atlasLocation), 0);
-  if(foo.a == 0.0){
-    return;
+      // Empty voxel
+      let foo = textureLoad(voxels, vec3<u32>(voxelId) + vec3<u32>(voxelObject.atlasLocation), 0);
+      if(foo.a == 0.0){
+        return;
+      }
+
+      let viewProjectionMatrix = viewProjections.viewProjection;
+      let inverseViewProjectionMatrix = viewProjections.inverseViewProjection;
+      let modelMatrix = voxelObject.transform;
+      let mvp =  viewProjectionMatrix * modelMatrix;
+      let clipSpaceVoxel = mvp * vec4(vec3<f32>(voxelId), 1.0);
+
+      // TODO: this is a hack to get rid of the voxels that are behind the camera
+      if(clipSpaceVoxel.z < 1.5) {
+        return;
+      }
+
+      let quads = getVoxelQuads(vec3<f32>(voxelId) + vec3(f32(x * 128), 0.0,f32(z * 128)));
+
+      for(var i = 0; i < 6; i++) {
+        let worldNormal = normalize((vec4<f32>(quads[i].normal, 0.0) * voxelObject.transform).xyz);
+        let colour = abs(vec4(worldNormal, 1.0));
+        let packedColour =  pack4x8unorm(colour);
+        drawQuad(mvp, quads[i], packedColour);
+      }
+    }
   }
-
-  let viewProjectionMatrix = viewProjections.viewProjection;
-  let modelMatrix = voxelObject.transform;
-  let mvp =  viewProjectionMatrix * modelMatrix;
-  let clipSpaceVoxel = mvp * vec4(vec3<f32>(voxelId), 1.0);
-
-  // TODO: this is a hack to get rid of the voxels that are behind the camera
-  if(clipSpaceVoxel.z < 1.5) {
-    return;
-  }
-
-  let vertices = getVoxelVertices(vec3<f32>(voxelId));
-  var pixels = array<vec2<f32>, 8>();
-
-  for(var i = 0; i < 8; i++) {
-    pixels[i] = project(mvp, vertices[i]);
-  }
-
-  let voxelWorldPos = (modelMatrix * vec4(vec3<f32>(voxelId), 1.0)).xyz;
-  let distanceToCamera = distance(voxelWorldPos, cameraPosition);
-  let colour = vec4<f32>(f32(voxelId.x % 8),f32(voxelId.y % 8),f32(voxelId.z % 8), 1.0) / 8.0;
-  let packedColour =  pack4x8unorm(colour);
-
-  draw_triangle(pixels[0], pixels[1], pixels[2],packedColour);
-  draw_triangle(pixels[1], pixels[2], pixels[3],packedColour);
-
-  draw_triangle(pixels[4], pixels[5], pixels[6],packedColour);
-  draw_triangle(pixels[5], pixels[6], pixels[7],packedColour);
-
-  draw_triangle(pixels[0], pixels[1], pixels[4],packedColour);
-  draw_triangle(pixels[1], pixels[4], pixels[5],packedColour);
-
-  draw_triangle(pixels[2], pixels[3], pixels[6],packedColour);
-  draw_triangle(pixels[3], pixels[6], pixels[7],packedColour);
-
-  draw_triangle(pixels[0], pixels[2], pixels[4],packedColour);
-  draw_triangle(pixels[2], pixels[4], pixels[6],packedColour);
-
-  draw_triangle(pixels[1], pixels[3], pixels[5],packedColour);
-  draw_triangle(pixels[3], pixels[5], pixels[7],packedColour);
 }
 
 @compute @workgroup_size(8, 8, 1)
@@ -240,8 +257,11 @@ fn bufferToScreen(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
   let bufferIndex = convert2DTo1D(textureDimensions(albedoTex), GlobalInvocationID.xy);
-  let bufferElement = atomicLoad(&pixelBuffer[bufferIndex]);
-  let unpackedColour = unpack4x8unorm(bufferElement);
+  let colour = pixelBuffer[bufferIndex].colour;
+  let unpackedColour = unpack4x8unorm(colour);
+  let depth = atomicLoad(&pixelBuffer[bufferIndex].distance);
+  let unpackedDepth = f32(depth) / DEPTH_PRECISION;
   let pixel = convert1DTo2D(textureDimensions(albedoTex), bufferIndex);
+//  textureStore(albedoTex, pixel, vec4(unpackedDepth * 0.1));
   textureStore(albedoTex, pixel, unpackedColour);
 }
