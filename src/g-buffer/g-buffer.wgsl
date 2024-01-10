@@ -2,6 +2,7 @@ struct ViewProjectionMatrices {
   viewProjection : mat4x4<f32>,
   previousViewProjection : mat4x4<f32>,
   inverseViewProjection : mat4x4<f32>,
+  projection : mat4x4<f32>,
 };
 
 
@@ -85,16 +86,6 @@ fn convert1DTo2D(size: vec2<u32>, index1D: u32) -> vec2<u32> {
     return vec2(index1D % size.x, index1D / size.x);
 }
 
-fn drawLine(v1: vec2<f32>, v2: vec2<f32>) {
-  let dist = distance(v1, v2);
-  for (var i = 0.0; i < dist; i += 1.0) {
-    let x = u32(v1.x + (v2.x - v1.x) * (i / dist));
-    let y = u32(v1.y + (v2.y - v1.y) * (i / dist));
-    let bufferIndex = convert2DTo1D(resolution, vec2<u32>(x, y));
-//    atomicStore(&pixelBuffer[bufferIndex].colour, 255u);
-  }
-}
-
 fn getVoxelVertices(voxel: vec3<f32>) -> array<vec3<f32>, 8> {
   return array<vec3<f32>, 8>(
      voxel + vec3<f32>(0.0, 0.0, 0.0),
@@ -141,14 +132,25 @@ fn getVoxelQuads(voxel: vec3<f32>) -> array<Quad, 6> {
   );
 }
 
+fn isVerexInScreenSpace(v: vec3<f32>) -> bool {
+  return v.x >= 0.0 && v.x < f32(resolution.x) && v.y >= 0.0 && v.y < f32(resolution.y) && v.z >= 0.5 && v.z < 10000;
+}
+
 fn drawQuad(mvp: mat4x4<f32>, quad: Quad, packedColour: u32) {
   let v1 = project(mvp, quad.v1);
   let v2 = project(mvp, quad.v2);
   let v3 = project(mvp, quad.v3);
   let v4 = project(mvp, quad.v4);
 
+  if(!isVerexInScreenSpace(v1) || !isVerexInScreenSpace(v2) || !isVerexInScreenSpace(v3) || !isVerexInScreenSpace(v4)) {
+    return;
+  }
+
   draw_triangle(v1, v2, v3, packedColour);
   draw_triangle(v2, v3, v4, packedColour);
+
+//  drawLineTriangle(v1, v2, v3, packedColour);
+//  drawLineTriangle(v2, v3, v4, packedColour);
 }
 
 fn barycentric(v1: vec3<f32>, v2: vec3<f32>, v3: vec3<f32>, p: vec2<f32>) -> vec3<f32> {
@@ -176,6 +178,19 @@ fn get_min_max(v1: vec3<f32>, v2: vec3<f32>, v3: vec3<f32>) -> vec4<f32> {
 
 // Hack to allow us to use atomic min, we cant use it on floats
 const DEPTH_PRECISION = 1000000.0;
+
+fn drawLine(v1: vec2<f32>, v2: vec2<f32>, packedColour: u32) {
+  let dist = distance(v1, v2);
+  for (var i = 0.0; i < dist; i += 1.0) {
+    let x = u32(v1.x + (v2.x - v1.x) * (i / dist));
+    let y = u32(v1.y + (v2.y - v1.y) * (i / dist));
+    let bufferIndex = convert2DTo1D(resolution, vec2<u32>(x, y));
+
+    pixelBuffer[bufferIndex].colour = packedColour;
+    atomicStore(&pixelBuffer[bufferIndex].distance, 255u);
+
+  }
+}
 
 /**
   * Writes screen space triangle to pixel buffer
@@ -206,6 +221,12 @@ fn draw_triangle(v1: vec3<f32>, v2: vec3<f32>, v3: vec3<f32>, packedColour: u32)
   }
 }
 
+fn drawLineTriangle(v1: vec3<f32>, v2: vec3<f32>, v3: vec3<f32>, packedColour: u32) {
+  drawLine(v1.xy, v2.xy, packedColour);
+  drawLine(v2.xy, v3.xy, packedColour);
+  drawLine(v3.xy, v1.xy,  packedColour);
+}
+
 fn project(mvp: mat4x4<f32>, p: vec3<f32>) -> vec3<f32> {
   let clipSpaceVertex = mvp * vec4(p,1.0);
   var ndc = clipSpaceVertex.xyz / clipSpaceVertex.w;
@@ -216,12 +237,28 @@ fn project(mvp: mat4x4<f32>, p: vec3<f32>) -> vec3<f32> {
   return vec3<f32>(screenSpaceVertex, clipSpaceVertex.z);
 }
 
+struct nearFarPlane {
+  near : f32,
+  far : f32
+};
+
+fn extractNearFarPlane(projectionMatrix: mat4x4<f32>) -> nearFarPlane {
+  let a = projectionMatrix[2][2];
+  let b = projectionMatrix[3][2];
+  let near = b / (a - 1.0);
+  let far = b / (a + 1.0);
+  return nearFarPlane(near, far);
+}
+
 @compute @workgroup_size(4, 4, 4)
 fn projectVoxels(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
-  for(var x = 0; x < 1; x++){
-    for(var z = 0; z < 1; z++){
+  for(var x = 0; x < 6; x++){
+    for(var y = 0; y < 1; y++){
+    for(var z = 0; z < 6; z++){
       var voxelId = GlobalInvocationID;
       var voxelObject = voxelObjects[0];
+      let debugOffset = vec3(f32(x * 128), f32(y * 128),f32(z * 128));
+      var objectSpaceVoxel = vec3<f32>(voxelId) + debugOffset;
 
       // Empty voxel
       let foo = textureLoad(voxels, vec3<u32>(voxelId) + vec3<u32>(voxelObject.atlasLocation), 0);
@@ -233,21 +270,29 @@ fn projectVoxels(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) 
       let inverseViewProjectionMatrix = viewProjections.inverseViewProjection;
       let modelMatrix = voxelObject.transform;
       let mvp =  viewProjectionMatrix * modelMatrix;
-      let clipSpaceVoxel = mvp * vec4(vec3<f32>(voxelId), 1.0);
+      let clipSpaceVoxel = mvp * vec4(objectSpaceVoxel, 1.0);
+      let worldSpaceVoxel = modelMatrix * vec4(objectSpaceVoxel, 1.0);
+      var ndc = clipSpaceVoxel.xyz / clipSpaceVoxel.w;
+      var uv = (ndc.xy + vec2<f32>(1.0)) / vec2<f32>(2.0);
+      uv.y = 1.0 - uv.y;
 
-      // TODO: this is a hack to get rid of the voxels that are behind the camera
-      if(clipSpaceVoxel.z < 1.5) {
-        return;
-      }
+      let quads = getVoxelQuads(objectSpaceVoxel);
 
-      let quads = getVoxelQuads(vec3<f32>(voxelId) + vec3(f32(x * 128), 0.0,f32(z * 128)));
+      let nearFar = extractNearFarPlane(viewProjections.projection);
+      let far = nearFar.far;
 
+      var viewDirection = normalize(worldSpaceVoxel.xyz - cameraPosition);
       for(var i = 0; i < 6; i++) {
         let worldNormal = normalize((vec4<f32>(quads[i].normal, 0.0) * voxelObject.transform).xyz);
-        let colour = abs(vec4(worldNormal, 1.0));
+//        if(dot(worldNormal, viewDirection) > 0.0) {
+//          continue;
+//        }
+        let lambert = dot(worldNormal, normalize(vec3<f32>(0.5, -1.0, -0.5)));
+        let colour = abs(vec4(lambert * foo.rgb, 1.0));
         let packedColour =  pack4x8unorm(colour);
         drawQuad(mvp, quads[i], packedColour);
       }
+    }
     }
   }
 }

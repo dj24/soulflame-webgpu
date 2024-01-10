@@ -1,7 +1,7 @@
 import { mat4, vec3, Vec3 } from "wgpu-matrix";
 import { VoxelObject } from "../voxel-object";
 import { Camera } from "../camera";
-import dragonVolume from "../voxel-models/dragon.vxm";
+import treeHouseVolume from "../voxel-models/treehouse.vxm";
 import { debugValues } from "../app";
 
 const ctx: Worker = self as any;
@@ -37,9 +37,9 @@ const getInnerBox = () => {
   let m = mat4.identity();
   let scaleFactor = 0.05;
   mat4.scale(m, [scaleFactor, scaleFactor, scaleFactor], m);
-  mat4.translate(m, vec3.divScalar(dragonVolume.size, 2), m);
-  mat4.translate(m, vec3.divScalar(dragonVolume.size, -2), m);
-  return new VoxelObject(m, dragonVolume.size, [cornellSize[0], 0, 0]);
+  mat4.translate(m, vec3.divScalar(treeHouseVolume.size, 2), m);
+  mat4.translate(m, vec3.divScalar(treeHouseVolume.size, -2), m);
+  return new VoxelObject(m, treeHouseVolume.size, [cornellSize[0], 0, 0]);
 };
 
 const updateInnerBox = (

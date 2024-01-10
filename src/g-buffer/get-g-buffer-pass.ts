@@ -3,6 +3,7 @@ import boxIntersection from "../shader/box-intersection.wgsl";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
 import dragon from "../voxel-models/dragon.vxm";
+import treeHouse from "../voxel-models/treehouse.vxm";
 
 import {
   camera,
@@ -251,9 +252,9 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     // const workGroupsX = Math.ceil(resolution[0] / 8);
     // const workGroupsY = Math.ceil(resolution[1] / 8);
 
-    const workGroupsX = Math.ceil(dragon.size[0] / 4);
-    const workGroupsY = Math.ceil(dragon.size[1] / 4);
-    const workGroupsZ = Math.ceil(dragon.size[2] / 4);
+    const workGroupsX = Math.ceil(treeHouse.size[0] / 4);
+    const workGroupsY = Math.ceil(treeHouse.size[1] / 4);
+    const workGroupsZ = Math.ceil(treeHouse.size[2] / 4);
 
     computePass.setPipeline(computePipeline);
     computePass.setBindGroup(0, computeBindGroup);

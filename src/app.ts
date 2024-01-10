@@ -11,7 +11,7 @@ import "./main.css";
 import { Mat4, mat4, vec2, vec3 } from "wgpu-matrix";
 import cornellBox from "./voxel-models/cornell.vxm";
 import dragon from "./voxel-models/dragon.vxm";
-import treehouse from "./voxel-models/treehouse.vxm";
+import treeHouse from "./voxel-models/treehouse.vxm";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
 import { DebugValuesStore } from "./debug-values-store";
@@ -256,6 +256,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       ...camera.viewProjectionMatrix,
       ...previousViewProjectionMatrix,
       ...camera.inverseViewProjectionMatrix,
+      ...camera.projectionMatrix,
     ];
 
     if (viewProjectionMatricesBuffer) {
@@ -400,13 +401,13 @@ const start = () => {
 
         create3dTexture(
           device,
-          dragon.sliceFilePaths,
-          dragon.size,
-          "dragon",
-        ).then((dragonTexture) => {
-          volumeAtlas.addVolume(dragonTexture, "dragon");
-          console.log({ dragon, dragonTexture, treehouse });
-          dragonTexture.destroy();
+          treeHouse.sliceFilePaths,
+          treeHouse.size,
+          "treeHouse",
+        ).then((treeHouseTexture) => {
+          volumeAtlas.addVolume(treeHouseTexture, "treeHouse");
+          console.log({ treeHouse, treeHouseTexture });
+          treeHouseTexture.destroy();
         });
 
         setTimeout(() => {

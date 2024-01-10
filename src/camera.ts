@@ -9,7 +9,7 @@ const keyboardControls = new KeyboardControls();
 
 export class Camera extends MoveableObject {
   fieldOfView: number;
-  near = 0.1;
+  near = 0.5;
   far = 10000;
 
   constructor(options: {
