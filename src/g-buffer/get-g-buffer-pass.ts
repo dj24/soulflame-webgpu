@@ -152,6 +152,23 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     },
   });
 
+  const clearBufferPipeline = device.createComputePipeline({
+    layout: device.createPipelineLayout({
+      bindGroupLayouts: [uniformsBindGroupLayout],
+    }),
+    compute: {
+      module: device.createShaderModule({
+        code: `
+          const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
+          ${getRayDirection}
+          ${boxIntersection}
+          ${raymarchVoxels}
+          ${gBuffer}`,
+      }),
+      entryPoint: "clearPixelBuffer",
+    },
+  });
+
   let outputBuffer = device.createBuffer({
     size: resolution[0] * resolution[1] * 16, // 4 bytes per pixel, 1 for each colour channel
     usage:
@@ -170,8 +187,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     transformationMatrixBuffer,
     viewProjectionMatricesBuffer,
   }: RenderArgs) => {
-    commandEncoder.clearBuffer(outputBuffer);
-
     const computePass = commandEncoder.beginComputePass();
 
     const bufferSize = resolution[0] * resolution[1] * 8; // 4 bytes for colour, 4 bytes for distance
@@ -248,6 +263,10 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         },
       ],
     });
+
+    computePass.setPipeline(clearBufferPipeline);
+    computePass.setBindGroup(0, computeBindGroup);
+    computePass.dispatchWorkgroups(resolution[0] / 8, resolution[1] / 8);
 
     // const workGroupsX = Math.ceil(resolution[0] / 8);
     // const workGroupsY = Math.ceil(resolution[1] / 8);

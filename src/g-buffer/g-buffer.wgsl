@@ -7,7 +7,7 @@ struct ViewProjectionMatrices {
 
 
 struct PixelBufferElement {
-  colour : u32,
+  colour : atomic<u32>,
   distance : atomic<u32>
 };
 
@@ -111,11 +111,13 @@ fn getVoxelNormals(voxel: vec3<f32>) -> array<vec3<f32>, 6> {
   );
 }
 
-const QUADS_PER_VOXEL = 6u;
+const TRIANGLES_PER_VOXEL =  12u;
 const VOXELS_PER_WORKGROUP = 12u;
-const QUADS_PER_WORKGROUP = VOXELS_PER_WORKGROUP * QUADS_PER_VOXEL;
+const QUADS_PER_VOXEL = 6u;
+const QUADS_PER_WORKGROUP = QUADS_PER_VOXEL * VOXELS_PER_WORKGROUP;
+const TRIANGLES_PER_WORKGROUP = VOXELS_PER_WORKGROUP * TRIANGLES_PER_VOXEL;
 
-var<workgroup> workgroup_quads: array<Quad, QUADS_PER_WORKGROUP>;
+var<workgroup> workgroup_triangles: array<Triangle, TRIANGLES_PER_WORKGROUP>;
 
 struct Quad {
   v1 : vec3<f32>,
@@ -125,38 +127,15 @@ struct Quad {
   normal : vec3<f32>
 };
 
-fn getVoxelQuads(voxel: vec3<f32>) -> array<Quad, QUADS_PER_VOXEL> {
-  let vertices = getVoxelVertices(voxel);
-  let normals = getVoxelNormals(voxel);
-  return array<Quad, QUADS_PER_VOXEL>(
-    Quad(vertices[0], vertices[1], vertices[2], vertices[3], normals[0]),
-    Quad(vertices[4], vertices[5], vertices[6], vertices[7], normals[1]),
-    Quad(vertices[0], vertices[1], vertices[4], vertices[5], normals[2]),
-    Quad(vertices[2], vertices[3], vertices[6], vertices[7], normals[3]),
-    Quad(vertices[0], vertices[2], vertices[4], vertices[6], normals[4]),
-    Quad(vertices[1], vertices[3], vertices[5], vertices[7], normals[5])
-  );
-}
+struct Triangle {
+  v1 : vec3<f32>,
+  v2 : vec3<f32>,
+  v3 : vec3<f32>,
+  normal : vec3<f32>
+};
 
 fn isVerexInScreenSpace(v: vec3<f32>) -> bool {
-  return v.x >= 0.0 && v.x < f32(resolution.x) && v.y >= 0.0 && v.y < f32(resolution.y) && v.z >= 0.5 && v.z < 10000;
-}
-
-fn drawQuad(mvp: mat4x4<f32>, quad: Quad, packedColour: u32) {
-  let v1 = project(mvp, quad.v1);
-  let v2 = project(mvp, quad.v2);
-  let v3 = project(mvp, quad.v3);
-  let v4 = project(mvp, quad.v4);
-
-  if(!isVerexInScreenSpace(v1) || !isVerexInScreenSpace(v2) || !isVerexInScreenSpace(v3) || !isVerexInScreenSpace(v4)) {
-    return;
-  }
-
-  draw_triangle(v1, v2, v3, packedColour);
-  draw_triangle(v2, v3, v4, packedColour);
-
-//  drawLineTriangle(v1, v2, v3, packedColour);
-//  drawLineTriangle(v2, v3, v4, packedColour);
+  return v.x >= 0.0 && v.x < f32(resolution.x) && v.y >= 0.0 && v.y < f32(resolution.y) && v.z >= 0.0;
 }
 
 fn barycentric(v1: vec3<f32>, v2: vec3<f32>, v3: vec3<f32>, p: vec2<f32>) -> vec3<f32> {
@@ -182,9 +161,6 @@ fn get_min_max(v1: vec3<f32>, v2: vec3<f32>, v3: vec3<f32>) -> vec4<f32> {
   return min_max;
 }
 
-// Hack to allow us to use atomic min, we cant use it on floats
-const DEPTH_PRECISION = 1000000.0;
-
 fn drawLine(v1: vec2<f32>, v2: vec2<f32>, packedColour: u32) {
   let dist = distance(v1, v2);
   for (var i = 0.0; i < dist; i += 1.0) {
@@ -192,9 +168,8 @@ fn drawLine(v1: vec2<f32>, v2: vec2<f32>, packedColour: u32) {
     let y = u32(v1.y + (v2.y - v1.y) * (i / dist));
     let bufferIndex = convert2DTo1D(resolution, vec2<u32>(x, y));
 
-    pixelBuffer[bufferIndex].colour = packedColour;
+    atomicStore(&pixelBuffer[bufferIndex].colour, packedColour);
     atomicStore(&pixelBuffer[bufferIndex].distance, 255u);
-
   }
 }
 
@@ -216,12 +191,11 @@ fn draw_triangle(v1: vec3<f32>, v2: vec3<f32>, v3: vec3<f32>, packedColour: u32)
         continue;
       }
       let bufferIndex = convert2DTo1D(resolution, vec2<u32>(x, y));
-      let depth = bc.x * v1.z + bc.y * v2.z + bc.z * v3.z;
-      let intDepth = u32(depth * DEPTH_PRECISION);
-      let currentDepth = atomicLoad(&pixelBuffer[bufferIndex].distance);
-      if(intDepth < currentDepth || currentDepth == 0u) {
-        pixelBuffer[bufferIndex].colour = packedColour;
-        atomicStore(&pixelBuffer[bufferIndex].distance, intDepth);
+      var depth = bc.x * v1.z + bc.y * v2.z + bc.z * v3.z;
+      let currentDepth = bitcast<f32>(atomicLoad(&pixelBuffer[bufferIndex].distance));
+      if(depth < currentDepth || currentDepth < 0.001) {
+        atomicStore(&pixelBuffer[bufferIndex].colour, packedColour);
+        atomicStore(&pixelBuffer[bufferIndex].distance, bitcast<u32>(depth));
       }
     }
   }
@@ -243,18 +217,41 @@ fn project(mvp: mat4x4<f32>, p: vec3<f32>) -> vec3<f32> {
   return vec3<f32>(screenSpaceVertex, clipSpaceVertex.z);
 }
 
-struct nearFarPlane {
-  near : f32,
-  far : f32
-};
 
-fn extractNearFarPlane(projectionMatrix: mat4x4<f32>) -> nearFarPlane {
-  let a = projectionMatrix[2][2];
-  let b = projectionMatrix[3][2];
-  let near = b / (a - 1.0);
-  let far = b / (a + 1.0);
-  return nearFarPlane(near, far);
-}
+const VOXEL_VERTICES = array<vec3<f32>, 8>(
+  vec3<f32>(0.0, 0.0, 0.0),
+  vec3<f32>(1.0, 0.0, 0.0),
+  vec3<f32>(0.0, 1.0, 0.0),
+  vec3<f32>(1.0, 1.0, 0.0),
+  vec3<f32>(0.0, 0.0, 1.0),
+  vec3<f32>(1.0, 0.0, 1.0),
+  vec3<f32>(0.0, 1.0, 1.0),
+  vec3<f32>(1.0, 1.0, 1.0)
+);
+
+const VOXEL_NORMALS = array<vec3<f32>, 6>(
+  vec3<f32>(0.0, 0.0, -1.0),
+  vec3<f32>(0.0, 0.0, 1.0),
+  vec3<f32>(0.0, -1.0, 0.0),
+  vec3<f32>(0.0, 1.0, 0.0),
+  vec3<f32>(1.0, 0.0, 0.0),
+  vec3<f32>(-1.0, 0.0, 0.0)
+);
+
+const VOXEL_TRIANGLES = array<Triangle, TRIANGLES_PER_VOXEL>(
+  Triangle(VOXEL_VERTICES[0], VOXEL_VERTICES[1], VOXEL_VERTICES[2], VOXEL_NORMALS[0]),
+  Triangle(VOXEL_VERTICES[1], VOXEL_VERTICES[2], VOXEL_VERTICES[3], VOXEL_NORMALS[0]),
+  Triangle(VOXEL_VERTICES[4], VOXEL_VERTICES[5], VOXEL_VERTICES[6], VOXEL_NORMALS[1]),
+  Triangle(VOXEL_VERTICES[5], VOXEL_VERTICES[6], VOXEL_VERTICES[7], VOXEL_NORMALS[1]),
+  Triangle(VOXEL_VERTICES[0], VOXEL_VERTICES[1], VOXEL_VERTICES[4], VOXEL_NORMALS[2]),
+  Triangle(VOXEL_VERTICES[1], VOXEL_VERTICES[4], VOXEL_VERTICES[5], VOXEL_NORMALS[2]),
+  Triangle(VOXEL_VERTICES[2], VOXEL_VERTICES[3], VOXEL_VERTICES[6], VOXEL_NORMALS[3]),
+  Triangle(VOXEL_VERTICES[3], VOXEL_VERTICES[6], VOXEL_VERTICES[7], VOXEL_NORMALS[3]),
+  Triangle(VOXEL_VERTICES[0], VOXEL_VERTICES[2], VOXEL_VERTICES[4], VOXEL_NORMALS[4]),
+  Triangle(VOXEL_VERTICES[2], VOXEL_VERTICES[4], VOXEL_VERTICES[6], VOXEL_NORMALS[4]),
+  Triangle(VOXEL_VERTICES[1], VOXEL_VERTICES[3], VOXEL_VERTICES[5], VOXEL_NORMALS[5]),
+  Triangle(VOXEL_VERTICES[3], VOXEL_VERTICES[5], VOXEL_VERTICES[7], VOXEL_NORMALS[5])
+);
 
 /**
   x = quad id * voxel idx
@@ -263,13 +260,14 @@ fn extractNearFarPlane(projectionMatrix: mat4x4<f32>) -> nearFarPlane {
 **/
 
 // TOOD: share multiple voxels in the workgroup
-@compute @workgroup_size(QUADS_PER_WORKGROUP, 1, 1)
+@compute @workgroup_size(TRIANGLES_PER_WORKGROUP, 1, 1)
 fn projectVoxels(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>, @builtin(local_invocation_id) LocalInvocationID : vec3<u32>) {
     var voxelId = GlobalInvocationID;
+    voxelId.x = voxelId.x / TRIANGLES_PER_VOXEL;
+
     var localVoxelId = LocalInvocationID / VOXELS_PER_WORKGROUP;
-    var quadId = LocalInvocationID.x;
-    let localQuadId = quadId % QUADS_PER_VOXEL;
-    voxelId.x = voxelId.x / QUADS_PER_VOXEL;
+    var triangleId = LocalInvocationID.x;
+    let localTriangleId = triangleId % TRIANGLES_PER_VOXEL;
     var voxelObject = voxelObjects[0];
     var objectSpaceVoxel = vec3<f32>(voxelId);
     let viewProjectionMatrix = viewProjections.viewProjection;
@@ -282,38 +280,47 @@ fn projectVoxels(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>, 
     var uv = (ndc.xy + vec2<f32>(1.0)) / vec2<f32>(2.0);
     uv.y = 1.0 - uv.y;
 
-
-    // Only calculate quads once per voxel
-    let isFirstQuadOfVoxel = localQuadId == 0u;
-    if(isFirstQuadOfVoxel) {
-      let workgroup_quads_temp = getVoxelQuads(objectSpaceVoxel);
-      for (var i: u32 = 0u; i < 6u; i = i + 1u) {
-        workgroup_quads[quadId + i] = workgroup_quads_temp[i];
-      }
-    }
-
-    workgroupBarrier();
-
     // Empty voxel
     let foo = textureLoad(voxels, vec3<u32>(voxelId) + vec3<u32>(voxelObject.atlasLocation), 0);
     if(foo.a == 0.0){
       return;
     }
 
-    let nearFar = extractNearFarPlane(viewProjections.projection);
-    let far = nearFar.far;
-
     var viewDirection = normalize(worldSpaceVoxel.xyz - cameraPosition);
 
-    let worldNormal = normalize((vec4<f32>(workgroup_quads[quadId].normal, 0.0) * voxelObject.transform).xyz);
-//    if(dot(worldNormal, viewDirection) > 0.0) {
-//      return;
-//    }
-    let lambert = dot(worldNormal, normalize(vec3<f32>(0.5, -1.0, -0.5)));
-    let colour = abs(vec4(lambert * foo.rgb, 1.0));
-    let packedColour =  pack4x8unorm(colour);
-    drawQuad(mvp, workgroup_quads[quadId], packedColour);
+    var tri = VOXEL_TRIANGLES[localTriangleId];
+    tri.v1 = tri.v1 + objectSpaceVoxel;
+    tri.v2 = tri.v2 + objectSpaceVoxel;
+    tri.v3 = tri.v3 + objectSpaceVoxel;
 
+    let v1 = project(mvp, tri.v1);
+    let v2 = project(mvp, tri.v2);
+    let v3 = project(mvp, tri.v3);
+
+    if(!isVerexInScreenSpace(v1) || !isVerexInScreenSpace(v2) || !isVerexInScreenSpace(v3)) {
+      return;
+    }
+
+    var worldPos = worldSpaceVoxel.xyz;
+    let worldNormal = normalize((vec4<f32>(tri.normal, 0.0) * voxelObject.transform).xyz);
+    let lambert = dot(worldNormal, normalize(vec3<f32>(0.5, -1.0, -0.5)));
+    let colour = abs(vec3(lambert * foo.rgb));
+    let packedColour =  pack4x8unorm(vec4(tri.normal,1));
+
+    let triangleSize = distance(v1.xy, v2.xy) + distance(v2.xy, v3.xy) + distance(v3.xy, v1.xy);
+    if(triangleSize > 256.0 || triangleSize < 0.5) {
+      return;
+    }
+    draw_triangle(v1, v2, v3, packedColour);
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn clearPixelBuffer(
+  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
+) {
+  let bufferIndex = convert2DTo1D(textureDimensions(albedoTex), GlobalInvocationID.xy);
+  atomicStore(&pixelBuffer[bufferIndex].colour, 0u);
+  atomicStore(&pixelBuffer[bufferIndex].distance, bitcast<u32>(FAR_PLANE));
 }
 
 @compute @workgroup_size(8, 8, 1)
@@ -321,11 +328,11 @@ fn bufferToScreen(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
   let bufferIndex = convert2DTo1D(textureDimensions(albedoTex), GlobalInvocationID.xy);
-  let colour = pixelBuffer[bufferIndex].colour;
+  let colour = atomicLoad(&pixelBuffer[bufferIndex].colour);
   let unpackedColour = unpack4x8unorm(colour);
   let depth = atomicLoad(&pixelBuffer[bufferIndex].distance);
-  let unpackedDepth = f32(depth) / DEPTH_PRECISION;
+  let unpackedDepth = bitcast<f32>(depth);
   let pixel = convert1DTo2D(textureDimensions(albedoTex), bufferIndex);
-//  textureStore(albedoTex, pixel, vec4(unpackedDepth * 0.1));
+//  textureStore(albedoTex, pixel, vec4(unpackedDepth % 0.5) * 2.0);
   textureStore(albedoTex, pixel, unpackedColour);
 }

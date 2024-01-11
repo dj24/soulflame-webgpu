@@ -48,7 +48,7 @@ export const debugValues = new DebugValuesStore();
 export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
-export let resolution = vec2.create(1, 1);
+export let resolution = vec2.create(4, 4);
 let downscale = 1.0;
 const startTime = performance.now();
 export let elapsedTime = startTime;
@@ -134,6 +134,8 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       clientHeight * pixelRatio,
     );
     resolution = vec2.mulScalar(canvasResolution, 1 / downscale);
+    // Rounded to nearest multiple of 4 for buffer
+    resolution = vec2.mulScalar(vec2.ceil(vec2.divScalar(resolution, 4)), 4);
     canvas.width = canvasResolution[0];
     canvas.height = canvasResolution[1];
     canvas.style.transform = `scale(${1 / pixelRatio})`;

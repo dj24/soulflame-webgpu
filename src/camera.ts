@@ -47,7 +47,8 @@ export class Camera extends MoveableObject {
   get viewMatrix() {
     const eye = this.position;
     const view = mat4.lookAt(eye, vec3.add(eye, this.direction), this.up);
-    return haltonJitter(frameCount, view);
+    return view;
+    // return haltonJitter(frameCount, view);
   }
 
   get inverseViewMatrix() {
