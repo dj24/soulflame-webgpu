@@ -252,7 +252,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     // const workGroupsX = Math.ceil(resolution[0] / 8);
     // const workGroupsY = Math.ceil(resolution[1] / 8);
 
-    const workGroupsX = Math.ceil(treeHouse.size[0] / 1);
+    const workGroupsX = Math.ceil(treeHouse.size[0] / 12);
     const workGroupsY = Math.ceil(treeHouse.size[1] / 1);
     const workGroupsZ = Math.ceil(treeHouse.size[2] / 1);
 

@@ -111,6 +111,12 @@ fn getVoxelNormals(voxel: vec3<f32>) -> array<vec3<f32>, 6> {
   );
 }
 
+const QUADS_PER_VOXEL = 6u;
+const VOXELS_PER_WORKGROUP = 12u;
+const QUADS_PER_WORKGROUP = VOXELS_PER_WORKGROUP * QUADS_PER_VOXEL;
+
+var<workgroup> workgroup_quads: array<Quad, QUADS_PER_WORKGROUP>;
+
 struct Quad {
   v1 : vec3<f32>,
   v2 : vec3<f32>,
@@ -119,10 +125,10 @@ struct Quad {
   normal : vec3<f32>
 };
 
-fn getVoxelQuads(voxel: vec3<f32>) -> array<Quad, 6> {
+fn getVoxelQuads(voxel: vec3<f32>) -> array<Quad, QUADS_PER_VOXEL> {
   let vertices = getVoxelVertices(voxel);
   let normals = getVoxelNormals(voxel);
-  return array<Quad, 6>(
+  return array<Quad, QUADS_PER_VOXEL>(
     Quad(vertices[0], vertices[1], vertices[2], vertices[3], normals[0]),
     Quad(vertices[4], vertices[5], vertices[6], vertices[7], normals[1]),
     Quad(vertices[0], vertices[1], vertices[4], vertices[5], normals[2]),
@@ -250,8 +256,6 @@ fn extractNearFarPlane(projectionMatrix: mat4x4<f32>) -> nearFarPlane {
   return nearFarPlane(near, far);
 }
 
-var<workgroup> workgroup_quads: array<Quad, 6>;
-
 /**
   x = quad id * voxel idx
   y = voxel idy
@@ -259,14 +263,15 @@ var<workgroup> workgroup_quads: array<Quad, 6>;
 **/
 
 // TOOD: share multiple voxels in the workgroup
-@compute @workgroup_size(6, 1, 1)
+@compute @workgroup_size(QUADS_PER_WORKGROUP, 1, 1)
 fn projectVoxels(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>, @builtin(local_invocation_id) LocalInvocationID : vec3<u32>) {
     var voxelId = GlobalInvocationID;
+    var localVoxelId = LocalInvocationID / VOXELS_PER_WORKGROUP;
     var quadId = LocalInvocationID.x;
-    voxelId.x = voxelId.x / 6u;
+    let localQuadId = quadId % QUADS_PER_VOXEL;
+    voxelId.x = voxelId.x / QUADS_PER_VOXEL;
     var voxelObject = voxelObjects[0];
     var objectSpaceVoxel = vec3<f32>(voxelId);
-
     let viewProjectionMatrix = viewProjections.viewProjection;
     let inverseViewProjectionMatrix = viewProjections.inverseViewProjection;
     let modelMatrix = voxelObject.transform;
@@ -277,10 +282,17 @@ fn projectVoxels(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>, 
     var uv = (ndc.xy + vec2<f32>(1.0)) / vec2<f32>(2.0);
     uv.y = 1.0 - uv.y;
 
-    if(quadId == 0u){
-      workgroup_quads = getVoxelQuads(objectSpaceVoxel);
+
+    // Only calculate quads once per voxel
+    let isFirstQuadOfVoxel = localQuadId == 0u;
+    if(isFirstQuadOfVoxel) {
+      let workgroup_quads_temp = getVoxelQuads(objectSpaceVoxel);
+      for (var i: u32 = 0u; i < 6u; i = i + 1u) {
+        workgroup_quads[quadId + i] = workgroup_quads_temp[i];
+      }
     }
-//    workgroupBarrier();
+
+    workgroupBarrier();
 
     // Empty voxel
     let foo = textureLoad(voxels, vec3<u32>(voxelId) + vec3<u32>(voxelObject.atlasLocation), 0);
