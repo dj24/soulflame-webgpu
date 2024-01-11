@@ -250,51 +250,58 @@ fn extractNearFarPlane(projectionMatrix: mat4x4<f32>) -> nearFarPlane {
   return nearFarPlane(near, far);
 }
 
-@compute @workgroup_size(4, 4, 4)
-fn projectVoxels(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
-  for(var x = 0; x < 6; x++){
-    for(var y = 0; y < 1; y++){
-    for(var z = 0; z < 6; z++){
-      var voxelId = GlobalInvocationID;
-      var voxelObject = voxelObjects[0];
-      let debugOffset = vec3(f32(x * 128), f32(y * 128),f32(z * 128));
-      var objectSpaceVoxel = vec3<f32>(voxelId) + debugOffset;
+var<workgroup> workgroup_quads: array<Quad, 6>;
 
-      // Empty voxel
-      let foo = textureLoad(voxels, vec3<u32>(voxelId) + vec3<u32>(voxelObject.atlasLocation), 0);
-      if(foo.a == 0.0){
-        return;
-      }
+/**
+  x = quad id * voxel idx
+  y = voxel idy
+  z = voxel idz
+**/
 
-      let viewProjectionMatrix = viewProjections.viewProjection;
-      let inverseViewProjectionMatrix = viewProjections.inverseViewProjection;
-      let modelMatrix = voxelObject.transform;
-      let mvp =  viewProjectionMatrix * modelMatrix;
-      let clipSpaceVoxel = mvp * vec4(objectSpaceVoxel, 1.0);
-      let worldSpaceVoxel = modelMatrix * vec4(objectSpaceVoxel, 1.0);
-      var ndc = clipSpaceVoxel.xyz / clipSpaceVoxel.w;
-      var uv = (ndc.xy + vec2<f32>(1.0)) / vec2<f32>(2.0);
-      uv.y = 1.0 - uv.y;
+// TOOD: share multiple voxels in the workgroup
+@compute @workgroup_size(6, 1, 1)
+fn projectVoxels(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>, @builtin(local_invocation_id) LocalInvocationID : vec3<u32>) {
+    var voxelId = GlobalInvocationID;
+    var quadId = LocalInvocationID.x;
+    voxelId.x = voxelId.x / 6u;
+    var voxelObject = voxelObjects[0];
+    var objectSpaceVoxel = vec3<f32>(voxelId);
 
-      let quads = getVoxelQuads(objectSpaceVoxel);
+    let viewProjectionMatrix = viewProjections.viewProjection;
+    let inverseViewProjectionMatrix = viewProjections.inverseViewProjection;
+    let modelMatrix = voxelObject.transform;
+    let mvp =  viewProjectionMatrix * modelMatrix;
+    let clipSpaceVoxel = mvp * vec4(objectSpaceVoxel, 1.0);
+    let worldSpaceVoxel = modelMatrix * vec4(objectSpaceVoxel, 1.0);
+    var ndc = clipSpaceVoxel.xyz / clipSpaceVoxel.w;
+    var uv = (ndc.xy + vec2<f32>(1.0)) / vec2<f32>(2.0);
+    uv.y = 1.0 - uv.y;
 
-      let nearFar = extractNearFarPlane(viewProjections.projection);
-      let far = nearFar.far;
-
-      var viewDirection = normalize(worldSpaceVoxel.xyz - cameraPosition);
-      for(var i = 0; i < 6; i++) {
-        let worldNormal = normalize((vec4<f32>(quads[i].normal, 0.0) * voxelObject.transform).xyz);
-//        if(dot(worldNormal, viewDirection) > 0.0) {
-//          continue;
-//        }
-        let lambert = dot(worldNormal, normalize(vec3<f32>(0.5, -1.0, -0.5)));
-        let colour = abs(vec4(lambert * foo.rgb, 1.0));
-        let packedColour =  pack4x8unorm(colour);
-        drawQuad(mvp, quads[i], packedColour);
-      }
+    if(quadId == 0u){
+      workgroup_quads = getVoxelQuads(objectSpaceVoxel);
     }
+//    workgroupBarrier();
+
+    // Empty voxel
+    let foo = textureLoad(voxels, vec3<u32>(voxelId) + vec3<u32>(voxelObject.atlasLocation), 0);
+    if(foo.a == 0.0){
+      return;
     }
-  }
+
+    let nearFar = extractNearFarPlane(viewProjections.projection);
+    let far = nearFar.far;
+
+    var viewDirection = normalize(worldSpaceVoxel.xyz - cameraPosition);
+
+    let worldNormal = normalize((vec4<f32>(workgroup_quads[quadId].normal, 0.0) * voxelObject.transform).xyz);
+//    if(dot(worldNormal, viewDirection) > 0.0) {
+//      return;
+//    }
+    let lambert = dot(worldNormal, normalize(vec3<f32>(0.5, -1.0, -0.5)));
+    let colour = abs(vec4(lambert * foo.rgb, 1.0));
+    let packedColour =  pack4x8unorm(colour);
+    drawQuad(mvp, workgroup_quads[quadId], packedColour);
+
 }
 
 @compute @workgroup_size(8, 8, 1)

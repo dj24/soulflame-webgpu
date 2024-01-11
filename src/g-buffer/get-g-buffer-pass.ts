@@ -252,9 +252,9 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     // const workGroupsX = Math.ceil(resolution[0] / 8);
     // const workGroupsY = Math.ceil(resolution[1] / 8);
 
-    const workGroupsX = Math.ceil(treeHouse.size[0] / 4);
-    const workGroupsY = Math.ceil(treeHouse.size[1] / 4);
-    const workGroupsZ = Math.ceil(treeHouse.size[2] / 4);
+    const workGroupsX = Math.ceil(treeHouse.size[0] / 1);
+    const workGroupsY = Math.ceil(treeHouse.size[1] / 1);
+    const workGroupsZ = Math.ceil(treeHouse.size[2] / 1);
 
     computePass.setPipeline(computePipeline);
     computePass.setBindGroup(0, computeBindGroup);
