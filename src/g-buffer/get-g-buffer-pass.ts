@@ -118,7 +118,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     ],
   });
 
-  const computePipeline = device.createComputePipeline({
+  const rasterPipeline = device.createComputePipeline({
     layout: device.createPipelineLayout({
       bindGroupLayouts: [uniformsBindGroupLayout],
     }),
@@ -132,6 +132,23 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           ${gBuffer}`,
       }),
       entryPoint: "projectVoxels",
+    },
+  });
+
+  const rayPipeline = device.createComputePipeline({
+    layout: device.createPipelineLayout({
+      bindGroupLayouts: [uniformsBindGroupLayout],
+    }),
+    compute: {
+      module: device.createShaderModule({
+        code: `
+          const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
+          ${getRayDirection}
+          ${boxIntersection}
+          ${raymarchVoxels}
+          ${gBuffer}`,
+      }),
+      entryPoint: "main",
     },
   });
 
@@ -268,21 +285,26 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     computePass.setBindGroup(0, computeBindGroup);
     computePass.dispatchWorkgroups(resolution[0] / 8, resolution[1] / 8);
 
-    // const workGroupsX = Math.ceil(resolution[0] / 8);
-    // const workGroupsY = Math.ceil(resolution[1] / 8);
+    const workGroupsX = Math.ceil(resolution[0] / 8);
+    const workGroupsY = Math.ceil(resolution[1] / 8);
 
-    const workGroupsX = Math.ceil(treeHouse.size[0] / 12);
-    const workGroupsY = Math.ceil(treeHouse.size[1] / 1);
-    const workGroupsZ = Math.ceil(treeHouse.size[2] / 1);
-
-    computePass.setPipeline(computePipeline);
+    computePass.setPipeline(rayPipeline);
     computePass.setBindGroup(0, computeBindGroup);
-    computePass.dispatchWorkgroups(workGroupsX, workGroupsY, workGroupsZ);
-
-    computePass.setPipeline(bufferTotexturePipeline);
-    computePass.setBindGroup(0, computeBindGroup);
-    computePass.dispatchWorkgroups(resolution[0] / 8, resolution[1] / 8);
+    computePass.dispatchWorkgroups(workGroupsX, workGroupsY);
     computePass.end();
+
+    // const workGroupsX = Math.ceil(treeHouse.size[0] / 12);
+    // const workGroupsY = Math.ceil(treeHouse.size[1] / 1);
+    // const workGroupsZ = Math.ceil(treeHouse.size[2] / 1);
+
+    // computePass.setPipeline(rasterPipeline);
+    // computePass.setBindGroup(0, computeBindGroup);
+    // computePass.dispatchWorkgroups(workGroupsX, workGroupsY, workGroupsZ);
+
+    // computePass.setPipeline(bufferTotexturePipeline);
+    // computePass.setBindGroup(0, computeBindGroup);
+    // computePass.dispatchWorkgroups(resolution[0] / 8, resolution[1] / 8);
+    // computePass.end();
 
     commandEncoder.copyTextureToTexture(
       {

@@ -62,18 +62,19 @@ fn main(
 //  textureStore(depthWrite, GlobalInvocationID.xy, vec4(depth,0.0,0.0,0.0));
   textureStore(normalTex, pixel, vec4(rayMarchResult.normal,1));
   textureStore(albedoTex, pixel, vec4(rayMarchResult.worldPos % 1,1));
+//  textureStore(albedoTex, pixel, vec4(rayDirection,1));
 
   // VELOCITY
   //TODO: pass both inverse and normal versions in as uniforms
-  let inverseMvp = viewProjections.viewProjection * rayMarchResult.modelMatrix ;
-  let previousInverseMvp = viewProjections.previousViewProjection *  rayMarchResult.previousModelMatrix;
-  let currentClipSpace = inverseMvp * vec4(rayMarchResult.worldPos, 1.0);
-  let previousClipSpace = previousInverseMvp * vec4(rayMarchResult.worldPos, 1.0);
-  let currentNDC = currentClipSpace.xyz / currentClipSpace.w;
-  let previousNDC = previousClipSpace.xyz / previousClipSpace.w;
-  let velocity = currentNDC - previousNDC;
-
-  textureStore(velocityTex, pixel, vec4(velocity,0));
+//  let inverseMvp = viewProjections.viewProjection * rayMarchResult.modelMatrix ;
+//  let previousInverseMvp = viewProjections.previousViewProjection *  rayMarchResult.previousModelMatrix;
+//  let currentClipSpace = inverseMvp * vec4(rayMarchResult.worldPos, 1.0);
+//  let previousClipSpace = previousInverseMvp * vec4(rayMarchResult.worldPos, 1.0);
+//  let currentNDC = currentClipSpace.xyz / currentClipSpace.w;
+//  let previousNDC = previousClipSpace.xyz / previousClipSpace.w;
+//  let velocity = currentNDC - previousNDC;
+//
+//  textureStore(velocityTex, pixel, vec4(velocity,0));
 }
 
 // Convert 2D index to 1D
@@ -297,7 +298,7 @@ fn projectVoxels(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>, 
     let v2 = project(mvp, tri.v2);
     let v3 = project(mvp, tri.v3);
 
-    if(!isVerexInScreenSpace(v1) || !isVerexInScreenSpace(v2) || !isVerexInScreenSpace(v3)) {
+    if(!isVerexInScreenSpace(v1) && !isVerexInScreenSpace(v2) && !isVerexInScreenSpace(v3)) {
       return;
     }
 

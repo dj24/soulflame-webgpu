@@ -11,37 +11,20 @@ type Corners = [
 
 const getNearPlaneCornerPositions = (camera: Camera): Corners => {
   const aspectRatio = resolution[0] / resolution[1];
-  const nearHeight =
-    2 * Math.tan(((camera.fieldOfView / 180) * Math.PI) / 2) * camera.near;
+  const nearHeight = 2 * Math.tan(camera.fieldOfView / 2) * camera.near;
   const nearWidth = nearHeight * aspectRatio;
-  const bottomLeft = vec3.create(nearWidth / 2, -nearHeight / 2, -camera.near); //0, Near Top Left
-  const bottomRight = vec3.create(
-    -nearWidth / 2,
-    -nearHeight / 2,
-    -camera.near,
-  ); //1, Near Top Right
-  const topRight = vec3.create(-nearWidth / 2, nearHeight / 2, -camera.near); //2, Near Bottom Right
-  const topLeft = vec3.create(nearWidth / 2, nearHeight / 2, -camera.near); //3, Near Bottom Left
+  const bottomLeft = vec3.create(-nearWidth / 2, -nearHeight / 2, -camera.near); //0, Near Top Left
+  const bottomRight = vec3.create(nearWidth / 2, -nearHeight / 2, -camera.near); //1, Near Top Right
+  const topRight = vec3.create(nearWidth / 2, nearHeight / 2, -camera.near); //2, Near Bottom Right
+  const topLeft = vec3.create(-nearWidth / 2, nearHeight / 2, -camera.near); //3, Near Bottom Left
   return [topLeft, topRight, bottomLeft, bottomRight];
-};
-
-export const getCameraSpaceFrustumCornerDirections = (
-  camera: Camera,
-): Corners => {
-  const corners = getNearPlaneCornerPositions(camera);
-  return [
-    vec3.normalize(vec3.subtract(corners[0], vec3.zero())),
-    vec3.normalize(vec3.subtract(corners[1], vec3.zero())),
-    vec3.normalize(vec3.subtract(corners[2], vec3.zero())),
-    vec3.normalize(vec3.subtract(corners[3], vec3.zero())),
-  ];
 };
 
 export const getWorldSpaceFrustumCornerDirections = (
   camera: Camera,
 ): Corners => {
-  const cornerDirections = getCameraSpaceFrustumCornerDirections(camera);
-  const rotationQuat = quat.fromMat(camera.inverseViewMatrix);
+  const cornerDirections = getNearPlaneCornerPositions(camera);
+  const rotationQuat = quat.fromMat(camera.viewMatrix);
   const worldSpaceCornerDirections = [
     vec3.transformQuat(cornerDirections[0], rotationQuat),
     vec3.transformQuat(cornerDirections[1], rotationQuat),
