@@ -1,13 +1,6 @@
-struct FrustumCornerDirections {
-  topLeft : vec3<f32>,
-  topRight : vec3<f32>,
-  bottomLeft : vec3<f32>,
-  bottomRight : vec3<f32>
-}
-
-fn calculateRayDirection(uv: vec2<f32>, directions: FrustumCornerDirections) -> vec3<f32> {
-  let topInterpolated = mix(directions.topLeft, directions.topRight, uv.x);
-  let bottomInterpolated = mix(directions.bottomLeft, directions.bottomRight, uv.x);
-  let finalInterpolated = mix(bottomInterpolated, topInterpolated, uv.y);
-  return normalize(finalInterpolated);
+fn calculateRayDirection(uv: vec2<f32>, inverseProjection: mat4x4<f32>) -> vec3<f32> {
+  let clipSpace = uv * 2.0 - 1.0;
+  let viewRay = vec3<f32>(clipSpace, 1.0);
+  let viewRayView = inverseProjection * vec4(viewRay, 1.0);
+  return normalize(viewRayView.xyz);
 }

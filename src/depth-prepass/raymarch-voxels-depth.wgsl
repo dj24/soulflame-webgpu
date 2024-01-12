@@ -13,13 +13,14 @@ fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 )
 {
-  let downscaledResolution = textureDimensions(outputTex);
-  let pixel = vec2<f32>(f32(GlobalInvocationID.x), f32(downscaledResolution.y - GlobalInvocationID.y));
-  let uv = pixel / vec2<f32>(downscaledResolution);
-  var rayOrigin = cameraPosition;
-  var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
-  let rayMarchResult = rayMarch( rayOrigin, rayDirection, voxelObjects);
-  let depth = distance(rayOrigin, rayMarchResult.worldPos);
-  textureStore(outputTex, GlobalInvocationID.xy, vec4(depth, 0,0, 0));
+// TODO: pass projection in here and calcaulte ray again
+//  let downscaledResolution = textureDimensions(outputTex);
+//  let pixel = vec2<f32>(f32(GlobalInvocationID.x), f32(downscaledResolution.y - GlobalInvocationID.y));
+//  let uv = pixel / vec2<f32>(downscaledResolution);
+//  var rayOrigin = cameraPosition;
+//  var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
+//  let rayMarchResult = rayMarch( rayOrigin, rayDirection, voxelObjects);
+//  let depth = distance(rayOrigin, rayMarchResult.worldPos);
+//  textureStore(outputTex, GlobalInvocationID.xy, vec4(depth, 0,0, 0));
 
 }

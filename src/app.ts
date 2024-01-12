@@ -259,6 +259,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       ...previousViewProjectionMatrix,
       ...camera.inverseViewProjectionMatrix,
       ...camera.projectionMatrix,
+      ...camera.inverseProjectionMatrix,
     ];
 
     if (viewProjectionMatricesBuffer) {

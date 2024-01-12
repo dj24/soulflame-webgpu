@@ -3,114 +3,33 @@ struct ViewProjectionMatrices {
   previousViewProjection : mat4x4<f32>,
   inverseViewProjection : mat4x4<f32>,
   projection : mat4x4<f32>,
-};
-
-
-struct PixelBufferElement {
-  colour : atomic<u32>,
-  distance : atomic<u32>
+  inverseProjection: mat4x4<f32>
 };
 
 @group(0) @binding(0) var voxels : texture_3d<f32>;
-@group(0) @binding(1) var<uniform> frustumCornerDirections : FrustumCornerDirections;
 @group(0) @binding(2) var<uniform> cameraPosition : vec3<f32>;
 @group(0) @binding(3) var<uniform> voxelObjects : array<VoxelObject, VOXEL_OBJECT_COUNT>; // TODO: dynamic amount of these using string interpolation
 // TODO: maybe make a G-Buffer bind group to resuse across shaders
 @group(0) @binding(4) var normalTex : texture_storage_2d<rgba8snorm, write>;
 @group(0) @binding(5) var albedoTex : texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(6) var depthRead : texture_2d<f32>;
-//@group(0) @binding(7) var depthWrite : texture_storage_2d<r32float, write>;
 @group(0) @binding(7) var velocityTex : texture_storage_2d<r32float, write>;
 @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;
 @group(0) @binding(9) var<storage, read_write> pixelBuffer : array<PixelBufferElement>;
 @group(0) @binding(10) var<uniform> resolution : vec2<u32>;
 
-
-fn plainIntersect(ro: vec3<f32>, rd: vec3<f32>, p: vec4<f32>) -> f32 {
-    return -(dot(ro, p.xyz) + p.w) / dot(rd, p.xyz);
-}
-
 const FAR_PLANE = 10000.0;
 
-const RAYS_PER_THREAD = 2;
 
-@compute @workgroup_size(8, 8, 1)
-fn main(
-  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
-) {
-//  let initialDepth = textureLoad(depthRead, vec2<i32>(GlobalInvocationID.xy), 0).r;
-//  if(initialDepth > 10000) {
-//    textureStore(normalTex, GlobalInvocationID.xy, vec4(0.0));
-//    textureStore(albedoTex, GlobalInvocationID.xy, vec4(0.0));
-//    return;
-//  }
-
-  let resolution = textureDimensions(albedoTex);
-  var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
-  uv = vec2(uv.x, 1.0 - uv.y);
-  var pixel = GlobalInvocationID.xy;
-
-
-  var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
-
-  var rayOrigin = cameraPosition;
-
-  let rayMarchResult = rayMarch( rayOrigin, rayDirection, voxelObjects);
-  let colour = rayMarchResult.colour;
-  let depth = distance(rayMarchResult.worldPos, cameraPosition);
-
-//  textureStore(depthWrite, GlobalInvocationID.xy, vec4(depth,0.0,0.0,0.0));
-  textureStore(normalTex, pixel, vec4(rayMarchResult.normal,1));
-  textureStore(albedoTex, pixel, vec4(rayMarchResult.worldPos % 1,1));
-//  textureStore(albedoTex, pixel, vec4(rayDirection,1));
-
-  // VELOCITY
-  //TODO: pass both inverse and normal versions in as uniforms
-//  let inverseMvp = viewProjections.viewProjection * rayMarchResult.modelMatrix ;
-//  let previousInverseMvp = viewProjections.previousViewProjection *  rayMarchResult.previousModelMatrix;
-//  let currentClipSpace = inverseMvp * vec4(rayMarchResult.worldPos, 1.0);
-//  let previousClipSpace = previousInverseMvp * vec4(rayMarchResult.worldPos, 1.0);
-//  let currentNDC = currentClipSpace.xyz / currentClipSpace.w;
-//  let previousNDC = previousClipSpace.xyz / previousClipSpace.w;
-//  let velocity = currentNDC - previousNDC;
-//
-//  textureStore(velocityTex, pixel, vec4(velocity,0));
-}
-
-// Convert 2D index to 1D
 fn convert2DTo1D(size: vec2<u32>, index2D: vec2<u32>) -> u32 {
     return index2D.y * size.x + index2D.x;
 }
 
-// Convert 1D index to 2D
+
 fn convert1DTo2D(size: vec2<u32>, index1D: u32) -> vec2<u32> {
     return vec2(index1D % size.x, index1D / size.x);
 }
 
-fn getVoxelVertices(voxel: vec3<f32>) -> array<vec3<f32>, 8> {
-  return array<vec3<f32>, 8>(
-     voxel + vec3<f32>(0.0, 0.0, 0.0),
-     voxel + vec3<f32>(1.0, 0.0, 0.0),
-     voxel + vec3<f32>(0.0, 1.0, 0.0),
-     voxel + vec3<f32>(1.0, 1.0, 0.0),
-     voxel + vec3<f32>(0.0, 0.0, 1.0),
-     voxel + vec3<f32>(1.0, 0.0, 1.0),
-     voxel + vec3<f32>(0.0, 1.0, 1.0),
-     voxel +  vec3<f32>(1.0, 1.0, 1.0)
-   );
-}
-
-fn getVoxelNormals(voxel: vec3<f32>) -> array<vec3<f32>, 6> {
-  return array<vec3<f32>, 6>(
-    vec3<f32>(0.0, 0.0, -1.0),
-    vec3<f32>(0.0, 0.0, 1.0),
-    vec3<f32>(0.0, -1.0, 0.0),
-    vec3<f32>(0.0, 1.0, 0.0),
-    vec3<f32>(1.0, 0.0, 0.0),
-    vec3<f32>(-1.0, 0.0, 0.0)
-
-  );
-}
 
 const TRIANGLES_PER_VOXEL =  12u;
 const VOXELS_PER_WORKGROUP = 12u;
@@ -161,19 +80,6 @@ fn get_min_max(v1: vec3<f32>, v2: vec3<f32>, v3: vec3<f32>) -> vec4<f32> {
 
   return min_max;
 }
-
-fn drawLine(v1: vec2<f32>, v2: vec2<f32>, packedColour: u32) {
-  let dist = distance(v1, v2);
-  for (var i = 0.0; i < dist; i += 1.0) {
-    let x = u32(v1.x + (v2.x - v1.x) * (i / dist));
-    let y = u32(v1.y + (v2.y - v1.y) * (i / dist));
-    let bufferIndex = convert2DTo1D(resolution, vec2<u32>(x, y));
-
-    atomicStore(&pixelBuffer[bufferIndex].colour, packedColour);
-    atomicStore(&pixelBuffer[bufferIndex].distance, 255u);
-  }
-}
-
 /**
   * Writes screen space triangle to pixel buffer
   * For each vertex, x and y are screen coordinates, z is depth
@@ -200,12 +106,6 @@ fn draw_triangle(v1: vec3<f32>, v2: vec3<f32>, v3: vec3<f32>, packedColour: u32)
       }
     }
   }
-}
-
-fn drawLineTriangle(v1: vec3<f32>, v2: vec3<f32>, v3: vec3<f32>, packedColour: u32) {
-  drawLine(v1.xy, v2.xy, packedColour);
-  drawLine(v2.xy, v3.xy, packedColour);
-  drawLine(v3.xy, v1.xy,  packedColour);
 }
 
 fn project(mvp: mat4x4<f32>, p: vec3<f32>) -> vec3<f32> {
@@ -315,14 +215,6 @@ fn projectVoxels(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>, 
     draw_triangle(v1, v2, v3, packedColour);
 }
 
-@compute @workgroup_size(8, 8, 1)
-fn clearPixelBuffer(
-  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
-) {
-  let bufferIndex = convert2DTo1D(textureDimensions(albedoTex), GlobalInvocationID.xy);
-  atomicStore(&pixelBuffer[bufferIndex].colour, 0u);
-  atomicStore(&pixelBuffer[bufferIndex].distance, bitcast<u32>(FAR_PLANE));
-}
 
 @compute @workgroup_size(8, 8, 1)
 fn bufferToScreen(
@@ -334,6 +226,6 @@ fn bufferToScreen(
   let depth = atomicLoad(&pixelBuffer[bufferIndex].distance);
   let unpackedDepth = bitcast<f32>(depth);
   let pixel = convert1DTo2D(textureDimensions(albedoTex), bufferIndex);
-//  textureStore(albedoTex, pixel, vec4(unpackedDepth % 0.5) * 2.0);
+//  textureStore(outputTex, pixel, vec4(unpackedDepth % 0.5) * 2.0);
   textureStore(albedoTex, pixel, unpackedColour);
 }

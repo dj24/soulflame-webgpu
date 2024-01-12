@@ -1,4 +1,7 @@
-import gBuffer from "./g-buffer.wgsl";
+import gBufferRaymarch from "./g-buffer-raymarch.wgsl";
+import gBufferRaster from "./g-buffer-raster.wgsl";
+import clearPixelBuffer from "./clear-pixel-buffer.wgsl";
+import pixelBufferElement from "./pixel-buffer-element.wgsl";
 import boxIntersection from "../shader/box-intersection.wgsl";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
@@ -53,6 +56,36 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     },
   };
 
+  // Layout for clearing the pixel buffer and copying it to the screen
+  const utilLayout = device.createBindGroupLayout({
+    entries: [
+      // Resolution
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
+      // Pixel buffer
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "storage",
+        },
+      },
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        storageTexture: {
+          format: "rgba8unorm",
+          viewDimension: "2d",
+        },
+      },
+    ],
+  });
+
   const uniformsBindGroupLayout = device.createBindGroupLayout({
     entries: [
       {
@@ -61,13 +94,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         texture: {
           sampleType: "float",
           viewDimension: "3d",
-        },
-      },
-      {
-        binding: 1,
-        visibility: GPUShaderStage.COMPUTE,
-        buffer: {
-          type: "uniform",
         },
       },
       {
@@ -129,7 +155,8 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           ${getRayDirection}
           ${boxIntersection}
           ${raymarchVoxels}
-          ${gBuffer}`,
+          ${pixelBufferElement}
+          ${gBufferRaster}`,
       }),
       entryPoint: "projectVoxels",
     },
@@ -146,7 +173,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           ${getRayDirection}
           ${boxIntersection}
           ${raymarchVoxels}
-          ${gBuffer}`,
+          ${gBufferRaymarch}`,
       }),
       entryPoint: "main",
     },
@@ -163,7 +190,8 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           ${getRayDirection}
           ${boxIntersection}
           ${raymarchVoxels}
-          ${gBuffer}`,
+          ${pixelBufferElement}
+          ${gBufferRaster}`,
       }),
       entryPoint: "bufferToScreen",
     },
@@ -171,16 +199,11 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
 
   const clearBufferPipeline = device.createComputePipeline({
     layout: device.createPipelineLayout({
-      bindGroupLayouts: [uniformsBindGroupLayout],
+      bindGroupLayouts: [utilLayout],
     }),
     compute: {
       module: device.createShaderModule({
-        code: `
-          const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
-          ${getRayDirection}
-          ${boxIntersection}
-          ${raymarchVoxels}
-          ${gBuffer}`,
+        code: `${pixelBufferElement}${clearPixelBuffer}`,
       }),
       entryPoint: "clearPixelBuffer",
     },
@@ -219,18 +242,34 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       });
     }
 
+    const utilBindGroup = device.createBindGroup({
+      layout: utilLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: {
+            buffer: resolutionBuffer,
+          },
+        },
+        {
+          binding: 1,
+          resource: {
+            buffer: outputBuffer,
+          },
+        },
+        {
+          binding: 2,
+          resource: outputTextures.albedoTexture.createView(),
+        },
+      ],
+    });
+
     const computeBindGroup = device.createBindGroup({
       layout: uniformsBindGroupLayout,
       entries: [
         {
           binding: 0,
           resource: voxelTextureView,
-        },
-        {
-          binding: 1,
-          resource: {
-            buffer: frustumCornerDirectionsBuffer,
-          },
         },
         {
           binding: 2,
@@ -282,29 +321,33 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     });
 
     computePass.setPipeline(clearBufferPipeline);
-    computePass.setBindGroup(0, computeBindGroup);
+    computePass.setBindGroup(0, utilBindGroup);
     computePass.dispatchWorkgroups(resolution[0] / 8, resolution[1] / 8);
 
-    const workGroupsX = Math.ceil(resolution[0] / 8);
-    const workGroupsY = Math.ceil(resolution[1] / 8);
+    const urlParams = new URLSearchParams(window.location.search);
+    const mode = urlParams.get("mode");
+    if (mode === "raymarch") {
+      const workGroupsX = Math.ceil(resolution[0] / 8);
+      const workGroupsY = Math.ceil(resolution[1] / 8);
 
-    computePass.setPipeline(rayPipeline);
-    computePass.setBindGroup(0, computeBindGroup);
-    computePass.dispatchWorkgroups(workGroupsX, workGroupsY);
-    computePass.end();
+      computePass.setPipeline(rayPipeline);
+      computePass.setBindGroup(0, computeBindGroup);
+      computePass.dispatchWorkgroups(workGroupsX, workGroupsY);
+      computePass.end();
+    } else {
+      const workGroupsX = Math.ceil(treeHouse.size[0] / 12);
+      const workGroupsY = Math.ceil(treeHouse.size[1] / 1);
+      const workGroupsZ = Math.ceil(treeHouse.size[2] / 1);
 
-    // const workGroupsX = Math.ceil(treeHouse.size[0] / 12);
-    // const workGroupsY = Math.ceil(treeHouse.size[1] / 1);
-    // const workGroupsZ = Math.ceil(treeHouse.size[2] / 1);
+      computePass.setPipeline(rasterPipeline);
+      computePass.setBindGroup(0, computeBindGroup);
+      computePass.dispatchWorkgroups(workGroupsX, workGroupsY, workGroupsZ);
 
-    // computePass.setPipeline(rasterPipeline);
-    // computePass.setBindGroup(0, computeBindGroup);
-    // computePass.dispatchWorkgroups(workGroupsX, workGroupsY, workGroupsZ);
-
-    // computePass.setPipeline(bufferTotexturePipeline);
-    // computePass.setBindGroup(0, computeBindGroup);
-    // computePass.dispatchWorkgroups(resolution[0] / 8, resolution[1] / 8);
-    // computePass.end();
+      computePass.setPipeline(bufferTotexturePipeline);
+      computePass.setBindGroup(0, computeBindGroup);
+      computePass.dispatchWorkgroups(resolution[0] / 8, resolution[1] / 8);
+      computePass.end();
+    }
 
     commandEncoder.copyTextureToTexture(
       {
