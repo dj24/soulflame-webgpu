@@ -18,7 +18,7 @@ import { DebugValuesStore } from "./debug-values-store";
 import { createTextureFromImage, createTextureFromImages } from "webgpu-utils";
 import { getReflectionsPass } from "./reflections-pass/get-reflections-pass";
 import { getWorldSpaceFrustumCornerDirections } from "./get-frustum-corner-directions";
-import { create3dTexture } from "./create-3d-texture";
+import { create3dTexture } from "./create-3d-texture/create-3d-texture";
 import { getDiffusePass } from "./diffuse-pass/get-diffuse-pass";
 import { getVolumeAtlas, VolumeAtlas } from "./volume-atlas";
 import { haltonJitter } from "./jitter-view-projection";

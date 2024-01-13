@@ -1,5 +1,15 @@
 import { Vec3 } from "wgpu-matrix";
 import { createTextureFromImage } from "webgpu-utils";
+export const nextPowerOf2 = (n: number) => {
+  return Math.pow(2, Math.ceil(Math.log2(n)));
+};
+
+export const calculateNumMipLevels = ([width, height, depth]: Vec3): number => {
+  const maxDimension = Math.max(width, height, depth);
+  return Math.floor(Math.log2(maxDimension)) + 1;
+};
+
+const VOLUME_TEXTURE_FORMAT = "rgba8unorm";
 
 export const create3dTexture = async (
   device: GPUDevice,
@@ -8,15 +18,17 @@ export const create3dTexture = async (
   label?: string,
 ): Promise<GPUTexture> => {
   const [width, height, depth] = size;
-  const texture = device.createTexture({
+
+  const volumeTexture = device.createTexture({
     size: { width, height, depthOrArrayLayers: depth },
-    format: "rgba8unorm",
+    format: VOLUME_TEXTURE_FORMAT,
     usage:
       GPUTextureUsage.COPY_DST |
       GPUTextureUsage.TEXTURE_BINDING |
       GPUTextureUsage.COPY_SRC,
     dimension: "3d",
     label,
+    mipLevelCount: 1,
   });
 
   const commandEncoder = device.createCommandEncoder();
@@ -26,6 +38,7 @@ export const create3dTexture = async (
       try {
         const sliceTexture = await createTextureFromImage(device, path, {
           usage: GPUTextureUsage.COPY_SRC,
+          mips: false,
         });
         commandEncoder.copyTextureToTexture(
           {
@@ -34,13 +47,13 @@ export const create3dTexture = async (
             origin: { x: 0, y: 0, z: 0 }, // Specify the source origin
           },
           {
-            texture,
+            texture: volumeTexture,
             mipLevel: 0, // Assuming mip level 0 for simplicity
             origin: { x: 0, y: 0, z: i }, // Specify the destination origin (z-axis slice)
           },
           {
-            width: texture.width,
-            height: texture.height,
+            width: sliceTexture.width,
+            height: sliceTexture.height,
             depthOrArrayLayers: 1, // Copy one layer (z-axis slice)
           },
         );
@@ -52,5 +65,5 @@ export const create3dTexture = async (
 
   device.queue.submit([commandEncoder.finish()]);
 
-  return texture;
+  return volumeTexture;
 };
