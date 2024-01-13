@@ -50,12 +50,13 @@ fn main(
   rayOrigin.y = -rayOrigin.y;
 
   let rayMarchResult = rayMarch( rayOrigin, rayDirection, voxelObjects);
-  let colour = rayMarchResult.colour;
   let depth = distance(rayMarchResult.worldPos, cameraPosition);
 
 //  textureStore(depthWrite, GlobalInvocationID.xy, vec4(depth,0.0,0.0,0.0));
   textureStore(normalTex, pixel, vec4(rayMarchResult.normal,1));
-  textureStore(albedoTex, pixel, vec4(rayMarchResult.normal,1));
+  let lambert = dot(rayMarchResult.normal, normalize(vec3<f32>(0.5, -1.0, -0.5)));
+  let colour = abs(vec3(lambert * rayMarchResult.colour.rgb));
+  textureStore(albedoTex, pixel, vec4(colour,1));
 //  textureStore(albedoTex, pixel, vec4(rayDirection,1));
 
   // VELOCITY

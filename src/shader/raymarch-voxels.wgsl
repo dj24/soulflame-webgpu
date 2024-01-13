@@ -13,6 +13,10 @@ fn transformPosition(transform: mat4x4<f32>, position: vec3<f32>) -> vec3<f32> {
     return worldPosition;
 }
 
+fn getMaxMipLevel(size: vec3<f32>) -> u32 {
+  return u32(log2(max(size.x, max(size.y, size.z))));
+}
+
 struct VoxelObject {
   transform: mat4x4<f32>,
   inverseTransform: mat4x4<f32>,
@@ -42,7 +46,6 @@ fn rayMarch(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, voxelObjects: array<V
   output.modelMatrix = mat4x4<f32>(vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0));
   output.previousModelMatrix = mat4x4<f32>(vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0));
 
-  var voxelSize = 1.0;
   var tNear = 999999.0;
   var clostestDistance = 9999999.0;
   var stepsTaken = 0;
@@ -50,9 +53,12 @@ fn rayMarch(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, voxelObjects: array<V
 
   let foo = textureLoad(voxels, vec3(0), 0);
 
-
   for (var voxelObjectIndex = 0; voxelObjectIndex < VOXEL_OBJECT_COUNT; voxelObjectIndex++) {
     var voxelObject = voxelObjects[voxelObjectIndex];
+    var mipLevel = getMaxMipLevel(voxelObject.size);
+    mipLevel = 0;
+    var voxelSize = pow(2.0, f32(mipLevel));
+
     objectsTraversed ++;
 
     // Empty object, go to next
@@ -62,25 +68,15 @@ fn rayMarch(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, voxelObjects: array<V
 
     var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-
     let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
     tNear = intersect.tNear + EPSILON;
     let worldPos = transformPosition(voxelObject.transform, objectRayOrigin + objectRayDirection * intersect.tNear);
-    let hitDistance = distance(worldPos, rayOrigin);
     if(!intersect.isHit){
       continue;
     }
 
-    let boundingBoxSurfacePosition = objectRayOrigin + tNear * objectRayDirection;
-    let isStartingInBounds = all(objectRayOrigin >= vec3(-1.0)) && all(objectRayOrigin < vec3(voxelObject.size / voxelSize));
-    let isBackwardsIntersection = tNear < EPSILON && !isStartingInBounds;
-    if(isBackwardsIntersection){
-      continue;
-    }
-
-     // RAYMARCH
     var tIntersection = tNear;
-    var objectPos = boundingBoxSurfacePosition;
+    var objectPos = objectRayOrigin + tIntersection * objectRayDirection;
     var voxelStep = sign(objectRayDirection);
     var tDelta = vec3(voxelSize / abs(objectRayDirection));
     let scaledRayOrigin = vec3<f32>(objectRayOrigin) / voxelSize;
@@ -90,13 +86,9 @@ fn rayMarch(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, voxelObjects: array<V
     var tMax = (voxelStep * voxelOriginDifference + clampedVoxelBoundary) * tDelta;
     let maxSteps = max(voxelObject.size.x,voxelObject.size.y) * 2;
     var objectStepsTaken = 0;
-    let mask = vec3(
-        select(0.0, 1.0, tMax.x == tIntersection),
-        select(0.0, 1.0, tMax.y == tIntersection),
-        select(0.0, 1.0, tMax.z == tIntersection)
-    );
     var objectNormal = intersect.normal;
 
+    // RAYMARCH
     while(objectStepsTaken <= i32(maxSteps) && stepsTaken < MAX_RAY_STEPS)
     {
       let worldPos = transformPosition(voxelObject.transform, objectPos);
@@ -111,13 +103,15 @@ fn rayMarch(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, voxelObjects: array<V
           break;
       }
 
-      let foo = textureLoad(voxels, vec3<u32>(currentIndex) + vec3<u32>(voxelObject.atlasLocation), 0);
+      // Offset sample based on position of voxel in atlas
+      let atlasLocation = vec3<u32>(voxelObject.atlasLocation / voxelSize);
+      let voxelSample = textureLoad(voxels, vec3<u32>(currentIndex) + atlasLocation, mipLevel);
 
-      if(foo.a > 0.0 && tIntersection > EPSILON && hitDistance < clostestDistance){
+      if(voxelSample.a > 0.0 && tIntersection > EPSILON && hitDistance < clostestDistance){
           clostestDistance = hitDistance;
           output.worldPos = transformPosition(voxelObject.transform, objectPos);
           output.normal = transformNormal(voxelObject.inverseTransform,objectNormal);
-          output.colour = foo.rgb;
+          output.colour = voxelSample.rgb;
           output.hit = true;
           output.modelMatrix = voxelObject.transform;
           output.previousModelMatrix = voxelObject.previousTransform;

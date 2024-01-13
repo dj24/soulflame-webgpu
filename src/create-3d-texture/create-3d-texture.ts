@@ -1,12 +1,7 @@
 import { Vec3 } from "wgpu-matrix";
-import { createTextureFromImage } from "webgpu-utils";
+import { createTextureFromImage, numMipLevels } from "webgpu-utils";
 export const nextPowerOf2 = (n: number) => {
   return Math.pow(2, Math.ceil(Math.log2(n)));
-};
-
-export const calculateNumMipLevels = ([width, height, depth]: Vec3): number => {
-  const maxDimension = Math.max(width, height, depth);
-  return Math.floor(Math.log2(maxDimension)) + 1;
 };
 
 const VOLUME_TEXTURE_FORMAT = "rgba8unorm";
@@ -17,7 +12,9 @@ export const create3dTexture = async (
   size: Vec3,
   label?: string,
 ): Promise<GPUTexture> => {
-  const [width, height, depth] = size;
+  const width = nextPowerOf2(size[0]);
+  const height = nextPowerOf2(size[1]);
+  const depth = nextPowerOf2(size[2]);
 
   const volumeTexture = device.createTexture({
     size: { width, height, depthOrArrayLayers: depth },
@@ -25,10 +22,14 @@ export const create3dTexture = async (
     usage:
       GPUTextureUsage.COPY_DST |
       GPUTextureUsage.TEXTURE_BINDING |
-      GPUTextureUsage.COPY_SRC,
+      GPUTextureUsage.COPY_SRC |
+      GPUTextureUsage.STORAGE_BINDING,
     dimension: "3d",
     label,
-    mipLevelCount: 1,
+    mipLevelCount: numMipLevels(
+      { width, height, depthOrArrayLayers: depth },
+      "3d",
+    ),
   });
 
   const commandEncoder = device.createCommandEncoder();

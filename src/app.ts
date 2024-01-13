@@ -15,7 +15,11 @@ import treeHouse from "./voxel-models/treehouse.vxm";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
 import { DebugValuesStore } from "./debug-values-store";
-import { createTextureFromImage, createTextureFromImages } from "webgpu-utils";
+import {
+  createTextureFromImage,
+  createTextureFromImages,
+  generateMipmap,
+} from "webgpu-utils";
 import { getReflectionsPass } from "./reflections-pass/get-reflections-pass";
 import { getWorldSpaceFrustumCornerDirections } from "./get-frustum-corner-directions";
 import { create3dTexture } from "./create-3d-texture/create-3d-texture";
@@ -24,6 +28,7 @@ import { getVolumeAtlas, VolumeAtlas } from "./volume-atlas";
 import { haltonJitter } from "./jitter-view-projection";
 import { getTaaPass } from "./taa-pass/get-taa-pass";
 import { getFrameTimeTracker } from "./frametime-tracker";
+import { generateOctreeMips } from "./create-3d-texture/generate-octree-mips";
 
 export type RenderArgs = {
   commandEncoder: GPUCommandEncoder;
@@ -71,6 +76,7 @@ const frameTimeTracker = getFrameTimeTracker();
 let handleDownscaleChange: (event: CustomEvent) => void;
 
 let voxelTextureView: GPUTextureView;
+let octreeBuffer: GPUBuffer;
 let skyTexture: GPUTexture;
 export const getObjectTransformsWorker = new Worker(
   new URL("./get-objects-transforms/objects-worker.ts", import.meta.url),
@@ -384,6 +390,7 @@ const start = () => {
     navigator.gpu.requestAdapter().then((adapter) => {
       adapter.requestDevice().then(async (newDevice) => {
         device = newDevice;
+        console.log(device.limits);
         skyTexture = await createTextureFromImages(device, [
           "cubemaps/town-square/posx.jpg",
           "cubemaps/town-square/negx.jpg",
@@ -393,29 +400,25 @@ const start = () => {
           "cubemaps/town-square/negz.jpg",
         ]);
         volumeAtlas = getVolumeAtlas(device);
-        const cornellBoxTexture = await create3dTexture(
-          device,
-          cornellBox.sliceFilePaths,
-          cornellBox.size,
-          "cornell box",
-        );
-        volumeAtlas.addVolume(cornellBoxTexture, "cornell box");
-        cornellBoxTexture.destroy();
+        // const cornellBoxTexture = await create3dTexture(
+        //   device,
+        //   cornellBox.sliceFilePaths,
+        //   cornellBox.size,
+        //   "cornell box",
+        // );
+        // volumeAtlas.addVolume(cornellBoxTexture, "cornell box");
+        // cornellBoxTexture.destroy();
 
-        create3dTexture(
+        const treeHouseTexture = await create3dTexture(
           device,
           treeHouse.sliceFilePaths,
           treeHouse.size,
           "treeHouse",
-        ).then((treeHouseTexture) => {
-          volumeAtlas.addVolume(treeHouseTexture, "treeHouse");
-          console.log({ treeHouse, treeHouseTexture });
-          treeHouseTexture.destroy();
-        });
-
-        setTimeout(() => {
-          // volumeAtlas.removeVolume("dragon");
-        }, 2000);
+        );
+        generateOctreeMips(device, treeHouseTexture);
+        // voxelTextureView = treeHouseTexture.createView();
+        volumeAtlas.addVolume(treeHouseTexture, "treeHouse");
+        treeHouseTexture.destroy();
 
         renderLoop(device, [
           // TODO: use center of pixel instead for depth prepass

@@ -1,4 +1,5 @@
 import { vec3, Vec3 } from "wgpu-matrix";
+import { numMipLevels } from "webgpu-utils";
 
 const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
   format: "rgba8unorm",
@@ -10,21 +11,52 @@ const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
   dimension: "3d",
 };
 
+export type VolumeAtlasDictionary = {
+  [key: string]: { location: Vec3; size: Vec3 };
+};
+
 export type VolumeAtlas = {
+  getVolumes: () => VolumeAtlasDictionary;
   addVolume: (texture: GPUTexture, label: string) => void;
   removeVolume: (label: string) => void;
   getAtlasTextureView: () => GPUTextureView;
 };
 
-export type VolumeAtlasDictionary = {
-  [key: string]: { location: Vec3; size: Vec3 };
+const copyTextureWithMips = (
+  commandEncoder: GPUCommandEncoder,
+  copySrc: GPUTexture,
+  copyDst: GPUTexture,
+) => {
+  const { width, height, depthOrArrayLayers } = copySrc;
+  for (let mipLevel = 0; mipLevel < copySrc.mipLevelCount; mipLevel++) {
+    const mipWidth = Math.max(1, width >> mipLevel);
+    const mipHeight = Math.max(1, height >> mipLevel);
+    const mipDepth = Math.max(1, depthOrArrayLayers >> mipLevel);
+    console.log({ mipLevel, mipWidth, mipHeight, mipDepth });
+    commandEncoder.copyTextureToTexture(
+      {
+        texture: copySrc,
+        mipLevel,
+        origin: { x: 0, y: 0, z: 0 }, // Specify the source origin
+      },
+      {
+        texture: copyDst,
+        mipLevel,
+        origin: { x: 0, y: 0, z: 0 }, // Specify the destination origin (z-axis slice)
+      },
+      {
+        width: mipWidth,
+        height: mipHeight,
+        depthOrArrayLayers: mipDepth,
+      },
+    );
+  }
 };
 
 /**
  * Factory function for creating and managing a volume atlas
  * The atlas is a 3d texture that contains multiple voxel models, packing them along the x-axis
  * TODO: allow for overflows into the y-axis, and perhaps z-axis
- * TODO: add surface cache for GI
  * @param device - The GPU device
  * @returns { getAtlasTextureView, addVolume, removeVolume }
  */
@@ -50,24 +82,9 @@ export const getVolumeAtlas = (device: GPUDevice): VolumeAtlas => {
         size: { width, height, depthOrArrayLayers },
         ...descriptorPartial,
         label: `Volume atlas containing ${texture.label || "unnamed volume"}`,
+        mipLevelCount: texture.mipLevelCount,
       });
-      commandEncoder.copyTextureToTexture(
-        {
-          texture,
-          mipLevel: 0, // Assuming mip level 0 for simplicity
-          origin: { x: 0, y: 0, z: 0 }, // Specify the source origin
-        },
-        {
-          texture: atlasTexture,
-          mipLevel: 0, // Assuming mip level 0 for simplicity
-          origin: { x: atlasTexture.width - width, y: 0, z: 0 }, // Specify the destination origin (z-axis slice)
-        },
-        {
-          width,
-          height,
-          depthOrArrayLayers,
-        },
-      );
+      copyTextureWithMips(commandEncoder, texture, atlasTexture);
       device.queue.submit([commandEncoder.finish()]);
       return;
     }
@@ -78,15 +95,22 @@ export const getVolumeAtlas = (device: GPUDevice): VolumeAtlas => {
       );
     }
     const oldAtlasTexture = atlasTexture;
+    const newHeight = Math.max(atlasTexture.height, height);
+    const newDepth = Math.max(
+      atlasTexture.depthOrArrayLayers,
+      depthOrArrayLayers,
+    );
+    const newMipLevelCount = Math.max(
+      texture.mipLevelCount,
+      atlasTexture.mipLevelCount,
+    );
     const newAtlasTexture = device.createTexture({
       size: {
         width: newWidth,
-        height: Math.max(atlasTexture.height, height),
-        depthOrArrayLayers: Math.max(
-          atlasTexture.depthOrArrayLayers,
-          depthOrArrayLayers,
-        ),
+        height: newHeight,
+        depthOrArrayLayers: newDepth,
       },
+      mipLevelCount: newMipLevelCount,
       ...descriptorPartial,
       label: `${atlasTexture.label}, ${texture.label || "unnamed volume"}`,
     });
@@ -215,5 +239,9 @@ export const getVolumeAtlas = (device: GPUDevice): VolumeAtlas => {
     return view;
   };
 
-  return { addVolume, removeVolume, getAtlasTextureView };
+  const getVolumes = (): VolumeAtlasDictionary => {
+    return dictionary;
+  };
+
+  return { getVolumes, addVolume, removeVolume, getAtlasTextureView };
 };
