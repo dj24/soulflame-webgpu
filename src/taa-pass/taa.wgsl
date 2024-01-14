@@ -23,7 +23,7 @@ fn main(
     let uv = vec2<f32>(id.xy / texSize);
     let sourceSample: vec3<f32> = textureLoad(CurrentColor, id.xy, 0).rgb;
 
-    let uvVelocity: vec2<f32> = textureLoad(Velocity, id.xy, 0).xy * vec2(0.5, -0.5);
+    let uvVelocity: vec2<f32> = textureLoad(Velocity, id.xy, 0).xy * vec2(1.0, -1.0);
     let previousUv: vec2<f32> = clamp(uv - uvVelocity, vec2(0.0), vec2(1.0));
     let previousPixel: vec2<u32> = vec2<u32>(round(previousUv * vec2<f32>(texSize)));
 
@@ -37,11 +37,11 @@ fn main(
     let depthDifference: f32 = abs(depthSample - depthAtPreviousPixel);
 
     // Apply depth clamping
-    if (depthDifference > DEPTH_THRESHOLD) {
-        // Discard or handle the pixel differently
-        // For example, you can discard the pixel or use a different blending approach.
-        return;
-    }
+//    if (depthDifference > DEPTH_THRESHOLD) {
+//        // Discard or handle the pixel differently
+//        // For example, you can discard the pixel or use a different blending approach.
+//        return;
+//    }
 
     var minCol: vec3<f32> = sourceSample;
     var maxCol: vec3<f32> = sourceSample;
@@ -69,5 +69,7 @@ fn main(
 
     let result: vec3<f32> = (sourceSample * sourceWeight + historySample * historyWeight) / max(sourceWeight + historyWeight, 0.0001);
 
-    textureStore(HistoryWrite, id.xy, vec4<f32>(result, 1.0));
+    if(uv.x > 0.5){
+      textureStore(HistoryWrite, id.xy, vec4<f32>(result, 1.0));
+    }
 }

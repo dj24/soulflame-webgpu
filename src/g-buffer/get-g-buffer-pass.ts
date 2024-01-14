@@ -51,7 +51,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     binding: 7,
     visibility: GPUShaderStage.COMPUTE,
     storageTexture: {
-      format: "r32float",
+      format: "rg32float",
       viewDimension: "2d",
     },
   };
@@ -326,14 +326,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
 
     const urlParams = new URLSearchParams(window.location.search);
     const mode = urlParams.get("mode");
-    if (mode === "raymarch") {
-      const workGroupsX = Math.ceil(resolution[0] / 8);
-      const workGroupsY = Math.ceil(resolution[1] / 8);
-      computePass.setPipeline(rayPipeline);
-      computePass.setBindGroup(0, computeBindGroup);
-      computePass.dispatchWorkgroups(workGroupsX, workGroupsY);
-      computePass.end();
-    } else {
+    if (mode === "raster") {
       const workGroupsX = Math.ceil(treeHouse.size[0] / 12);
       const workGroupsY = Math.ceil(treeHouse.size[1] / 1);
       const workGroupsZ = Math.ceil(treeHouse.size[2] / 1);
@@ -345,6 +338,13 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       computePass.setPipeline(bufferTotexturePipeline);
       computePass.setBindGroup(0, computeBindGroup);
       computePass.dispatchWorkgroups(resolution[0] / 8, resolution[1] / 8);
+      computePass.end();
+    } else {
+      const workGroupsX = Math.ceil(resolution[0] / 8);
+      const workGroupsY = Math.ceil(resolution[1] / 8);
+      computePass.setPipeline(rayPipeline);
+      computePass.setBindGroup(0, computeBindGroup);
+      computePass.dispatchWorkgroups(workGroupsX, workGroupsY);
       computePass.end();
     }
 

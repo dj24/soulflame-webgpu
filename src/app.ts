@@ -55,8 +55,8 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.create(4, 4);
-let downscale = 2.0;
-const startTime = performance.now();
+let downscale = 1.25;
+let startTime = 0;
 export let elapsedTime = startTime;
 export let deltaTime = 0;
 export let frameCount = 0;
@@ -125,7 +125,8 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
   const init = () => {
     const { clientWidth, clientHeight } = canvas.parentElement;
-    let pixelRatio = Math.min(window.devicePixelRatio, 1.5);
+    // let pixelRatio = Math.min(window.devicePixelRatio, 1.5);
+    let pixelRatio = 1;
     const canvasResolution = vec2.create(
       clientWidth * pixelRatio,
       clientHeight * pixelRatio,
@@ -199,7 +200,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     if (!velocityTexture) {
       velocityTexture = device.createTexture({
         size: [resolution[0], resolution[1], 1],
-        format: "r32float",
+        format: "rg32float",
         usage:
           GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
       });
@@ -207,8 +208,11 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     return velocityTexture;
   };
 
-  const frame = async () => {
-    const newElapsedTime = performance.now() - startTime;
+  const frame = (now: number) => {
+    if (startTime === 0) {
+      startTime = now;
+    }
+    const newElapsedTime = now - startTime;
     deltaTime = newElapsedTime - elapsedTime;
     frameTimeTracker.addSample("Frame Time", deltaTime);
     elapsedTime = newElapsedTime;
@@ -221,7 +225,6 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       translateX: debugValues.translateX,
       rotateY: debugValues.rotateY,
       camera,
-      objectSize: [50, 50, 50],
     });
 
     const bufferContents = [
@@ -257,10 +260,15 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     debugUI.log(`${resolution[0]} x ${resolution[1]}`);
 
     if (timeBuffer) {
-      writeToUniformBuffer(timeBuffer, [frameCount]);
+      writeToUniformBuffer(timeBuffer, [frameCount, 0]);
     } else {
-      timeBuffer = createUniformBuffer([frameCount]);
+      timeBuffer = createUniformBuffer([frameCount, 0]);
     }
+    device.queue.writeBuffer(
+      timeBuffer,
+      4, // offset
+      new Float32Array([deltaTime]),
+    );
 
     if (resolutionBuffer) {
       writeToUniformBuffer(resolutionBuffer, [resolution[0], resolution[1]]);
@@ -293,25 +301,6 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     createOutputTexture();
 
     let commandBuffers = [];
-
-    // Clear Albedo every frame
-
-    const commandEncoder = device.createCommandEncoder();
-
-    // Create a render pass and encode it into the command encoder
-    const renderPass = commandEncoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view: albedoTexture.createView(),
-          loadOp: "clear",
-          clearValue: [0.3, 0.3, 0.3, 1],
-          storeOp: "store", // 'clear' if you want to clear, 'store' if you want to preserve existing contents
-        },
-      ],
-    });
-    renderPass.end();
-    commandBuffers.push(commandEncoder.finish());
-
     voxelTextureView = volumeAtlas.getAtlasTextureView();
 
     for (const computePass of computePasses) {
@@ -338,7 +327,6 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     }
 
     device.queue.submit(commandBuffers);
-    // await device.queue.onSubmittedWorkDone();
     animationFrameId = requestAnimationFrame(frame);
     previousInverseViewProjectionMatrix = camera.inverseViewProjectionMatrix;
     previousViewProjectionMatrix = camera.viewProjectionMatrix;

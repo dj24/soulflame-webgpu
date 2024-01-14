@@ -15,7 +15,7 @@ struct ViewProjectionMatrices {
 @group(0) @binding(5) var albedoTex : texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(6) var depthRead : texture_2d<f32>;
 //@group(0) @binding(7) var depthWrite : texture_storage_2d<r32float, write>;
-@group(0) @binding(7) var velocityTex : texture_storage_2d<r32float, write>;
+@group(0) @binding(7) var velocityTex : texture_storage_2d<rg32float, write>;
 @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;
 //@group(0) @binding(10) var<uniform> resolution : vec2<u32>;
 
@@ -37,7 +37,8 @@ fn getVelocity(rayMarchResult: RayMarchResult, viewProjections: ViewProjectionMa
   let objectNDC = objectClipSpace.xyz / objectClipSpace.w;
   let previousObjectNDC = previousObjectClipSpace.xyz / previousObjectClipSpace.w;
 
-  let velocity = objectNDC - previousObjectNDC;
+  var velocity = objectNDC - previousObjectNDC;
+  velocity.y = -velocity.y;
   return velocity;
 }
 
