@@ -73,8 +73,6 @@ const debugUI = new DebugUI();
 
 const frameTimeTracker = getFrameTimeTracker();
 
-let handleDownscaleChange: (event: CustomEvent) => void;
-
 let voxelTextureView: GPUTextureView;
 let octreeBuffer: GPUBuffer;
 let skyTexture: GPUTexture;
@@ -89,7 +87,6 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let albedoTexture: GPUTexture;
   let outputTexture: GPUTexture;
   let depthTexture: GPUTexture;
-  let debugTexture: GPUTexture;
   let velocityTexture: GPUTexture;
 
   let timeBuffer: GPUBuffer;
@@ -97,6 +94,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let transformationMatrixBuffer: GPUBuffer;
   let viewProjectionMatricesBuffer: GPUBuffer;
 
+  let previousInverseViewProjectionMatrix = mat4.create();
   let previousViewProjectionMatrix = mat4.create();
 
   // TODO: fix this
@@ -196,20 +194,6 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     return albedoTexture;
   };
 
-  const createDebugTexture = () => {
-    if (!debugTexture) {
-      debugTexture = device.createTexture({
-        size: [resolution[0], resolution[1], 1],
-        format: "rgba8unorm",
-        usage:
-          GPUTextureUsage.TEXTURE_BINDING |
-          GPUTextureUsage.RENDER_ATTACHMENT |
-          GPUTextureUsage.STORAGE_BINDING,
-      });
-    }
-    return debugTexture;
-  };
-
   const createVelocityTexture = () => {
     if (!velocityTexture) {
       velocityTexture = device.createTexture({
@@ -243,6 +227,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       ...camera.viewProjectionMatrix,
       ...previousViewProjectionMatrix,
       ...camera.inverseViewProjectionMatrix,
+      ...previousInverseViewProjectionMatrix,
       ...camera.projectionMatrix,
       ...camera.inverseProjectionMatrix,
     ];
@@ -303,7 +288,6 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     createAlbedoTexture();
     createNormalTexture();
     createDepthTexture();
-    createDebugTexture();
     createVelocityTexture();
     createOutputTexture();
 
@@ -340,7 +324,6 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
           albedoTexture,
           normalTexture,
           depthAndClusterTexture: depthTexture,
-          debugTexture,
           skyTexture,
           velocityTexture,
         },
@@ -356,8 +339,8 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     device.queue.submit(commandBuffers);
     // await device.queue.onSubmittedWorkDone();
     animationFrameId = requestAnimationFrame(frame);
-    previousViewProjectionMatrix = camera.inverseViewProjectionMatrix;
-    // previousViewProjectionMatrix = camera.viewProjectionMatrix;
+    previousInverseViewProjectionMatrix = camera.inverseViewProjectionMatrix;
+    previousViewProjectionMatrix = camera.viewProjectionMatrix;
   };
 
   init();

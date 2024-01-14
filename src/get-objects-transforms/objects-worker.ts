@@ -49,6 +49,9 @@ const updateInnerBox = (
   scale = 1,
 ) => {
   voxelObject.previousTransform = mat4.clone(voxelObject.transform);
+  voxelObject.previousInverseTransform = mat4.clone(
+    voxelObject.inverseTransform,
+  );
   let m = mat4.identity();
   let z = 0;
   let y = 0;

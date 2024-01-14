@@ -4,6 +4,7 @@ export class VoxelObject {
   transform: Mat4;
   inverseTransform: Mat4;
   previousTransform: Mat4;
+  previousInverseTransform: Mat4;
   size: Vec3;
   atlasLocation: Vec3;
   constructor(transform: Mat4, size: Vec3, atlasLocation: Vec3) {
@@ -11,6 +12,7 @@ export class VoxelObject {
     this.size = size;
     this.inverseTransform = mat4.invert(this.transform);
     this.previousTransform = mat4.clone(this.transform);
+    this.previousInverseTransform = mat4.clone(this.inverseTransform);
     this.atlasLocation = atlasLocation;
   }
 
@@ -35,6 +37,7 @@ export class VoxelObject {
       ...this.transform,
       ...this.inverseTransform,
       ...this.previousTransform,
+      ...this.previousInverseTransform,
       ...this.size,
       0.0, //padding for 4 byte stride
       ...this.atlasLocation,

@@ -2,6 +2,7 @@ struct ViewProjectionMatrices {
   viewProjection : mat4x4<f32>,
   previousViewProjection : mat4x4<f32>,
   inverseViewProjection : mat4x4<f32>,
+  previousInverseViewProjection : mat4x4<f32>,
   projection : mat4x4<f32>,
   inverseProjection: mat4x4<f32>
 };
@@ -16,7 +17,7 @@ struct ViewProjectionMatrices {
 //@group(0) @binding(7) var depthWrite : texture_storage_2d<r32float, write>;
 @group(0) @binding(7) var velocityTex : texture_storage_2d<r32float, write>;
 @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;
-@group(0) @binding(10) var<uniform> resolution : vec2<u32>;
+//@group(0) @binding(10) var<uniform> resolution : vec2<u32>;
 
 
 fn plainIntersect(ro: vec3<f32>, rd: vec3<f32>, p: vec4<f32>) -> f32 {
@@ -43,7 +44,6 @@ fn main(
   uv = vec2(uv.x, 1.0 - uv.y);
   var pixel = GlobalInvocationID.xy;
 
-
   var rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
 
   var rayOrigin = cameraPosition;
@@ -54,20 +54,28 @@ fn main(
 
 //  textureStore(depthWrite, GlobalInvocationID.xy, vec4(depth,0.0,0.0,0.0));
   textureStore(normalTex, pixel, vec4(rayMarchResult.normal,1));
-  let lambert = dot(rayMarchResult.normal, normalize(vec3<f32>(0.5, -1.0, -0.5)));
-  let colour = abs(vec3(lambert * rayMarchResult.colour.rgb));
-  textureStore(albedoTex, pixel, vec4(colour,1));
+//  let lambert = dot(rayMarchResult.normal, normalize(vec3<f32>(0.5, -1.0, -0.5)));
+//  let colour = abs(vec3(lambert * rayMarchResult.colour.rgb));
+//  textureStore(albedoTex, pixel, vec4(rayMarchResult.colour.rgb,1));
 //  textureStore(albedoTex, pixel, vec4(rayDirection,1));
 
   // VELOCITY
   //TODO: pass both inverse and normal versions in as uniforms
-//  let inverseMvp = viewProjections.viewProjection * rayMarchResult.modelMatrix ;
-//  let previousInverseMvp = viewProjections.previousViewProjection *  rayMarchResult.previousModelMatrix;
-//  let currentClipSpace = inverseMvp * vec4(rayMarchResult.worldPos, 1.0);
-//  let previousClipSpace = previousInverseMvp * vec4(rayMarchResult.worldPos, 1.0);
-//  let currentNDC = currentClipSpace.xyz / currentClipSpace.w;
-//  let previousNDC = previousClipSpace.xyz / previousClipSpace.w;
-//  let velocity = currentNDC - previousNDC;
-//
-//  textureStore(velocityTex, pixel, vec4(velocity,0));
+  let objectSpace = rayMarchResult.inverseModelMatrix * vec4(rayMarchResult.worldPos, 1.0);
+  let previousObjectSpace = rayMarchResult.previousInverseModelMatrix * vec4(rayMarchResult.worldPos, 1.0);
+
+  let mvp = viewProjections.viewProjection * rayMarchResult.modelMatrix;
+  let previousMvp = viewProjections.previousViewProjection * rayMarchResult.previousModelMatrix;
+
+  let objectClipSpace = mvp * vec4(objectSpace.xyz, 1.0);
+  let previousObjectClipSpace = previousMvp * vec4(objectSpace.xyz, 1.0);
+
+  let objectNDC = objectClipSpace.xyz / objectClipSpace.w;
+  let previousObjectNDC = previousObjectClipSpace.xyz / previousObjectClipSpace.w;
+
+  let velocity = objectNDC - previousObjectNDC;
+
+  textureStore(albedoTex, pixel, vec4(abs(velocity) * 50.0, 1));
+
+  textureStore(velocityTex, pixel, vec4(velocity,0));
 }

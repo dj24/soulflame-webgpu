@@ -329,7 +329,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     if (mode === "raymarch") {
       const workGroupsX = Math.ceil(resolution[0] / 8);
       const workGroupsY = Math.ceil(resolution[1] / 8);
-
       computePass.setPipeline(rayPipeline);
       computePass.setBindGroup(0, computeBindGroup);
       computePass.dispatchWorkgroups(workGroupsX, workGroupsY);

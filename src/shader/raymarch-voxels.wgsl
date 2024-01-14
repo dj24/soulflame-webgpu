@@ -21,6 +21,7 @@ struct VoxelObject {
   transform: mat4x4<f32>,
   inverseTransform: mat4x4<f32>,
   previousTransform: mat4x4<f32>,
+  previousInverseTransform: mat4x4<f32>,
   size : vec3<f32>,
   sizePadding : f32,
   atlasLocation : vec3<f32>,
@@ -34,6 +35,8 @@ struct RayMarchResult {
   hit: bool,
   modelMatrix: mat4x4<f32>,
   previousModelMatrix: mat4x4<f32>,
+  inverseModelMatrix: mat4x4<f32>,
+  previousInverseModelMatrix: mat4x4<f32>,
 }
 
 fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, objectRayOrigin: vec3<f32>, mipLevel: u32) -> RayMarchResult {
@@ -55,7 +58,6 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
   {
     let worldPos = transformPosition(voxelObject.transform, objectPos);
     tIntersection = min(min(tMax.x, tMax.y), tMax.z);
-
     let isInBounds = all(currentIndex >= vec3(0.0)) && all(currentIndex <= vec3(voxelObject.size / voxelSize));
     if(!isInBounds){
         break;
@@ -63,13 +65,16 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
 
     let atlasLocation = vec3<u32>(voxelObject.atlasLocation / voxelSize);
     let voxelSample = textureLoad(voxels, vec3<u32>(currentIndex) + atlasLocation, mipLevel);
+    output.colour = mix(vec3(0,0,1), vec3(1,0.7,0.5), vec3<f32>(f32(i) / f32(MAX_RAY_STEPS)));
     if(voxelSample.a > 0.0 && tIntersection > EPSILON){
         output.worldPos = transformPosition(voxelObject.transform, objectPos);
         output.normal = transformNormal(voxelObject.inverseTransform,objectNormal);
-        output.colour = voxelSample.rgb;
+//        output.colour = voxelSample.rgb;
         output.hit = true;
         output.modelMatrix = voxelObject.transform;
         output.previousModelMatrix = voxelObject.previousTransform;
+        output.inverseModelMatrix = voxelObject.inverseTransform;
+        output.previousInverseModelMatrix = voxelObject.previousInverseTransform;
         return output;
     }
 
@@ -93,15 +98,13 @@ fn rayMarch(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, voxelObjects: array<V
   output.colour = vec3(0.0);
   output.normal = vec3(0.0);
   // TODO: output distance instead - this is a hack to make sure the distance is high when we hit nothing
-  output.worldPos = vec3(99999999999.0);
+  output.worldPos = rayOrigin + rayDirection * 1000000.0;
   output.modelMatrix = mat4x4<f32>(vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0));
   output.previousModelMatrix = mat4x4<f32>(vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0));
 
-  let foo = textureLoad(voxels, vec3(0), 0);
-
   // TODO: depth sort voxel objects, maybe track closest hit
   for (var voxelObjectIndex = 0; voxelObjectIndex < VOXEL_OBJECT_COUNT; voxelObjectIndex++) {
-    var voxelObject = voxelObjects[voxelObjectIndex];
+    var voxelObject = voxelObjects[0];
     let isObjectEmpty = voxelObject.size.x == 0.0;
     if(isObjectEmpty){
       continue;
