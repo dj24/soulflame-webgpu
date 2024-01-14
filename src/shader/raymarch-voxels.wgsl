@@ -65,11 +65,11 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
 
     let atlasLocation = vec3<u32>(voxelObject.atlasLocation / voxelSize);
     let voxelSample = textureLoad(voxels, vec3<u32>(currentIndex) + atlasLocation, mipLevel);
-    output.colour = mix(vec3(0,0,1), vec3(1,0.7,0.5), vec3<f32>(f32(i) / f32(MAX_RAY_STEPS)));
+//    output.colour = mix(vec3(0,0,1), vec3(1,0.7,0.5), vec3<f32>(f32(i) / f32(MAX_RAY_STEPS)));
     if(voxelSample.a > 0.0 && tIntersection > EPSILON){
         output.worldPos = transformPosition(voxelObject.transform, objectPos);
         output.normal = transformNormal(voxelObject.inverseTransform,objectNormal);
-//        output.colour = voxelSample.rgb;
+        output.colour = voxelSample.rgb;
         output.hit = true;
         output.modelMatrix = voxelObject.transform;
         output.previousModelMatrix = voxelObject.previousTransform;

@@ -29,6 +29,7 @@ import { haltonJitter } from "./jitter-view-projection";
 import { getTaaPass } from "./taa-pass/get-taa-pass";
 import { getFrameTimeTracker } from "./frametime-tracker";
 import { generateOctreeMips } from "./create-3d-texture/generate-octree-mips";
+import { getMotionBlurPass } from "./motion-blur/motion-blur";
 
 export type RenderArgs = {
   enabled?: boolean;
@@ -54,7 +55,7 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.create(4, 4);
-let downscale = 1.0;
+let downscale = 2.0;
 const startTime = performance.now();
 export let elapsedTime = startTime;
 export let deltaTime = 0;
@@ -387,6 +388,7 @@ const start = async () => {
       // await getDiffusePass(),
       // await getReflectionsPass(),
       // await getTaaPass(),
+      await getMotionBlurPass(),
       fullscreenQuad(device),
     ]);
   } else {
