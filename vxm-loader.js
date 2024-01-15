@@ -385,7 +385,6 @@ module.exports = function (source, ...args) {
     size: [width, height, depth],
     normalisedPivot,
     bounds,
-    voxels,
     sliceFilePaths,
     emissiveVoxels,
   };
