@@ -14,6 +14,7 @@ fn boxIntersection(
     result.isHit = false;
     result.tNear = -1.0;
     result.tFar = -1.0;
+
     let offsetRayOrigin = ro - boxSize;
     let m: vec3<f32> = 1.0 / rd;
     let n: vec3<f32> = m * offsetRayOrigin;

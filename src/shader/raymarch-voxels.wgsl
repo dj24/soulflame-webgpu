@@ -65,7 +65,6 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
 
     let atlasLocation = vec3<u32>(voxelObject.atlasLocation / voxelSize);
     let voxelSample = textureLoad(voxels, vec3<u32>(currentIndex) + atlasLocation, mipLevel);
-//    output.colour = mix(vec3(0,0,1), vec3(1,0.7,0.5), vec3<f32>(f32(i) / f32(MAX_RAY_STEPS)));
     if(voxelSample.a > 0.0 && tIntersection > EPSILON){
         output.worldPos = transformPosition(voxelObject.transform, objectPos);
         output.normal = transformNormal(voxelObject.inverseTransform,objectNormal);
@@ -116,7 +115,7 @@ fn rayMarch(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, voxelObjects: array<V
     }
 
     var mipLevel = getMaxMipLevel(voxelObject.size);
-    mipLevel = 0;
+    mipLevel = 1;
     var result = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel);
     let distanceToResult = distance(rayOrigin, result.worldPos);
     if(distanceToResult < closestDistance){

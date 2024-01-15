@@ -34,7 +34,6 @@ export const getTaaPass = async (): Promise<RenderPass> => {
     commandEncoder,
     resolutionBuffer,
     outputTextures,
-    frustumCornerDirectionsBuffer,
   }: RenderArgs) => {
     if (!currentFrameTexture) {
       currentFrameTexture = device.createTexture({

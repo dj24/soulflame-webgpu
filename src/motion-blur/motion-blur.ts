@@ -59,7 +59,11 @@ export const getMotionBlurPass = async (): Promise<RenderPass> => {
 
   let copyOutputTexture: GPUTexture;
 
-  const render = ({ outputTextures, timeBuffer }: RenderArgs) => {
+  const render = ({
+    outputTextures,
+    timeBuffer,
+    timestampWrites,
+  }: RenderArgs) => {
     if (!copyOutputTexture) {
       copyOutputTexture = device.createTexture({
         size: [
@@ -117,7 +121,9 @@ export const getMotionBlurPass = async (): Promise<RenderPass> => {
       ],
     });
 
-    const pass = commandEncoder.beginComputePass();
+    const pass = commandEncoder.beginComputePass({
+      timestampWrites,
+    });
     pass.setBindGroup(0, bindGroup);
     pass.setPipeline(computePipeline);
     pass.dispatchWorkgroups(
@@ -128,5 +134,5 @@ export const getMotionBlurPass = async (): Promise<RenderPass> => {
     return commandEncoder.finish();
   };
 
-  return { render };
+  return { render, label: "Motion blur" };
 };

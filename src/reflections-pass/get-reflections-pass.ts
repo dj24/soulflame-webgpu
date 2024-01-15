@@ -62,7 +62,6 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
     commandEncoder,
     resolutionBuffer,
     outputTextures,
-    frustumCornerDirectionsBuffer,
   }: RenderArgs) => {
     const reflectionTextureView = createReflectionTextureView();
     const computePass = commandEncoder.beginComputePass();
@@ -103,12 +102,6 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
         //   binding: 4,
         //   resource: linearSampler,
         // },
-        {
-          binding: 5,
-          resource: {
-            buffer: frustumCornerDirectionsBuffer,
-          },
-        },
         {
           binding: 6,
           resource: pointSampler,
@@ -158,12 +151,6 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
         {
           binding: 4,
           resource: linearSampler,
-        },
-        {
-          binding: 5,
-          resource: {
-            buffer: frustumCornerDirectionsBuffer,
-          },
         },
         {
           binding: 6,

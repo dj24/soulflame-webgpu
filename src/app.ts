@@ -21,7 +21,6 @@ import {
   generateMipmap,
 } from "webgpu-utils";
 import { getReflectionsPass } from "./reflections-pass/get-reflections-pass";
-import { getWorldSpaceFrustumCornerDirections } from "./get-frustum-corner-directions";
 import { create3dTexture } from "./create-3d-texture/create-3d-texture";
 import { getDiffusePass } from "./diffuse-pass/get-diffuse-pass";
 import { getVolumeAtlas, VolumeAtlas } from "./volume-atlas";
@@ -30,18 +29,20 @@ import { getTaaPass } from "./taa-pass/get-taa-pass";
 import { getFrameTimeTracker } from "./frametime-tracker";
 import { generateOctreeMips } from "./create-3d-texture/generate-octree-mips";
 import { getMotionBlurPass } from "./motion-blur/motion-blur";
+import { forEach } from "lodash";
+import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels";
 
 export type RenderArgs = {
   enabled?: boolean;
   commandEncoder: GPUCommandEncoder;
   resolutionBuffer: GPUBuffer;
   outputTextures: OutputTextures;
-  frustumCornerDirectionsBuffer: GPUBuffer;
   cameraPositionBuffer: GPUBuffer;
   voxelTextureView: GPUTextureView;
   transformationMatrixBuffer: GPUBuffer;
   timeBuffer: GPUBuffer;
   viewProjectionMatricesBuffer?: GPUBuffer;
+  timestampWrites?: GPUComputePassTimestampWrites;
 };
 
 export type RenderPass = {
@@ -55,7 +56,7 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.create(4, 4);
-let downscale = 1.66;
+let downscale = 1.0;
 let startTime = 0;
 export let elapsedTime = startTime;
 export let deltaTime = 0;
@@ -73,6 +74,7 @@ export let camera = new Camera({
 const debugUI = new DebugUI();
 
 const frameTimeTracker = getFrameTimeTracker();
+frameTimeTracker.addSample("Frame Time", 0);
 
 let voxelTextureView: GPUTextureView;
 let octreeBuffer: GPUBuffer;
@@ -117,12 +119,28 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
   canvas.style.imageRendering = "pixelated";
   gpuContext = canvas.getContext("webgpu");
-  const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
   gpuContext.configure({
     device,
-    format: presentationFormat,
+    format: navigator.gpu.getPreferredCanvasFormat(),
     usage: GPUTextureUsage.RENDER_ATTACHMENT,
   });
+
+  let timestampQuerySet: GPUQuerySet;
+  let timestampQueryBuffer: GPUBuffer;
+  if (device.features.has("timestamp-query")) {
+    timestampQuerySet = device.createQuerySet({
+      type: "timestamp",
+      count: computePasses.length * 2, //start and end of each pass
+    });
+    timestampQueryBuffer = device.createBuffer({
+      size: 8 * timestampQuerySet.count,
+      usage:
+        GPUBufferUsage.QUERY_RESOLVE |
+        GPUBufferUsage.STORAGE |
+        GPUBufferUsage.COPY_SRC |
+        GPUBufferUsage.COPY_DST,
+    });
+  }
 
   const init = () => {
     const { clientWidth, clientHeight } = canvas.parentElement;
@@ -209,6 +227,98 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     return velocityTexture;
   };
 
+  const getTimeBuffer = () => {
+    if (timeBuffer) {
+      writeToUniformBuffer(timeBuffer, [frameCount, 0]);
+    } else {
+      timeBuffer = createUniformBuffer([frameCount, 0]);
+    }
+    device.queue.writeBuffer(
+      timeBuffer,
+      4, // offset
+      new Float32Array([deltaTime]),
+    );
+  };
+
+  const getResolutionBuffer = () => {
+    if (resolutionBuffer) {
+      writeToUniformBuffer(resolutionBuffer, [resolution[0], resolution[1]]);
+    } else {
+      resolutionBuffer = createUniformBuffer([resolution[0], resolution[1]]);
+    }
+  };
+
+  const getMatricesBuffer = () => {
+    const bufferContents = [
+      ...camera.viewProjectionMatrix,
+      ...previousViewProjectionMatrix,
+      ...camera.inverseViewProjectionMatrix,
+      ...previousInverseViewProjectionMatrix,
+      ...camera.projectionMatrix,
+      ...camera.inverseProjectionMatrix,
+    ];
+    if (viewProjectionMatricesBuffer) {
+      writeToFloatUniformBuffer(viewProjectionMatricesBuffer, bufferContents);
+    } else {
+      viewProjectionMatricesBuffer = createFloatUniformBuffer(
+        device,
+        bufferContents,
+      );
+    }
+  };
+
+  const resolveTimestampQueries = (commandBuffers: GPUCommandBuffer[]) => {
+    const commandEncoder = device.createCommandEncoder();
+    commandEncoder.resolveQuerySet(
+      timestampQuerySet,
+      0,
+      timestampQuerySet.count,
+      timestampQueryBuffer,
+      0,
+    );
+    commandBuffers.push(commandEncoder.finish());
+    const size = timestampQueryBuffer.size;
+    const gpuReadBuffer = device.createBuffer({
+      size,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+    });
+    const copyEncoder = device.createCommandEncoder();
+    copyEncoder.copyBufferToBuffer(
+      timestampQueryBuffer,
+      0,
+      gpuReadBuffer,
+      0,
+      size,
+    );
+    const copyCommands = copyEncoder.finish();
+    device.queue.submit([copyCommands]);
+    gpuReadBuffer
+      .mapAsync(GPUMapMode.READ)
+      .then(() => gpuReadBuffer.getMappedRange())
+      .then((arrayBuffer) => {
+        const timingsNanoseconds = new BigInt64Array(arrayBuffer);
+        const timingsMilliseconds: number[] = [];
+        timingsNanoseconds.forEach((nanoseconds) => {
+          timingsMilliseconds.push(Number(nanoseconds) / 1e6);
+        });
+        const computePassExecutionTimes = timingsMilliseconds.reduce(
+          (acc, val, index) => {
+            if (index % 2 === 0) {
+              acc.push(timingsMilliseconds[index + 1] - val);
+            }
+            return acc;
+          },
+          [],
+        );
+        forEach(computePassExecutionTimes, (time, index) => {
+          const label = computePasses[index].label;
+          if (label) {
+            frameTimeTracker.addSample(computePasses[index].label, time);
+          }
+        });
+      });
+  };
+
   const frame = (now: number) => {
     if (startTime === 0) {
       startTime = now;
@@ -228,23 +338,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       camera,
     });
 
-    const bufferContents = [
-      ...camera.viewProjectionMatrix,
-      ...previousViewProjectionMatrix,
-      ...camera.inverseViewProjectionMatrix,
-      ...previousInverseViewProjectionMatrix,
-      ...camera.projectionMatrix,
-      ...camera.inverseProjectionMatrix,
-    ];
-
-    if (viewProjectionMatricesBuffer) {
-      writeToFloatUniformBuffer(viewProjectionMatricesBuffer, bufferContents);
-    } else {
-      viewProjectionMatricesBuffer = createFloatUniformBuffer(
-        device,
-        bufferContents,
-      );
-    }
+    getMatricesBuffer();
 
     //TODO: handle loading this more gracefully
     if (!transformationMatrixBuffer) {
@@ -258,36 +352,13 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     const jitteredCameraPosition = mat4.getTranslation(camera.viewMatrix);
 
-    debugUI.log(`${resolution[0]} x ${resolution[1]}`);
-
-    if (timeBuffer) {
-      writeToUniformBuffer(timeBuffer, [frameCount, 0]);
-    } else {
-      timeBuffer = createUniformBuffer([frameCount, 0]);
-    }
-    device.queue.writeBuffer(
-      timeBuffer,
-      4, // offset
-      new Float32Array([deltaTime]),
+    debugUI.log(
+      `${resolution[0]} x ${resolution[1]} 
+      ${frameTimeTracker.toString()}`,
     );
 
-    if (resolutionBuffer) {
-      writeToUniformBuffer(resolutionBuffer, [resolution[0], resolution[1]]);
-    } else {
-      resolutionBuffer = createUniformBuffer([resolution[0], resolution[1]]);
-    }
-
-    // 4 byte stride
-    const flatMappedDirections = getWorldSpaceFrustumCornerDirections(
-      camera,
-    ).flatMap((direction) => [...direction, 0]);
-
-    // TODO: make sure to destroy these buffers or write to them instead
-    const frustumCornerDirectionsBuffer = createFloatUniformBuffer(
-      device,
-      flatMappedDirections,
-      "frustum corner directions",
-    );
+    getTimeBuffer();
+    getResolutionBuffer();
 
     const cameraPositionBuffer = createFloatUniformBuffer(
       device,
@@ -301,13 +372,22 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     createVelocityTexture();
     createOutputTexture();
 
-    let commandBuffers = [];
+    let commandBuffers: GPUCommandBuffer[] = [];
     voxelTextureView = volumeAtlas.getAtlasTextureView();
 
-    for (const computePass of computePasses) {
+    computePasses.forEach((computePass, index) => {
       const { render, label } = computePass;
+      const commandEncoder = device.createCommandEncoder();
+      let timestampWrites: GPUComputePassTimestampWrites | undefined;
+      if (device.features.has("timestamp-query")) {
+        timestampWrites = {
+          querySet: timestampQuerySet,
+          beginningOfPassWriteIndex: index * 2,
+          endOfPassWriteIndex: index * 2 + 1,
+        };
+      }
       const commandBuffer = render({
-        commandEncoder: device.createCommandEncoder(),
+        commandEncoder,
         resolutionBuffer,
         timeBuffer,
         outputTextures: {
@@ -318,13 +398,17 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
           skyTexture,
           velocityTexture,
         },
-        frustumCornerDirectionsBuffer,
         cameraPositionBuffer,
         voxelTextureView,
         transformationMatrixBuffer,
         viewProjectionMatricesBuffer,
+        timestampWrites,
       });
       commandBuffers.push(commandBuffer);
+    });
+
+    if (device.features.has("timestamp-query")) {
+      resolveTimestampQueries(commandBuffers);
     }
 
     device.queue.submit(commandBuffers);
@@ -340,7 +424,14 @@ const start = async () => {
   cancelAnimationFrame(animationFrameId);
   if (navigator.gpu !== undefined) {
     const adapter = await navigator.gpu.requestAdapter();
-    device = await adapter.requestDevice();
+    try {
+      device = await adapter.requestDevice({
+        requiredFeatures: ["timestamp-query"],
+      });
+    } catch (e) {
+      device = await adapter.requestDevice();
+    }
+
     console.log(device.limits);
     skyTexture = await createTextureFromImages(device, [
       "cubemaps/town-square/posx.jpg",
@@ -351,22 +442,24 @@ const start = async () => {
       "cubemaps/town-square/negz.jpg",
     ]);
     volumeAtlas = getVolumeAtlas(device);
-    const cornellBoxTexture = await create3dTexture(
-      device,
-      cornellBox.sliceFilePaths,
-      cornellBox.size,
-      "cornell box",
-    );
-    volumeAtlas.addVolume(cornellBoxTexture, "cornell box");
-    cornellBoxTexture.destroy();
+    // const cornellBoxTexture = await create3dTexture(
+    //   device,
+    //   cornellBox.sliceFilePaths,
+    //   cornellBox.size,
+    //   "cornell box",
+    // );
+    // volumeAtlas.addVolume(cornellBoxTexture, "cornell box");
+    // cornellBoxTexture.destroy();
 
-    const treeHouseTexture = await create3dTexture(
+    let treeHouseTexture = await create3dTexture(
       device,
       treeHouse.sliceFilePaths,
       treeHouse.size,
       "treeHouse",
     );
+    treeHouseTexture = await removeInternalVoxels(device, treeHouseTexture);
     generateOctreeMips(device, treeHouseTexture);
+
     // voxelTextureView = treeHouseTexture.createView();
     volumeAtlas.addVolume(treeHouseTexture, "treeHouse");
     treeHouseTexture.destroy();
@@ -388,8 +481,9 @@ const start = async () => {
 let startPromise = start();
 // window.onresize = async () => {
 //   await startPromise;
+//   device.destroy();
 //   start();
 // };
-
+//
 // const resizeObserver = new ResizeObserver(start);
 // resizeObserver.observe(canvas.parentElement);

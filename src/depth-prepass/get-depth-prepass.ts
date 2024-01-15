@@ -63,7 +63,6 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
     resolutionBuffer,
     outputTextures,
     cameraPositionBuffer,
-    frustumCornerDirectionsBuffer,
     voxelTextureView,
     transformationMatrixBuffer,
   }: RenderArgs) => {
@@ -78,12 +77,6 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
         {
           binding: 0,
           resource: downscaledDepthTextureView,
-        },
-        {
-          binding: 1,
-          resource: {
-            buffer: frustumCornerDirectionsBuffer,
-          },
         },
         {
           binding: 2,

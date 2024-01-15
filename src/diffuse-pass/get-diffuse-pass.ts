@@ -239,7 +239,6 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
   const render = ({
     commandEncoder,
     outputTextures,
-    frustumCornerDirectionsBuffer,
     voxelTextureView,
     resolutionBuffer,
     cameraPositionBuffer,
@@ -286,12 +285,6 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
         {
           binding: 1,
           resource: voxelTextureView,
-        },
-        {
-          binding: 2,
-          resource: {
-            buffer: frustumCornerDirectionsBuffer,
-          },
         },
         {
           binding: 3,

@@ -206,7 +206,7 @@ fn projectVoxels(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>, 
     let worldNormal = normalize((vec4<f32>(tri.normal, 0.0) * voxelObject.transform).xyz);
     let lambert = dot(worldNormal, normalize(vec3<f32>(0.5, -1.0, -0.5)));
     let colour = abs(vec3(lambert * foo.rgb));
-    let packedColour =  pack4x8unorm(vec4(tri.normal,1));
+    let packedColour =  pack4x8unorm(vec4(colour,1));
 
     let triangleSize = distance(v1.xy, v2.xy) + distance(v2.xy, v3.xy) + distance(v3.xy, v1.xy);
     if(triangleSize > 256.0 || triangleSize < 0.5) {

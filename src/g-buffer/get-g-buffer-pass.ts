@@ -224,24 +224,30 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     resolutionBuffer,
     outputTextures,
     cameraPositionBuffer,
-    frustumCornerDirectionsBuffer,
     voxelTextureView,
     transformationMatrixBuffer,
     viewProjectionMatricesBuffer,
+    timestampWrites,
   }: RenderArgs) => {
-    const computePass = commandEncoder.beginComputePass();
+    const urlParams = new URLSearchParams(window.location.search);
+    const mode = urlParams.get("mode");
 
-    const bufferSize = resolution[0] * resolution[1] * 8; // 4 bytes for colour, 4 bytes for distance
+    const computePass = commandEncoder.beginComputePass({
+      timestampWrites,
+    });
 
-    if (bufferSize !== outputBuffer.size) {
-      outputBuffer.destroy();
-      outputBuffer = device.createBuffer({
-        size: bufferSize, // 4 bytes per pixel, 1 for each colour channel
-        usage:
-          GPUBufferUsage.STORAGE |
-          GPUBufferUsage.COPY_SRC |
-          GPUBufferUsage.COPY_DST,
-      });
+    if (mode === "raster") {
+      const bufferSize = resolution[0] * resolution[1] * 8; // 4 bytes for colour, 4 bytes for distance
+      if (bufferSize !== outputBuffer.size) {
+        outputBuffer.destroy();
+        outputBuffer = device.createBuffer({
+          size: bufferSize, // 4 bytes per pixel, 1 for each colour channel
+          usage:
+            GPUBufferUsage.STORAGE |
+            GPUBufferUsage.COPY_SRC |
+            GPUBufferUsage.COPY_DST,
+        });
+      }
     }
 
     const utilBindGroup = device.createBindGroup({
@@ -322,34 +328,29 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       ],
     });
 
-    computePass.setPipeline(clearBufferPipeline);
-    computePass.setBindGroup(0, utilBindGroup);
-    computePass.dispatchWorkgroups(resolution[0] / 8, resolution[1] / 8);
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const mode = urlParams.get("mode");
     if (mode === "raster") {
+      // Clear Buffer first
+      computePass.setPipeline(clearBufferPipeline);
+      computePass.setBindGroup(0, utilBindGroup);
+      computePass.dispatchWorkgroups(resolution[0] / 8, resolution[1] / 8);
+      // Rasterise the scene
       const workGroupsX = Math.ceil(treeHouse.size[0] / 12);
       const workGroupsY = Math.ceil(treeHouse.size[1] / 1);
       const workGroupsZ = Math.ceil(treeHouse.size[2] / 1);
-
       computePass.setPipeline(rasterPipeline);
       computePass.setBindGroup(0, computeBindGroup);
       computePass.dispatchWorkgroups(workGroupsX, workGroupsY, workGroupsZ);
-
       computePass.setPipeline(bufferTotexturePipeline);
-      computePass.setBindGroup(0, computeBindGroup);
       computePass.dispatchWorkgroups(resolution[0] / 8, resolution[1] / 8);
-      computePass.end();
     } else {
+      // Raymarch the scene
       const workGroupsX = Math.ceil(resolution[0] / 8);
       const workGroupsY = Math.ceil(resolution[1] / 8);
       computePass.setPipeline(rayPipeline);
       computePass.setBindGroup(0, computeBindGroup);
       computePass.dispatchWorkgroups(workGroupsX, workGroupsY);
-      computePass.end();
     }
-
+    computePass.end();
     commandEncoder.copyTextureToTexture(
       {
         texture: outputTextures.albedoTexture, // TODO: pass texture as well as view
