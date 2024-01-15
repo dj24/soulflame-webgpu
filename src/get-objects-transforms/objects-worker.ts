@@ -33,9 +33,10 @@ const getOuterBox = (rotateY: number) => {
   return new VoxelObject(m, cornellSize, [0, 0, 0]);
 };
 
-const getInnerBox = () => {
+const getInnerBox = (x: number = 0) => {
   let m = mat4.identity();
   let scaleFactor = 0.05;
+  mat4.translate(m, [x, 0, 0], m);
   mat4.scale(m, [scaleFactor, scaleFactor, scaleFactor], m);
   mat4.translate(m, vec3.divScalar(treeHouseVolume.size, 2), m);
   mat4.translate(m, vec3.divScalar(treeHouseVolume.size, -2), m);
@@ -67,6 +68,9 @@ const updateInnerBox = (
 
 const cornellBox = getOuterBox(0);
 const teaPot = getInnerBox();
+const teaPot2 = getInnerBox(128);
+
+const bufferPadding = [new VoxelObject(mat4.identity(), [0, 0, 0], [0, 0, 0])];
 
 // TODO: allow dynamic objects to be passed, probably via object atlas
 const getObjectTransforms = ({
@@ -78,16 +82,13 @@ const getObjectTransforms = ({
 }: GetObjectsArgs) => {
   updateInnerBox(teaPot, rotateY, translateX, scale);
 
-  let voxelObjects = [teaPot];
+  let voxelObjects = [teaPot, cornellBox];
 
   let activeVoxelObjects = voxelObjects;
 
   activeVoxelObjects = activeVoxelObjects.slice(0, objectCount);
 
   // TODO: figure out what this does
-  const bufferPadding = [
-    ...Array(maxObjectCount - activeVoxelObjects.length).keys(),
-  ].map(() => new VoxelObject(mat4.identity(), [0, 0, 0], [0, 0, 0]));
   voxelObjects = [...activeVoxelObjects, ...bufferPadding];
 
   return voxelObjects;

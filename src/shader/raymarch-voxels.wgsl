@@ -94,17 +94,11 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
 
 fn rayMarch(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, voxelObjects: array<VoxelObject, VOXEL_OBJECT_COUNT>) -> RayMarchResult {
   var output = RayMarchResult();
-  output.hit = false;
-  output.colour = vec3(0.0);
-  output.normal = vec3(0.0);
-  // TODO: output distance instead - this is a hack to make sure the distance is high when we hit nothing
-  output.worldPos = rayOrigin + rayDirection * 1000000.0;
-  output.modelMatrix = mat4x4<f32>(vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0));
-  output.previousModelMatrix = mat4x4<f32>(vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0));
+  var closestDistance = 1000000.0;
 
   // TODO: depth sort voxel objects, maybe track closest hit
   for (var voxelObjectIndex = 0; voxelObjectIndex < VOXEL_OBJECT_COUNT; voxelObjectIndex++) {
-    var voxelObject = voxelObjects[0];
+    var voxelObject = voxelObjects[voxelObjectIndex];
     let isObjectEmpty = voxelObject.size.x == 0.0;
     if(isObjectEmpty){
       continue;
@@ -124,7 +118,11 @@ fn rayMarch(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, voxelObjects: array<V
     var mipLevel = getMaxMipLevel(voxelObject.size);
     mipLevel = 0;
     var result = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel);
-    output = result;
+    let distanceToResult = distance(rayOrigin, result.worldPos);
+    if(distanceToResult < closestDistance){
+      output = result;
+      closestDistance = distanceToResult;
+    }
   }
   return output;
 }

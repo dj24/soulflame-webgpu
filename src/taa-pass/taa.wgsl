@@ -23,7 +23,7 @@ fn main(
     let uv = vec2<f32>(id.xy / texSize);
     let sourceSample: vec3<f32> = textureLoad(CurrentColor, id.xy, 0).rgb;
 
-    let uvVelocity: vec2<f32> = textureLoad(Velocity, id.xy, 0).xy * vec2(1.0, -1.0);
+    let uvVelocity: vec2<f32> = textureLoad(Velocity, id.xy, 0).xy * vec2(0.5, -0.5);
     let previousUv: vec2<f32> = clamp(uv - uvVelocity, vec2(0.0), vec2(1.0));
     let previousPixel: vec2<u32> = vec2<u32>(round(previousUv * vec2<f32>(texSize)));
 

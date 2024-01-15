@@ -32,7 +32,7 @@ export const getMotionBlurPass = async (): Promise<RenderPass> => {
         binding: 3,
         visibility: GPUShaderStage.COMPUTE,
         sampler: {
-          type: "filtering",
+          type: "non-filtering",
         },
       },
       {
@@ -104,8 +104,8 @@ export const getMotionBlurPass = async (): Promise<RenderPass> => {
         {
           binding: 3,
           resource: device.createSampler({
-            magFilter: "linear",
-            minFilter: "linear",
+            magFilter: "nearest",
+            minFilter: "nearest",
           }),
         },
         {

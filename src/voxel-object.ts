@@ -1,4 +1,5 @@
 import { mat4, Mat4, vec3, Vec3 } from "wgpu-matrix";
+import { nextPowerOf2 } from "./create-3d-texture/create-3d-texture";
 
 export class VoxelObject {
   transform: Mat4;
@@ -8,7 +9,12 @@ export class VoxelObject {
   size: Vec3;
   atlasLocation: Vec3;
   constructor(transform: Mat4, size: Vec3, atlasLocation: Vec3) {
+    console.log("Creating voxel object", { size });
     this.transform = transform;
+    // const xSize = nextPowerOf2(size[0]);
+    // const ySize = nextPowerOf2(size[1]);
+    // const zSize = nextPowerOf2(size[2]);
+    // this.size = [xSize, ySize, zSize];
     this.size = size;
     this.inverseTransform = mat4.invert(this.transform);
     this.previousTransform = mat4.clone(this.transform);

@@ -13,8 +13,8 @@ struct ViewProjectionMatrices {
 // TODO: maybe make a G-Buffer bind group to resuse across shaders
 @group(0) @binding(4) var normalTex : texture_storage_2d<rgba8snorm, write>;
 @group(0) @binding(5) var albedoTex : texture_storage_2d<rgba8unorm, write>;
-@group(0) @binding(6) var depthRead : texture_2d<f32>;
-//@group(0) @binding(7) var depthWrite : texture_storage_2d<r32float, write>;
+//@group(0) @binding(6) var depthRead : texture_2d<f32>;
+@group(0) @binding(6) var depthWrite : texture_storage_2d<r32float, write>;
 @group(0) @binding(7) var velocityTex : texture_storage_2d<rg32float, write>;
 @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;
 //@group(0) @binding(10) var<uniform> resolution : vec2<u32>;
@@ -44,8 +44,6 @@ fn getVelocity(rayMarchResult: RayMarchResult, viewProjections: ViewProjectionMa
 
 const FAR_PLANE = 10000.0;
 
-const RAYS_PER_THREAD = 2;
-
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
@@ -68,12 +66,22 @@ fn main(
   rayOrigin.y = -rayOrigin.y;
 
   let rayMarchResult = rayMarch( rayOrigin, rayDirection, voxelObjects);
-  let depth = distance(rayMarchResult.worldPos, cameraPosition);
+  if(rayMarchResult.hit == false) {
+    textureStore(normalTex, pixel, vec4(0.0));
+    textureStore(albedoTex, pixel, vec4(0.0));
+    textureStore(depthWrite, pixel, vec4(FAR_PLANE,0.0,0.0,0.0));
+    textureStore(velocityTex, pixel, vec4(0.0));
+    return;
+  }
 
-//  textureStore(depthWrite, GlobalInvocationID.xy, vec4(depth,0.0,0.0,0.0));
+  let depth = distance(rayMarchResult.worldPos, cameraPosition);
+  textureStore(depthWrite, GlobalInvocationID.xy, vec4(depth,0.0,0.0,0.0));
+
   textureStore(normalTex, pixel, vec4(rayMarchResult.normal,1));
+
   let lambert = dot(rayMarchResult.normal, normalize(vec3<f32>(0.5, 1.0, -0.5)));
-  let colour = vec3(lambert * rayMarchResult.colour.rgb);
+  let albedo = rayMarchResult.colour.rgb;
+  let colour = mix(albedo,vec3(lambert * rayMarchResult.colour.rgb),0.5);
   textureStore(albedoTex, pixel, vec4(colour,1));
 
   let velocity = getVelocity(rayMarchResult, viewProjections);

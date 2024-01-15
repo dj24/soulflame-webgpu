@@ -55,7 +55,7 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.create(4, 4);
-let downscale = 1.25;
+let downscale = 1.66;
 let startTime = 0;
 export let elapsedTime = startTime;
 export let deltaTime = 0;
@@ -115,10 +115,11 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   );
 
   canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
+  canvas.style.imageRendering = "pixelated";
   gpuContext = canvas.getContext("webgpu");
   const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
   gpuContext.configure({
-    device: device,
+    device,
     format: presentationFormat,
     usage: GPUTextureUsage.RENDER_ATTACHMENT,
   });
@@ -126,7 +127,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   const init = () => {
     const { clientWidth, clientHeight } = canvas.parentElement;
     // let pixelRatio = Math.min(window.devicePixelRatio, 1.5);
-    let pixelRatio = 1;
+    let pixelRatio = 1.0;
     const canvasResolution = vec2.create(
       clientWidth * pixelRatio,
       clientHeight * pixelRatio,
@@ -350,14 +351,14 @@ const start = async () => {
       "cubemaps/town-square/negz.jpg",
     ]);
     volumeAtlas = getVolumeAtlas(device);
-    // const cornellBoxTexture = await create3dTexture(
-    //   device,
-    //   cornellBox.sliceFilePaths,
-    //   cornellBox.size,
-    //   "cornell box",
-    // );
-    // volumeAtlas.addVolume(cornellBoxTexture, "cornell box");
-    // cornellBoxTexture.destroy();
+    const cornellBoxTexture = await create3dTexture(
+      device,
+      cornellBox.sliceFilePaths,
+      cornellBox.size,
+      "cornell box",
+    );
+    volumeAtlas.addVolume(cornellBoxTexture, "cornell box");
+    cornellBoxTexture.destroy();
 
     const treeHouseTexture = await create3dTexture(
       device,

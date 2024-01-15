@@ -55,6 +55,14 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       viewDimension: "2d",
     },
   };
+  const depthAndClusterEntry: GPUBindGroupLayoutEntry = {
+    binding: 6,
+    visibility: GPUShaderStage.COMPUTE,
+    storageTexture: {
+      format: "r32float",
+      viewDimension: "2d",
+    },
+  };
 
   // Layout for clearing the pixel buffer and copying it to the screen
   const utilLayout = device.createBindGroupLayout({
@@ -112,13 +120,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       },
       normalEntry,
       albedoEntry,
-      {
-        binding: 6,
-        visibility: GPUShaderStage.COMPUTE,
-        texture: {
-          sampleType: "unfilterable-float",
-        },
-      },
+      depthAndClusterEntry,
       velocityEntry,
       {
         binding: 8,
