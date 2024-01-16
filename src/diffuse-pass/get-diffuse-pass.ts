@@ -377,5 +377,5 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
     return commandEncoder.finish();
   };
 
-  return { render, label: "Diffuse" };
+  return { render, label: "diffuse" };
 };

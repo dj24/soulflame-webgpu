@@ -1,4 +1,4 @@
-@group(0) @binding(0) var outputTex : texture_storage_2d<r32float, write>;
+@group(0) @binding(0) var outputTex : texture_storage_2d<rgba32float, write>;
 @group(0) @binding(1) var<uniform> frustumCornerDirections : FrustumCornerDirections;
 @group(0) @binding(2) var<uniform> cameraPosition : vec3<f32>;
 @group(0) @binding(3) var<uniform> voxelObjects : array<VoxelObject, VOXEL_OBJECT_COUNT>; // TODO: dynamic amount of these using string interpolation
@@ -21,6 +21,6 @@ fn main(
 //  var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
 //  let rayMarchResult = rayMarch( rayOrigin, rayDirection, voxelObjects);
 //  let depth = distance(rayOrigin, rayMarchResult.worldPos);
-//  textureStore(outputTex, GlobalInvocationID.xy, vec4(depth, 0,0, 0));
+//  textureStore(outputTex, GlobalInvocationID.xy, vec4(0,0,0,depth));
 
 }

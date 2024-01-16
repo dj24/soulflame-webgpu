@@ -134,5 +134,5 @@ export const getMotionBlurPass = async (): Promise<RenderPass> => {
     return commandEncoder.finish();
   };
 
-  return { render, label: "Motion blur" };
+  return { render, label: "motion blur" };
 };

@@ -59,7 +59,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     binding: 6,
     visibility: GPUShaderStage.COMPUTE,
     storageTexture: {
-      format: "r32float",
+      format: "rgba32float",
       viewDimension: "2d",
     },
   };
@@ -368,5 +368,5 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     return commandEncoder.finish();
   };
 
-  return { render, label: "G-Buffer" };
+  return { render, label: "g-buffer" };
 };

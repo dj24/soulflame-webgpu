@@ -38,8 +38,93 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
         ${reflections}
         `;
 
+  const bindGroupLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        storageTexture: {
+          format: "rgba8unorm",
+          viewDimension: "2d",
+        },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+          viewDimension: "cube",
+        },
+      },
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
+      {
+        binding: 3,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+        },
+      },
+      {
+        binding: 4,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
+      {
+        binding: 5,
+        visibility: GPUShaderStage.COMPUTE,
+        sampler: {
+          type: "non-filtering",
+        },
+      },
+      {
+        binding: 6,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
+    ],
+  });
+
+  const gBufferBindGroupLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+        },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+        },
+      },
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        storageTexture: {
+          format: "rgba8unorm",
+          viewDimension: "2d",
+        },
+      },
+    ],
+  });
+
   const getReflectionPipeline = device.createComputePipeline({
-    layout: "auto",
+    layout: device.createPipelineLayout({
+      bindGroupLayouts: [bindGroupLayout, gBufferBindGroupLayout],
+    }),
     compute: {
       module: device.createShaderModule({
         code,
@@ -49,7 +134,9 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
   });
 
   const applyReflectionPipeline = device.createComputePipeline({
-    layout: "auto",
+    layout: device.createPipelineLayout({
+      bindGroupLayouts: [bindGroupLayout, gBufferBindGroupLayout],
+    }),
     compute: {
       module: device.createShaderModule({
         code,
@@ -62,14 +149,10 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
     commandEncoder,
     resolutionBuffer,
     outputTextures,
+    viewProjectionMatricesBuffer,
   }: RenderArgs) => {
     const reflectionTextureView = createReflectionTextureView();
     const computePass = commandEncoder.beginComputePass();
-
-    const linearSampler = device.createSampler({
-      magFilter: "linear",
-      minFilter: "linear",
-    });
 
     const pointSampler = device.createSampler({
       magFilter: "nearest",
@@ -80,9 +163,13 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
       downscaleFactor,
     ]);
 
+    const skyTextureViewDescriptor: GPUTextureViewDescriptor = {
+      dimension: "cube",
+    };
+
     // Get reflections at half resolution
     const getReflectionsBindGroup = device.createBindGroup({
-      layout: getReflectionPipeline.getBindGroupLayout(0),
+      layout: bindGroupLayout,
       entries: [
         {
           binding: 0,
@@ -90,54 +177,10 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 1,
-          resource: outputTextures.skyTexture.createView(),
+          resource: outputTextures.skyTexture.createView(
+            skyTextureViewDescriptor,
+          ),
         },
-        {
-          binding: 2,
-          resource: {
-            buffer: resolutionBuffer,
-          },
-        },
-        // {
-        //   binding: 4,
-        //   resource: linearSampler,
-        // },
-        {
-          binding: 6,
-          resource: pointSampler,
-        },
-        {
-          binding: 7,
-          resource: {
-            buffer: downscaleFactorBuffer,
-          },
-        },
-      ],
-    });
-
-    const getReflectionGBuffer = device.createBindGroup({
-      layout: getReflectionPipeline.getBindGroupLayout(1),
-      entries: [
-        {
-          binding: 0,
-          resource: outputTextures.normalTexture.createView(),
-        },
-      ],
-    });
-
-    computePass.setPipeline(getReflectionPipeline);
-    computePass.setBindGroup(0, getReflectionsBindGroup);
-    computePass.setBindGroup(1, getReflectionGBuffer);
-    const downscaledResolution = getDownscaledResolution();
-    computePass.dispatchWorkgroups(
-      downscaledResolution[0] / 8,
-      downscaledResolution[1] / 8,
-    );
-
-    // Apply reflections to output
-    const applyReflectionBindGroup = device.createBindGroup({
-      layout: applyReflectionPipeline.getBindGroupLayout(0),
-      entries: [
         {
           binding: 2,
           resource: {
@@ -146,18 +189,20 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 3,
-          resource: reflectionTextureView,
+          resource: reflectionTexture.createView(),
         },
         {
           binding: 4,
-          resource: linearSampler,
+          resource: {
+            buffer: viewProjectionMatricesBuffer,
+          },
         },
         {
-          binding: 6,
+          binding: 5,
           resource: pointSampler,
         },
         {
-          binding: 7,
+          binding: 6,
           resource: {
             buffer: downscaleFactorBuffer,
           },
@@ -165,8 +210,8 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
       ],
     });
 
-    const applyReflectionGBuffer = device.createBindGroup({
-      layout: applyReflectionPipeline.getBindGroupLayout(1),
+    const gBufferBindGroup = device.createBindGroup({
+      layout: gBufferBindGroupLayout,
       entries: [
         {
           binding: 2,
@@ -183,9 +228,16 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
       ],
     });
 
+    computePass.setPipeline(getReflectionPipeline);
+    computePass.setBindGroup(0, getReflectionsBindGroup);
+    computePass.setBindGroup(1, gBufferBindGroup);
+    const downscaledResolution = getDownscaledResolution();
+    computePass.dispatchWorkgroups(
+      downscaledResolution[0] / 8,
+      downscaledResolution[1] / 8,
+    );
+
     computePass.setPipeline(applyReflectionPipeline);
-    computePass.setBindGroup(0, applyReflectionBindGroup);
-    computePass.setBindGroup(1, applyReflectionGBuffer);
     computePass.dispatchWorkgroups(resolution[0] / 8, resolution[1] / 8);
 
     computePass.end();

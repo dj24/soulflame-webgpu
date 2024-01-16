@@ -14,7 +14,7 @@ struct ViewProjectionMatrices {
 @group(0) @binding(4) var normalTex : texture_storage_2d<rgba8snorm, write>;
 @group(0) @binding(5) var albedoTex : texture_storage_2d<rgba8unorm, write>;
 //@group(0) @binding(6) var depthRead : texture_2d<f32>;
-@group(0) @binding(6) var depthWrite : texture_storage_2d<r32float, write>;
+@group(0) @binding(6) var depthWrite : texture_storage_2d<rgba32float, write>;
 @group(0) @binding(7) var velocityTex : texture_storage_2d<rg32float, write>;
 @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;
 @group(0) @binding(10) var<uniform> resolution : vec2<u32>;
@@ -159,8 +159,8 @@ fn main(
   let colour = mix(albedo,vec3(lambert * albedo),0.5);
   let velocity = getVelocity(output, viewProjections);
 
-  textureStore(depthWrite, GlobalInvocationID.xy, vec4(depth,0.0,0.0,0.0));
-  textureStore(albedoTex, pixel, vec4(colour,1));
+  textureStore(depthWrite, GlobalInvocationID.xy, vec4(output.worldPos, depth));
+  textureStore(albedoTex, pixel, vec4(albedo, 1));
   textureStore(normalTex, pixel, vec4(normal,1));
   textureStore(velocityTex, pixel, vec4(velocity,0));
 }

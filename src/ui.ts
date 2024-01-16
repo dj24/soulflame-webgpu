@@ -20,7 +20,7 @@ export class DebugUI {
         console.log(event.target);
       });
     });
-    ["downscale", "fov", "scale", "translate", "objectcount"].forEach((id) => {
+    ["fov", "scale", "translate"].forEach((id) => {
       document.getElementById(id).addEventListener("input", (event) => {
         const input = event.target as HTMLInputElement;
         window.dispatchEvent(
@@ -48,10 +48,6 @@ export class DebugUI {
       debugValues.targetScale = 1;
       debugValues.targetRotateY = 0;
     });
-    const handleObjectCountChange = (event: CustomEvent) => {
-      debugValues.objectCount = parseFloat(event.detail);
-    };
-    window.addEventListener("changeobjectcount", handleObjectCountChange);
 
     document
       .getElementById("webgpu-canvas")
@@ -76,6 +72,6 @@ export class DebugUI {
   }
 
   log(text: string) {
-    this.logElement.innerText = text;
+    this.logElement.innerHTML = text;
   }
 }

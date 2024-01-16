@@ -1,11 +1,19 @@
+struct ViewProjectionMatrices {
+  viewProjection : mat4x4<f32>,
+  previousViewProjection : mat4x4<f32>,
+  inverseViewProjection : mat4x4<f32>,
+  previousInverseViewProjection : mat4x4<f32>,
+  projection : mat4x4<f32>,
+  inverseProjection: mat4x4<f32>
+};
+
 @group(0) @binding(0) var reflectionsStore : texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(1) var skyTex : texture_cube<f32>;
 @group(0) @binding(2) var<uniform> resolution : vec2<u32>;
 @group(0) @binding(3) var reflectionsTex : texture_2d<f32>;
-@group(0) @binding(4) var linearSampler : sampler;
-@group(0) @binding(5) var<uniform> frustumCornerDirections : FrustumCornerDirections;
-@group(0) @binding(6) var pointSampler : sampler;
-@group(0) @binding(7) var<uniform> downscaleFactor : f32;
+@group(0) @binding(4) var<uniform> viewProjections : ViewProjectionMatrices;
+@group(0) @binding(5) var pointSampler : sampler;
+@group(0) @binding(6) var<uniform> downscaleFactor : f32;
 
 // g-buffer
 @group(1) @binding(0) var normalTex : texture_2d<f32>;
@@ -23,7 +31,7 @@ fn getReflections(
   let pixel = vec2<u32>(GlobalInvocationID.x, downscaledResolution.y - GlobalInvocationID.y);
   let centerOfPixel = vec2<f32>(pixel) + vec2<f32>(0.5);
   let uv = centerOfPixel / vec2<f32>(downscaledResolution);
-  var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
+  var rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
   let normalSample = textureLoad(normalTex, pixel, 0).rgb;
   let randomDirection = mix(normalSample,randomInHemisphere(uv, normalSample),SCATTER_AMOUNT);
   var reflectionDirection = reflect(-rayDirection, randomDirection);
@@ -55,10 +63,9 @@ fn applyReflections(
   let pixel = vec2<u32>(GlobalInvocationID.x, resolution.y - GlobalInvocationID.y);
   let centerOfPixel = vec2<f32>(pixel) + vec2<f32>(0.5);
   let uv = centerOfPixel / vec2<f32>(resolution);
-  var rayDirection = calculateRayDirection(uv,frustumCornerDirections);
+  var rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
   var normalSample = textureSampleLevel(normalTex,pointSampler, uv, 0.0).rgb;
   var albedoSample = textureSampleLevel(albedoTex,pointSampler, uv, 0.0).rgb;
-  var foo = textureSampleLevel(albedoTex,linearSampler, uv, 0.0);
   if(all(normalSample == vec3(0.0))) {
     textureStore(
       outputTex,

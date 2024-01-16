@@ -32,7 +32,7 @@ export const getTaaPass = async (): Promise<RenderPass> => {
   });
   const render = ({
     commandEncoder,
-    resolutionBuffer,
+    timestampWrites,
     outputTextures,
   }: RenderArgs) => {
     if (!currentFrameTexture) {
@@ -60,7 +60,9 @@ export const getTaaPass = async (): Promise<RenderPass> => {
       },
     );
 
-    const computePass = commandEncoder.beginComputePass();
+    const computePass = commandEncoder.beginComputePass({
+      timestampWrites,
+    });
     computePass.setPipeline(taaPipeline);
 
     const bindGroup = device.createBindGroup({
@@ -109,5 +111,5 @@ export const getTaaPass = async (): Promise<RenderPass> => {
     return commandEncoder.finish();
   };
 
-  return { render };
+  return { render, label: "taa" };
 };

@@ -31,6 +31,7 @@ import { generateOctreeMips } from "./create-3d-texture/generate-octree-mips";
 import { getMotionBlurPass } from "./motion-blur/motion-blur";
 import { forEach } from "lodash";
 import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels";
+import { getShadowsPass } from "./shadow-pass/get-shadows-pass";
 
 export type RenderArgs = {
   enabled?: boolean;
@@ -74,7 +75,7 @@ export let camera = new Camera({
 const debugUI = new DebugUI();
 
 const frameTimeTracker = getFrameTimeTracker();
-frameTimeTracker.addSample("Frame Time", 0);
+frameTimeTracker.addSample("frame time", 0);
 
 let voxelTextureView: GPUTextureView;
 let octreeBuffer: GPUBuffer;
@@ -190,7 +191,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     if (!depthTexture) {
       depthTexture = device.createTexture({
         size: [resolution[0], resolution[1], 1],
-        format: "r32float",
+        format: "rgba32float",
         usage:
           GPUTextureUsage.TEXTURE_BINDING |
           GPUTextureUsage.RENDER_ATTACHMENT |
@@ -312,8 +313,14 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         );
         forEach(computePassExecutionTimes, (time, index) => {
           const label = computePasses[index].label;
-          if (label) {
-            frameTimeTracker.addSample(computePasses[index].label, time);
+          const inputId = `flag-${label}`;
+          const isPassEnabled = (
+            document.getElementById(inputId) as HTMLInputElement
+          )?.checked;
+          if (label && isPassEnabled) {
+            frameTimeTracker.addSample(label, time);
+          } else {
+            frameTimeTracker.clearEntry(label);
           }
         });
       });
@@ -325,7 +332,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     }
     const newElapsedTime = now - startTime;
     deltaTime = newElapsedTime - elapsedTime;
-    frameTimeTracker.addSample("Frame Time", deltaTime);
+    frameTimeTracker.addSample("frame time", deltaTime);
     elapsedTime = newElapsedTime;
     frameCount++;
 
@@ -352,10 +359,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     const jitteredCameraPosition = mat4.getTranslation(camera.viewMatrix);
 
-    debugUI.log(
-      `${resolution[0]} x ${resolution[1]} 
-      ${frameTimeTracker.toString()}`,
-    );
+    debugUI.log(frameTimeTracker.toHTML());
 
     getTimeBuffer();
     getResolutionBuffer();
@@ -377,7 +381,14 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     computePasses.forEach((computePass, index) => {
       const { render, label } = computePass;
+      if (
+        (document.getElementById(`flag-${label}`) as HTMLInputElement)
+          ?.checked === false
+      ) {
+        return;
+      }
       const commandEncoder = device.createCommandEncoder();
+      commandEncoder.clearBuffer(timestampQueryBuffer);
       let timestampWrites: GPUComputePassTimestampWrites | undefined;
       if (device.features.has("timestamp-query")) {
         timestampWrites = {
@@ -464,15 +475,36 @@ const start = async () => {
     volumeAtlas.addVolume(treeHouseTexture, "treeHouse");
     treeHouseTexture.destroy();
 
-    renderLoop(device, [
+    const computePasses: RenderPass[] = [
       // await getDepthPrepass(),
       await getGBufferPass(),
       // await getDiffusePass(),
       // await getReflectionsPass(),
+      await getShadowsPass(),
       // await getTaaPass(),
       await getMotionBlurPass(),
       fullscreenQuad(device),
-    ]);
+    ];
+
+    renderLoop(device, computePasses);
+
+    document.getElementById("flags").innerHTML = computePasses.reduce(
+      (acc, pass) => {
+        if (!pass.label) {
+          return acc;
+        }
+        const id = `flag-${pass.label}`;
+        return `${acc}<div class="debug-row">
+                    <label for="${id}">
+                        ${pass.label}
+                    </label>
+                    <div>
+                        <input id="${id}" type="checkbox" checked>
+                   </div>
+                </div>`;
+      },
+      "",
+    );
   } else {
     console.error("WebGPU not supported");
   }
