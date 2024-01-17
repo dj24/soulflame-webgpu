@@ -11,7 +11,7 @@ import "./main.css";
 import { Mat4, mat4, vec2, vec3 } from "wgpu-matrix";
 import cornellBox from "./voxel-models/cornell.vxm";
 import dragon from "./voxel-models/dragon.vxm";
-import treeHouse from "./voxel-models/treehouse.vxm";
+import treeHouse from "./voxel-models/dragon.vxm";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
 import { DebugValuesStore } from "./debug-values-store";
@@ -480,9 +480,9 @@ const start = async () => {
       await getGBufferPass(),
       // await getDiffusePass(),
       // await getReflectionsPass(),
-      await getShadowsPass(),
+      // await getShadowsPass(),
       // await getTaaPass(),
-      await getMotionBlurPass(),
+      // await getMotionBlurPass(),
       fullscreenQuad(device),
     ];
 

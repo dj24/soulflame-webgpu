@@ -82,43 +82,6 @@ fn minMaxProjectedBounds(voxelObject: VoxelObject, viewProjection: mat4x4<f32>) 
 const FAR_PLANE = 10000.0;
 
 @compute @workgroup_size(8, 8, 1)
-fn main2(
-  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
-) {
-//  let initialDepth = textureLoad(depthRead, vec2<i32>(GlobalInvocationID.xy), 0).r;
-//  if(initialDepth > 10000) {
-//    textureStore(normalTex, GlobalInvocationID.xy, vec4(0.0));
-//    textureStore(albedoTex, GlobalInvocationID.xy, vec4(0.0));
-//    return;
-//  }
-
-  let resolution = textureDimensions(albedoTex);
-  var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
-  uv = vec2(uv.x, 1.0 - uv.y);
-  var pixel = GlobalInvocationID.xy;
-
-  var rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
-
-  var rayOrigin = cameraPosition;
-  rayOrigin.y = -rayOrigin.y;
-
-  var voxelObject = voxelObjects[0];
-
-
-  let rayMarchResult = rayMarch( rayOrigin, rayDirection, voxelObjects);
-  let depth = distance(rayMarchResult.worldPos, cameraPosition);
-  let lambert = dot(rayMarchResult.normal, normalize(vec3<f32>(0.5, 1.0, -0.5)));
-  let albedo = rayMarchResult.colour.rgb;
-  let colour = mix(albedo,vec3(lambert * rayMarchResult.colour.rgb),0.5);
-  let velocity = getVelocity(rayMarchResult, viewProjections);
-
-  textureStore(depthWrite, GlobalInvocationID.xy, vec4(depth,0.0,0.0,0.0));
-  textureStore(albedoTex, pixel, vec4(colour,1));
-  textureStore(normalTex, pixel, vec4(rayMarchResult.normal,1));
-  textureStore(velocityTex, pixel, vec4(velocity,0));
-}
-
-@compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
@@ -128,12 +91,16 @@ fn main(
   let pixel = GlobalInvocationID.xy;
   let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
   let rayOrigin = vec3(cameraPosition.x, -cameraPosition.y, cameraPosition.z);
-  let mipLevel = u32(0);
+
 
   textureStore(normalTex, GlobalInvocationID.xy, vec4(0.0));
   textureStore(albedoTex, GlobalInvocationID.xy, vec4(0.0));
 
+  var totalSteps = 0;
   var output = RayMarchResult();
+  let maxMipLevel = u32(3);
+  let minMipLevel = u32(0);
+  var mipLevel = maxMipLevel;
 
   for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
     let voxelObject = voxelObjects[i];
@@ -148,14 +115,43 @@ fn main(
     if(!isInBounds){
       objectRayOrigin = objectRayOrigin + objectRayDirection * intersect.tNear + EPSILON;
     }
-    output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel);
 
+    // Bounds for octree node
+    var voxelSize = pow(2, f32(mipLevel));
+    var minTexel = vec3<i32>(0);
+    var maxTexel = vec3<i32>(voxelObject.size / voxelSize);
+//    maxTexel.x /= 2;
+    output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel, minTexel, maxTexel);
+    totalSteps += output.stepsTaken;
+
+    while(totalSteps < 50) {
+        if(output.hit && mipLevel > minMipLevel){
+          mipLevel--;
+        }
+        else if(!output.hit && mipLevel < maxMipLevel){
+          mipLevel++;
+        }
+        else{
+          break;
+        }
+        voxelSize = pow(2, f32(mipLevel));
+        //TODO: get min and max texel from current index, maybe return it from rayMarchResult struct
+        minTexel = vec3<i32>(0);
+        maxTexel = vec3<i32>(voxelObject.size / voxelSize);
+        objectRayOrigin = output.objectPos - objectRayDirection * EPSILON;
+        output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel, minTexel, maxTexel);
+        totalSteps += output.stepsTaken;
+        if(output.hit && mipLevel == minMipLevel) {
+          break;
+        }
+    }
   }
 
   let normal = output.normal;
   let depth = distance(output.worldPos, cameraPosition);
   let lambert = dot(normal, normalize(vec3<f32>(0.5, 1.0, -0.5)));
-  let albedo = output.colour.rgb;
+  let albedo = vec3(mix(vec3(0.1,0,0.5), vec3(1,0.5,0.25), f32(totalSteps) / 30.0));
+//let albedo = output.colour.rgb;
   let colour = mix(albedo,vec3(lambert * albedo),0.5);
   let velocity = getVelocity(output, viewProjections);
 

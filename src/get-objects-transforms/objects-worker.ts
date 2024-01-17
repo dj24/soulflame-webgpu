@@ -1,7 +1,7 @@
 import { mat4, vec3, Vec3 } from "wgpu-matrix";
 import { VoxelObject } from "../voxel-object";
 import { Camera } from "../camera";
-import treeHouseVolume from "../voxel-models/treehouse.vxm";
+import treeHouseVolume from "../voxel-models/dragon.vxm";
 import { debugValues } from "../app";
 
 const ctx: Worker = self as any;

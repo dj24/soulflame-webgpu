@@ -45,7 +45,7 @@ fn main(
   let shadowRayDirection = -SUN_DIRECTION + randomInHemisphere(randomCo, -SUN_DIRECTION) * scatterAmount;
   let worldPos = textureLoad(depth, pixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
 
-  let mipLevel = u32(0);
+  var mipLevel = u32(3);
   var hit = false;
   var output = RayMarchResult();
   for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
@@ -62,6 +62,11 @@ fn main(
       objectRayOrigin = objectRayOrigin + objectRayDirection * intersect.tNear + EPSILON;
     }
     output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel);
+    while(mipLevel > 0 && output.hit) {
+        mipLevel = mipLevel - 1;
+        objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(output.worldPos, 1.0)).xyz;
+        output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel);
+    }
     if(output.hit){
       hit = true;
       break;
