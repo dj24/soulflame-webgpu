@@ -86,7 +86,7 @@ export const moveCamera = () => {
   // if (!document.hasFocus()) {
   //   return;
   // }
-  const speed = 0.03 * deltaTime;
+  const speed = 0.01 * deltaTime;
   let direction = vec3.zero();
   // TODO: Why is it backwards?
   if (keyboardControls.pressed.a) {

@@ -41,38 +41,43 @@ struct RayMarchResult {
   stepsTaken: i32,
 }
 
+fn isInBounds(position: vec3<f32>, size: vec3<f32>) -> bool {
+  return all(position >= vec3<f32>(0.0)) && all(position <= size);
+}
+
 fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, objectRayOrigin: vec3<f32>, mipLevel: u32) -> RayMarchResult {
   var output = RayMarchResult();
-  let voxelStep = sign(objectRayDirection);
-  let voxelSize = pow(2.0, f32(mipLevel));
-
-  let tDelta = voxelSize / abs(objectRayDirection);
-  let scaledRayOrigin = objectRayOrigin / voxelSize;
-  var currentIndex = floor(scaledRayOrigin);
-  var voxelOriginDifference = currentIndex - scaledRayOrigin;
-  var clampedVoxelBoundary = (voxelStep * 0.5) + 0.5; // 0 if <= 0, 1 if > 0
-  var tMax = (voxelStep * voxelOriginDifference + clampedVoxelBoundary) * tDelta;
+  let rayDirSign = sign(objectRayDirection);
+  var currentIndex = floor(objectRayOrigin);
   var objectNormal = vec3(0.0);
-  var objectPos = vec3(0.0);
-  var tIntersection = 0.0;
+  var tCurrent = 0.0;
 
   // RAYMARCH
   for(var i = 0; i < MAX_RAY_STEPS; i++)
   {
     output.stepsTaken = i;
-    let isInBounds = all(currentIndex >= vec3<f32>(0.0)) && all(currentIndex <= vec3<f32>(voxelObject.size / voxelSize));
-    if(!isInBounds){
-        break;
-    }
-    tIntersection = min(min(tMax.x, tMax.y), tMax.z);
-    // Check for voxel at current index
-    let atlasLocation = vec3<u32>(voxelObject.atlasLocation / voxelSize);
-    let voxelSample = textureLoad(voxels, vec3<u32>(currentIndex) + atlasLocation, mipLevel);
-    if(voxelSample.a > 0.0 && tIntersection > EPSILON){
-        output.objectPos = objectPos;
-        output.worldPos = transformPosition(voxelObject.transform, objectPos);
+
+    let atlasLocation = vec3<u32>(voxelObject.atlasLocation);
+    let samplePosition = vec3<u32>(currentIndex) + atlasLocation;
+
+    let mip0Index = currentIndex;
+    let mip1Index = currentIndex / 2;
+    let mip2Index = currentIndex / 4;
+
+    let mip0SamplePosition = vec3<u32>(mip0Index) + atlasLocation;
+    let mip1SamplePosition = vec3<u32>(mip1Index) + atlasLocation;
+    let mip2SamplePosition = vec3<u32>(mip2Index) + atlasLocation;
+
+    let mipSample0 = textureLoad(voxels, mip0SamplePosition, 0);
+    let mipSample1 = textureLoad(voxels, mip1SamplePosition, 1);
+    let mipSample2 = textureLoad(voxels, mip2SamplePosition, 2);
+
+    // Hit voxel at finiest miplevel, return result
+    if(mipSample0.a > 0.0){
+        output.objectPos = objectRayOrigin + objectRayDirection * tCurrent;
+        output.worldPos = transformPosition(voxelObject.transform, output.objectPos);
         output.normal = transformNormal(voxelObject.inverseTransform,objectNormal);
-        output.colour = voxelSample.rgb;
+        output.colour = mipSample0.rgb;
         output.hit = true;
         output.modelMatrix = voxelObject.transform;
         output.previousModelMatrix = voxelObject.previousTransform;
@@ -82,15 +87,16 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
     }
 
     // Iterate to next voxel
-    let mask = vec3(
-        select(0.0, 1.0, tMax.x == tIntersection),
-        select(0.0, 1.0, tMax.y == tIntersection),
-        select(0.0, 1.0, tMax.z == tIntersection)
-    );
-    tMax += mask * tDelta;
-    currentIndex += mask * voxelStep;
-    objectNormal = vec3(mask * -voxelStep);
-    objectPos = objectRayOrigin + objectRayDirection * tIntersection;
+    var voxelOriginDifference = currentIndex - objectRayOrigin;
+    var tMax = voxelOriginDifference / objectRayDirection;
+    tCurrent = min(min(tMax.x, tMax.y), tMax.z);
+    let mask = vec3<f32>(tMax.xyz <= min(tMax.yzx, tMax.zxy));
+    objectNormal = vec3(mask * -rayDirSign);
+    currentIndex += mask * rayDirSign;
+
+    if(!isInBounds(currentIndex, voxelObject.size)){
+        break;
+    }
   }
   return output;
 }
