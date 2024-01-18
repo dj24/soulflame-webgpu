@@ -18,6 +18,7 @@ export const fullscreenQuad = async (device: GPUDevice) => {
   });
   const render = (args: RenderArgs): GPUCommandBuffer => {
     const renderPass = args.commandEncoder.beginRenderPass({
+      timestampWrites: args.timestampWrites,
       colorAttachments: [
         {
           view: gpuContext.getCurrentTexture().createView(),
@@ -44,5 +45,5 @@ export const fullscreenQuad = async (device: GPUDevice) => {
     return args.commandEncoder.finish();
   };
 
-  return { render };
+  return { render, label: "fullscreen quad" };
 };

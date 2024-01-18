@@ -388,7 +388,9 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         return;
       }
       const commandEncoder = device.createCommandEncoder();
-      commandEncoder.clearBuffer(timestampQueryBuffer);
+      if (device.features.has("timestamp-query")) {
+        commandEncoder.clearBuffer(timestampQueryBuffer);
+      }
       let timestampWrites: GPUComputePassTimestampWrites | undefined;
       if (device.features.has("timestamp-query")) {
         timestampWrites = {
