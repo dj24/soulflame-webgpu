@@ -475,18 +475,20 @@ const start = async () => {
     volumeAtlas.addVolume(treeHouseTexture, "treeHouse");
     treeHouseTexture.destroy();
 
-    const computePasses: RenderPass[] = [
-      // await getDepthPrepass(),
-      await getGBufferPass(),
-      // await getDiffusePass(),
-      // await getReflectionsPass(),
-      // await getShadowsPass(),
-      // await getTaaPass(),
-      // await getMotionBlurPass(),
+    const computePassPromises: Promise<RenderPass>[] = [
+      // getDepthPrepass(),
+      getGBufferPass(),
+      // getDiffusePass(),
+      // getReflectionsPass(),
+      // getShadowsPass(),
+      // getTaaPass(),
+      // getMotionBlurPass(),
       fullscreenQuad(device),
     ];
 
-    renderLoop(device, computePasses);
+    const computePasses = await Promise.all(computePassPromises);
+
+    renderLoop(device, await Promise.all(computePasses));
 
     document.getElementById("flags").innerHTML = computePasses.reduce(
       (acc, pass) => {

@@ -1,6 +1,6 @@
 import { gpuContext, RenderArgs } from "../app";
 import fullscreenQuadShader from "./fullscreentexturedquad.wgsl";
-export const fullscreenQuad = (device: GPUDevice) => {
+export const fullscreenQuad = async (device: GPUDevice) => {
   const fullscreenQuadShaderModule = device.createShaderModule({
     code: fullscreenQuadShader,
   });

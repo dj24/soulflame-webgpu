@@ -117,11 +117,7 @@ fn main(
     }
 
     // Bounds for octree node
-    var voxelSize = pow(2, f32(mipLevel));
-    var minTexel = vec3<i32>(0);
-    var maxTexel = vec3<i32>(voxelObject.size / voxelSize);
-//    maxTexel.x /= 2;
-    output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel, minTexel, maxTexel);
+    output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel);
     totalSteps += output.stepsTaken;
 
     while(totalSteps < 50) {
@@ -134,12 +130,8 @@ fn main(
         else{
           break;
         }
-        voxelSize = pow(2, f32(mipLevel));
-        //TODO: get min and max texel from current index, maybe return it from rayMarchResult struct
-        minTexel = vec3<i32>(0);
-        maxTexel = vec3<i32>(voxelObject.size / voxelSize);
         objectRayOrigin = output.objectPos - objectRayDirection * EPSILON;
-        output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel, minTexel, maxTexel);
+        output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel);
         totalSteps += output.stepsTaken;
         if(output.hit && mipLevel == minMipLevel) {
           break;

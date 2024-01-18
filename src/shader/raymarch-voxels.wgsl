@@ -41,10 +41,11 @@ struct RayMarchResult {
   stepsTaken: i32,
 }
 
-fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, objectRayOrigin: vec3<f32>, mipLevel: u32, boundsMin: vec3<i32>, boundsMax: vec3<i32>) -> RayMarchResult {
+fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, objectRayOrigin: vec3<f32>, mipLevel: u32) -> RayMarchResult {
   var output = RayMarchResult();
   let voxelStep = sign(objectRayDirection);
   let voxelSize = pow(2.0, f32(mipLevel));
+
   let tDelta = voxelSize / abs(objectRayDirection);
   let scaledRayOrigin = objectRayOrigin / voxelSize;
   var currentIndex = floor(scaledRayOrigin);
@@ -59,7 +60,7 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
   for(var i = 0; i < MAX_RAY_STEPS; i++)
   {
     output.stepsTaken = i;
-    let isInBounds = all(currentIndex >= vec3<f32>(boundsMin)) && all(currentIndex <= vec3<f32>(boundsMax));
+    let isInBounds = all(currentIndex >= vec3<f32>(0.0)) && all(currentIndex <= vec3<f32>(voxelObject.size / voxelSize));
     if(!isInBounds){
         break;
     }
