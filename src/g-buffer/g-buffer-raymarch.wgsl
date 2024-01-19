@@ -52,33 +52,6 @@ fn project(mvp: mat4x4<f32>, p: vec3<f32>) -> vec3<f32> {
   return vec3<f32>(screenSpaceVertex, clipSpaceVertex.z);
 }
 
-fn minMaxProjectedBounds(voxelObject: VoxelObject, viewProjection: mat4x4<f32>) -> vec4<u32> {
-  var minPos = vec2<u32>(resolution.x, resolution.y);
-  var maxPos = vec2<u32>(0, 0);
-
-  let corners =  array<vec3<f32>, 8>(
-    vec3(0.0),
-    vec3(voxelObject.size.x, 0.0, 0.0),
-    vec3(0.0, voxelObject.size.y, 0.0),
-    vec3(voxelObject.size.x, voxelObject.size.y, 0.0),
-    vec3(0.0, 0.0, voxelObject.size.z),
-    vec3(voxelObject.size.x, 0.0, voxelObject.size.z),
-    vec3(0.0, voxelObject.size.y, voxelObject.size.z),
-    voxelObject.size,
-  );
-
-  let mvp = viewProjection * voxelObject.transform;
-
-  for(var i = 0u; i < 8u; i++) {
-    let corner = corners[i];
-    let projected = project(mvp, corner);
-    minPos = min(minPos, vec2(u32(projected.x), u32(projected.y)));
-    maxPos = max(maxPos, vec2(u32(projected.x), u32(projected.y)));
-  }
-
-  return vec4<u32>(minPos, maxPos);
-}
-
 const FAR_PLANE = 10000.0;
 
 @compute @workgroup_size(8, 8, 1)
@@ -91,7 +64,6 @@ fn main(
   let pixel = GlobalInvocationID.xy;
   let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
   let rayOrigin = vec3(cameraPosition.x, -cameraPosition.y, cameraPosition.z);
-
 
   textureStore(normalTex, GlobalInvocationID.xy, vec4(0.0));
   textureStore(albedoTex, GlobalInvocationID.xy, vec4(0.0));
@@ -117,7 +89,7 @@ fn main(
     }
 
     // Bounds for octree node
-    output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel);
+    output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 1);
     totalSteps += output.stepsTaken;
 //  }
 

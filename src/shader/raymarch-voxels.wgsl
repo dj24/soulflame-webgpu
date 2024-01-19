@@ -41,16 +41,22 @@ struct RayMarchResult {
   stepsTaken: i32,
 }
 
-fn isInBounds(position: vec3<f32>, size: vec3<f32>) -> bool {
-  return all(position >= vec3<f32>(0.0)) && all(position <= size);
+fn isInBounds(position: vec3<i32>, size: vec3<i32>) -> bool {
+  return all(position >= vec3(0)) && all(position <= size);
+}
+
+fn getMipLevelFromVoxelSize(voxelSize: vec3<f32>) -> u32 {
+  return u32(log2(max(voxelSize.x, max(voxelSize.y, voxelSize.z))));
 }
 
 fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, objectRayOrigin: vec3<f32>, mipLevel: u32) -> RayMarchResult {
   var output = RayMarchResult();
   let rayDirSign = sign(objectRayDirection);
-  var currentIndex = floor(objectRayOrigin);
-  var objectNormal = vec3(0.0);
+  var objectNormal = vec3<i32>(0);
   var tCurrent = 0.0;
+//  let voxelSize = pow(2.0, f32(mipLevel));
+  var objectPos = objectRayOrigin;
+  var currentIndex = vec3<i32>(floor(objectPos));
 
   // RAYMARCH
   for(var i = 0; i < MAX_RAY_STEPS; i++)
@@ -70,13 +76,13 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
 
     let mipSample0 = textureLoad(voxels, mip0SamplePosition, 0);
     let mipSample1 = textureLoad(voxels, mip1SamplePosition, 1);
-    let mipSample2 = textureLoad(voxels, mip2SamplePosition, 2);
+    let mipSample2 = textureLoad(voxels, mip1SamplePosition, 2);
 
     // Hit voxel at finiest miplevel, return result
-    if(mipSample0.a > 0.0){
-        output.objectPos = objectRayOrigin + objectRayDirection * tCurrent;
+    if(mipSample1.a > 0.0){
+        output.objectPos = objectPos;
         output.worldPos = transformPosition(voxelObject.transform, output.objectPos);
-        output.normal = transformNormal(voxelObject.inverseTransform,objectNormal);
+        output.normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(objectNormal));
         output.colour = mipSample0.rgb;
         output.hit = true;
         output.modelMatrix = voxelObject.transform;
@@ -86,15 +92,33 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
         return output;
     }
 
-    // Iterate to next voxel
-    var voxelOriginDifference = currentIndex - objectRayOrigin;
-    var tMax = voxelOriginDifference / objectRayDirection;
-    tCurrent = min(min(tMax.x, tMax.y), tMax.z);
-    let mask = vec3<f32>(tMax.xyz <= min(tMax.yzx, tMax.zxy));
-    objectNormal = vec3(mask * -rayDirSign);
-    currentIndex += mask * rayDirSign;
+    var voxelSize = vec3<f32>(1.0);
+    currentIndex = vec3<i32>(floor(objectPos / voxelSize) * voxelSize);
+    var tDelta = voxelSize / abs(objectRayDirection);
+    var scaledRayOrigin = objectRayOrigin / voxelSize;
+    var scaledCurrentIndex = floor(objectPos / voxelSize);
+    var voxelOriginDifference = vec3<f32>(scaledCurrentIndex) - scaledRayOrigin;
+    var clampedVoxelBoundary = (rayDirSign * 0.5) + 0.5; // 0 if <= 0, 1 if > 0
+    var tMax = (rayDirSign * voxelOriginDifference + clampedVoxelBoundary) * tDelta;
 
-    if(!isInBounds(currentIndex, voxelObject.size)){
+    if(tMax.x < tMax.y && tMax.x < tMax.z){
+        tMax.x += tDelta.x;
+        tCurrent = tMax.x;
+    }
+    else if(tMax.y < tMax.z){
+        tMax.y += tDelta.y;
+        tCurrent = tMax.y;
+    }
+    else{
+        tMax.z += tDelta.z;
+        tCurrent = tMax.z;
+    }
+
+    let mask = vec3<f32>(tMax.xyz <= min(tMax.yzx, tMax.zxy));
+    objectNormal = vec3<i32>(mask * -rayDirSign);
+    objectPos = objectRayOrigin + objectRayDirection * (tCurrent - EPSILON);
+
+    if(!isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
         break;
     }
   }
