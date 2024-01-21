@@ -18,13 +18,16 @@ fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
   let pixel = GlobalInvocationID.xy;
+  var velocity = textureLoad(velocityTex, pixel, 0).xy;
+  if(all(velocity == vec2<f32>(0.0))){
+    return;
+  }
+
   let resolution = textureDimensions(inputTex);
   let centerOfPixel = vec2<f32>(GlobalInvocationID.xy) + vec2<f32>(0.5);
   var uv = centerOfPixel / vec2<f32>(resolution);
-//  uv = vec2(uv.x, 1.0 - uv.y);
-
   var result = textureLoad(inputTex, pixel, 0);
-  var velocity = textureLoad(velocityTex, pixel, 0).xy;
+
   let blurScale = (TARGET_DELTA_TIME / time.deltaTime) * 0.6; // less blur when framerate is high
   let scaledVelocity = velocity * blurScale;
   var samples = MAX_SAMPLES;

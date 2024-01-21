@@ -68,6 +68,7 @@ fn main(
   textureStore(depthWrite, GlobalInvocationID.xy, vec4(vec3(0.0), FAR_PLANE));
   textureStore(normalTex, GlobalInvocationID.xy, vec4(0.0));
   textureStore(albedoTex, GlobalInvocationID.xy, vec4(0.0));
+  textureStore(velocityTex, pixel, vec4(0.0));
 
   var totalSteps = 0;
   var output = RayMarchResult();
@@ -105,8 +106,8 @@ let albedo = output.colour.rgb;
   let colour = mix(albedo,vec3(lambert * albedo),1.0);
   let velocity = getVelocity(output, viewProjections);
 
-  textureStore(depthWrite, GlobalInvocationID.xy, vec4(output.worldPos, depth));
-  textureStore(albedoTex, pixel, vec4(albedo, 1));
+  textureStore(depthWrite, GlobalInvocationID.xy, vec4(output.worldPos, select(FAR_PLANE, depth, output.hit)));
+  textureStore(albedoTex, pixel, vec4(albedo, select(0.,1.,output.hit)));
   textureStore(normalTex, pixel, vec4(normal,1));
   textureStore(velocityTex, pixel, vec4(velocity,0));
 }

@@ -1,5 +1,6 @@
 import { device, RenderArgs, RenderPass } from "../app";
 import sky from "./sky.wgsl";
+import getRayDirection from "../shader/get-ray-direction.wgsl";
 
 export const getSkyPass = async (): Promise<RenderPass> => {
   const depthEntry: GPUBindGroupLayoutEntry = {
@@ -9,16 +10,32 @@ export const getSkyPass = async (): Promise<RenderPass> => {
       sampleType: "unfilterable-float",
     },
   };
-  const outputTextureEntry: GPUBindGroupLayoutEntry = {
+  const inputTextureEntry: GPUBindGroupLayoutEntry = {
     binding: 1,
+    visibility: GPUShaderStage.COMPUTE,
+    texture: {
+      sampleType: "float",
+    },
+  };
+
+  const outputTextureEntry: GPUBindGroupLayoutEntry = {
+    binding: 2,
     visibility: GPUShaderStage.COMPUTE,
     storageTexture: {
       format: "rgba8unorm",
-      viewDimension: "2d",
     },
   };
+
+  const matricesEntry: GPUBindGroupLayoutEntry = {
+    binding: 3,
+    visibility: GPUShaderStage.COMPUTE,
+    buffer: {
+      type: "uniform",
+    },
+  };
+
   const bindGroupLayout = device.createBindGroupLayout({
-    entries: [depthEntry, outputTextureEntry],
+    entries: [depthEntry, inputTextureEntry, outputTextureEntry, matricesEntry],
   });
 
   const computePipeline = device.createComputePipeline({
@@ -27,13 +44,44 @@ export const getSkyPass = async (): Promise<RenderPass> => {
     }),
     compute: {
       module: device.createShaderModule({
-        code: sky,
+        code: `${getRayDirection}${sky}`,
       }),
       entryPoint: "main",
     },
   });
-  const render = ({ outputTextures, timestampWrites }: RenderArgs) => {
+
+  let copyOutputTexture: GPUTexture;
+
+  const render = ({
+    outputTextures,
+    timestampWrites,
+    viewProjectionMatricesBuffer,
+  }: RenderArgs) => {
+    if (!copyOutputTexture) {
+      copyOutputTexture = device.createTexture({
+        size: [
+          outputTextures.finalTexture.width,
+          outputTextures.finalTexture.height,
+          outputTextures.finalTexture.depthOrArrayLayers,
+        ],
+        format: outputTextures.finalTexture.format,
+        usage: outputTextures.finalTexture.usage,
+      });
+    }
     const commandEncoder = device.createCommandEncoder();
+    commandEncoder.copyTextureToTexture(
+      {
+        texture: outputTextures.finalTexture, // TODO: pass texture as well as view
+      },
+      {
+        texture: copyOutputTexture,
+      },
+      {
+        width: outputTextures.finalTexture.width,
+        height: outputTextures.finalTexture.height,
+        depthOrArrayLayers: 1, // Copy one layer (z-axis slice)
+      },
+    );
     const bindGroup = device.createBindGroup({
       layout: bindGroupLayout,
       entries: [
@@ -43,7 +91,17 @@ export const getSkyPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 1,
+          resource: copyOutputTexture.createView(),
+        },
+        {
+          binding: 2,
           resource: outputTextures.finalTexture.createView(),
+        },
+        {
+          binding: 3,
+          resource: {
+            buffer: viewProjectionMatricesBuffer,
+          },
         },
       ],
     });

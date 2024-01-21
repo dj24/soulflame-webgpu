@@ -455,15 +455,6 @@ const start = async () => {
       "cubemaps/town-square/negz.jpg",
     ]);
     volumeAtlas = getVolumeAtlas(device);
-    // const cornellBoxTexture = await create3dTexture(
-    //   device,
-    //   cornellBox.sliceFilePaths,
-    //   cornellBox.size,
-    //   "cornell box",
-    // );
-    // volumeAtlas.addVolume(cornellBoxTexture, "cornell box");
-    // cornellBoxTexture.destroy();
-
     let treeHouseTexture = await create3dTexture(
       device,
       treeHouse.sliceFilePaths,
@@ -473,8 +464,6 @@ const start = async () => {
     console.log({ treeHouseTexture });
     treeHouseTexture = await removeInternalVoxels(device, treeHouseTexture);
     generateOctreeMips(device, treeHouseTexture);
-
-    // voxelTextureView = treeHouseTexture.createView();
     volumeAtlas.addVolume(treeHouseTexture, "treeHouse");
     treeHouseTexture.destroy();
 
