@@ -96,11 +96,12 @@ fn main(
   let normal = output.normal;
   let depth = distance(output.worldPos, cameraPosition);
   let lambert = dot(normal, normalize(vec3<f32>(0.5, 1.0, -0.5)));
-//  let albedo = vec3(mix(vec3(0.1,0,0.5), vec3(1,0.5,0.25), f32(totalSteps) / 100.0));
-//let albedo = output.colour.rgb;
+//  let albedo = vec3(mix(vec3(0.1,0,0.5), vec3(1,0.5,0.25), f32(totalSteps) / 50.0));
+let albedo = output.colour.rgb;
 //let albedo = mix(vec3(0.0), vec3(output.worldPos.x % 1),f32(totalSteps) / 50.0) ;
-  let albedo = abs(normal);
-  let colour = mix(albedo,vec3(lambert * albedo),0.5);
+//  let albedo = vec3(output.objectPos % 1.0);
+//  let albedo = output.colour.rgb;
+  let colour = mix(albedo,vec3(lambert * albedo),1.0);
   let velocity = getVelocity(output, viewProjections);
 
   textureStore(depthWrite, GlobalInvocationID.xy, vec4(output.worldPos, depth));

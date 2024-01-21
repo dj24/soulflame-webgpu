@@ -9,7 +9,6 @@ export class VoxelObject {
   size: Vec3;
   atlasLocation: Vec3;
   constructor(transform: Mat4, size: Vec3, atlasLocation: Vec3) {
-    console.log("Creating voxel object", { size });
     this.transform = transform;
     // const xSize = nextPowerOf2(size[0]);
     // const ySize = nextPowerOf2(size[1]);

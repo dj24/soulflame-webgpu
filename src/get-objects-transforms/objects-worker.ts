@@ -1,7 +1,7 @@
 import { mat4, vec3, Vec3 } from "wgpu-matrix";
 import { VoxelObject } from "../voxel-object";
 import { Camera } from "../camera";
-import treeHouseVolume from "../voxel-models/dragon.vxm";
+import treeHouseVolume from "../voxel-models/tavern.vxm";
 import { debugValues } from "../app";
 
 const ctx: Worker = self as any;
@@ -40,7 +40,7 @@ const getInnerBox = (x: number = 0) => {
   mat4.scale(m, [scaleFactor, scaleFactor, scaleFactor], m);
   mat4.translate(m, vec3.divScalar(treeHouseVolume.size, 2), m);
   mat4.translate(m, vec3.divScalar(treeHouseVolume.size, -2), m);
-  return new VoxelObject(m, treeHouseVolume.size, [cornellSize[0], 0, 0]);
+  return new VoxelObject(m, treeHouseVolume.size, [0, 0, 0]);
 };
 
 const updateInnerBox = (
@@ -68,9 +68,9 @@ const updateInnerBox = (
 
 const cornellBox = getOuterBox(0);
 const teaPot = getInnerBox();
-const teaPot2 = getInnerBox(128);
+// const teaPot2 = getInnerBox(128);
 
-const bufferPadding = [new VoxelObject(mat4.identity(), [0, 0, 0], [0, 0, 0])];
+const paddingElement = new VoxelObject(mat4.identity(), [0, 0, 0], [0, 0, 0]);
 
 // TODO: allow dynamic objects to be passed, probably via object atlas
 const getObjectTransforms = ({
@@ -82,14 +82,19 @@ const getObjectTransforms = ({
 }: GetObjectsArgs) => {
   updateInnerBox(teaPot, rotateY, translateX, scale);
 
-  let voxelObjects = [teaPot, teaPot2];
+  let voxelObjects = [teaPot];
 
   let activeVoxelObjects = voxelObjects;
 
-  activeVoxelObjects = activeVoxelObjects.slice(0, objectCount);
+  activeVoxelObjects = activeVoxelObjects.slice(0, voxelObjects.length);
 
-  // TODO: figure out what this does
-  voxelObjects = [...activeVoxelObjects, ...bufferPadding];
+  const differenceInObjectCount = maxObjectCount - voxelObjects.length;
+
+  const padding = new Array(differenceInObjectCount).fill(paddingElement);
+
+  voxelObjects = [...activeVoxelObjects, ...padding];
+
+  // console.log({ voxelObjects });
 
   return voxelObjects;
 };

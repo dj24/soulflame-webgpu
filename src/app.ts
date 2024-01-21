@@ -10,8 +10,7 @@ import { DebugUI } from "./ui";
 import "./main.css";
 import { Mat4, mat4, vec2, vec3 } from "wgpu-matrix";
 import cornellBox from "./voxel-models/cornell.vxm";
-import dragon from "./voxel-models/dragon.vxm";
-import treeHouse from "./voxel-models/dragon.vxm";
+import treeHouse from "./voxel-models/tavern.vxm";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
 import { DebugValuesStore } from "./debug-values-store";
@@ -470,6 +469,7 @@ const start = async () => {
       treeHouse.size,
       "treeHouse",
     );
+    console.log({ treeHouseTexture });
     treeHouseTexture = await removeInternalVoxels(device, treeHouseTexture);
     generateOctreeMips(device, treeHouseTexture);
 
@@ -482,9 +482,9 @@ const start = async () => {
       getGBufferPass(),
       // getDiffusePass(),
       // getReflectionsPass(),
-      // getShadowsPass(),
+      getShadowsPass(),
       // getTaaPass(),
-      // getMotionBlurPass(),
+      getMotionBlurPass(),
       fullscreenQuad(device),
     ];
 

@@ -5,8 +5,7 @@ import pixelBufferElement from "./pixel-buffer-element.wgsl";
 import boxIntersection from "../shader/box-intersection.wgsl";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
-import dragon from "../voxel-models/dragon.vxm";
-import treeHouse from "../voxel-models/dragon.vxm";
+import treeHouse from "../voxel-models/tavern.vxm";
 
 import {
   camera,

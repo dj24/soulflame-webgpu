@@ -32,7 +32,6 @@ const copyTextureWithMips = (
     const mipWidth = Math.max(1, width >> mipLevel);
     const mipHeight = Math.max(1, height >> mipLevel);
     const mipDepth = Math.max(1, depthOrArrayLayers >> mipLevel);
-    console.log({ mipLevel, mipWidth, mipHeight, mipDepth });
     commandEncoder.copyTextureToTexture(
       {
         texture: copySrc,
