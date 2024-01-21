@@ -65,6 +65,7 @@ fn main(
   let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
   let rayOrigin = vec3(cameraPosition.x, -cameraPosition.y, cameraPosition.z);
 
+  textureStore(depthWrite, GlobalInvocationID.xy, vec4(vec3(0.0), FAR_PLANE));
   textureStore(normalTex, GlobalInvocationID.xy, vec4(0.0));
   textureStore(albedoTex, GlobalInvocationID.xy, vec4(0.0));
 

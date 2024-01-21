@@ -31,6 +31,7 @@ import { getMotionBlurPass } from "./motion-blur/motion-blur";
 import { forEach } from "lodash";
 import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels";
 import { getShadowsPass } from "./shadow-pass/get-shadows-pass";
+import { getSkyPass } from "./sky-and-fog/get-sky-pass";
 
 export type RenderArgs = {
   enabled?: boolean;
@@ -483,6 +484,7 @@ const start = async () => {
       // getDiffusePass(),
       // getReflectionsPass(),
       getShadowsPass(),
+      getSkyPass(),
       // getTaaPass(),
       getMotionBlurPass(),
       fullscreenQuad(device),
