@@ -95,7 +95,7 @@ input[type=checkbox]{
 }
 
 .debug-row > *:first-child{
-    width:150px;
+    width:200px;
     text-align: right;
 }
 .debug-row > *:nth-child(2){
