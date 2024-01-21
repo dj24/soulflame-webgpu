@@ -2,6 +2,7 @@ import { mat4, vec3, Vec3 } from "wgpu-matrix";
 import { VoxelObject } from "../voxel-object";
 import { Camera } from "../camera";
 import treeHouseVolume from "../voxel-models/tavern.vxm";
+import dragonVolume from "../voxel-models/dragon.vxm";
 import { debugValues } from "../app";
 
 const ctx: Worker = self as any;
@@ -33,14 +34,27 @@ const getOuterBox = (rotateY: number) => {
   return new VoxelObject(m, cornellSize, [0, 0, 0]);
 };
 
-const getInnerBox = (x: number = 0) => {
+const getInnerBox = (x: number, z: number = 0) => {
   let m = mat4.identity();
-  let scaleFactor = 0.05;
-  mat4.translate(m, [x, 0, 0], m);
+  let scaleFactor = 0.1;
+  mat4.translate(m, [x, 0, z], m);
   mat4.scale(m, [scaleFactor, scaleFactor, scaleFactor], m);
+  mat4.rotateY(m, Math.PI, m);
   mat4.translate(m, vec3.divScalar(treeHouseVolume.size, 2), m);
   mat4.translate(m, vec3.divScalar(treeHouseVolume.size, -2), m);
   return new VoxelObject(m, treeHouseVolume.size, [0, 0, 0]);
+};
+
+const getDragon = (x: number, z: number = 0) => {
+  let m = mat4.identity();
+  let scaleFactor = 0.1;
+  let atlasLocation = [64, 0, 0];
+  mat4.translate(m, [x, 0, z], m);
+  mat4.scale(m, [scaleFactor, scaleFactor, scaleFactor], m);
+  mat4.rotateY(m, Math.PI, m);
+  mat4.translate(m, vec3.divScalar(dragonVolume.size, 2), m);
+  mat4.translate(m, vec3.divScalar(dragonVolume.size, -2), m);
+  return new VoxelObject(m, dragonVolume.size, atlasLocation);
 };
 
 const updateInnerBox = (
@@ -57,7 +71,7 @@ const updateInnerBox = (
   let z = 0;
   let y = 0;
   mat4.translate(m, [x, y, z], m);
-  let scaleFactor = scale * 0.05;
+  let scaleFactor = scale * 0.1;
   mat4.scale(m, [scaleFactor, scaleFactor, scaleFactor], m);
   mat4.translate(m, vec3.divScalar(voxelObject.size, 2), m);
   mat4.rotateY(m, rotateY - 1, m);
@@ -66,9 +80,11 @@ const updateInnerBox = (
   voxelObject.inverseTransform = mat4.invert(m);
 };
 
-const cornellBox = getOuterBox(0);
-const teaPot = getInnerBox();
-// const teaPot2 = getInnerBox(128);
+const teaPots = [1, 2, 3, 4, 5, 6, 7].map((i) =>
+  getInnerBox((i % 3) * 8 + 8, (i / 2) * 8),
+);
+
+const foo = getDragon(0, 0);
 
 const paddingElement = new VoxelObject(mat4.identity(), [0, 0, 0], [0, 0, 0]);
 
@@ -80,9 +96,10 @@ const getObjectTransforms = ({
   translateX,
   rotateY,
 }: GetObjectsArgs) => {
-  updateInnerBox(teaPot, rotateY, translateX, scale);
+  updateInnerBox(foo, rotateY, translateX, scale * 0.5);
+  // updateInnerBox(teaPot2, rotateY, translateX, scale);
 
-  let voxelObjects = [teaPot];
+  let voxelObjects = [foo, ...teaPots];
 
   let activeVoxelObjects = voxelObjects;
 

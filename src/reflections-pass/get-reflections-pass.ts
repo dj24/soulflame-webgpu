@@ -241,7 +241,7 @@ export const getReflectionsPass = async (): Promise<RenderPass> => {
     computePass.dispatchWorkgroups(resolution[0] / 8, resolution[1] / 8);
 
     computePass.end();
-    return commandEncoder.finish();
+    return [commandEncoder.finish()];
   };
 
   return { render };

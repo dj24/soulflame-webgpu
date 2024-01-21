@@ -44,3 +44,23 @@ fn boxIntersection(
     result.isHit = true;
     return result;
 }
+
+fn planeIntersection(
+    ro: vec3<f32>,
+    rd: vec3<f32>,
+    planeNormal: vec3<f32>,
+    planeDistance: f32,
+) -> BoxIntersectionResult {
+    var result = BoxIntersectionResult();
+    let denom = dot(planeNormal, rd);
+    if (abs(denom) > 0.0001) {
+        let t = -(dot(planeNormal, ro) + planeDistance) / denom;
+        if (t > 0.0) {
+            result.isHit = true;
+            result.tNear = t;
+            result.tFar = t;
+            result.normal = planeNormal;
+        }
+    }
+    return result;
+}

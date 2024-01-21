@@ -11,6 +11,7 @@ import "./main.css";
 import { Mat4, mat4, vec2, vec3 } from "wgpu-matrix";
 import cornellBox from "./voxel-models/cornell.vxm";
 import treeHouse from "./voxel-models/tavern.vxm";
+import dragon from "./voxel-models/dragon.vxm";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
 import { DebugValuesStore } from "./debug-values-store";
@@ -47,7 +48,7 @@ export type RenderArgs = {
 };
 
 export type RenderPass = {
-  render: (args: RenderArgs) => GPUCommandBuffer;
+  render: (args: RenderArgs) => GPUCommandBuffer[];
   label?: string;
 };
 
@@ -399,7 +400,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
           endOfPassWriteIndex: index * 2 + 1,
         };
       }
-      const commandBuffer = render({
+      render({
         commandEncoder,
         resolutionBuffer,
         timeBuffer,
@@ -416,8 +417,9 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         transformationMatrixBuffer,
         viewProjectionMatricesBuffer,
         timestampWrites,
+      }).forEach((commands) => {
+        commandBuffers.push(commands);
       });
-      commandBuffers.push(commandBuffer);
     });
 
     if (device.features.has("timestamp-query")) {
@@ -455,17 +457,29 @@ const start = async () => {
       "cubemaps/town-square/negz.jpg",
     ]);
     volumeAtlas = getVolumeAtlas(device);
+
     let treeHouseTexture = await create3dTexture(
       device,
       treeHouse.sliceFilePaths,
       treeHouse.size,
       "treeHouse",
     );
-    console.log({ treeHouseTexture });
     treeHouseTexture = await removeInternalVoxels(device, treeHouseTexture);
     generateOctreeMips(device, treeHouseTexture);
     volumeAtlas.addVolume(treeHouseTexture, "treeHouse");
     treeHouseTexture.destroy();
+
+    let dragonTexture = await create3dTexture(
+      device,
+      dragon.sliceFilePaths,
+      dragon.size,
+      "dragon",
+    );
+    dragonTexture = await removeInternalVoxels(device, dragonTexture);
+    generateOctreeMips(device, dragonTexture);
+    volumeAtlas.addVolume(dragonTexture, "dragon");
+    console.log(volumeAtlas.getVolumes());
+    dragonTexture.destroy();
 
     const computePassPromises: Promise<RenderPass>[] = [
       // getDepthPrepass(),
@@ -474,7 +488,7 @@ const start = async () => {
       // getReflectionsPass(),
       getShadowsPass(),
       getSkyPass(),
-      // getTaaPass(),
+      getTaaPass(),
       getMotionBlurPass(),
       fullscreenQuad(device),
     ];

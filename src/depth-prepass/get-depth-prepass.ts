@@ -14,7 +14,6 @@ import {
 const downscaleFactor = 4;
 export const getDepthPrepass = async (): Promise<RenderPass> => {
   let downscaledDepthTexture: GPUTexture;
-
   const createDownscaledDepthTextureView = () => {
     if (!downscaledDepthTexture) {
       downscaledDepthTexture = device.createTexture({
@@ -136,7 +135,7 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
     );
 
     computePass.end();
-    return commandEncoder.finish();
+    return [commandEncoder.finish()];
   };
 
   return { render, label: "depth prepass" };

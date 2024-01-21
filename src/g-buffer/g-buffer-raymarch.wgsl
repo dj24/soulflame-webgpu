@@ -25,20 +25,23 @@ fn plainIntersect(ro: vec3<f32>, rd: vec3<f32>, p: vec4<f32>) -> f32 {
 }
 
 fn getVelocity(rayMarchResult: RayMarchResult, viewProjections: ViewProjectionMatrices) -> vec3<f32> {
-  let objectSpace = rayMarchResult.inverseModelMatrix * vec4(rayMarchResult.worldPos, 1.0);
-  let previousObjectSpace = rayMarchResult.previousInverseModelMatrix * vec4(rayMarchResult.worldPos, 1.0);
+  let vp = viewProjections.viewProjection;
+    let previousVp = viewProjections.previousViewProjection;
+    let modelMatrix = rayMarchResult.modelMatrix;
+    let previousModelMatrix = rayMarchResult.previousModelMatrix;
 
-  let mvp = viewProjections.viewProjection * rayMarchResult.modelMatrix;
-  let previousMvp = viewProjections.previousViewProjection * rayMarchResult.previousModelMatrix;
+    // Get current object space position of the current pixel
+    let objectPos = rayMarchResult.objectPos.xyz;
+    let objectClipSpace = vp * modelMatrix * vec4(objectPos.xyz, 1.0);
+    let objectNDC = objectClipSpace.xyz / objectClipSpace.w;
 
-  let objectClipSpace = mvp * vec4(objectSpace.xyz, 1.0);
-  let previousObjectClipSpace = previousMvp * vec4(objectSpace.xyz, 1.0);
+    // Get previous position of the current object space position
+    let previousObjectClipSpace = previousVp * previousModelMatrix * vec4(objectPos.xyz, 1.0);
+    let previousObjectNDC = previousObjectClipSpace.xyz / previousObjectClipSpace.w;
 
-  let objectNDC = objectClipSpace.xyz / objectClipSpace.w;
-  let previousObjectNDC = previousObjectClipSpace.xyz / previousObjectClipSpace.w;
-
-  var velocity = objectNDC - previousObjectNDC;
-  velocity.y = -velocity.y;
+    // Get velocity based on the difference between the current and previous positions
+    var velocity = objectNDC - previousObjectNDC;
+    velocity.y = -velocity.y;
   return velocity;
 }
 
@@ -64,6 +67,17 @@ fn main(
   let pixel = GlobalInvocationID.xy;
   let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
   let rayOrigin = vec3(cameraPosition.x, -cameraPosition.y, cameraPosition.z);
+  var closestIntersection = RayMarchResult();
+  closestIntersection.worldPos = vec3(FAR_PLANE);
+
+  // Floor plane for debugging
+  let planeIntersect = planeIntersection(rayOrigin, rayDirection, vec3(0,1,0), 0.0);
+  if(planeIntersect.isHit){
+    closestIntersection.worldPos = rayOrigin + rayDirection * planeIntersect.tNear;
+    closestIntersection.hit = planeIntersect.isHit;
+    closestIntersection.normal = planeIntersect.normal;
+    closestIntersection.colour = vec3(0.15,0.3,0.1);
+  }
 
   textureStore(depthWrite, GlobalInvocationID.xy, vec4(vec3(0.0), FAR_PLANE));
   textureStore(normalTex, GlobalInvocationID.xy, vec4(0.0));
@@ -71,19 +85,21 @@ fn main(
   textureStore(velocityTex, pixel, vec4(0.0));
 
   var totalSteps = 0;
-  var output = RayMarchResult();
   let maxMipLevel = u32(0);
   let minMipLevel = u32(0);
   var mipLevel = maxMipLevel;
 
-//  for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
-    let voxelObject = voxelObjects[0];
+  for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
+    let voxelObject = voxelObjects[i];
+    if(any(voxelObject.size == vec3(0.0))){
+      continue;
+    }
     var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
     let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
     let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size);
     if(!intersect.isHit && !isInBounds) {
-      return;
+      continue;
     }
     // Advance ray origin to the point of intersection
     if(!isInBounds){
@@ -91,23 +107,26 @@ fn main(
     }
 
     // Bounds for octree node
-    output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 1);
-    totalSteps += output.stepsTaken;
-//  }
+    let raymarchResult = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 1);
+//    totalSteps += output.stepsTaken;
+    if(raymarchResult.hit && distance(raymarchResult.worldPos, rayOrigin) < distance(closestIntersection.worldPos, rayOrigin)){
+      closestIntersection = raymarchResult;
+    }
+  }
 
-  let normal = output.normal;
-  let depth = distance(output.worldPos, cameraPosition);
+  let normal = closestIntersection.normal;
+  let depth = distance(closestIntersection.worldPos, cameraPosition);
   let lambert = dot(normal, normalize(vec3<f32>(0.5, 1.0, -0.5)));
 //  let albedo = vec3(mix(vec3(0.1,0,0.5), vec3(1,0.5,0.25), f32(totalSteps) / 50.0));
-let albedo = output.colour.rgb;
-//let albedo = mix(vec3(0.0), vec3(output.worldPos.x % 1),f32(totalSteps) / 50.0) ;
-//  let albedo = vec3(output.objectPos % 1.0);
-//  let albedo = output.colour.rgb;
+let albedo = closestIntersection.colour.rgb;
+//let albedo = mix(vec3(0.0), vec3(closestIntersection.worldPos.x % 1),f32(totalSteps) / 50.0) ;
+//  let albedo = vec3(closestIntersection.objectPos % 1.0);
+//  let albedo = closestIntersection.colour.rgb;
   let colour = mix(albedo,vec3(lambert * albedo),1.0);
-  let velocity = getVelocity(output, viewProjections);
+  let velocity = getVelocity(closestIntersection, viewProjections);
 
-  textureStore(depthWrite, GlobalInvocationID.xy, vec4(output.worldPos, select(FAR_PLANE, depth, output.hit)));
-  textureStore(albedoTex, pixel, vec4(albedo, select(0.,1.,output.hit)));
+  textureStore(depthWrite, GlobalInvocationID.xy, vec4(closestIntersection.worldPos, select(FAR_PLANE, depth, closestIntersection.hit)));
+  textureStore(albedoTex, pixel, vec4(albedo, 1));
   textureStore(normalTex, pixel, vec4(normal,1));
   textureStore(velocityTex, pixel, vec4(velocity,0));
 }

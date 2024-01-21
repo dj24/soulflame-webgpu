@@ -119,7 +119,7 @@ export const getSkyPass = async (): Promise<RenderPass> => {
     computePass.dispatchWorkgroups(workgroupsX, workgroupsY);
     computePass.end();
 
-    return commandEncoder.finish();
+    return [commandEncoder.finish()];
   };
   return { render, label: "sky and fog" };
 };

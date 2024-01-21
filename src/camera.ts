@@ -104,7 +104,7 @@ export const moveCamera = () => {
   if (keyboardControls.pressed[" "]) {
     direction = vec3.add(direction, camera.up);
   }
-  if (keyboardControls.pressed.control) {
+  if (keyboardControls.pressed.shift) {
     direction = vec3.add(direction, camera.down);
   }
   direction = vec3.normalize(direction);

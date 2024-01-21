@@ -63,6 +63,7 @@ export const getMotionBlurPass = async (): Promise<RenderPass> => {
     outputTextures,
     timeBuffer,
     timestampWrites,
+    commandEncoder,
   }: RenderArgs) => {
     if (!copyOutputTexture) {
       copyOutputTexture = device.createTexture({
@@ -75,8 +76,6 @@ export const getMotionBlurPass = async (): Promise<RenderPass> => {
         usage: outputTextures.finalTexture.usage,
       });
     }
-
-    const commandEncoder = device.createCommandEncoder();
     commandEncoder.copyTextureToTexture(
       {
         texture: outputTextures.finalTexture, // TODO: pass texture as well as view
@@ -131,7 +130,7 @@ export const getMotionBlurPass = async (): Promise<RenderPass> => {
       Math.ceil(resolution[1] / 8),
     );
     pass.end();
-    return commandEncoder.finish();
+    return [commandEncoder.finish()];
   };
 
   return { render, label: "motion blur" };

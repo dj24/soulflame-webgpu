@@ -13,8 +13,8 @@ export class DebugValuesStore {
   targetRotateY;
 
   constructor() {
-    this.maxObjectCount = 3;
-    this.objectCount = 3;
+    this.maxObjectCount = 8;
+    this.objectCount = 8;
     this.scale = 1;
     this.translateX = 0;
     this.targetScale = 1;

@@ -153,7 +153,7 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
       Math.ceil(resolution[1] / 8),
     );
     pass.end();
-    return commandEncoder.finish();
+    return [commandEncoder.finish()];
   };
 
   return { render, label: "shadows" };

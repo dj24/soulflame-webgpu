@@ -364,7 +364,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       },
     );
 
-    return commandEncoder.finish();
+    return [commandEncoder.finish()];
   };
 
   return { render, label: "g-buffer" };
