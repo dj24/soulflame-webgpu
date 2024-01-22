@@ -16,26 +16,10 @@ struct ViewProjectionMatrices {
 @group(0) @binding(6) var<uniform> voxelObjects : array<VoxelObject, VOXEL_OBJECT_COUNT>;
 //@group(0) @binding(7) var<uniform> resolution : vec2<u32>;
 
-const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,1.0);
+const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SHADOW_ACNE_OFFSET: f32 = 0.0005;
 
-@compute @workgroup_size(8, 8, 1)
-fn main(
-  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
-) {
-  let resolution = textureDimensions(depth);
-  var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
-  uv = vec2(uv.x, 1.0 - uv.y);
-  let pixel = GlobalInvocationID.xy;
-  var normalSample = textureLoad(normals, pixel, 0).rgb;
-  let angleToSun = dot(normalSample, -SUN_DIRECTION);
-  let randomCo = uv;
-  let scatterAmount = 0.2;
-  let shadowRayDirection = -SUN_DIRECTION + randomInHemisphere(randomCo, -SUN_DIRECTION) * scatterAmount;
-//  let shadowRayDirection = -SUN_DIRECTION;
-  let worldPos = textureLoad(depth, pixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
-  var output = RayMarchResult();
-
+fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>) -> bool {
   for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
       let voxelObject = voxelObjects[i];
       if(any(voxelObject.size == vec3(0.0))){
@@ -52,10 +36,30 @@ fn main(
       if(!isInBounds){
         objectRayOrigin = objectRayOrigin + objectRayDirection * intersect.tNear + EPSILON;
       }
-      output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
+      let output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
       if(output.hit){
-        textureStore(outputTex, pixel, vec4(0.0));
-        return;
+        return true;
       }
+  }
+  return false;
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn main(
+  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
+) {
+  let resolution = textureDimensions(depth);
+  var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
+  uv = vec2(uv.x, 1.0 - uv.y);
+  let pixel = GlobalInvocationID.xy;
+  var normalSample = textureLoad(normals, pixel, 0).rgb;
+  let angleToSun = dot(normalSample, -SUN_DIRECTION);
+  let randomCo = uv;
+  let scatterAmount = 0.2;
+  let shadowRayDirection = -SUN_DIRECTION + randomInHemisphere(randomCo, -SUN_DIRECTION) * scatterAmount;
+//  let shadowRayDirection = -SUN_DIRECTION;
+  let worldPos = textureLoad(depth, pixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
+  if(shadowRay(worldPos, shadowRayDirection)){
+    textureStore(outputTex, pixel, vec4<f32>(0.0, 0.0, 0.0, 1.0));
   }
 }

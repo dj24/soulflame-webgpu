@@ -33,6 +33,7 @@ import { forEach } from "lodash";
 import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels";
 import { getShadowsPass } from "./shadow-pass/get-shadows-pass";
 import { getSkyPass } from "./sky-and-fog/get-sky-pass";
+import { getVolumetricFog } from "./volumetric-fog/get-volumetric-fog";
 
 export type RenderArgs = {
   enabled?: boolean;
@@ -486,10 +487,11 @@ const start = async () => {
       getGBufferPass(),
       // getDiffusePass(),
       // getReflectionsPass(),
-      getShadowsPass(),
-      getSkyPass(),
-      getTaaPass(),
-      getMotionBlurPass(),
+      // getShadowsPass(),
+      // getSkyPass(),
+      getVolumetricFog(),
+      // getTaaPass(),
+      // getMotionBlurPass(),
       fullscreenQuad(device),
     ];
 

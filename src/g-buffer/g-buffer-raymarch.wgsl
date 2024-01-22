@@ -68,7 +68,7 @@ fn main(
   let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
   let rayOrigin = vec3(cameraPosition.x, -cameraPosition.y, cameraPosition.z);
   var closestIntersection = RayMarchResult();
-  closestIntersection.worldPos = vec3(FAR_PLANE);
+  closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
 
   // Floor plane for debugging
   let planeIntersect = planeIntersection(rayOrigin, rayDirection, vec3(0,1,0), 0.0);
@@ -81,7 +81,7 @@ fn main(
 
   textureStore(depthWrite, GlobalInvocationID.xy, vec4(vec3(0.0), FAR_PLANE));
   textureStore(normalTex, GlobalInvocationID.xy, vec4(0.0));
-  textureStore(albedoTex, GlobalInvocationID.xy, vec4(0.0));
+//  textureStore(albedoTex, GlobalInvocationID.xy, vec4(0.0));
   textureStore(velocityTex, pixel, vec4(0.0));
 
   var totalSteps = 0;
@@ -121,11 +121,10 @@ fn main(
 let albedo = closestIntersection.colour.rgb;
 //let albedo = mix(vec3(0.0), vec3(closestIntersection.worldPos.x % 1),f32(totalSteps) / 50.0) ;
 //  let albedo = vec3(closestIntersection.objectPos % 1.0);
-//  let albedo = closestIntersection.colour.rgb;
   let colour = mix(albedo,vec3(lambert * albedo),1.0);
   let velocity = getVelocity(closestIntersection, viewProjections);
 
-  textureStore(depthWrite, GlobalInvocationID.xy, vec4(closestIntersection.worldPos, select(FAR_PLANE, depth, closestIntersection.hit)));
+  textureStore(depthWrite, GlobalInvocationID.xy, vec4(closestIntersection.worldPos, depth));
   textureStore(albedoTex, pixel, vec4(albedo, 1));
   textureStore(normalTex, pixel, vec4(normal,1));
   textureStore(velocityTex, pixel, vec4(velocity,0));
