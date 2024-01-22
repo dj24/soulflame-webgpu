@@ -70,7 +70,7 @@ let volumeAtlas: VolumeAtlas;
 const startingCameraFieldOfView = 80 * (Math.PI / 180);
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
-  position: vec3.create(3.5, 3.5, -6.2),
+  position: vec3.create(3.5, -3.5, -6.2),
   direction: vec3.create(),
 });
 
@@ -359,7 +359,10 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     camera.update();
     debugValues.update();
 
-    const jitteredCameraPosition = mat4.getTranslation(camera.viewMatrix);
+    // const jitteredCameraPosition = mat4.getTranslation(camera.viewMatrix);
+    const jitteredCameraPosition = camera.position;
+
+    console.log(jitteredCameraPosition[1]);
 
     debugUI.log(frameTimeTracker.toHTML());
 

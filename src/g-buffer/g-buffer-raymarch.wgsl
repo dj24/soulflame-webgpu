@@ -63,7 +63,6 @@ fn main(
 ) {
   let resolution = textureDimensions(albedoTex);
   var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
-  uv = vec2(uv.x, 1.0 - uv.y);
   let pixel = GlobalInvocationID.xy;
   let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
   let rayOrigin = vec3(cameraPosition.x, -cameraPosition.y, cameraPosition.z);
@@ -118,7 +117,7 @@ fn main(
   let depth = distance(closestIntersection.worldPos, cameraPosition);
   let lambert = dot(normal, normalize(vec3<f32>(0.5, 1.0, -0.5)));
 //  let albedo = vec3(mix(vec3(0.1,0,0.5), vec3(1,0.5,0.25), f32(totalSteps) / 50.0));
-let albedo = closestIntersection.colour.rgb;
+let albedo = closestIntersection.colour;
 //let albedo = mix(vec3(0.0), vec3(closestIntersection.worldPos.x % 1),f32(totalSteps) / 50.0) ;
 //  let albedo = vec3(closestIntersection.objectPos % 1.0);
   let colour = mix(albedo,vec3(lambert * albedo),1.0);

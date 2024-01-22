@@ -58,19 +58,26 @@ fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>) -> bool {
   return false;
 }
 
+fn worldToScreen(worldPos: vec3<f32>) -> vec2<f32> {
+  let clipSpace = viewProjections.viewProjection * vec4<f32>(worldPos, 1.0);
+  let ndc = clipSpace.xyz / clipSpace.w;
+  let screenSpace = (ndc + vec3<f32>(1.0)) * vec3<f32>(0.5);
+  return screenSpace.xy;
+}
+
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
     let resolution = textureDimensions(depth);
     var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
-    uv = vec2(uv.x, 1.0 - uv.y);
-    let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
+    var rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
     let rayOrigin = cameraPosition;
     let pixel = GlobalInvocationID.xy;
     let depthSample = textureLoad(depth, pixel, 0);
-    let depth = depthSample.a;
-    let worldPos = depthSample.rgb;
+    let depth = depthSample.a - EPSILON;
+    let worldPos = rayOrigin + rayDirection * depth;
+    textureStore(outputTex, pixel, vec4(worldPos.y,0,0, 1.0));
 
 //    var totalDensity = 0.0;
 //    var totalColour = vec3<f32>(0.0, 0.0, 0.0);
@@ -91,8 +98,8 @@ fn main(
 //    let fogColour = totalColour / totalDensity;
 //    let inputSample = textureLoad(inputTex, pixel, 0).rgb;
 //textureStore(outputTex, pixel, vec4(mix(inputSample, fogColour, totalDensity), 1));
-    if(shadowRay(worldPos, -SUN_DIRECTION)){
-      textureStore(outputTex, pixel, vec4(0.0));
-    }
+//    if(shadowRay(worldPos, -SUN_DIRECTION)){
+//      textureStore(outputTex, pixel, vec4(0.0));
+//    }
 
 }

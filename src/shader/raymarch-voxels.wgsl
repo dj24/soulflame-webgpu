@@ -93,7 +93,7 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
 
     if(mipSample0.a > 0.0){
         output.objectPos = objectPos;
-        output.worldPos = transformPosition(voxelObject.transform, output.objectPos);
+        output.worldPos = (voxelObject.transform *  vec4(output.objectPos, 1.0)).xyz;
         output.normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(objectNormal));
         output.colour = mipSample0.rgb;
         output.hit = true;

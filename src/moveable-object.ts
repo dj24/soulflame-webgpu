@@ -5,7 +5,7 @@ import { haltonSequence } from "./halton-sequence";
 import { haltonJitter } from "./jitter-view-projection";
 
 export class MoveableObject {
-  protected position: Vec3;
+  position: Vec3;
   targetPosition: Vec3;
   rotation: Quat;
   targetRotation: Quat;
