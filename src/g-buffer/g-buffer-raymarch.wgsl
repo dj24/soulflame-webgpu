@@ -17,7 +17,9 @@ struct ViewProjectionMatrices {
 @group(0) @binding(6) var depthWrite : texture_storage_2d<rgba32float, write>;
 @group(0) @binding(7) var velocityTex : texture_storage_2d<rg32float, write>;
 @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;
+@group(0) @binding(9) var<uniform> sunDirection : vec3<f32>;
 @group(0) @binding(10) var<uniform> resolution : vec2<u32>;
+
 
 
 fn plainIntersect(ro: vec3<f32>, rd: vec3<f32>, p: vec4<f32>) -> f32 {
@@ -65,7 +67,7 @@ fn main(
   var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
   let pixel = GlobalInvocationID.xy;
   let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
-  let rayOrigin = vec3(cameraPosition.x, -cameraPosition.y, cameraPosition.z);
+  let rayOrigin = cameraPosition;
   var closestIntersection = RayMarchResult();
   closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
 
@@ -115,7 +117,7 @@ fn main(
 
   let normal = closestIntersection.normal;
   let depth = distance(closestIntersection.worldPos, cameraPosition);
-  let lambert = dot(normal, normalize(vec3<f32>(0.5, 1.0, -0.5)));
+  let lambert = dot(normal, normalize(-sunDirection));
 //  let albedo = vec3(mix(vec3(0.1,0,0.5), vec3(1,0.5,0.25), f32(totalSteps) / 50.0));
 let albedo = closestIntersection.colour;
 //let albedo = mix(vec3(0.0), vec3(closestIntersection.worldPos.x % 1),f32(totalSteps) / 50.0) ;
@@ -124,7 +126,7 @@ let albedo = closestIntersection.colour;
   let velocity = getVelocity(closestIntersection, viewProjections);
 
   textureStore(depthWrite, GlobalInvocationID.xy, vec4(closestIntersection.worldPos, depth));
-  textureStore(albedoTex, pixel, vec4(albedo, 1));
+  textureStore(albedoTex, pixel, vec4(colour, 1));
   textureStore(normalTex, pixel, vec4(normal,1));
   textureStore(velocityTex, pixel, vec4(velocity,0));
 }

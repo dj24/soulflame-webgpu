@@ -29,11 +29,11 @@ export class Camera extends MoveableObject {
   }
 
   get right() {
-    return vec3.transformQuat(vec3.create(-1, 0, 0), this.rotation);
+    return vec3.transformQuat(vec3.create(1, 0, 0), this.rotation);
   }
 
   get left() {
-    return vec3.transformQuat(vec3.create(1, 0, 0), this.rotation);
+    return vec3.transformQuat(vec3.create(-1, 0, 0), this.rotation);
   }
 
   get up() {
@@ -102,10 +102,10 @@ export const moveCamera = () => {
     direction = vec3.subtract(direction, camera.direction);
   }
   if (keyboardControls.pressed[" "]) {
-    direction = vec3.add(direction, camera.down);
+    direction = vec3.add(direction, camera.up);
   }
   if (keyboardControls.pressed.shift) {
-    direction = vec3.add(direction, camera.up);
+    direction = vec3.add(direction, camera.down);
   }
   direction = vec3.normalize(direction);
   camera.targetPosition = vec3.add(

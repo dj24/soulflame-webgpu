@@ -11,6 +11,9 @@ struct ViewProjectionMatrices {
 @group(0) @binding(1) var inputTex : texture_2d<f32>;
 @group(0) @binding(2) var outputTex : texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(3) var<uniform> viewProjections : ViewProjectionMatrices;
+@group(0) @binding(4) var<uniform> sunDirection : vec3<f32>;
+
+const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 
 // Function to mimic the ease_out_expo function
 fn ease_out_expo(x: f32) -> f32 {
@@ -24,7 +27,7 @@ fn ease_out_expo(x: f32) -> f32 {
 
 fn sample_sky(rayDirection: vec3<f32>) -> vec3<f32> {
     //TODO: add this to uniforms
-    let lightDirection = normalize(vec3(1.0,1.0,0.));
+    let lightDirection = normalize(-sunDirection);
     let y = clamp(ease_out_expo(rayDirection.y * 0.66), 0.0, 1.0);
 //    let y = rayDirection.y;
     let sunHeight = clamp(lightDirection.y, 0.0, 1.0);

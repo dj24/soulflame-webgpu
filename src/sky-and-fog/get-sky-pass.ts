@@ -34,8 +34,22 @@ export const getSkyPass = async (): Promise<RenderPass> => {
     },
   };
 
+  const sunDirectionEntry: GPUBindGroupLayoutEntry = {
+    binding: 4,
+    visibility: GPUShaderStage.COMPUTE,
+    buffer: {
+      type: "uniform",
+    },
+  };
+
   const bindGroupLayout = device.createBindGroupLayout({
-    entries: [depthEntry, inputTextureEntry, outputTextureEntry, matricesEntry],
+    entries: [
+      depthEntry,
+      inputTextureEntry,
+      outputTextureEntry,
+      matricesEntry,
+      sunDirectionEntry,
+    ],
   });
 
   const computePipeline = device.createComputePipeline({
@@ -56,6 +70,7 @@ export const getSkyPass = async (): Promise<RenderPass> => {
     outputTextures,
     timestampWrites,
     viewProjectionMatricesBuffer,
+    sunDirectionBuffer,
   }: RenderArgs) => {
     if (!copyOutputTexture) {
       copyOutputTexture = device.createTexture({
@@ -101,6 +116,12 @@ export const getSkyPass = async (): Promise<RenderPass> => {
           binding: 3,
           resource: {
             buffer: viewProjectionMatricesBuffer,
+          },
+        },
+        {
+          binding: 4,
+          resource: {
+            buffer: sunDirectionBuffer,
           },
         },
       ],

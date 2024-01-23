@@ -61,6 +61,14 @@ export const getVolumetricFog = async (): Promise<RenderPass> => {
     },
   };
 
+  const sunDirectionEntry: GPUBindGroupLayoutEntry = {
+    binding: 7,
+    visibility: GPUShaderStage.COMPUTE,
+    buffer: {
+      type: "uniform",
+    },
+  };
+
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
       depthEntry,
@@ -70,6 +78,7 @@ export const getVolumetricFog = async (): Promise<RenderPass> => {
       voxelsEntry,
       cameraPositionEntry,
       voxelObjectsEntry,
+      sunDirectionEntry,
     ],
   });
 
@@ -98,6 +107,7 @@ export const getVolumetricFog = async (): Promise<RenderPass> => {
     voxelTextureView,
     cameraPositionBuffer,
     transformationMatrixBuffer,
+    sunDirectionBuffer,
   }: RenderArgs) => {
     if (!copyOutputTexture) {
       copyOutputTexture = device.createTexture({
@@ -161,6 +171,12 @@ export const getVolumetricFog = async (): Promise<RenderPass> => {
             buffer: transformationMatrixBuffer,
           },
         },
+        {
+          binding: 7,
+          resource: {
+            buffer: sunDirectionBuffer,
+          },
+        },
       ],
     });
     const computePass = commandEncoder.beginComputePass({
@@ -172,7 +188,7 @@ export const getVolumetricFog = async (): Promise<RenderPass> => {
       outputTextures.depthAndClusterTexture.width / 8,
     );
     const workgroupsY = Math.ceil(
-      outputTextures.depthAndClusterTexture.height / 8,
+      outputTextures.depthAndClusterTexture.height / 16,
     );
     computePass.dispatchWorkgroups(workgroupsX, workgroupsY);
     computePass.end();

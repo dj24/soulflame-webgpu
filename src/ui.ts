@@ -20,7 +20,7 @@ export class DebugUI {
         console.log(event.target);
       });
     });
-    ["fov", "scale", "translate"].forEach((id) => {
+    ["fov", "scale", "translate", "sun"].forEach((id) => {
       document.getElementById(id).addEventListener("input", (event) => {
         const input = event.target as HTMLInputElement;
         window.dispatchEvent(
@@ -37,8 +37,12 @@ export class DebugUI {
     const handleTranslateChange = (event: CustomEvent) => {
       debugValues.targetTranslateX = parseFloat(event.detail) * 0.01;
     };
+    const handleSunChange = (event: CustomEvent) => {
+      debugValues.targetSunRotateY = parseFloat(event.detail);
+    };
 
     window.addEventListener("changetranslate", handleTranslateChange);
+    window.addEventListener("changesun", handleSunChange);
     const handleScaleChange = (event: CustomEvent) => {
       debugValues.targetScale = parseFloat(event.detail);
     };
@@ -66,7 +70,7 @@ export class DebugUI {
       if (!this.isMouseDown) {
         return;
       }
-      debugValues.targetRotateY += event.movementX * 0.005;
+      debugValues.targetRotateY -= event.movementX * 0.005;
       // console.log(event.movementX, event.movementY);
     });
   }

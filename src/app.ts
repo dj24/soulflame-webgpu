@@ -46,6 +46,7 @@ export type RenderArgs = {
   timeBuffer: GPUBuffer;
   viewProjectionMatricesBuffer?: GPUBuffer;
   timestampWrites?: GPUComputePassTimestampWrites;
+  sunDirectionBuffer?: GPUBuffer;
 };
 
 export type RenderPass = {
@@ -70,7 +71,7 @@ let volumeAtlas: VolumeAtlas;
 const startingCameraFieldOfView = 80 * (Math.PI / 180);
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
-  position: vec3.create(3.5, -3.5, -6.2),
+  position: vec3.create(3.5, 3.5, -6.2),
   direction: vec3.create(),
 });
 
@@ -99,6 +100,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let resolutionBuffer: GPUBuffer;
   let transformationMatrixBuffer: GPUBuffer;
   let viewProjectionMatricesBuffer: GPUBuffer;
+  let sunDirectionBuffer: GPUBuffer;
 
   let previousInverseViewProjectionMatrix = mat4.create();
   let previousViewProjectionMatrix = mat4.create();
@@ -270,6 +272,32 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     }
   };
 
+  const getSunDirectionBuffer = () => {
+    // Create a rotation matrix for the Y angle
+    const rotationMatrix = mat4.identity();
+    mat4.rotateY(rotationMatrix, debugValues.sunRotateY, rotationMatrix);
+
+    // Multiply the existing direction vector by the rotation matrix
+    const newDirection = vec3.transformMat4(
+      vec3.create(0, -1, -1),
+      rotationMatrix,
+    );
+
+    if (sunDirectionBuffer) {
+      writeToFloatUniformBuffer(sunDirectionBuffer, [
+        newDirection[0],
+        newDirection[1],
+        newDirection[2],
+      ]);
+    } else {
+      sunDirectionBuffer = createUniformBuffer([
+        newDirection[0],
+        newDirection[1],
+        newDirection[2],
+      ]);
+    }
+  };
+
   const resolveTimestampQueries = (commandBuffers: GPUCommandBuffer[]) => {
     const commandEncoder = device.createCommandEncoder();
     commandEncoder.resolveQuerySet(
@@ -359,15 +387,16 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     camera.update();
     debugValues.update();
 
-    // const jitteredCameraPosition = mat4.getTranslation(camera.viewMatrix);
-    const jitteredCameraPosition = camera.position;
-
-    console.log(jitteredCameraPosition[1]);
+    const jitteredCameraPosition = mat4.getTranslation(
+      camera.inverseViewMatrix,
+    );
+    // const jitteredCameraPosition = camera.position;
 
     debugUI.log(frameTimeTracker.toHTML());
 
     getTimeBuffer();
     getResolutionBuffer();
+    getSunDirectionBuffer();
 
     const cameraPositionBuffer = createFloatUniformBuffer(
       device,
@@ -421,6 +450,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         transformationMatrixBuffer,
         viewProjectionMatricesBuffer,
         timestampWrites,
+        sunDirectionBuffer,
       }).forEach((commands) => {
         commandBuffers.push(commands);
       });
@@ -490,8 +520,8 @@ const start = async () => {
       getGBufferPass(),
       // getDiffusePass(),
       // getReflectionsPass(),
-      // getShadowsPass(),
-      // getSkyPass(),
+      getShadowsPass(),
+      getSkyPass(),
       getVolumetricFog(),
       // getTaaPass(),
       // getMotionBlurPass(),

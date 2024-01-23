@@ -14,6 +14,7 @@ struct ViewProjectionMatrices {
 @group(0) @binding(4) var<uniform> cameraPosition : vec3<f32>;
 @group(0) @binding(5) var<uniform> viewProjections : ViewProjectionMatrices;
 @group(0) @binding(6) var<uniform> voxelObjects : array<VoxelObject, VOXEL_OBJECT_COUNT>;
+@group(0) @binding(7) var<uniform> sunDirection : vec3<f32>;
 //@group(0) @binding(7) var<uniform> resolution : vec2<u32>;
 
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
@@ -53,11 +54,11 @@ fn main(
   uv = vec2(uv.x, 1.0 - uv.y);
   let pixel = GlobalInvocationID.xy;
   var normalSample = textureLoad(normals, pixel, 0).rgb;
-  let angleToSun = dot(normalSample, -SUN_DIRECTION);
+  let angleToSun = dot(normalSample, -sunDirection);
   let randomCo = uv;
   let scatterAmount = 0.2;
-  let shadowRayDirection = -SUN_DIRECTION + randomInHemisphere(randomCo, -SUN_DIRECTION) * scatterAmount;
-//  let shadowRayDirection = -SUN_DIRECTION;
+  let shadowRayDirection = -sunDirection + randomInHemisphere(randomCo, -sunDirection) * scatterAmount;
+//  let shadowRayDirection = -sunDirection;
   let worldPos = textureLoad(depth, pixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
   if(shadowRay(worldPos, shadowRayDirection)){
     textureStore(outputTex, pixel, vec4<f32>(0.0, 0.0, 0.0, 1.0));

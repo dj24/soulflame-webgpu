@@ -63,6 +63,14 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     },
   };
 
+  const sunDirectionEntry: GPUBindGroupLayoutEntry = {
+    binding: 9,
+    visibility: GPUShaderStage.COMPUTE,
+    buffer: {
+      type: "uniform",
+    },
+  };
+
   // Layout for clearing the pixel buffer and copying it to the screen
   const utilLayout = device.createBindGroupLayout({
     entries: [
@@ -128,13 +136,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           type: "uniform",
         },
       },
-      {
-        binding: 9,
-        visibility: GPUShaderStage.COMPUTE,
-        buffer: {
-          type: "storage",
-        },
-      },
+      sunDirectionEntry,
       {
         binding: 10,
         visibility: GPUShaderStage.COMPUTE,
@@ -227,6 +229,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     transformationMatrixBuffer,
     viewProjectionMatricesBuffer,
     timestampWrites,
+    sunDirectionBuffer,
   }: RenderArgs) => {
     const urlParams = new URLSearchParams(window.location.search);
     const mode = urlParams.get("mode");
@@ -315,7 +318,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         {
           binding: 9,
           resource: {
-            buffer: outputBuffer,
+            buffer: sunDirectionBuffer,
           },
         },
         {

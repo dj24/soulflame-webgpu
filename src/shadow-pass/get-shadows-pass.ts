@@ -67,6 +67,14 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
     },
   };
 
+  const sunDirectionEntry: GPUBindGroupLayoutEntry = {
+    binding: 7,
+    visibility: GPUShaderStage.COMPUTE,
+    buffer: {
+      type: "uniform",
+    },
+  };
+
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
       voxelsEntry,
@@ -76,6 +84,7 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
       cameraPositionEntry,
       viewProjectionMatricesEntry,
       voxelObjectsEntry,
+      sunDirectionEntry,
     ],
   });
 
@@ -101,6 +110,7 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
     timestampWrites,
     voxelTextureView,
     transformationMatrixBuffer,
+    sunDirectionBuffer,
   }: RenderArgs) => {
     const bindGroup = device.createBindGroup({
       layout: bindGroupLayout,
@@ -137,6 +147,12 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
           binding: 6,
           resource: {
             buffer: transformationMatrixBuffer,
+          },
+        },
+        {
+          binding: 7,
+          resource: {
+            buffer: sunDirectionBuffer,
           },
         },
       ],
