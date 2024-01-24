@@ -16,10 +16,10 @@ struct ViewProjectionMatrices {
 @group(0) @binding(6) var<uniform> voxelObjects : array<VoxelObject, VOXEL_OBJECT_COUNT>;
 @group(0) @binding(7) var<uniform> sunDirection : vec3<f32>;
 
-const FOG_COLOUR: vec3<f32> = vec3<f32>(1.0, 1.0, 1.0);
-const START_DISTANCE: f32 = 1.0;
-const END_DISTANCE: f32 = 50.0;
-const FOG_DENSITY: f32 = 0.01;
+const FOG_COLOUR: vec3<f32> = vec3<f32>(1.0);
+const START_DISTANCE: f32 = 0.5;
+const END_DISTANCE: f32 = 8.0;
+const FOG_DENSITY: f32 = 0.1;
 const FOG_HEIGHT_START: f32 = 0.0;
 const FOG_HEIGHT_END: f32 = 4.0;
 
@@ -75,61 +75,49 @@ fn main(
     var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
 
     let depthSample = textureLoad(depthTex, pixel, 0);
-    let depth = depthSample.a;
-    let worldPos = depthSample.rgb;
-
     var rayOrigin = cameraPosition;
-    var rayDirection = normalize(worldPos - rayOrigin);
+    let worldPos = depthSample.rgb;
+    let relativeWorldPos = worldPos - rayOrigin;
+    var rayDirection = normalize(relativeWorldPos);
+    let depth = length(relativeWorldPos.z);
 
-    var totalDensity = 0.0;
-    var totalColour = vec3<f32>(0.0, 0.0, 0.0);
+    var totalDensity = 0.25;
     let endDistance = END_DISTANCE;
     let startDistance = START_DISTANCE;
     let randomCo = uv;
     let scatterAmount = 0.1;
     let shadowRayDirection = -sunDirection + randomInHemisphere(randomCo, -sunDirection) * scatterAmount;
 
-    var d = 0.1;
+    var d = 0.01;
+    var shadowsHit = 0.0;
     for(var i = startDistance; i < endDistance; i += d) {
       let samplePos = rayOrigin + rayDirection * f32(i);
-      if(samplePos.z > depth) {
+      let distanceFromCamera = length(samplePos - rayOrigin);
+      if(i > depth) {
         break;
       }
-      let density = FOG_DENSITY;
-//      var hit = false;
-//      for(var t = 0.0; t < 64.0; t+= 0.5){
-//        let worldPosAtStep = samplePos + shadowRayDirection * t;
-//        let screenUvAtStep = worldToScreen(worldPosAtStep);
-//        if(any(screenUvAtStep < vec2(0.0)) || any(screenUvAtStep > vec2(1.0))){
-//          continue;
-//        }
-//        let screenPosAtStep = vec2<u32>(screenUvAtStep * vec2<f32>(resolution));
-//        let depthAtStep = textureLoad(depthTex, screenPosAtStep, 0).a;
-//        if(depthAtStep < depth){
-//          hit = true;
-//          break;
-//        }
-//      }
-//if(hit) {
-//        totalColour += vec3<f32>(0.0, 0.0, 0.0) * density;
-//      } else{
-//        totalColour += vec3<f32>(1.0, 1.0, 1.0) * density;
-//      }
-      if(shadowRay(samplePos, shadowRayDirection)) {
-        totalColour += vec3<f32>(0.0, 0.0, 0.0) * density;
-      } else{
-        totalColour += vec3<f32>(1.0, 1.0, 1.0) * density;
+      let isInShadow = shadowRay(samplePos, shadowRayDirection);
+      if(isInShadow) {
+        totalDensity *= (1.0 - FOG_DENSITY);
+        shadowsHit += 1.0;
       }
+      else if(shadowsHit > 1.0){
+        totalDensity += shadowsHit * 0.01;
+        totalDensity = clamp(totalDensity, 0.0, 0.25);
+        if(totalDensity >= 0.25){
+          break;
+        }
+      }
+      d += select(0.05, 0.001, isInShadow);
 
-      totalDensity += density;
-      d *= 1.05;
     }
 
-    let fogColour = totalColour;
+//    let fogColour = vec3(depth * 0.1);
+//    totalDensity = 1.0;
     for(var x = 0u; x < 2; x++) {
       for(var y = 0u; y < 2; y++) {
         let inputSample = textureLoad(inputTex, pixel + vec2(x,y), 0).rgb;
-         textureStore(outputTex, pixel + vec2(x,y), vec4(mix(inputSample, fogColour, totalDensity), 1));
+         textureStore(outputTex, pixel + vec2(x,y), vec4(mix(inputSample, FOG_COLOUR, totalDensity), 1));
       }
     }
 
