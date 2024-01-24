@@ -185,7 +185,7 @@ export const getVolumetricFog = async (): Promise<RenderPass> => {
     computePass.setPipeline(computePipeline);
     computePass.setBindGroup(0, bindGroup);
     const workgroupsX = Math.ceil(
-      outputTextures.depthAndClusterTexture.width / 8,
+      outputTextures.depthAndClusterTexture.width / 16,
     );
     const workgroupsY = Math.ceil(
       outputTextures.depthAndClusterTexture.height / 16,

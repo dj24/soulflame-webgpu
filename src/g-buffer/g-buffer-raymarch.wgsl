@@ -126,7 +126,7 @@ let albedo = closestIntersection.colour;
   let velocity = getVelocity(closestIntersection, viewProjections);
 
   textureStore(depthWrite, GlobalInvocationID.xy, vec4(closestIntersection.worldPos, depth));
-  textureStore(albedoTex, pixel, vec4(colour, 1));
+  textureStore(albedoTex, pixel, vec4(albedo % 1.0, 1));
   textureStore(normalTex, pixel, vec4(normal,1));
   textureStore(velocityTex, pixel, vec4(velocity,0));
 }
