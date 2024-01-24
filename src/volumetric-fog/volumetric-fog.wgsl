@@ -7,7 +7,7 @@ struct ViewProjectionMatrices {
   inverseProjection: mat4x4<f32>
 };
 
-@group(0) @binding(0) var depth : texture_2d<f32>;
+@group(0) @binding(0) var depthTex : texture_2d<f32>;
 @group(0) @binding(1) var inputTex : texture_2d<f32>;
 @group(0) @binding(2) var outputTex : texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(3) var<uniform> viewProjections : ViewProjectionMatrices;
@@ -17,21 +17,11 @@ struct ViewProjectionMatrices {
 @group(0) @binding(7) var<uniform> sunDirection : vec3<f32>;
 
 const FOG_COLOUR: vec3<f32> = vec3<f32>(1.0, 1.0, 1.0);
-const START_DISTANCE: f32 = 10.0;
-const END_DISTANCE: f32 = 20.0;
-const FOG_DENSITY: f32 = 0.04;
+const START_DISTANCE: f32 = 1.0;
+const END_DISTANCE: f32 = 50.0;
+const FOG_DENSITY: f32 = 0.01;
 const FOG_HEIGHT_START: f32 = 0.0;
 const FOG_HEIGHT_END: f32 = 4.0;
-
-// Function to mimic the ease_out_expo function
-fn ease_out_expo(x: f32) -> f32 {
-    let t: f32 = x;
-    let b: f32 = 0.0;
-    let c: f32 = 1.0;
-    let d: f32 = 1.0; // Set the duration within the function
-    let intermediate_result: f32 = c * (-pow(2.0, -10.0 * t / d) + 1.0) + b;
-    return select(intermediate_result, b + c, t == d);
-}
 
 // Dense fog at fog start, no fog at fog end
 fn calculateDensity(worldPos: vec3<f32>, depth: f32) -> f32 {
@@ -81,47 +71,66 @@ fn main(
 ) {
     var pixel = GlobalInvocationID.xy * 2;
 
-    let resolution = textureDimensions(depth);
+    let resolution = textureDimensions(depthTex);
     var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
 
-    let depthSample = textureLoad(depth, pixel, 0);
+    let depthSample = textureLoad(depthTex, pixel, 0);
     let depth = depthSample.a;
     let worldPos = depthSample.rgb;
 
     var rayOrigin = cameraPosition;
     var rayDirection = normalize(worldPos - rayOrigin);
 
-
     var totalDensity = 0.0;
     var totalColour = vec3<f32>(0.0, 0.0, 0.0);
-    let endDistance = depth;
-    let startDistance = endDistance - 10.0;
-    for(var i = startDistance; i < endDistance; i += 0.5) {
+    let endDistance = END_DISTANCE;
+    let startDistance = START_DISTANCE;
+    let randomCo = uv;
+    let scatterAmount = 0.1;
+    let shadowRayDirection = -sunDirection + randomInHemisphere(randomCo, -sunDirection) * scatterAmount;
+
+    var d = 0.1;
+    for(var i = startDistance; i < endDistance; i += d) {
       let samplePos = rayOrigin + rayDirection * f32(i);
-      let currentDepth = distance(samplePos, rayOrigin);
       if(samplePos.z > depth) {
         break;
       }
       let density = FOG_DENSITY;
-      if(shadowRay(samplePos, -sunDirection)) {
+//      var hit = false;
+//      for(var t = 0.0; t < 64.0; t+= 0.5){
+//        let worldPosAtStep = samplePos + shadowRayDirection * t;
+//        let screenUvAtStep = worldToScreen(worldPosAtStep);
+//        if(any(screenUvAtStep < vec2(0.0)) || any(screenUvAtStep > vec2(1.0))){
+//          continue;
+//        }
+//        let screenPosAtStep = vec2<u32>(screenUvAtStep * vec2<f32>(resolution));
+//        let depthAtStep = textureLoad(depthTex, screenPosAtStep, 0).a;
+//        if(depthAtStep < depth){
+//          hit = true;
+//          break;
+//        }
+//      }
+//if(hit) {
+//        totalColour += vec3<f32>(0.0, 0.0, 0.0) * density;
+//      } else{
+//        totalColour += vec3<f32>(1.0, 1.0, 1.0) * density;
+//      }
+      if(shadowRay(samplePos, shadowRayDirection)) {
         totalColour += vec3<f32>(0.0, 0.0, 0.0) * density;
       } else{
         totalColour += vec3<f32>(1.0, 1.0, 1.0) * density;
       }
+
       totalDensity += density;
+      d *= 1.05;
     }
 
     let fogColour = totalColour;
-    let inputSample = textureLoad(inputTex, pixel, 0).rgb;
-    textureStore(outputTex, pixel, vec4(mix(inputSample, fogColour, totalDensity), 1));
-//      let worldPos = rayOrigin + rayDirection * depth;
-//      if(shadowRay(worldPos, -sunDirection)) {
-//        textureStore(outputTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
-//      }
+    for(var x = 0u; x < 2; x++) {
+      for(var y = 0u; y < 2; y++) {
+        let inputSample = textureLoad(inputTex, pixel + vec2(x,y), 0).rgb;
+         textureStore(outputTex, pixel + vec2(x,y), vec4(mix(inputSample, fogColour, totalDensity), 1));
+      }
+    }
 
-
-//    let output = vec4(worldPos % 1.0,1.0);
-//    let output = vec4(rayDirection,1);
-//    textureStore(outputTex, pixel, output);
-//    textureStore(outputTex, pixel + vec2(0,1), output);
 }

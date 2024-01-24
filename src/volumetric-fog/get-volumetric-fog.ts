@@ -3,6 +3,7 @@ import volumetricFog from "./volumetric-fog.wgsl";
 import boxIntersection from "../shader/box-intersection.wgsl";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
+import randomCommon from "../random-common.wgsl";
 
 export const getVolumetricFog = async (): Promise<RenderPass> => {
   const depthEntry: GPUBindGroupLayoutEntry = {
@@ -89,6 +90,7 @@ export const getVolumetricFog = async (): Promise<RenderPass> => {
     compute: {
       module: device.createShaderModule({
         code: `const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
+          ${randomCommon}
           ${getRayDirection}
           ${boxIntersection}
           ${raymarchVoxels}

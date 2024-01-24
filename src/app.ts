@@ -390,6 +390,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     const jitteredCameraPosition = mat4.getTranslation(
       camera.inverseViewMatrix,
     );
+
     // const jitteredCameraPosition = camera.position;
 
     debugUI.log(frameTimeTracker.toHTML());

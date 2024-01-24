@@ -56,7 +56,7 @@ fn main(
   var normalSample = textureLoad(normals, pixel, 0).rgb;
   let angleToSun = dot(normalSample, -sunDirection);
   let randomCo = uv;
-  let scatterAmount = 0.2;
+  let scatterAmount = 0.1;
   let shadowRayDirection = -sunDirection + randomInHemisphere(randomCo, -sunDirection) * scatterAmount;
 //  let shadowRayDirection = -sunDirection;
   let worldPos = textureLoad(depth, pixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
