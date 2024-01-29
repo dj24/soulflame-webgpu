@@ -21,7 +21,6 @@ struct ViewProjectionMatrices {
 @group(0) @binding(10) var<uniform> resolution : vec2<u32>;
 
 
-
 fn plainIntersect(ro: vec3<f32>, rd: vec3<f32>, p: vec4<f32>) -> f32 {
     return -(dot(ro, p.xyz) + p.w) / dot(rd, p.xyz);
 }
@@ -116,7 +115,7 @@ fn main(
   }
 
   let normal = closestIntersection.normal;
-  let depth = distance(closestIntersection.worldPos, cameraPosition);
+  let depth = distance(cameraPosition, closestIntersection.worldPos);
   let lambert = dot(normal, normalize(-sunDirection));
 //  let albedo = vec3(mix(vec3(0.1,0,0.5), vec3(1,0.5,0.25), f32(totalSteps) / 50.0));
 let albedo = closestIntersection.colour;
