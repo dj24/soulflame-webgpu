@@ -23,16 +23,13 @@ const START_DISTANCE: f32 = 0.0;
 const END_DISTANCE: f32 = 32.0;
 const FOG_DENSITY: f32 = 0.005;
 const FOG_HEIGHT_START: f32 = 0.0;
-const FOG_HEIGHT_END: f32 = 4.0;
-const MAX_FOG_DENSITY: f32 = 0.05;
+const FOG_HEIGHT_END: f32 = 72.0;
 
 // Dense fog at fog start, no fog at fog end
-fn calculateDensity(worldPos: vec3<f32>, depth: f32) -> f32 {
+fn calculateDensity(worldPos: vec3<f32>) -> f32 {
   let height = worldPos.y;
-  let heightFactor = 1.0 - clamp((height - FOG_HEIGHT_START) / (FOG_HEIGHT_END - FOG_HEIGHT_START), 0.0, 1.0);
-  let distanceFactor = 1.0;
-
-  return heightFactor * distanceFactor;
+  let heightFactor = clamp((height - FOG_HEIGHT_START) / (FOG_HEIGHT_END - FOG_HEIGHT_START), 0.0, 1.0);
+  return heightFactor;
 }
 
 fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>) -> bool {
@@ -68,6 +65,9 @@ fn worldToScreen(worldPos: vec3<f32>) -> vec2<f32> {
 }
 
 const DOWNSCALE = 8;
+const ANISOTROPY_FACTOR = 0.0;
+const MULTIPLE_SCATTERING_STEPS = 4;
+const SUN_COLOR = vec3<f32>(1.0, 1.0, 0.87);
 
 // Checkerboard pattern
 @compute @workgroup_size(8, 8, 1)
@@ -86,7 +86,7 @@ fn main(
     var rayDirection = normalize(relativeWorldPos);
     let depth = length(relativeWorldPos.z);
 
-    var totalDensity = MAX_FOG_DENSITY;
+
     let endDistance = END_DISTANCE;
     let startDistance = START_DISTANCE;
     let randomCo = uv;
@@ -94,26 +94,32 @@ fn main(
     let shadowRayDirection = -sunDirection + randomInHemisphere(randomCo, -sunDirection) * scatterAmount;
 
     let foo = randomInUnitSphere(randomCo);
+    var totalLight = vec3(0.0);
+    var count = 0.0;
+    var d = 0.5;
 
-    var d = 0.2;
-    var shadowsHit = 0.0;
     for(var i = startDistance; i < endDistance; i += d) {
       let samplePos = rayOrigin + rayDirection * f32(i) + foo * 0.01;
-      let distanceFromCamera = length(samplePos - rayOrigin);
+//      let distanceFromCamera = length(samplePos - rayOrigin);
       if(i > depth) {
         break;
       }
-      let isInShadow = shadowRay(samplePos, shadowRayDirection);
-      if(isInShadow) {
-        totalDensity -= FOG_DENSITY;
-      }
-      else{
-        totalDensity += FOG_DENSITY;
+      // Multiple scattering loop
+      for(var j = 0; j < MULTIPLE_SCATTERING_STEPS; j++) {
+        let scatterPos = samplePos + randomInHemisphere(randomCo, rayDirection) * 0.05;
+        let distanceFromCamera = length(scatterPos - rayOrigin);
+        let isInShadow = shadowRay(scatterPos, shadowRayDirection);
+        let scatterDensity = calculateDensity(scatterPos);
+        let scatterLightSample = select(SUN_COLOR, vec3<f32>(0.0, 0.0, 0.0), isInShadow);
+//        let scatterLightSample = select(mix(SUN_COLOR, vec3<f32>(0.2, 0.2, 0.2), scatterDensity), vec3<f32>(0.0, 0.0, 0.0), isInShadow);
+        let anisotropy = pow(max(0.0, dot(rayDirection, -sunDirection)), ANISOTROPY_FACTOR);
+        totalLight += scatterLightSample * exp(-scatterDensity * distanceFromCamera) * anisotropy;
       }
     }
-
-    let inputSample = textureLoad(inputTex, pixel, 0).rgb;
-    textureStore(outputTex, GlobalInvocationID.xy, vec4(totalDensity));
+    // Apply tone mapping to totalLight
+//    totalLight = totalLight / (totalLight + vec3<f32>(1.0, 1.0, 1.0));
+  totalLight *= FOG_DENSITY;
+  textureStore(outputTex, GlobalInvocationID.xy, vec4(totalLight, 1.0));
 }
 
 const PI = 3.1415926535897932384626433832795;
@@ -129,7 +135,7 @@ fn blur(
 
   let depthRef = textureLoad(depthTex, pixel, 0).a;
   // gaussian blur
-  var total = 0.0;
+  var total = vec4(0.0);
   var count = 0.0;
   for(var i = -2; i <= 2; i+= 1) {
     for(var j = -2; j <= 2; j += 1) {
@@ -137,13 +143,13 @@ fn blur(
       let depthSample = textureLoad(depthTex, vec2<i32>(pixel) + vec2(i, j), 0).a;
       // bilateral blur
       let depthDifference = abs(depthSample - depthRef);
-      let depthWeight = exp(-depthDifference * depthDifference * 100.0);
+      let depthWeight = exp(-depthDifference * depthDifference * 50.0);
       let gaussianWeight = exp(-(f32(i) * f32(i) + f32(j) * f32(j)) / 2.0);
-      total += fogSample.r * depthWeight * gaussianWeight;
+      total += fogSample * depthWeight * gaussianWeight;
       count += depthWeight * gaussianWeight;
     }
   }
   let fogAmount = (total / count);
   let inputSample = textureLoad(inputTex, pixel, 0);
-  textureStore(outputTex, GlobalInvocationID.xy, mix(inputSample, vec4(1.0), fogAmount));
+  textureStore(outputTex, GlobalInvocationID.xy, mix(inputSample, fogAmount, fogAmount.r));
 }
