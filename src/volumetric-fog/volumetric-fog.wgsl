@@ -18,10 +18,7 @@ struct ViewProjectionMatrices {
 @group(0) @binding(8) var linearSampler : sampler;
 @group(0) @binding(9) var fogTex : texture_2d<f32>;
 
-const FOG_COLOUR: vec3<f32> = vec3<f32>(1.0);
-const START_DISTANCE: f32 = 0.0;
 const END_DISTANCE: f32 = 32.0;
-const FOG_DENSITY: f32 = 0.005;
 const FOG_HEIGHT_START: f32 = 0.0;
 const FOG_HEIGHT_END: f32 = 72.0;
 
@@ -64,10 +61,20 @@ fn worldToScreen(worldPos: vec3<f32>) -> vec2<f32> {
   return screenSpace.xy;
 }
 
-const DOWNSCALE = 8;
+const G_SCATTERING = 200.0;
+
+// Mie scaterring approximated with Henyey-Greenstein phase function.
+fn computeScattering(lightDotView: f32) -> f32
+{
+  var result = 1.0f - G_SCATTERING * G_SCATTERING;
+  result /= (4.0f * PI * pow(1.0f + G_SCATTERING * G_SCATTERING - (2.0f * G_SCATTERING) * lightDotView, 1.5f));
+  return result;
+}
+
+const DOWNSCALE = 2;
 const ANISOTROPY_FACTOR = 0.0;
 const MULTIPLE_SCATTERING_STEPS = 4;
-const SUN_COLOR = vec3<f32>(1.0, 1.0, 0.87);
+const SUN_COLOR = vec3<f32>(1.0, 1.0, 0.93);
 
 // Checkerboard pattern
 @compute @workgroup_size(8, 8, 1)
@@ -85,41 +92,29 @@ fn main(
     let relativeWorldPos = worldPos - rayOrigin;
     var rayDirection = normalize(relativeWorldPos);
     let depth = length(relativeWorldPos.z);
-
-
-    let endDistance = END_DISTANCE;
-    let startDistance = START_DISTANCE;
     let randomCo = uv;
     let scatterAmount = 0.1;
-    let shadowRayDirection = -sunDirection + randomInHemisphere(randomCo, -sunDirection) * scatterAmount;
+//    let shadowRayDirection = -sunDirection + randomInHemisphere(randomCo, -sunDirection) * scatterAmount;
+    let shadowRayDirection = -sunDirection;
+    let stepLength = length(rayDirection) / END_DISTANCE;
+    let step = rayDirection * stepLength;
 
-    let foo = randomInUnitSphere(randomCo);
-    var totalLight = vec3(0.0);
-    var count = 0.0;
-    var d = 0.5;
+    var accumFog = vec3(0.0);
+    var samplePos = rayOrigin;
 
-    for(var i = startDistance; i < endDistance; i += d) {
-      let samplePos = rayOrigin + rayDirection * f32(i) + foo * 0.01;
-//      let distanceFromCamera = length(samplePos - rayOrigin);
+    for(var i = 0.0; i < END_DISTANCE; i += 1.0) {
       if(i > depth) {
         break;
       }
-      // Multiple scattering loop
-      for(var j = 0; j < MULTIPLE_SCATTERING_STEPS; j++) {
-        let scatterPos = samplePos + randomInHemisphere(randomCo, rayDirection) * 0.05;
-        let distanceFromCamera = length(scatterPos - rayOrigin);
-        let isInShadow = shadowRay(scatterPos, shadowRayDirection);
-        let scatterDensity = calculateDensity(scatterPos);
-        let scatterLightSample = select(SUN_COLOR, vec3<f32>(0.0, 0.0, 0.0), isInShadow);
-//        let scatterLightSample = select(mix(SUN_COLOR, vec3<f32>(0.2, 0.2, 0.2), scatterDensity), vec3<f32>(0.0, 0.0, 0.0), isInShadow);
-        let anisotropy = pow(max(0.0, dot(rayDirection, -sunDirection)), ANISOTROPY_FACTOR);
-        totalLight += scatterLightSample * exp(-scatterDensity * distanceFromCamera) * anisotropy;
+      let isInShadow = shadowRay(samplePos, -sunDirection);
+      if(isInShadow){
+//        accumFog += computeScattering(dot(rayDirection, sunDirection)) * SUN_COLOR;
+        accumFog += SUN_COLOR;
       }
+      samplePos = rayDirection * i;
     }
-    // Apply tone mapping to totalLight
-//    totalLight = totalLight / (totalLight + vec3<f32>(1.0, 1.0, 1.0));
-  totalLight *= FOG_DENSITY;
-  textureStore(outputTex, GlobalInvocationID.xy, vec4(totalLight, 1.0));
+    accumFog /= END_DISTANCE;
+    textureStore(outputTex, GlobalInvocationID.xy, vec4(accumFog, 1.0));
 }
 
 const PI = 3.1415926535897932384626433832795;
