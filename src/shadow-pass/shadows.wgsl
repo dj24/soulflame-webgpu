@@ -45,6 +45,11 @@ fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>) -> bool {
   return false;
 }
 
+
+// TODO: render at half res and increase samples
+// 2 samples at full res = 8 samples at half res
+const SAMPLE_COUNT = 2;
+
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
@@ -54,13 +59,20 @@ fn main(
   uv = vec2(uv.x, 1.0 - uv.y);
   let pixel = GlobalInvocationID.xy;
   var normalSample = textureLoad(normals, pixel, 0).rgb;
-  let angleToSun = dot(normalSample, -sunDirection);
   let randomCo = uv;
-  let scatterAmount = 0.1;
-  let shadowRayDirection = -sunDirection + randomInHemisphere(randomCo, -sunDirection) * scatterAmount;
-//  let shadowRayDirection = -sunDirection;
-  let worldPos = textureLoad(depth, pixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
-  if(shadowRay(worldPos, shadowRayDirection)){
-    textureStore(outputTex, pixel, vec4<f32>(0.0, 0.0, 0.0, 1.0));
+  let scatterAmount = 0.05;
+  var totalShadow = 0.0;
+  var count = 0.0;
+
+  for(var i = 0; i < SAMPLE_COUNT; i++){
+    let shadowRayDirection = -sunDirection + randomInHemisphere(randomCo + vec2(f32(i),0), -sunDirection) * scatterAmount;
+    let worldPos = textureLoad(depth, pixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
+    if(shadowRay(worldPos, shadowRayDirection)){
+      totalShadow += 1.0;
+    }
+    count += 1.0;
   }
+
+  let shadowAmount = totalShadow / count;
+  textureStore(outputTex, pixel, vec4(mix(1.0, 0.0, shadowAmount)));
 }

@@ -149,7 +149,7 @@ export const getVolumetricFog = async (): Promise<RenderPass> => {
 
   let copyOutputTexture: GPUTexture;
   let fogTexture: GPUTexture;
-  const FOG_DOWNSCALE = 2;
+  const FOG_DOWNSCALE = 4;
 
   const render = ({
     outputTextures,

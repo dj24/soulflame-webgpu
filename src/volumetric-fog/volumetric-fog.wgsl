@@ -18,7 +18,7 @@ struct ViewProjectionMatrices {
 @group(0) @binding(8) var linearSampler : sampler;
 @group(0) @binding(9) var fogTex : texture_2d<f32>;
 
-const END_DISTANCE: f32 = 32.0;
+const FOG_STEPS: f32 = 24.0;
 const FOG_HEIGHT_START: f32 = 0.0;
 const FOG_HEIGHT_END: f32 = 72.0;
 
@@ -61,7 +61,7 @@ fn worldToScreen(worldPos: vec3<f32>) -> vec2<f32> {
   return screenSpace.xy;
 }
 
-const G_SCATTERING = 200.0;
+const G_SCATTERING = -0.125;
 
 // Mie scaterring approximated with Henyey-Greenstein phase function.
 fn computeScattering(lightDotView: f32) -> f32
@@ -71,10 +71,8 @@ fn computeScattering(lightDotView: f32) -> f32
   return result;
 }
 
-const DOWNSCALE = 2;
-const ANISOTROPY_FACTOR = 0.0;
-const MULTIPLE_SCATTERING_STEPS = 4;
-const SUN_COLOR = vec3<f32>(1.0, 1.0, 0.93);
+const DOWNSCALE = 4;
+const SUN_COLOR = vec3<f32>(4.0,3.9,3.2);
 
 // Checkerboard pattern
 @compute @workgroup_size(8, 8, 1)
@@ -89,35 +87,40 @@ fn main(
     let depthSample = textureLoad(depthTex, pixel, 0);
     var rayOrigin = cameraPosition;
     let worldPos = depthSample.rgb;
-    let relativeWorldPos = worldPos - rayOrigin;
-    var rayDirection = normalize(relativeWorldPos);
-    let depth = length(relativeWorldPos.z);
-    let randomCo = uv;
-    let scatterAmount = 0.1;
-//    let shadowRayDirection = -sunDirection + randomInHemisphere(randomCo, -sunDirection) * scatterAmount;
-    let shadowRayDirection = -sunDirection;
-    let stepLength = length(rayDirection) / END_DISTANCE;
+    let rayVector = worldPos - rayOrigin;
+    let rayDirection = rayVector / length(rayVector);
+    let stepLength = length(rayVector) / FOG_STEPS;
     let step = rayDirection * stepLength;
+
+    let depth = depthSample.a;
+    let randomCo = uv;
+    let scatterAmount = 0.05;
+    let shadowRayDirection = -sunDirection + randomInHemisphere(randomCo, -sunDirection) * scatterAmount;
+//    let shadowRayDirection = -sunDirection;
 
     var accumFog = vec3(0.0);
     var samplePos = rayOrigin;
+    var totalFog = 0.0;
 
-    for(var i = 0.0; i < END_DISTANCE; i += 1.0) {
-      if(i > depth) {
-        break;
+    for(var i = 0.0; i < FOG_STEPS; i += 1.0) {
+      let isInShadow = shadowRay(samplePos,shadowRayDirection);
+      if(!isInShadow){
+        let fogAmount = computeScattering(dot(rayDirection, -shadowRayDirection));
+        accumFog += fogAmount * SUN_COLOR;
+        totalFog += fogAmount;
       }
-      let isInShadow = shadowRay(samplePos, -sunDirection);
-      if(isInShadow){
-//        accumFog += computeScattering(dot(rayDirection, sunDirection)) * SUN_COLOR;
-        accumFog += SUN_COLOR;
-      }
-      samplePos = rayDirection * i;
+      samplePos += step;
     }
-    accumFog /= END_DISTANCE;
-    textureStore(outputTex, GlobalInvocationID.xy, vec4(accumFog, 1.0));
+    accumFog /= FOG_STEPS;
+    totalFog /= FOG_STEPS;
+    textureStore(outputTex, GlobalInvocationID.xy, vec4(accumFog, totalFog));
 }
 
 const PI = 3.1415926535897932384626433832795;
+
+fn gammaCorrect(color: vec3<f32>) -> vec3<f32> {
+  return pow(color, vec3<f32>(1.0 / 2.2));
+}
 
 @compute @workgroup_size(8, 8, 1)
 fn blur(
@@ -125,7 +128,7 @@ fn blur(
 ) {
   let fogTexDimensions = vec2<f32>(textureDimensions(fogTex));
   let outputTexDimensions = vec2<f32>(textureDimensions(outputTex));
-  let uv = (vec2<f32>(GlobalInvocationID.xy) + vec2(4.0)) / outputTexDimensions;
+  let uv = vec2<f32>(GlobalInvocationID.xy) / outputTexDimensions;
   var pixel = GlobalInvocationID.xy;
 
   let depthRef = textureLoad(depthTex, pixel, 0).a;
@@ -144,7 +147,9 @@ fn blur(
       count += depthWeight * gaussianWeight;
     }
   }
-  let fogAmount = (total / count);
+  var fogAmount = (total / count);
   let inputSample = textureLoad(inputTex, pixel, 0);
-  textureStore(outputTex, GlobalInvocationID.xy, mix(inputSample, fogAmount, fogAmount.r));
+
+//  textureStore(outputTex, GlobalInvocationID.xy, mix(inputSample, fogAmount, fogAmount.a));
+textureStore(outputTex, GlobalInvocationID.xy, mix(inputSample, vec4(fogAmount.rgb,1.0), vec4(fogAmount.a * 5.0)));
 }

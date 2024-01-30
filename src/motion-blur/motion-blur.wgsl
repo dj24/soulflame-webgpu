@@ -26,17 +26,17 @@ fn main(
   let scaledVelocity = velocity * blurScale;
   var samples = MAX_SAMPLES;
   var validSamples = 0.0;
-  var result = vec3<f32>(0.0);
+  var result = vec4<f32>(0.0);
   for (var i = 0; i < samples; i++) {
     var offset = scaledVelocity * (f32(i) / f32(samples - 1) - 0.5);
     let offsetUv = uv + offset;
     if(offsetUv.x < 0.0 || offsetUv.x > 1.0 || offsetUv.y < 0.0 || offsetUv.y > 1.0){
       continue;
     }
-    let textureSample = textureSampleLevel(inputTex, pointSample, offsetUv, 0.0).rgb;
+    let textureSample = textureSampleLevel(inputTex, pointSample, offsetUv, 0.0);
     result += textureSample;
     validSamples += 1.0;
   }
   result /= validSamples;
-  textureStore(outputTex, pixel, vec4(result, 1));
+  textureStore(outputTex, pixel, result);
 }
