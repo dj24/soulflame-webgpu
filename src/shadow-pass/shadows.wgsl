@@ -79,11 +79,13 @@ fn main(
   textureStore(outputTex, pixel, vec4(mix(1.0, 0.0, shadowAmount)));
 }
 
+
 @compute @workgroup_size(8, 8, 1)
 fn composite(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
   let pixel = GlobalInvocationID.xy;
-  let shadowAmount = textureLoad(inputTex, pixel, 0);
-  textureStore(outputTex, pixel, shadowAmount);
+  let shadowAmount = 1.0 - textureLoad(inputTex, pixel, 0);
+  let inputSample = vec4(1.0);
+  textureStore(outputTex, pixel, mix(inputSample, vec4(0.0),shadowAmount.a));
 }

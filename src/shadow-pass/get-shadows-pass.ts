@@ -214,10 +214,6 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
           buffer: sunDirectionBuffer,
         },
       },
-      {
-        binding: 8,
-        resource: copyOutputTexture.createView(),
-      },
     ];
 
     const bindGroup = device.createBindGroup({
@@ -227,7 +223,11 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
         // change output texture between passes
         {
           binding: 3,
-          resource: outputTextures.finalTexture.createView(),
+          resource: shadowTexture.createView(),
+        },
+        {
+          binding: 8,
+          resource: copyOutputTexture.createView(),
         },
       ],
     });
@@ -239,6 +239,10 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
         {
           binding: 3,
           resource: outputTextures.finalTexture.createView(),
+        },
+        {
+          binding: 8,
+          resource: shadowTexture.createView(),
         },
       ],
     });
@@ -253,12 +257,12 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
       Math.ceil(resolution[1] / 8),
     );
 
-    // pass.setPipeline(compositePipeline);
-    // pass.setBindGroup(0, compositeBindGroup);
-    // pass.dispatchWorkgroups(
-    //   Math.ceil(resolution[0] / 8),
-    //   Math.ceil(resolution[1] / 8),
-    // );
+    pass.setPipeline(compositePipeline);
+    pass.setBindGroup(0, compositeBindGroup);
+    pass.dispatchWorkgroups(
+      Math.ceil(resolution[0] / 8),
+      Math.ceil(resolution[1] / 8),
+    );
 
     pass.end();
     return [commandEncoder.finish()];
