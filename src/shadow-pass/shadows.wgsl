@@ -15,7 +15,9 @@ struct ViewProjectionMatrices {
 @group(0) @binding(5) var<uniform> viewProjections : ViewProjectionMatrices;
 @group(0) @binding(6) var<uniform> voxelObjects : array<VoxelObject, VOXEL_OBJECT_COUNT>;
 @group(0) @binding(7) var<uniform> sunDirection : vec3<f32>;
-//@group(0) @binding(7) var<uniform> resolution : vec2<u32>;
+@group(0) @binding(8) var inputTex: texture_2d<f32>;
+// TODO: copy to this
+@group(0) @binding(9) var shadowTex: texture_2d<f32>;
 
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SHADOW_ACNE_OFFSET: f32 = 0.0005;
@@ -75,4 +77,13 @@ fn main(
 
   let shadowAmount = totalShadow / count;
   textureStore(outputTex, pixel, vec4(mix(1.0, 0.0, shadowAmount)));
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn composite(
+  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
+) {
+  let pixel = GlobalInvocationID.xy;
+  let shadowAmount = textureLoad(inputTex, pixel, 0);
+  textureStore(outputTex, pixel, shadowAmount);
 }

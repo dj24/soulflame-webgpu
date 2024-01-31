@@ -15,7 +15,7 @@
   "devDependencies": {
     "@types/jest": "^29.5.10",
     "@types/lodash": "^4.14.202",
-    "@webgpu/types": "^0.1.39",
+    "@webgpu/types": "^0.1.40",
     "copy-webpack-plugin": "^11.0.0",
     "css-loader": "^6.8.1",
     "gh-pages": "^6.0.0",

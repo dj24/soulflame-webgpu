@@ -466,7 +466,11 @@ const start = async () => {
     const adapter = await navigator.gpu.requestAdapter();
     try {
       device = await adapter.requestDevice({
-        requiredFeatures: ["timestamp-query"],
+        // @ts-ignore
+        requiredFeatures: [
+          "timestamp-query",
+          "chromium-experimental-read-write-storage-texture",
+        ],
       });
     } catch (e) {
       device = await adapter.requestDevice();

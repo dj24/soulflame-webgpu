@@ -1039,7 +1039,7 @@
     "@webassemblyjs/ast" "1.11.6"
     "@xtuc/long" "4.2.2"
 
-"@webgpu/types@^0.1.39":
+"@webgpu/types@^0.1.40":
   version "0.1.40"
   resolved "https://registry.npmjs.org/@webgpu/types/-/types-0.1.40.tgz"
   integrity sha512-/BBkHLS6/eQjyWhY2H7Dx5DHcVrS2ICj9owvSRdgtQT6KcafLZA86tPze0xAOsd4FbsYKCUBUQyNi87q7gV7kw==

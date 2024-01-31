@@ -315,6 +315,7 @@ export const getVolumetricFog = async (): Promise<RenderPass> => {
       timestampWrites,
     });
 
+    // Get Fog
     computePass.setPipeline(computePipeline);
     computePass.setBindGroup(0, bindGroup);
     const workgroupsX = Math.ceil(
@@ -325,6 +326,7 @@ export const getVolumetricFog = async (): Promise<RenderPass> => {
     );
     computePass.dispatchWorkgroups(workgroupsX, workgroupsY);
 
+    // Blur
     computePass.setPipeline(computeBlurPipeline);
     computePass.setBindGroup(0, blurBindGroup);
     const blurWorkgroupsX = Math.ceil(
@@ -336,7 +338,6 @@ export const getVolumetricFog = async (): Promise<RenderPass> => {
     computePass.dispatchWorkgroups(blurWorkgroupsX, blurWorkgroupsY);
 
     computePass.end();
-
     return [commandEncoder.finish()];
   };
   return { render, label: "volumetric fog" };
