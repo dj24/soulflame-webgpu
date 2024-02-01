@@ -29,7 +29,15 @@ fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>) -> bool {
 
 // TODO: render at half res and increase samples
 // 2 samples at full res = 8 samples at half res
-const SAMPLE_COUNT = 4;
+const SAMPLE_COUNT = 1;
+const SUN_COLOR = vec3<f32>(1.0, 1.0, 1.0);
+
+fn blinnPhong(normal: vec3<f32>, lightDirection: vec3<f32>, viewDirection: vec3<f32>, specularStrength: f32, shininess: f32, lightColour: vec3<f32>) -> vec3<f32> {
+  let halfDirection = normalize(lightDirection + viewDirection);
+  let diffuse = max(dot(normal, lightDirection), 0.0);
+  let specular = pow(max(dot(normal, halfDirection), 0.0), shininess);
+  return (diffuse + specular * specularStrength) * lightColour;
+}
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
@@ -40,22 +48,31 @@ fn main(
   var normalSample = textureLoad(normalTex, samplePixel, 0).rgb;
   let randomCo = vec2<f32>(samplePixel);
   let scatterAmount = 0.05;
-  var totalShadow = 0.0;
+  var total = vec3(0.0);
   var count = 0.0;
 
   for(var i = 0; i < SAMPLE_COUNT; i++){
-    let shadowRayDirection = -sunDirection + randomInHemisphere(randomCo + vec2(f32(i),0), -sunDirection) * scatterAmount;
+    var lightColour = SUN_COLOR;
+    var shadowRayDirection = -sunDirection + randomInHemisphere(randomCo + vec2(f32(i),0), -sunDirection) * scatterAmount;
     let worldPos = textureLoad(depthTex, samplePixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
+    if(randomMinMax(randomCo + vec2(f32(i),0), 0.0, 1.0) < 0.5){
+      shadowRayDirection.z *= -1.0;
+      lightColour = vec3(1,0,1);
+    }
     if(shadowRay(worldPos, shadowRayDirection)){
-      totalShadow += 1.0;
+      total += vec3(0.0);
+    } else{
+      let rayDirection = normalize(worldPos - cameraPosition);
+      total += blinnPhong(normalSample, shadowRayDirection, rayDirection, 0.5, 80.0, lightColour);
     }
     count += 1.0;
   }
 
-  let shadowAmount = totalShadow / count;
-  textureStore(outputTex, outputPixel, vec4(mix(1.0, 0.0, shadowAmount)));
+  let shadowAmount = total / count;
+  textureStore(outputTex, outputPixel, vec4(shadowAmount, 1.0));
 }
 
+const AMBIENT_STRENGTH = 0.1;
 
 @compute @workgroup_size(8, 8, 1)
 fn composite(
@@ -63,8 +80,28 @@ fn composite(
 ) {
   let texSize = vec2<f32>(textureDimensions(outputTex));
   let pixel = GlobalInvocationID.xy;
-  let uv = (vec2<f32>(pixel) + vec2(0.5)) / texSize;
-  let shadowAmount = 1.0 - textureSampleLevel(intermediaryTexture, linearSampler, uv, 0.0);
+  let uv = vec2<f32>(pixel) / texSize;
+//  let shadowAmount = 1.0 - textureSampleLevel(intermediaryTexture, linearSampler, uv, 0.0);
   let inputSample = textureLoad(inputTex, pixel, 0);
-  textureStore(outputTex, pixel, mix(inputSample, vec4(0.0),shadowAmount.a));
+  let depthRef = textureLoad(depthTex, pixel, 0).a;
+  let normalRef = textureLoad(normalTex, pixel, 0).rgb;
+  var total = vec3(0.0);
+  var count = 0.0;
+
+  for(var i = 0; i < DOWNSCALE; i+= 1) {
+    for(var j = 0; j < DOWNSCALE; j += 1) {
+      let offset = vec2(f32(i), f32(j)) / texSize;
+      let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, uv + offset, 0.0).rgb;
+      let depthSample = textureLoad(depthTex, vec2<i32>(pixel) + vec2(i, j), 0).a;
+      let normalSample = textureLoad(normalTex, vec2<i32>(pixel) + vec2(i, j), 0).rgb;
+      // bilateral blur
+      let gaussianWeight = exp(-(f32(i * i) + f32(j * j)) * 0.01);
+      let normalDifference = dot(normalSample, normalRef);
+      let normalWeight = 1.0 - exp(-normalDifference * normalDifference * 10.0);
+      total += shadowSample * normalWeight * gaussianWeight;
+      count += normalWeight * gaussianWeight;
+    }
+  }
+  total /= count;
+  textureStore(outputTex, pixel, inputSample * vec4(total,1));
 }

@@ -513,8 +513,7 @@ const start = async () => {
       // getReflectionsPass(),
       getShadowsPass(),
       getSkyPass(),
-      getVolumetricFog(),
-
+      // getVolumetricFog(),
       // getTaaPass(),
       // getMotionBlurPass(),
       fullscreenQuad(device),

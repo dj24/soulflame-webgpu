@@ -1,4 +1,4 @@
-const FOG_STEPS: f32 = 24.0;
+const FOG_STEPS: f32 = 16.0;
 const FOG_HEIGHT_START: f32 = 0.0;
 const FOG_HEIGHT_END: f32 = 72.0;
 
@@ -51,7 +51,7 @@ fn computeScattering(lightDotView: f32) -> f32
   return result;
 }
 
-const SUN_COLOR = vec3<f32>(4.0,3.9,3.2);
+const SUN_COLOR = vec3<f32>(3.0);
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
@@ -112,14 +112,15 @@ fn blur(
   // gaussian blur
   var total = vec4(0.0);
   var count = 0.0;
-  for(var i = -2; i <= 2; i+= 1) {
-    for(var j = -2; j <= 2; j += 1) {
+  for(var i = 0; i <= DOWNSCALE; i+= 1) {
+    for(var j = 0; j <= DOWNSCALE; j += 1) {
       let fogSample = textureSampleLevel(intermediaryTexture, linearSampler, fogUv + vec2(f32(i), f32(j)) / fogTexDimensions, 0.0);
       let depthSample = textureLoad(depthTex, vec2<i32>(pixel) + vec2(i, j), 0).a;
       // bilateral blur
       let depthDifference = abs(depthSample - depthRef);
       let depthWeight = exp(-depthDifference * depthDifference * 50.0);
-      let gaussianWeight = exp(-(f32(i) * f32(i) + f32(j) * f32(j)) / 2.0);
+//      let gaussianWeight = exp(-(f32(i) * f32(i) + f32(j) * f32(j)) / 2.0);
+let gaussianWeight = 1.0;
       total += fogSample * depthWeight * gaussianWeight;
       count += depthWeight * gaussianWeight;
     }
