@@ -1,23 +1,3 @@
-struct ViewProjectionMatrices {
-  viewProjection : mat4x4<f32>,
-  previousViewProjection : mat4x4<f32>,
-  inverseViewProjection : mat4x4<f32>,
-  previousInverseViewProjection : mat4x4<f32>,
-  projection : mat4x4<f32>,
-  inverseProjection: mat4x4<f32>
-};
-
-@group(0) @binding(0) var depthTex : texture_2d<f32>;
-@group(0) @binding(1) var inputTex : texture_2d<f32>;
-@group(0) @binding(2) var outputTex : texture_storage_2d<rgba8unorm, write>;
-@group(0) @binding(3) var<uniform> viewProjections : ViewProjectionMatrices;
-@group(0) @binding(4) var voxels : texture_3d<f32>;
-@group(0) @binding(5) var<uniform> cameraPosition : vec3<f32>;
-@group(0) @binding(6) var<uniform> voxelObjects : array<VoxelObject, VOXEL_OBJECT_COUNT>;
-@group(0) @binding(7) var<uniform> sunDirection : vec3<f32>;
-@group(0) @binding(8) var linearSampler : sampler;
-@group(0) @binding(9) var fogTex : texture_2d<f32>;
-
 const FOG_STEPS: f32 = 24.0;
 const FOG_HEIGHT_START: f32 = 0.0;
 const FOG_HEIGHT_END: f32 = 72.0;
@@ -71,16 +51,13 @@ fn computeScattering(lightDotView: f32) -> f32
   return result;
 }
 
-const DOWNSCALE = 4;
 const SUN_COLOR = vec3<f32>(4.0,3.9,3.2);
 
-// Checkerboard pattern
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
     var pixel = GlobalInvocationID.xy * DOWNSCALE;
-
     let resolution = textureDimensions(depthTex);
     var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
 
@@ -126,9 +103,9 @@ fn gammaCorrect(color: vec3<f32>) -> vec3<f32> {
 fn blur(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
-  let fogTexDimensions = vec2<f32>(textureDimensions(fogTex));
+  let fogTexDimensions = vec2<f32>(textureDimensions(intermediaryTexture));
   let outputTexDimensions = vec2<f32>(textureDimensions(outputTex));
-  let uv = vec2<f32>(GlobalInvocationID.xy) / outputTexDimensions;
+  let fogUv = vec2<f32>(GlobalInvocationID.xy) / outputTexDimensions;
   var pixel = GlobalInvocationID.xy;
 
   let depthRef = textureLoad(depthTex, pixel, 0).a;
@@ -137,7 +114,7 @@ fn blur(
   var count = 0.0;
   for(var i = -2; i <= 2; i+= 1) {
     for(var j = -2; j <= 2; j += 1) {
-      let fogSample = textureSampleLevel(fogTex, linearSampler, uv + vec2(f32(i), f32(j)) / fogTexDimensions, 0.0);
+      let fogSample = textureSampleLevel(intermediaryTexture, linearSampler, fogUv + vec2(f32(i), f32(j)) / fogTexDimensions, 0.0);
       let depthSample = textureLoad(depthTex, vec2<i32>(pixel) + vec2(i, j), 0).a;
       // bilateral blur
       let depthDifference = abs(depthSample - depthRef);
