@@ -384,7 +384,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     getMatricesBuffer();
 
     //TODO: handle loading this more gracefully
-    if (!transformationMatrixBuffer) {
+    if (!transformationMatrixBuffer || !blueNoiseTexture) {
       animationFrameId = requestAnimationFrame(frame);
       return;
     }
