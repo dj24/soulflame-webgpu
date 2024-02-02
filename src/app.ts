@@ -13,7 +13,7 @@ import treeHouse from "./voxel-models/tavern.vxm";
 import dragon from "./voxel-models/dragon.vxm";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { DebugValuesStore } from "./debug-values-store";
-import { createTextureFromImages } from "webgpu-utils";
+import { createTextureFromImage, createTextureFromImages } from "webgpu-utils";
 import { create3dTexture } from "./create-3d-texture/create-3d-texture";
 import { getVolumeAtlas, VolumeAtlas } from "./volume-atlas";
 import { getFrameTimeTracker } from "./frametime-tracker";
@@ -37,6 +37,7 @@ export type RenderArgs = {
   viewProjectionMatricesBuffer?: GPUBuffer;
   timestampWrites?: GPUComputePassTimestampWrites;
   sunDirectionBuffer?: GPUBuffer;
+  blueNoiseTexture?: GPUTexture;
 };
 
 export type RenderPass = {
@@ -85,6 +86,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let outputTexture: GPUTexture;
   let depthTexture: GPUTexture;
   let velocityTexture: GPUTexture;
+  let blueNoiseTexture: GPUTexture;
 
   let timeBuffer: GPUBuffer;
   let resolutionBuffer: GPUBuffer;
@@ -243,6 +245,18 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     }
   };
 
+  const createBlueNoiseTexture = async () => {
+    if (!blueNoiseTexture) {
+      blueNoiseTexture = await createTextureFromImage(
+        device,
+        "blue-noise-rg.png",
+        {
+          usage: GPUTextureUsage.COPY_SRC,
+        },
+      );
+    }
+  };
+
   const getMatricesBuffer = () => {
     const bufferContents = [
       ...camera.viewProjectionMatrix,
@@ -346,6 +360,8 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       });
   };
 
+  createBlueNoiseTexture();
+
   const frame = (now: number) => {
     if (startTime === 0) {
       startTime = now;
@@ -442,6 +458,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         viewProjectionMatricesBuffer,
         timestampWrites,
         sunDirectionBuffer,
+        blueNoiseTexture,
       }).forEach((commands) => {
         commandBuffers.push(commands);
       });

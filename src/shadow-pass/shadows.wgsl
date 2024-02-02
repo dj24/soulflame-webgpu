@@ -45,6 +45,7 @@ fn main(
 ) {
   let samplePixel = GlobalInvocationID.xy * DOWNSCALE;
   let outputPixel = GlobalInvocationID.xy;
+  let uv = vec2<f32>(outputPixel) / vec2<f32>(textureDimensions(depthTex));
   var normalSample = textureLoad(normalTex, samplePixel, 0).rgb;
   let randomCo = vec2<f32>(samplePixel);
   let scatterAmount = 0.05;
@@ -55,7 +56,8 @@ fn main(
     var lightColour = SUN_COLOR;
     var shadowRayDirection = -sunDirection + randomInHemisphere(randomCo + vec2(f32(i),0), -sunDirection) * scatterAmount;
     let worldPos = textureLoad(depthTex, samplePixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
-    if(randomMinMax(randomCo + vec2(f32(i),0), 0.0, 1.0) < 0.5){
+    let r = textureLoad(blueNoiseTex, outputPixel % 512, 0).r;
+    if(r < 0.5){
       shadowRayDirection.z *= -1.0;
       lightColour = vec3(1,0,1);
     }

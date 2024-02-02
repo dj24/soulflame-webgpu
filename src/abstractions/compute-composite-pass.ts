@@ -92,6 +92,14 @@ const normalTextureEntry: GPUBindGroupLayoutEntry = {
   },
 };
 
+const blueNoiseTextureEntry: GPUBindGroupLayoutEntry = {
+  binding: 11,
+  visibility: GPUShaderStage.COMPUTE,
+  texture: {
+    sampleType: "float",
+  },
+};
+
 const baseBindGroupLayoutEntries = [
   depthEntry,
   inputTextureEntry,
@@ -103,6 +111,7 @@ const baseBindGroupLayoutEntries = [
   sunDirectionEntry,
   linearSamplerEntry,
   normalTextureEntry,
+  blueNoiseTextureEntry,
 ];
 
 const NUM_THREADS_X = 8;
@@ -155,6 +164,7 @@ export const createComputeCompositePass = async ({
 @group(0) @binding(8) var linearSampler : sampler;
 @group(0) @binding(9) var intermediaryTexture : texture_2d<f32>;
 @group(0) @binding(10) var normalTex : texture_2d<f32>;
+@group(0) @binding(11) var blueNoiseTex : texture_2d<f32>;
 
 const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
 const DOWNSCALE = ${downscale};
@@ -200,6 +210,7 @@ ${shaderCode}`;
     cameraPositionBuffer,
     transformationMatrixBuffer,
     sunDirectionBuffer,
+    blueNoiseTexture,
   }: RenderArgs) => {
     if (!copyOutputTexture) {
       copyOutputTexture = device.createTexture({
@@ -286,6 +297,10 @@ ${shaderCode}`;
       {
         binding: 10,
         resource: outputTextures.normalTexture.createView(),
+      },
+      {
+        binding: 11,
+        resource: blueNoiseTexture.createView(),
       },
     ];
 
