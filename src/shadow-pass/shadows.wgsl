@@ -31,6 +31,18 @@ fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>) -> bool {
 // 2 samples at full res = 8 samples at half res
 const SAMPLE_COUNT = 1;
 const SUN_COLOR = vec3<f32>(1.0, 1.0, 1.0);
+const MOON_COLOR = vec3<f32>(0.5, 0.5, 1.0);
+const SUBPIXEL_SAMPLE_POSITIONS: array<vec2<f32>, 8> = array<vec2<f32>, 8>(
+  vec2<f32>(0.25, 0.25),
+  vec2<f32>(0.75, 0.25),
+  vec2<f32>(0.25, 0.75),
+  vec2<f32>(0.75, 0.75),
+  vec2<f32>(0.125, 0.125),
+  vec2<f32>(0.375, 0.125),
+  vec2<f32>(0.625, 0.125),
+  vec2<f32>(0.875, 0.125)
+);
+const BLUE_NOISE_SIZE = 512;
 
 fn blinnPhong(normal: vec3<f32>, lightDirection: vec3<f32>, viewDirection: vec3<f32>, specularStrength: f32, shininess: f32, lightColour: vec3<f32>) -> vec3<f32> {
   let halfDirection = normalize(lightDirection + viewDirection);
@@ -45,22 +57,36 @@ fn main(
 ) {
   let samplePixel = GlobalInvocationID.xy * DOWNSCALE;
   let outputPixel = GlobalInvocationID.xy;
-  let uv = vec2<f32>(outputPixel) / vec2<f32>(textureDimensions(depthTex));
+
+  let blueNoisePixel = outputPixel % BLUE_NOISE_SIZE;
+  let blueNoiseUv = vec2<f32>(blueNoisePixel) / vec2<f32>(BLUE_NOISE_SIZE);
+
+  let resolution = vec2<f32>(textureDimensions(depthTex));
+  let uv = vec2<f32>(outputPixel) / resolution;
+
   var normalSample = textureLoad(normalTex, samplePixel, 0).rgb;
   let randomCo = vec2<f32>(samplePixel);
+
   let scatterAmount = 0.05;
   var total = vec3(0.0);
   var count = 0.0;
 
   for(var i = 0; i < SAMPLE_COUNT; i++){
-    var lightColour = SUN_COLOR;
-    var shadowRayDirection = -sunDirection + randomInHemisphere(randomCo + vec2(f32(i),0), -sunDirection) * scatterAmount;
+    var lightColour = MOON_COLOR;
+
+    var offset = SUBPIXEL_SAMPLE_POSITIONS[i] / vec2<f32>(BLUE_NOISE_SIZE);
+    let r = textureSampleLevel(blueNoiseTex, linearSampler, blueNoiseUv + offset, 0).xy;
+
+    var shadowRayDirection = -sunDirection + randomInHemisphere(r, -sunDirection) * scatterAmount;
     let worldPos = textureLoad(depthTex, samplePixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
-    let r = textureLoad(blueNoiseTex, outputPixel % 512, 0).r;
-    if(r < 0.5){
+    if(r.r < 0.5){
       shadowRayDirection.z *= -1.0;
-      lightColour = vec3(1,0,1);
+      lightColour = vec3(1,0,0);
     }
+//    if(r.r < 0.33){
+//      shadowRayDirection.x *= -1.0;
+//      lightColour = vec3(0,1,1);
+//    }
     if(shadowRay(worldPos, shadowRayDirection)){
       total += vec3(0.0);
     } else{

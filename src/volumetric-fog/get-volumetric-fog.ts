@@ -7,7 +7,7 @@ export const getVolumetricFog = async (): Promise<RenderPass> => {
     shaderCode: volumetricFog,
     effectEntryPoint: "main",
     compositeEntryPoint: "blur",
-    downscale: 4,
+    downscale: 2,
     label: "volumetric fog",
   });
 };

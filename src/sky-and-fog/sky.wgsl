@@ -25,12 +25,12 @@ fn ease_out_expo(x: f32) -> f32 {
 
 fn sample_sky(rayDirection: vec3<f32>) -> vec3<f32> {
   let sunAmount = distance(rayDirection, sunDirection);
-  return vec3(0.45,0.75,0.95);
+  return vec3(0.0);
 }
 
-const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.7, 0.8);
+const SKY_COLOUR: vec3<f32> = vec3<f32>(0.0);
 const START_DISTANCE: f32 = 0.0;
-const FOG_DENSITY: f32 = 0.02;
+const FOG_DENSITY: f32 = 0.01;
 
 @compute @workgroup_size(8, 8, 1)
 fn main(

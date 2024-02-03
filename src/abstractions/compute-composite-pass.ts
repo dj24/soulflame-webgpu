@@ -100,6 +100,14 @@ const blueNoiseTextureEntry: GPUBindGroupLayoutEntry = {
   },
 };
 
+const timeEntry: GPUBindGroupLayoutEntry = {
+  binding: 12,
+  visibility: GPUShaderStage.COMPUTE,
+  buffer: {
+    type: "uniform",
+  },
+};
+
 const baseBindGroupLayoutEntries = [
   depthEntry,
   inputTextureEntry,
@@ -112,6 +120,7 @@ const baseBindGroupLayoutEntries = [
   linearSamplerEntry,
   normalTextureEntry,
   blueNoiseTextureEntry,
+  timeEntry,
 ];
 
 const NUM_THREADS_X = 8;
@@ -165,6 +174,7 @@ export const createComputeCompositePass = async ({
 @group(0) @binding(9) var intermediaryTexture : texture_2d<f32>;
 @group(0) @binding(10) var normalTex : texture_2d<f32>;
 @group(0) @binding(11) var blueNoiseTex : texture_2d<f32>;
+@group(0) @binding(12) var<uniform> time : vec2<u32>;
 
 const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
 const DOWNSCALE = ${downscale};
@@ -211,6 +221,7 @@ ${shaderCode}`;
     transformationMatrixBuffer,
     sunDirectionBuffer,
     blueNoiseTexture,
+    timeBuffer,
   }: RenderArgs) => {
     if (!copyOutputTexture) {
       copyOutputTexture = device.createTexture({
@@ -301,6 +312,12 @@ ${shaderCode}`;
       {
         binding: 11,
         resource: blueNoiseTexture.createView(),
+      },
+      {
+        binding: 12,
+        resource: {
+          buffer: timeBuffer,
+        },
       },
     ];
 
