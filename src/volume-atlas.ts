@@ -11,12 +11,18 @@ const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
   dimension: "3d",
 };
 
+type VolumeAtlasEntry = {
+  location: Vec3;
+  size: Vec3;
+};
+
 export type VolumeAtlasDictionary = {
-  [key: string]: { location: Vec3; size: Vec3 };
+  [key: string]: VolumeAtlasEntry;
 };
 
 export type VolumeAtlas = {
   getVolumes: () => VolumeAtlasDictionary;
+  getVolume: (label: string) => VolumeAtlasEntry;
   addVolume: (texture: GPUTexture, label: string) => void;
   removeVolume: (label: string) => void;
   getAtlasTextureView: () => GPUTextureView;
@@ -63,12 +69,16 @@ export const getVolumeAtlas = (device: GPUDevice): VolumeAtlas => {
   let atlasTexture: GPUTexture = null;
   let dictionary: VolumeAtlasDictionary = {};
 
+  const getVolume = (label: string) => {
+    return dictionary[label];
+  };
+
   /**
    * Add a volume to the atlas
    * @param texture - 3d texture to copy into the atlas
    * @param label - label to use for the volume in the dictionary
    */
-  const addVolume = (texture: GPUTexture, label: string) => {
+  const addVolume = async (texture: GPUTexture, label: string) => {
     if (dictionary[label]) {
       throw new Error(
         `Error adding volume to atlas: volume with label ${label} already exists`,
@@ -104,10 +114,14 @@ export const getVolumeAtlas = (device: GPUDevice): VolumeAtlas => {
       atlasTexture.depthOrArrayLayers,
       depthOrArrayLayers,
     );
+
     const newMipLevelCount = Math.max(
       texture.mipLevelCount,
       atlasTexture.mipLevelCount,
     );
+    // console.log(
+    //   `Expanding atlas texture to [${newWidth}, ${newHeight}, ${newDepth}], mip levels: ${newMipLevelCount}`,
+    // );
     const newAtlasTexture = device.createTexture({
       size: {
         width: newWidth,
@@ -148,6 +162,7 @@ export const getVolumeAtlas = (device: GPUDevice): VolumeAtlas => {
       },
     );
     device.queue.submit([commandEncoder.finish()]);
+    await device.queue.onSubmittedWorkDone();
     atlasTexture = newAtlasTexture;
     oldAtlasTexture.destroy();
     dictionary[label] = {
@@ -162,7 +177,7 @@ export const getVolumeAtlas = (device: GPUDevice): VolumeAtlas => {
    * TODO: check if out of bounds to allow for 8,8,1 num threads
    * @param label - label of the volume to remove
    */
-  const removeVolume = (label: string) => {
+  const removeVolume = async (label: string) => {
     if (!dictionary[label]) {
       throw new Error(
         `Error removing volume from atlas: volume with label ${label} does not exist`,
@@ -232,12 +247,16 @@ export const getVolumeAtlas = (device: GPUDevice): VolumeAtlas => {
     );
     computePass.end();
     device.queue.submit([commandEncoder.finish()]);
+    await device.queue.onSubmittedWorkDone();
   };
 
   /**
    * @returns {GPUTextureView} - view of the atlas texture
    */
   const getAtlasTextureView = (): GPUTextureView => {
+    if (!atlasTexture) {
+      return null;
+    }
     const view = atlasTexture.createView();
     view.label = atlasTexture.label;
     return view;
@@ -247,5 +266,11 @@ export const getVolumeAtlas = (device: GPUDevice): VolumeAtlas => {
     return dictionary;
   };
 
-  return { getVolumes, addVolume, removeVolume, getAtlasTextureView };
+  return {
+    getVolumes,
+    addVolume,
+    getVolume,
+    removeVolume,
+    getAtlasTextureView,
+  };
 };

@@ -15,16 +15,16 @@ export class DebugValuesStore {
   targetSunRotateY;
 
   constructor() {
-    this.maxObjectCount = 8;
-    this.objectCount = 8;
+    this.maxObjectCount = 192;
+    this.objectCount = 192;
     this.scale = 1;
     this.translateX = 0;
     this.targetScale = 1;
     this.targetTranslateX = 0;
     this.rotateY = 0;
     this.targetRotateY = 0;
-    this.sunRotateY = 0;
-    this.targetSunRotateY = 0;
+    this.sunRotateY = 2.6;
+    this.targetSunRotateY = 2.6;
   }
 
   update() {

@@ -24,7 +24,10 @@ import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels
 import { getShadowsPass } from "./shadow-pass/get-shadows-pass";
 import { getSkyPass } from "./sky-and-fog/get-sky-pass";
 import { getVolumetricFog } from "./volumetric-fog/get-volumetric-fog";
-import { createTavern } from "./create-tavern";
+import { createTavern, getObjectTransforms } from "./create-tavern";
+import { GetObjectsArgs } from "./get-objects-transforms/objects-worker";
+import dragonVolume from "./voxel-models/dragon.vxm";
+import { VoxelObject } from "./voxel-object";
 
 export type RenderArgs = {
   enabled?: boolean;
@@ -63,7 +66,7 @@ let volumeAtlas: VolumeAtlas;
 const startingCameraFieldOfView = 80 * (Math.PI / 180);
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
-  position: vec3.create(3.5, 3.5, -6.2),
+  position: vec3.create(3.5, 3, -6),
   direction: vec3.create(),
 });
 
@@ -73,11 +76,7 @@ const frameTimeTracker = getFrameTimeTracker();
 frameTimeTracker.addSample("frame time", 0);
 
 let voxelTextureView: GPUTextureView;
-let octreeBuffer: GPUBuffer;
 let skyTexture: GPUTexture;
-export const getObjectTransformsWorker = new Worker(
-  new URL("./get-objects-transforms/objects-worker.ts", import.meta.url),
-);
 
 let animationFrameId: ReturnType<typeof requestAnimationFrame>;
 
@@ -97,22 +96,6 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
   let previousInverseViewProjectionMatrix = mat4.create();
   let previousViewProjectionMatrix = mat4.create();
-
-  // TODO: fix this
-  getObjectTransformsWorker.addEventListener(
-    "message",
-    (event: MessageEvent<number[]>) => {
-      if (transformationMatrixBuffer) {
-        writeToFloatUniformBuffer(transformationMatrixBuffer, event.data);
-      } else {
-        transformationMatrixBuffer = createFloatUniformBuffer(
-          device,
-          event.data,
-          "voxel object",
-        );
-      }
-    },
-  );
 
   canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
   canvas.style.imageRendering = "pixelated";
@@ -363,6 +346,30 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
   createBlueNoiseTexture();
 
+  const getVoxelObjectsBuffer = () => {
+    const voxelObjects = getObjectTransforms({
+      maxObjectCount: debugValues.maxObjectCount,
+      objectCount: debugValues.objectCount,
+      scale: debugValues.scale,
+      translateX: debugValues.translateX,
+      rotateY: debugValues.rotateY,
+    });
+
+    const voxelObjectsArray = voxelObjects.flatMap((voxelObject) =>
+      voxelObject.toArray(),
+    );
+
+    if (transformationMatrixBuffer) {
+      writeToFloatUniformBuffer(transformationMatrixBuffer, voxelObjectsArray);
+    } else {
+      transformationMatrixBuffer = createFloatUniformBuffer(
+        device,
+        voxelObjectsArray,
+        "voxel object",
+      );
+    }
+  };
+
   const frame = (now: number) => {
     if (startTime === 0) {
       startTime = now;
@@ -373,16 +380,8 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     elapsedTime = newElapsedTime;
     frameCount++;
 
-    getObjectTransformsWorker.postMessage({
-      maxObjectCount: debugValues.maxObjectCount,
-      objectCount: debugValues.objectCount,
-      scale: debugValues.scale,
-      translateX: debugValues.translateX,
-      rotateY: debugValues.rotateY,
-      camera,
-    });
-
     getMatricesBuffer();
+    getVoxelObjectsBuffer();
 
     //TODO: handle loading this more gracefully
     if (!transformationMatrixBuffer || !blueNoiseTexture) {
@@ -419,7 +418,12 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     createOutputTexture();
 
     let commandBuffers: GPUCommandBuffer[] = [];
+
     voxelTextureView = volumeAtlas.getAtlasTextureView();
+    if (!voxelTextureView) {
+      animationFrameId = requestAnimationFrame(frame);
+      return;
+    }
 
     computePasses.forEach((computePass, index) => {
       const { render, label } = computePass;
@@ -501,27 +505,28 @@ const start = async () => {
     ]);
     volumeAtlas = getVolumeAtlas(device);
 
-    let barrelTexture = await create3dTexture(
-      device,
-      barrel.sliceFilePaths,
-      barrel.size,
-      "barrel",
-    );
-    barrelTexture = await removeInternalVoxels(device, barrelTexture);
-    generateOctreeMips(device, barrelTexture);
-    volumeAtlas.addVolume(barrelTexture, "barrel");
-    barrelTexture.destroy();
+    // let barrelTexture = await create3dTexture(
+    //   device,
+    //   barrel.sliceFilePaths,
+    //   barrel.size,
+    //   "barrel",
+    // );
+    // barrelTexture = await removeInternalVoxels(device, barrelTexture);
+    // generateOctreeMips(device, barrelTexture);
+    // volumeAtlas.addVolume(barrelTexture, "barrel");
+    // barrelTexture.destroy();
+    //
+    // let dragonTexture = await create3dTexture(
+    //   device,
+    //   dragon.sliceFilePaths,
+    //   dragon.size,
+    //   "dragon",
+    // );
+    // dragonTexture = await removeInternalVoxels(device, dragonTexture);
+    // generateOctreeMips(device, dragonTexture);
+    // volumeAtlas.addVolume(dragonTexture, "dragon");
+    // dragonTexture.destroy();
 
-    let dragonTexture = await create3dTexture(
-      device,
-      dragon.sliceFilePaths,
-      dragon.size,
-      "dragon",
-    );
-    dragonTexture = await removeInternalVoxels(device, dragonTexture);
-    generateOctreeMips(device, dragonTexture);
-    volumeAtlas.addVolume(dragonTexture, "dragon");
-    dragonTexture.destroy();
     createTavern(device, volumeAtlas);
 
     const computePassPromises: Promise<RenderPass>[] = [
@@ -529,7 +534,7 @@ const start = async () => {
       getGBufferPass(),
       // getDiffusePass(),
       // getReflectionsPass(),
-      getShadowsPass(),
+      // getShadowsPass(),
       getSkyPass(),
       // getVolumetricFog(),
       // getTaaPass(),

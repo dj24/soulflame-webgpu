@@ -12,9 +12,14 @@ export const create3dTexture = async (
   size: Vec3,
   label?: string,
 ): Promise<GPUTexture> => {
+  console.log(`Creating 3D texture with size: ${size}, label: ${label}`);
   const width = nextPowerOf2(size[0]);
   const height = nextPowerOf2(size[1]);
   const depth = nextPowerOf2(size[2]);
+  const mipLevelCount = numMipLevels(
+    { width, height, depthOrArrayLayers: depth },
+    "3d",
+  );
 
   const volumeTexture = device.createTexture({
     size: { width, height, depthOrArrayLayers: depth },
@@ -26,10 +31,7 @@ export const create3dTexture = async (
       GPUTextureUsage.STORAGE_BINDING,
     dimension: "3d",
     label,
-    mipLevelCount: numMipLevels(
-      { width, height, depthOrArrayLayers: depth },
-      "3d",
-    ),
+    mipLevelCount,
   });
 
   const commandEncoder = device.createCommandEncoder();
@@ -65,6 +67,7 @@ export const create3dTexture = async (
   );
 
   device.queue.submit([commandEncoder.finish()]);
+  await device.queue.onSubmittedWorkDone();
 
   return volumeTexture;
 };

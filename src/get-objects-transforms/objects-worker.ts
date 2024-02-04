@@ -7,14 +7,12 @@ import { debugValues } from "../app";
 
 const ctx: Worker = self as any;
 
-type GetObjectsArgs = {
+export type GetObjectsArgs = {
   maxObjectCount: number;
   objectCount: number;
   scale: number;
   translateX: number;
   rotateY: number;
-  camera: Camera;
-  objectSize: Vec3;
 };
 
 const teapotSize = [126, 61, 79];
@@ -98,21 +96,12 @@ const getObjectTransforms = ({
 }: GetObjectsArgs) => {
   updateInnerBox(foo, rotateY, translateX, scale * 0.5);
   // updateInnerBox(teaPot2, rotateY, translateX, scale);
-
   let voxelObjects = [foo, ...teaPots];
-
   let activeVoxelObjects = voxelObjects;
-
   activeVoxelObjects = activeVoxelObjects.slice(0, voxelObjects.length);
-
   const differenceInObjectCount = maxObjectCount - voxelObjects.length;
-
   const padding = new Array(differenceInObjectCount).fill(paddingElement);
-
   voxelObjects = [...activeVoxelObjects, ...padding];
-
-  // console.log({ voxelObjects });
-
   return voxelObjects;
 };
 

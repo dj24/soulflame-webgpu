@@ -93,13 +93,13 @@ fn main(
         SUN_COLOR,
       ),
       Light(
-              -sunDirection,
-              SUN_COLOR,
-            ),
-          Light(
-                  -sunDirection,
-                  SUN_COLOR,
-                ),
+        -sunDirection,
+        SUN_COLOR,
+      ),
+      Light(
+        -sunDirection,
+        SUN_COLOR,
+      ),
 
 //      Light(
 //        vec3(-1,0,-1),
