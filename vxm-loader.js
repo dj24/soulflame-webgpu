@@ -49,7 +49,7 @@ module.exports = function (source, ...args) {
   magic[index] = String.fromCodePoint(bufferReader.readUInt8(index));
   index++;
 
-  if (magic.join("") !== "VXMC") {
+  if (magic.join("") !== "VXMC" && magic.join("") !== "VXMA") {
     throw new Error(`Incorrect magic: ${magic.join("")}`);
   }
   let version;

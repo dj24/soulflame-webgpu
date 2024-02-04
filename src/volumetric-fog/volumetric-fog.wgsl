@@ -1,8 +1,8 @@
 const FOG_STEPS: f32 = 16.0;
-const FOG_HEIGHT_END: f32 = 4.0;
+const FOG_HEIGHT_END: f32 = 8.0;
 const FOG_DISTANCE: f32 = 24.0;
 const FOG_MULTIPLIER: f32 = 3.5;
-const NOISE_INFLUENCE: f32 = 0.5;
+const NOISE_INFLUENCE: f32 = 0.75;
 const WIND_SPEED: f32 = 0.04;
 const NOISE_SCALE: f32 = 1.5;
 const DEPTH_INFLUENCE: f32 = 0.5;
@@ -93,7 +93,7 @@ fn main(
     let scatterAmount = 0.05;
     var shadowRayDirection = -sunDirection + randomInHemisphere(randomCo, -sunDirection) * scatterAmount;
 //    var shadowRayDirection = -sunDirection;
-    var lightColour = MOON_COLOR;
+    var lightColour = SUN_COLOR;
 
     if(randomCo.x < 0.5){
       shadowRayDirection.z *= -1.0;

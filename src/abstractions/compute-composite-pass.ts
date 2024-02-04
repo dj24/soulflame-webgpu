@@ -108,6 +108,12 @@ const timeEntry: GPUBindGroupLayoutEntry = {
   },
 };
 
+const nearestSamplerEntry: GPUBindGroupLayoutEntry = {
+  binding: 13,
+  visibility: GPUShaderStage.COMPUTE,
+  sampler: {},
+};
+
 const baseBindGroupLayoutEntries = [
   depthEntry,
   inputTextureEntry,
@@ -121,6 +127,7 @@ const baseBindGroupLayoutEntries = [
   normalTextureEntry,
   blueNoiseTextureEntry,
   timeEntry,
+  nearestSamplerEntry,
 ];
 
 const NUM_THREADS_X = 8;
@@ -175,6 +182,7 @@ export const createComputeCompositePass = async ({
 @group(0) @binding(10) var normalTex : texture_2d<f32>;
 @group(0) @binding(11) var blueNoiseTex : texture_2d<f32>;
 @group(0) @binding(12) var<uniform> time : vec2<u32>;
+@group(0) @binding(13) var nearestSampler : sampler;
 
 const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
 const DOWNSCALE = ${downscale};
@@ -211,6 +219,16 @@ ${shaderCode}`;
 
   let copyOutputTexture: GPUTexture;
   let intermediaryTexture: GPUTexture;
+
+  let nearestSampler = device.createSampler({
+    magFilter: "nearest",
+    minFilter: "nearest",
+  });
+
+  let linearSampler = device.createSampler({
+    magFilter: "linear",
+    minFilter: "linear",
+  });
 
   const render = ({
     outputTextures,
@@ -300,10 +318,7 @@ ${shaderCode}`;
       },
       {
         binding: 8,
-        resource: device.createSampler({
-          magFilter: "linear",
-          minFilter: "linear",
-        }),
+        resource: linearSampler,
       },
       {
         binding: 10,
@@ -318,6 +333,10 @@ ${shaderCode}`;
         resource: {
           buffer: timeBuffer,
         },
+      },
+      {
+        binding: 13,
+        resource: nearestSampler,
       },
     ];
 

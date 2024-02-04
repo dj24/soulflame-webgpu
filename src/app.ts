@@ -9,7 +9,7 @@ import { Camera, moveCamera } from "./camera";
 import { DebugUI } from "./ui";
 import "./main.css";
 import { mat4, vec2, vec3 } from "wgpu-matrix";
-import treeHouse from "./voxel-models/tavern.vxm";
+import barrel from "./voxel-models/Tavern/Barrel.vxm";
 import dragon from "./voxel-models/dragon.vxm";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { DebugValuesStore } from "./debug-values-store";
@@ -24,6 +24,7 @@ import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels
 import { getShadowsPass } from "./shadow-pass/get-shadows-pass";
 import { getSkyPass } from "./sky-and-fog/get-sky-pass";
 import { getVolumetricFog } from "./volumetric-fog/get-volumetric-fog";
+import { createTavern } from "./create-tavern";
 
 export type RenderArgs = {
   enabled?: boolean;
@@ -500,16 +501,16 @@ const start = async () => {
     ]);
     volumeAtlas = getVolumeAtlas(device);
 
-    let treeHouseTexture = await create3dTexture(
+    let barrelTexture = await create3dTexture(
       device,
-      treeHouse.sliceFilePaths,
-      treeHouse.size,
-      "treeHouse",
+      barrel.sliceFilePaths,
+      barrel.size,
+      "barrel",
     );
-    treeHouseTexture = await removeInternalVoxels(device, treeHouseTexture);
-    generateOctreeMips(device, treeHouseTexture);
-    volumeAtlas.addVolume(treeHouseTexture, "treeHouse");
-    treeHouseTexture.destroy();
+    barrelTexture = await removeInternalVoxels(device, barrelTexture);
+    generateOctreeMips(device, barrelTexture);
+    volumeAtlas.addVolume(barrelTexture, "barrel");
+    barrelTexture.destroy();
 
     let dragonTexture = await create3dTexture(
       device,
@@ -520,8 +521,8 @@ const start = async () => {
     dragonTexture = await removeInternalVoxels(device, dragonTexture);
     generateOctreeMips(device, dragonTexture);
     volumeAtlas.addVolume(dragonTexture, "dragon");
-    console.log(volumeAtlas.getVolumes());
     dragonTexture.destroy();
+    createTavern(device, volumeAtlas);
 
     const computePassPromises: Promise<RenderPass>[] = [
       // getDepthPrepass(),
@@ -530,7 +531,7 @@ const start = async () => {
       // getReflectionsPass(),
       getShadowsPass(),
       getSkyPass(),
-      getVolumetricFog(),
+      // getVolumetricFog(),
       // getTaaPass(),
       // getMotionBlurPass(),
       fullscreenQuad(device),

@@ -51,6 +51,19 @@ fn blinnPhong(normal: vec3<f32>, lightDirection: vec3<f32>, viewDirection: vec3<
   return (diffuse + specular * specularStrength) * lightColour;
 }
 
+struct Light {
+  direction: vec3<f32>,
+  colour: vec3<f32>,
+};
+
+const LIGHT_COUNT = 3;
+
+// Function to remap the blue noise value to a sample index
+fn remapToSampleIndex(blueNoiseValue: f32, numSamples: u32) -> u32 {
+    // Map blue noise value to the index range [0, numSamples)
+    return u32(blueNoiseValue * f32(numSamples));
+}
+
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
@@ -58,13 +71,15 @@ fn main(
   let samplePixel = GlobalInvocationID.xy * DOWNSCALE;
   let outputPixel = GlobalInvocationID.xy;
 
-  let blueNoisePixel = outputPixel % BLUE_NOISE_SIZE;
+  var blueNoisePixel = outputPixel % BLUE_NOISE_SIZE;
+  if(time.x % 2 == 0){
+    blueNoisePixel.x = BLUE_NOISE_SIZE - blueNoisePixel.x;
+  }
   let blueNoiseUv = vec2<f32>(blueNoisePixel) / vec2<f32>(BLUE_NOISE_SIZE);
-
   let resolution = vec2<f32>(textureDimensions(depthTex));
   let uv = vec2<f32>(outputPixel) / resolution;
-
   var normalSample = textureLoad(normalTex, samplePixel, 0).rgb;
+  let worldPos = textureLoad(depthTex, samplePixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
   let randomCo = vec2<f32>(samplePixel);
 
   let scatterAmount = 0.05;
@@ -72,26 +87,46 @@ fn main(
   var count = 0.0;
 
   for(var i = 0; i < SAMPLE_COUNT; i++){
-    var lightColour = MOON_COLOR;
+    let lights = array<Light, LIGHT_COUNT>(
+      Light(
+        -sunDirection,
+        SUN_COLOR,
+      ),
+      Light(
+              -sunDirection,
+              SUN_COLOR,
+            ),
+          Light(
+                  -sunDirection,
+                  SUN_COLOR,
+                ),
+
+//      Light(
+//        vec3(-1,0,-1),
+//        vec3(1,0,0),
+//      ),
+//      Light(
+//        vec3(1,0,-1),
+//        vec3(0,0,1),
+//      ),
+    );
+
 
     var offset = SUBPIXEL_SAMPLE_POSITIONS[i] / vec2<f32>(BLUE_NOISE_SIZE);
-    let r = textureSampleLevel(blueNoiseTex, linearSampler, blueNoiseUv + offset, 0).xy;
+    var r = textureSampleLevel(blueNoiseTex, nearestSampler, blueNoiseUv + offset, 0).xy;
 
-    var shadowRayDirection = -sunDirection + randomInHemisphere(r, -sunDirection) * scatterAmount;
-    let worldPos = textureLoad(depthTex, samplePixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
-    if(r.r < 0.5){
-      shadowRayDirection.z *= -1.0;
-      lightColour = vec3(1,0,0);
-    }
-//    if(r.r < 0.33){
-//      shadowRayDirection.x *= -1.0;
-//      lightColour = vec3(0,1,1);
-//    }
+    let randomSampleIndex = i32(randomMinMax(r, 0, LIGHT_COUNT));
+
+    // TODO: store with reservoir sampling, and best sample
+    var selectedLight = lights[randomSampleIndex];
+
+    var shadowRayDirection = selectedLight.direction + randomInHemisphere(r, selectedLight.direction) * scatterAmount;
+
     if(shadowRay(worldPos, shadowRayDirection)){
       total += vec3(0.0);
     } else{
       let rayDirection = normalize(worldPos - cameraPosition);
-      total += blinnPhong(normalSample, shadowRayDirection, rayDirection, 0.5, 80.0, lightColour);
+      total += blinnPhong(normalSample, shadowRayDirection, rayDirection, 0.5, 80.0, selectedLight.colour);
     }
     count += 1.0;
   }
