@@ -78,7 +78,7 @@ export const getMotionBlurPass = async (): Promise<RenderPass> => {
     }
     commandEncoder.copyTextureToTexture(
       {
-        texture: outputTextures.finalTexture, // TODO: pass texture as well as view
+        texture: outputTextures.finalTexture,
       },
       {
         texture: copyOutputTexture,

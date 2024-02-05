@@ -28,6 +28,7 @@ import { createTavern, getObjectTransforms } from "./create-tavern";
 import { GetObjectsArgs } from "./get-objects-transforms/objects-worker";
 import dragonVolume from "./voxel-models/dragon.vxm";
 import { VoxelObject } from "./voxel-object";
+import { getBoxOutlinePass } from "./box-outline/get-box-outline-pass";
 
 export type RenderArgs = {
   enabled?: boolean;
@@ -539,6 +540,7 @@ const start = async () => {
       // getVolumetricFog(),
       // getTaaPass(),
       // getMotionBlurPass(),
+      getBoxOutlinePass(),
       fullscreenQuad(device),
     ];
 
