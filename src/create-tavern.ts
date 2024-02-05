@@ -1,5 +1,4 @@
 import { VolumeAtlas } from "./volume-atlas";
-import tavernDefinition from "./voxel-models/Tavern/Tavern.json";
 import { create3dTexture } from "./create-3d-texture/create-3d-texture";
 import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels";
 import { generateOctreeMips } from "./create-3d-texture/generate-octree-mips";
@@ -9,10 +8,26 @@ import { GetObjectsArgs } from "./get-objects-transforms/objects-worker";
 
 let objects: VoxelObject[] = [];
 
+type TSceneDefinition = {
+  name: string;
+  position: number[];
+  rotation: number[];
+  scale: number[];
+  children: {
+    name: string;
+    position: number[];
+    rotation: number[];
+    scale: number[];
+  }[];
+};
+
 export const createTavern = async (
   device: GPUDevice,
   volumeAtlas: VolumeAtlas,
 ) => {
+  const tavernResponse = await fetch("./Tavern.json");
+  const tavernDefinition = (await tavernResponse.json()) as TSceneDefinition;
+
   const childObjects = tavernDefinition.children;
   const uniqueChildNames = new Set(childObjects.map((child) => child.name));
   const uniqueChildNamesArray = Array.from(uniqueChildNames);
@@ -38,16 +53,30 @@ export const createTavern = async (
       console.warn(`Volume not found for child ${child.name}, skipping...`);
       return;
     }
-    if (child.name !== "Table") {
+    if (
+      ![
+        "Table",
+        "Bench",
+        "Stool",
+        "BarTop",
+        "BarTopS",
+        "BarTop1",
+        "Barrel",
+        "Keg",
+        // "Candle",
+        "Bed",
+        "Torch",
+        "TorchHolder",
+        "FireLogs",
+        "Tankard",
+      ].includes(child.name)
+    ) {
       return;
     }
     const m = mat4.identity();
-    const rotationM = mat4.fromQuat(child.rotation);
-    mat4.scale(m, child.scale, m);
-    mat4.multiply(m, rotationM, m);
     mat4.translate(m, child.position, m);
-    console.log({ child });
-
+    mat4.scale(m, child.scale, m);
+    mat4.multiply(m, mat4.fromQuat(child.rotation), m);
     objects.push(new VoxelObject(m, volume.size, volume.location));
   });
   console.log("Tavern created", objects);

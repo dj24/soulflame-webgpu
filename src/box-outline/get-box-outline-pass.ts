@@ -1,9 +1,9 @@
 import { RenderPass } from "../app";
 import boxOutline from "./box-outline.wgsl";
-import { createComputePass } from "../abstractions/compute-pass";
+import { createPerObjectPass } from "../abstractions/per-object-pass";
 
 export const getBoxOutlinePass = async (): Promise<RenderPass> => {
-  return createComputePass({
+  return createPerObjectPass({
     shaderCode: boxOutline,
     entryPoint: "main",
     label: "box outline",

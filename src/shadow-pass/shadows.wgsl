@@ -56,7 +56,7 @@ struct Light {
   colour: vec3<f32>,
 };
 
-const LIGHT_COUNT = 3;
+const LIGHT_COUNT = 2;
 
 // Function to remap the blue noise value to a sample index
 fn remapToSampleIndex(blueNoiseValue: f32, numSamples: u32) -> u32 {
@@ -82,7 +82,7 @@ fn main(
   let worldPos = textureLoad(depthTex, samplePixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
   let randomCo = vec2<f32>(samplePixel);
 
-  let scatterAmount = 0.05;
+  let scatterAmount = 0.02;
   var total = vec3(0.0);
   var count = 0.0;
 
@@ -93,22 +93,13 @@ fn main(
         SUN_COLOR,
       ),
       Light(
-        -sunDirection,
-        SUN_COLOR,
-      ),
-      Light(
-        -sunDirection,
-        SUN_COLOR,
-      ),
-
+              -sunDirection,
+              SUN_COLOR,
+            ),
 //      Light(
-//        vec3(-1,0,-1),
-//        vec3(1,0,0),
-//      ),
-//      Light(
-//        vec3(1,0,-1),
-//        vec3(0,0,1),
-//      ),
+//              vec3( 0, 1, 0),
+//              vec3(0.3,0.4,0.6),
+//            ),
     );
 
 
@@ -135,8 +126,6 @@ fn main(
   textureStore(outputTex, outputPixel, vec4(shadowAmount, 1.0));
 }
 
-const AMBIENT_STRENGTH = 0.1;
-
 @compute @workgroup_size(8, 8, 1)
 fn composite(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
@@ -151,18 +140,18 @@ fn composite(
   var total = vec3(0.0);
   var count = 0.0;
 
-  for(var i = 0; i < DOWNSCALE; i+= 1) {
-    for(var j = 0; j < DOWNSCALE; j += 1) {
+  for(var i = 2; i < 3; i+= 1) {
+    for(var j = 2; j < 3; j += 1) {
       let offset = vec2(f32(i), f32(j)) / texSize;
       let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, uv + offset, 0.0).rgb;
-      let depthSample = textureLoad(depthTex, vec2<i32>(pixel) + vec2(i, j), 0).a;
-      let normalSample = textureLoad(normalTex, vec2<i32>(pixel) + vec2(i, j), 0).rgb;
+//      let depthSample = textureLoad(depthTex, vec2<i32>(pixel) + vec2(i, j), 0).a;
+//      let normalSample = textureLoad(normalTex, vec2<i32>(pixel) + vec2(i, j), 0).rgb;
       // bilateral blur
       let gaussianWeight = exp(-(f32(i * i) + f32(j * j)) * 0.01);
-      let normalDifference = dot(normalSample, normalRef);
-      let normalWeight = 1.0 - exp(-normalDifference * normalDifference * 10.0);
-      total += shadowSample * normalWeight * gaussianWeight;
-      count += normalWeight * gaussianWeight;
+//      let normalDifference = dot(normalSample, normalRef);
+//      let normalWeight = 1.0 - exp(-normalDifference * normalDifference * 10.0);
+      total += shadowSample;
+      count += 1.0;
     }
   }
   total /= count;

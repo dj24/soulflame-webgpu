@@ -15,8 +15,8 @@ export class DebugValuesStore {
   targetSunRotateY;
 
   constructor() {
-    this.maxObjectCount = 192;
-    this.objectCount = 192;
+    this.maxObjectCount = 222;
+    this.objectCount = 222;
     this.scale = 1;
     this.translateX = 0;
     this.targetScale = 1;
