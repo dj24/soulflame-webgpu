@@ -62,14 +62,14 @@ export const createTavern = async (
         "BarTop",
         "BarTopS",
         "BarTop1",
-        "Barrel",
-        "Keg",
+        // "Barrel",
+        // "Keg",
         // "Candle",
         "Bed",
-        "Torch",
-        "TorchHolder",
+        // "Torch",
+        // "TorchHolder",
         "FireLogs",
-        "Tankard",
+        // "Tankard",
       ].includes(child.name)
     ) {
       return;
@@ -85,15 +85,21 @@ export const createTavern = async (
 
 const paddingElement = new VoxelObject(mat4.identity(), [0, 0, 0], [0, 0, 0]);
 
+const getClosestPointToCamera = (object: VoxelObject) => {
+  return object.worldSpaceCorners.sort((a, b) => {
+    const aDistance = vec3.distance(a, camera.position);
+    const bDistance = vec3.distance(b, camera.position);
+    return aDistance - bDistance;
+  })[0];
+};
+
 const sortObjectsByDistanceToCamera = (
   voxelObjects: VoxelObject[],
   cameraPosition: Vec3,
 ) => {
   return voxelObjects.sort((a, b) => {
-    const aPosition = mat4.getTranslation(a.transform);
-    const bPosition = mat4.getTranslation(b.transform);
-    const aDistance = vec3.distance(aPosition, cameraPosition);
-    const bDistance = vec3.distance(bPosition, cameraPosition);
+    const aDistance = vec3.distance(a.worldSpaceCenter, cameraPosition);
+    const bDistance = vec3.distance(b.worldSpaceCenter, cameraPosition);
     return aDistance - bDistance;
   });
 };
@@ -101,10 +107,10 @@ const sortObjectsByDistanceToCamera = (
 export const getObjectTransforms = ({ maxObjectCount }: GetObjectsArgs) => {
   let objectCount = Math.min(maxObjectCount, voxelObjects.length);
   let activeVoxelObjects = voxelObjects.slice(0, objectCount);
-  activeVoxelObjects = sortObjectsByDistanceToCamera(
-    activeVoxelObjects,
-    camera.position,
-  );
+  // activeVoxelObjects = sortObjectsByDistanceToCamera(
+  //   activeVoxelObjects,
+  //   camera.position,
+  // );
 
   const differenceInObjectCount = maxObjectCount - objectCount;
   const padding = new Array(differenceInObjectCount).fill(paddingElement);

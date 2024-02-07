@@ -1,5 +1,4 @@
 import { mat4, Mat4, vec3, Vec3 } from "wgpu-matrix";
-import { nextPowerOf2 } from "./create-3d-texture/create-3d-texture";
 
 export class VoxelObject {
   transform: Mat4;
@@ -10,10 +9,6 @@ export class VoxelObject {
   atlasLocation: Vec3;
   constructor(transform: Mat4, size: Vec3, atlasLocation: Vec3) {
     this.transform = transform;
-    // const xSize = nextPowerOf2(size[0]);
-    // const ySize = nextPowerOf2(size[1]);
-    // const zSize = nextPowerOf2(size[2]);
-    // this.size = [xSize, ySize, zSize];
     this.size = size;
     this.inverseTransform = mat4.invert(this.transform);
     this.previousTransform = mat4.clone(this.transform);
@@ -27,6 +22,25 @@ export class VoxelObject {
     vec3.transformMat4(vec3.create(), this.transform, minBound);
     vec3.transformMat4(this.size, this.transform, maxBound);
     return { minBound, maxBound };
+  }
+
+  get objectSpaceCorners() {
+    return [
+      [0, 0, 0],
+      [0, 0, this.size[2]],
+      [0, this.size[1], 0],
+      [0, this.size[1], this.size[2]],
+      [this.size[0], 0, 0],
+      [this.size[0], 0, this.size[2]],
+      [this.size[0], this.size[1], 0],
+      [this.size[0], this.size[1], this.size[2]],
+    ];
+  }
+
+  get worldSpaceCorners() {
+    return this.objectSpaceCorners.map((corner) => {
+      return vec3.transformMat4(corner, corner, this.transform);
+    });
   }
 
   get worldSpaceCenter() {
