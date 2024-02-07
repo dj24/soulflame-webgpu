@@ -109,8 +109,12 @@ fn main(
     // Bounds for octree node
     let raymarchResult = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 1);
 //    totalSteps += output.stepsTaken;
-    if(raymarchResult.hit && distance(raymarchResult.worldPos, rayOrigin) < distance(closestIntersection.worldPos, rayOrigin)){
+//    if(raymarchResult.hit && distance(raymarchResult.worldPos, rayOrigin) < distance(closestIntersection.worldPos, rayOrigin)){
+//      closestIntersection = raymarchResult;
+//    }
+    if(raymarchResult.hit){
       closestIntersection = raymarchResult;
+      break;
     }
   }
 

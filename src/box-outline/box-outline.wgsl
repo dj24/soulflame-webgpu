@@ -103,7 +103,6 @@ const BOX_EDGES = array<u32, 24>(
 );
 
 const TRIANGLES_PER_CUBE = 12;
-
 @compute @workgroup_size(TRIANGLES_PER_CUBE, 1)
 fn main(
   @builtin(workgroup_id) WorkGroupID : vec3<u32>, @builtin(local_invocation_id) LocalInvocationID : vec3<u32>
@@ -121,44 +120,43 @@ fn main(
   let modelMatrix = voxelObject.transform;
   let mvp =  viewProjectionMatrix * modelMatrix;
 
-//  for(var i = 0; i < 8; i+=2) {
-//    let startIndex = BOX_EDGES[i];
-//    let endIndex = BOX_EDGES[i + 1];
-//    let startVertex = BOX_VERTICES[startIndex] * voxelObject.size;
-//    let endVertex = BOX_VERTICES[endIndex] * voxelObject.size;
+  let startIndex = BOX_EDGES[triangleIndex * 2 ];
+  let endIndex = BOX_EDGES[triangleIndex * 2 + 1];
+  let startVertex = BOX_VERTICES[startIndex] * voxelObject.size;
+  let endVertex = BOX_VERTICES[endIndex] * voxelObject.size;
+
+  let projectedStart = project(mvp, startVertex);
+  let projectedEnd = project(mvp, endVertex);
+
+  if(projectedStart.z < 0.0 && projectedEnd.z < 0.0) {
+    return;
+  }
+
+  let startPixel = vec2<i32>(projectedStart.xy);
+  let endPixel = vec2<i32>(projectedEnd.xy);
+  drawLine(startPixel, endPixel, LINE_COLOUR);
+
+
+
+//    let v = triangleIndex * 3;
+//    let v1 = BOX_VERTICES[BOX_TRIANGLES[v]] * voxelObject.size;
+//    let v2 = BOX_VERTICES[BOX_TRIANGLES[v + 1]] * voxelObject.size;
+//    let v3 = BOX_VERTICES[BOX_TRIANGLES[v + 2]] * voxelObject.size;
 //
-//    let projectedStart = project(mvp, startVertex);
-//    let projectedEnd = project(mvp, endVertex);
+//    let p1 = project(mvp, v1);
+//    let p2 = project(mvp, v2);
+//    let p3 = project(mvp, v3);
 //
-//    if(projectedStart.z < 0.0 && projectedEnd.z < 0.0) {
-//      continue;
+//    if(p1.z < 0.0 || p2.z < 0.0 || p3.z < 0.0) {
+//      return;
 //    }
 //
-//    let startPixel = vec2<i32>(projectedStart.xy) + offset;
-//    let endPixel = vec2<i32>(projectedEnd.xy) + offset;
-//    drawLine(startPixel, endPixel, LINE_COLOUR);
-//  }
-
-
-    let v = triangleIndex * 3;
-    let v1 = BOX_VERTICES[BOX_TRIANGLES[v]] * voxelObject.size;
-    let v2 = BOX_VERTICES[BOX_TRIANGLES[v + 1]] * voxelObject.size;
-    let v3 = BOX_VERTICES[BOX_TRIANGLES[v + 2]] * voxelObject.size;
-
-    let p1 = project(mvp, v1);
-    let p2 = project(mvp, v2);
-    let p3 = project(mvp, v3);
-
-    if(p1.z < 0.0 || p2.z < 0.0 || p3.z < 0.0) {
-      return;
-    }
-
-    let p1i = vec2<i32>(p1.xy);
-    let p2i = vec2<i32>(p2.xy);
-    let p3i = vec2<i32>(p3.xy);
-
-    let faceIndex = triangleIndex / 2;
-    fillTriangle(p1i, p2i, p3i, LINE_COLOUR);
+//    let p1i = vec2<i32>(p1.xy);
+//    let p2i = vec2<i32>(p2.xy);
+//    let p3i = vec2<i32>(p3.xy);
+//
+//    let faceIndex = triangleIndex / 2;
+//    fillTriangle(p1i, p2i, p3i, LINE_COLOUR);
 
 
 }

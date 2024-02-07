@@ -2,11 +2,12 @@ import { VolumeAtlas } from "./volume-atlas";
 import { create3dTexture } from "./create-3d-texture/create-3d-texture";
 import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels";
 import { generateOctreeMips } from "./create-3d-texture/generate-octree-mips";
-import { mat4 } from "wgpu-matrix";
+import { mat4, vec3, Vec3 } from "wgpu-matrix";
 import { VoxelObject } from "./voxel-object";
 import { GetObjectsArgs } from "./get-objects-transforms/objects-worker";
+import { camera } from "./app";
 
-let objects: VoxelObject[] = [];
+let voxelObjects: VoxelObject[] = [];
 
 type TSceneDefinition = {
   name: string;
@@ -77,18 +78,33 @@ export const createTavern = async (
     mat4.translate(m, child.position, m);
     mat4.scale(m, child.scale, m);
     mat4.multiply(m, mat4.fromQuat(child.rotation), m);
-    objects.push(new VoxelObject(m, volume.size, volume.location));
+    voxelObjects.push(new VoxelObject(m, volume.size, volume.location));
   });
-  console.log("Tavern created", objects);
+  console.log("Tavern created", voxelObjects);
 };
 
 const paddingElement = new VoxelObject(mat4.identity(), [0, 0, 0], [0, 0, 0]);
 
+const sortObjectsByDistanceToCamera = (
+  voxelObjects: VoxelObject[],
+  cameraPosition: Vec3,
+) => {
+  return voxelObjects.sort((a, b) => {
+    const aPosition = mat4.getTranslation(a.transform);
+    const bPosition = mat4.getTranslation(b.transform);
+    const aDistance = vec3.distance(aPosition, cameraPosition);
+    const bDistance = vec3.distance(bPosition, cameraPosition);
+    return aDistance - bDistance;
+  });
+};
+
 export const getObjectTransforms = ({ maxObjectCount }: GetObjectsArgs) => {
-  let voxelObjects = objects;
-  let activeVoxelObjects = voxelObjects;
   let objectCount = Math.min(maxObjectCount, voxelObjects.length);
-  activeVoxelObjects = activeVoxelObjects.slice(0, objectCount);
+  let activeVoxelObjects = voxelObjects.slice(0, objectCount);
+  activeVoxelObjects = sortObjectsByDistanceToCamera(
+    activeVoxelObjects,
+    camera.position,
+  );
 
   const differenceInObjectCount = maxObjectCount - objectCount;
   const padding = new Array(differenceInObjectCount).fill(paddingElement);

@@ -540,7 +540,7 @@ const start = async () => {
       // getVolumetricFog(),
       // getTaaPass(),
       // getMotionBlurPass(),
-      getBoxOutlinePass(),
+      // getBoxOutlinePass(),
       fullscreenQuad(device),
     ];
 
