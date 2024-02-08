@@ -81,7 +81,7 @@ fn main(
 
   textureStore(depthWrite, GlobalInvocationID.xy, vec4(vec3(0.0), FAR_PLANE));
   textureStore(normalTex, GlobalInvocationID.xy, vec4(0.0));
-//  textureStore(albedoTex, GlobalInvocationID.xy, vec4(0.0));
+  textureStore(albedoTex, GlobalInvocationID.xy, vec4(0.0));
   textureStore(velocityTex, pixel, vec4(0.0));
 
   var totalSteps = 0;
@@ -89,43 +89,46 @@ fn main(
   let minMipLevel = u32(0);
   var mipLevel = maxMipLevel;
 
-  for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
-    let voxelObject = voxelObjects[i];
-    if(any(voxelObject.size == vec3(0.0))){
-      continue;
-    }
-    var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
-    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-    let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
-    let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size);
-    if(!intersect.isHit && !isInBounds) {
-      continue;
-    }
-    // Advance ray origin to the point of intersection
-    if(!isInBounds){
-      objectRayOrigin = objectRayOrigin + objectRayDirection * intersect.tNear + EPSILON;
-    }
-
-    // Bounds for octree node
-    let raymarchResult = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 1);
-    if(raymarchResult.hit){
-      closestIntersection = raymarchResult;
-      break;
-    }
+//  for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
+//    let voxelObject = voxelObjects[i];
+//    if(any(voxelObject.size == vec3(0.0))){
+//      continue;
+//    }
+//    var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
+//    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+//    let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
+//    let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size);
+//    if(!intersect.isHit && !isInBounds) {
+//      continue;
+//    }
+//    // Advance ray origin to the point of intersection
+//    if(!isInBounds){
+//      objectRayOrigin = objectRayOrigin + objectRayDirection * intersect.tNear + EPSILON;
+//    }
+//
+//    // Bounds for octree node
+//    let raymarchResult = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 1);
+//    if(raymarchResult.hit){
+//      closestIntersection = raymarchResult;
+//      break;
+//    }
+//  }
+  let boxPosition = vec3(0.0,0.0,0.0);
+  let boxSize = vec3(20.0);
+  let intersect = boxIntersection(rayOrigin - boxPosition, rayDirection, boxSize);
+  if(intersect.isHit){
+    closestIntersection.normal = intersect.normal;
+    closestIntersection.worldPos = rayOrigin + rayDirection * intersect.tNear;
+    closestIntersection.colour = vec3(1.0,0.0,0.0);
   }
 
   let normal = closestIntersection.normal;
   let depth = distance(cameraPosition, closestIntersection.worldPos);
-  let lambert = dot(normal, normalize(-sunDirection));
-//  let albedo = vec3(mix(vec3(0.1,0,0.5), vec3(1,0.5,0.25), f32(totalSteps) / 50.0));
-let albedo = closestIntersection.colour;
-//let albedo = mix(vec3(0.0), vec3(closestIntersection.worldPos.x % 1),f32(totalSteps) / 50.0) ;
-//  let albedo = vec3(closestIntersection.objectPos % 1.0);
-  let colour = mix(albedo,vec3(lambert * albedo),1.0);
+  let albedo = closestIntersection.colour;
   let velocity = getVelocity(closestIntersection, viewProjections);
 
   textureStore(depthWrite, GlobalInvocationID.xy, vec4(closestIntersection.worldPos, depth));
-  textureStore(albedoTex, pixel, vec4(albedo % 1.0, 1));
+  textureStore(albedoTex, pixel, vec4(albedo, 1));
   textureStore(normalTex, pixel, vec4(normal,1));
   textureStore(velocityTex, pixel, vec4(velocity,0));
 }
