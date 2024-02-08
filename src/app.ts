@@ -29,6 +29,7 @@ import { GetObjectsArgs } from "./get-objects-transforms/objects-worker";
 import dragonVolume from "./voxel-models/dragon.vxm";
 import { VoxelObject } from "./voxel-object";
 import { getBoxOutlinePass } from "./box-outline/get-box-outline-pass";
+import { BVH } from "./bvh";
 
 export type RenderArgs = {
   enabled?: boolean;
@@ -123,6 +124,12 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         GPUBufferUsage.COPY_DST,
     });
   }
+
+  const sceneBVH = new BVH([
+    new VoxelObject(mat4.identity(), [50, 50, 50], [0, 0, 0]),
+  ]);
+
+  console.log({ sceneBVH });
 
   const init = () => {
     const { clientWidth, clientHeight } = canvas.parentElement;

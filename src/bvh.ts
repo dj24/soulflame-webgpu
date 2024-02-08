@@ -10,6 +10,22 @@ type BVHNode = {
   objectCount: number;
 };
 
+const getMedian = (voxelObjects: VoxelObject[], axis: 0 | 1 | 2) => {
+  const centers = voxelObjects.map(
+    (voxelObject) => voxelObject.worldSpaceCenter,
+  );
+  centers.sort((a, b) => a[axis] - b[axis]);
+  return centers[Math.floor(centers.length / 2)][axis];
+};
+
+const getAABBCentroid = (AABBMin: Vec3, AABBMax: Vec3) => {
+  return [
+    (AABBMin[0] + AABBMax[0]) / 2,
+    (AABBMin[1] + AABBMax[1]) / 2,
+    (AABBMin[2] + AABBMax[2]) / 2,
+  ];
+};
+
 const getAABB = (voxelObjects: VoxelObject[]) => {
   let min = [Infinity, Infinity, Infinity];
   let max = [-Infinity, -Infinity, -Infinity];
@@ -67,12 +83,19 @@ export class BVH {
       device.queue.writeBuffer(
         buffer,
         0, // offset
-        childIndices.buffer,
-        0, // data offset
-        childIndicesSize,
+        AABB.buffer,
+        childIndicesSize, // data offset
+        AABBSize,
       );
 
       const objectCount = new Uint16Array([node.objectCount]);
+      device.queue.writeBuffer(
+        buffer,
+        0, // offset
+        objectCount.buffer,
+        childIndicesSize + AABBSize, // data offset
+        objectCountSize,
+      );
     }
   }
 }

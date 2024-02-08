@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "WebGPU voxel raytracing",
   "main": "app.js",
+  "type": "module",
   "scripts": {
     "build": "webpack",
     "serve": "webpack server",
