@@ -12,7 +12,7 @@ export const create3dTexture = async (
   size: Vec3,
   label?: string,
 ): Promise<GPUTexture> => {
-  console.log(`Creating 3D texture with size: ${size}, label: ${label}`);
+  //console.log(`Creating 3D texture with size: ${size}, label: ${label}`);
   const width = nextPowerOf2(size[0]);
   const height = nextPowerOf2(size[1]);
   const depth = nextPowerOf2(size[2]);

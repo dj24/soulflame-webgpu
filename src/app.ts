@@ -127,9 +127,16 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
   const sceneBVH = new BVH([
     new VoxelObject(mat4.identity(), [50, 50, 50], [0, 0, 0]),
+    new VoxelObject(
+      mat4.translate(mat4.identity(), [50, 0, 0]),
+      [25, 25, 25],
+      [0, 0, 0],
+    ),
   ]);
 
   console.log({ sceneBVH });
+
+  const BVHBuffer = sceneBVH.toGPUBuffer(device);
 
   const init = () => {
     const { clientWidth, clientHeight } = canvas.parentElement;

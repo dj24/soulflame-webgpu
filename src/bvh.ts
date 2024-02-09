@@ -26,6 +26,10 @@ const getAABBCentroid = (AABBMin: Vec3, AABBMax: Vec3) => {
   ];
 };
 
+const ceilToNearestMultipleOf = (n: number, multiple: number) => {
+  return Math.ceil(n / multiple) * multiple;
+};
+
 const getAABB = (voxelObjects: VoxelObject[]) => {
   let min = [Infinity, Infinity, Infinity];
   let max = [-Infinity, -Infinity, -Infinity];
@@ -60,20 +64,24 @@ export class BVH {
     const childIndicesSize = Uint8Array.BYTES_PER_ELEMENT * 2;
     const AABBSize = Float32Array.BYTES_PER_ELEMENT * 6;
     const objectCountSize = Uint16Array.BYTES_PER_ELEMENT;
-    const stride = childIndicesSize + AABBSize + objectCountSize;
+    let stride = childIndicesSize + AABBSize + objectCountSize;
+    stride = ceilToNearestMultipleOf(stride, 16);
+    console.log("stride", stride);
     const buffer = device.createBuffer({
       size: this.nodes.length * stride,
       usage: GPUBufferUsage.STORAGE,
       mappedAtCreation: true,
     });
-    for (const node of this.nodes) {
+    for (let i = 0; i < this.nodes.length; i++) {
+      const node = this.nodes[i];
+      const bufferOffset = i * stride;
       const childIndices = new Uint8Array([
         node.leftChildIndex,
         node.rightChildIndex,
       ]);
       device.queue.writeBuffer(
         buffer,
-        0, // offset
+        bufferOffset, // offset
         childIndices.buffer,
         0, // data offset
         childIndicesSize,
@@ -82,7 +90,7 @@ export class BVH {
       const AABB = new Float32Array([...node.AABBMin, ...node.AABBMax]);
       device.queue.writeBuffer(
         buffer,
-        0, // offset
+        bufferOffset, // offset
         AABB.buffer,
         childIndicesSize, // data offset
         AABBSize,
@@ -91,11 +99,12 @@ export class BVH {
       const objectCount = new Uint16Array([node.objectCount]);
       device.queue.writeBuffer(
         buffer,
-        0, // offset
+        bufferOffset, // offset
         objectCount.buffer,
         childIndicesSize + AABBSize, // data offset
         objectCountSize,
       );
+      return buffer;
     }
   }
 }
