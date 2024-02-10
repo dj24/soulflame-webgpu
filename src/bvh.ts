@@ -10,7 +10,7 @@ type BVHNode = {
   objectCount: number;
 };
 
-const getMedian = (voxelObjects: VoxelObject[], axis: 0 | 1 | 2) => {
+const getMedian = (voxelObjects: VoxelObject[], axis: number) => {
   const centers = voxelObjects.map(
     (voxelObject) => voxelObject.worldSpaceCenter,
   );
@@ -18,12 +18,31 @@ const getMedian = (voxelObjects: VoxelObject[], axis: 0 | 1 | 2) => {
   return centers[Math.floor(centers.length / 2)][axis];
 };
 
-const getAABBCentroid = (AABBMin: Vec3, AABBMax: Vec3) => {
-  return [
-    (AABBMin[0] + AABBMax[0]) / 2,
-    (AABBMin[1] + AABBMax[1]) / 2,
-    (AABBMin[2] + AABBMax[2]) / 2,
+const getLongestAxis = (AABBMin: Vec3, AABBMax: Vec3) => {
+  return 0;
+  const size = [
+    AABBMax[0] - AABBMin[0],
+    AABBMax[1] - AABBMin[1],
+    AABBMax[2] - AABBMin[2],
   ];
+  return size.indexOf(Math.max(...size));
+};
+
+const splitVoxelObjects = (
+  voxelObjects: VoxelObject[],
+  median: number,
+  axis: number,
+) => {
+  const left = [];
+  const right = [];
+  for (const voxelObject of voxelObjects) {
+    if (voxelObject.worldSpaceCenter[axis] < median) {
+      left.push(voxelObject);
+    } else if (voxelObject.worldSpaceCenter[axis] > median) {
+      right.push(voxelObject);
+    }
+  }
+  return { left, right };
 };
 
 const ceilToNearestMultipleOf = (n: number, multiple: number) => {
@@ -50,31 +69,71 @@ export class BVH {
 
   constructor(voxelObjects: VoxelObject[]) {
     console.time("BVH Created in");
-    this.buildBVH(voxelObjects);
+    this.nodes = [];
+    this.buildBVH(voxelObjects, 0);
     console.timeEnd("BVH Created in");
   }
 
-  buildBVH(voxelObjects: VoxelObject[]) {
-    this.nodes = [
-      {
-        AABBMin: getAABB(voxelObjects).min,
-        AABBMax: getAABB(voxelObjects).max,
+  buildBVH(voxelObjects: VoxelObject[], startIndex: number) {
+    // console.log(this.nodes);
+    const AABB = getAABB(voxelObjects);
+    const leftChildIndex = 2 * startIndex + 1;
+    const rightChildIndex = 2 * startIndex + 2;
+    const node = {
+      AABBMin: AABB.min,
+      AABBMax: AABB.max,
+      leftChildIndex,
+      rightChildIndex,
+      objectCount: voxelObjects.length,
+    };
+    this.nodes[startIndex] = node;
+    const longestAxis = getLongestAxis(node.AABBMin, node.AABBMax);
+    const median = getMedian(voxelObjects, longestAxis);
+    const { left, right } = splitVoxelObjects(
+      voxelObjects,
+      median,
+      longestAxis,
+    );
+    if (left.length > 1) {
+      this.buildBVH(left, leftChildIndex);
+    } else if (left.length === 1) {
+      const AABB = getAABB(left);
+      const node = {
+        AABBMin: AABB.min,
+        AABBMax: AABB.max,
         leftChildIndex: 0,
         rightChildIndex: 0,
-        objectCount: voxelObjects.length,
-      },
-    ];
+        objectCount: 1,
+      };
+      this.nodes.push(node);
+    }
+    if (right.length > 1) {
+      this.buildBVH(right, rightChildIndex);
+    } else if (right.length === 1) {
+      const AABB = getAABB(right);
+      const node = {
+        AABBMin: AABB.min,
+        AABBMax: AABB.max,
+        leftChildIndex: 0,
+        rightChildIndex: 0,
+        objectCount: 1,
+      };
+      this.nodes.push(node);
+    }
+    if (left.length <= 1 && right.length <= 1) {
+      return;
+    }
   }
 
   toGPUBuffer(device: GPUDevice) {
-    const childIndicesSize = Uint32Array.BYTES_PER_ELEMENT * 2;
+    const childIndicesSize = Int32Array.BYTES_PER_ELEMENT * 2;
     const AABBSize = Float32Array.BYTES_PER_ELEMENT * 8;
     const objectCountSize = Uint32Array.BYTES_PER_ELEMENT;
     let stride = childIndicesSize + AABBSize + objectCountSize;
     stride = ceilToNearestMultipleOf(stride, 16);
     const buffer = device.createBuffer({
       size: this.nodes.length * stride,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       mappedAtCreation: false,
     });
     this.nodes.forEach((node, i) => {
@@ -83,8 +142,8 @@ export class BVH {
       const bufferView = new DataView(arrayBuffer);
 
       // Write childIndices
-      bufferView.setUint32(0, node.leftChildIndex);
-      bufferView.setUint32(4, node.rightChildIndex);
+      bufferView.setInt32(0, node.leftChildIndex);
+      bufferView.setInt32(4, node.rightChildIndex);
 
       // Write AABB
       bufferView.setFloat32(16, node.AABBMin[0], true); // 16 byte alignment

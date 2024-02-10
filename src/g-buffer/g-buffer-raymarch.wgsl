@@ -18,7 +18,8 @@ struct ViewProjectionMatrices {
 @group(0) @binding(7) var velocityTex : texture_storage_2d<rg32float, write>;
 @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;
 @group(0) @binding(9) var<uniform> sunDirection : vec3<f32>;
-@group(0) @binding(10) var<uniform> bvhNodes: array<BVHNode, 1>;
+//TODO: make this a buffer
+@group(0) @binding(10) var<storage> bvhNodes: array<BVHNode>;
 
 
 fn plainIntersect(ro: vec3<f32>, rd: vec3<f32>, p: vec4<f32>) -> f32 {
@@ -79,17 +80,46 @@ fn main(
   let minMipLevel = u32(0);
   var mipLevel = maxMipLevel;
 
-  if(true){
-    let bvhNode = bvhNodes[0];
-    let boxSize = (bvhNode.max.xyz - bvhNode.min.xyz) / 2;
-    let boxPosition = bvhNode.min.xyz;
-    let intersect = boxIntersection(rayOrigin - boxPosition, rayDirection, boxSize);
-    if(intersect.isHit){
-      closestIntersection.normal = intersect.normal;
-      closestIntersection.worldPos = rayOrigin + rayDirection * intersect.tNear;
-      closestIntersection.colour = vec3(1.0,0.0,0.0);
+
+    var colour = vec3(0.0);
+    var nodeIndex = 0;
+    for(var i = 0; i < 1; i++){
+      let bvhNode = bvhNodes[nodeIndex];
+
+      let leftIndex = bvhNode.leftIndex;
+      let leftChild = bvhNodes[1];
+      let leftBoxSize = (leftChild.max.xyz - leftChild.min.xyz) / 2;
+      let leftBoxPosition = leftChild.min.xyz;
+      let leftIntersect = boxIntersection(rayOrigin - leftBoxPosition, rayDirection, leftBoxSize);
+
+      let rightIndex = bvhNode.rightIndex;
+      let rightChild = bvhNodes[2];
+      let rightBoxSize = (rightChild.max.xyz - rightChild.min.xyz) / 2;
+      let rightBoxPosition = rightChild.min.xyz;
+      let rightIntersect = boxIntersection(rayOrigin - rightBoxPosition, rayDirection, rightBoxSize);
+
+      if(!leftIntersect.isHit && !rightIntersect.isHit){
+        break;
+      }
+
+      var closestIntersect = BoxIntersectionResult();
+      if(leftIntersect.tNear < rightIntersect.tNear){
+        closestIntersect = leftIntersect;
+        nodeIndex = bvhNode.leftIndex;
+         closestIntersection.colour +=  vec3(0.5,0.0,0.0);
+      } else {
+        closestIntersect = rightIntersect;
+        nodeIndex = bvhNode.rightIndex;
+        closestIntersection.colour +=  vec3(0.0,0.0,0.5);
+      }
+
+      closestIntersection.normal = leftIntersect.normal;
+      closestIntersection.worldPos = rayOrigin + rayDirection * leftIntersect.tNear;
+
+
+
     }
-  } else{
+
       for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
         let voxelObject = voxelObjects[i];
         if(any(voxelObject.size == vec3(0.0))){
@@ -114,7 +144,7 @@ fn main(
           break;
         }
       }
-  }
+
   let normal = closestIntersection.normal;
   let depth = distance(cameraPosition, closestIntersection.worldPos);
   let albedo = closestIntersection.colour;

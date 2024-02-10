@@ -18,8 +18,8 @@ fn getMaxMipLevel(size: vec3<f32>) -> u32 {
 }
 
 struct BVHNode {
-  leftIndex: u32,
-  rightIndex: u32,
+  leftIndex: i32,
+  rightIndex: i32,
   min: vec3<f32>,
   max: vec3<f32>,
   objectCount: u32,

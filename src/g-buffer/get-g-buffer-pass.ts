@@ -75,7 +75,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     binding: 10,
     visibility: GPUShaderStage.COMPUTE,
     buffer: {
-      type: "uniform",
+      type: "read-only-storage",
     },
   };
 
