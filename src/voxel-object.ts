@@ -17,10 +17,8 @@ export class VoxelObject {
   }
 
   get worldSpaceBounds() {
-    let minBound = vec3.create();
-    let maxBound = vec3.create();
-    vec3.transformMat4(vec3.create(), this.transform, minBound);
-    vec3.transformMat4(this.size, this.transform, maxBound);
+    let minBound = vec3.transformMat4(vec3.create(), this.transform);
+    let maxBound = vec3.transformMat4(this.size, this.transform);
     return { minBound, maxBound };
   }
 
@@ -39,7 +37,7 @@ export class VoxelObject {
 
   get worldSpaceCorners() {
     return this.objectSpaceCorners.map((corner) => {
-      return vec3.transformMat4(corner, corner, this.transform);
+      return vec3.transformMat4(corner, this.transform);
     });
   }
 

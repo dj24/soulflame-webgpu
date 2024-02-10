@@ -17,6 +17,14 @@ fn getMaxMipLevel(size: vec3<f32>) -> u32 {
   return u32(log2(max(size.x, max(size.y, size.z))));
 }
 
+struct BVHNode {
+  leftIndex: u32,
+  rightIndex: u32,
+  min: vec3<f32>,
+  max: vec3<f32>,
+  objectCount: u32,
+}
+
 struct VoxelObject {
   transform: mat4x4<f32>,
   inverseTransform: mat4x4<f32>,

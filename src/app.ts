@@ -24,7 +24,11 @@ import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels
 import { getShadowsPass } from "./shadow-pass/get-shadows-pass";
 import { getSkyPass } from "./sky-and-fog/get-sky-pass";
 import { getVolumetricFog } from "./volumetric-fog/get-volumetric-fog";
-import { createTavern, getObjectTransforms } from "./create-tavern";
+import {
+  createTavern,
+  getObjectTransforms,
+  voxelObjects,
+} from "./create-tavern";
 import { GetObjectsArgs } from "./get-objects-transforms/objects-worker";
 import dragonVolume from "./voxel-models/dragon.vxm";
 import { VoxelObject } from "./voxel-object";
@@ -44,6 +48,7 @@ export type RenderArgs = {
   timestampWrites?: GPUComputePassTimestampWrites;
   sunDirectionBuffer?: GPUBuffer;
   blueNoiseTexture?: GPUTexture;
+  bvhBuffer: GPUBuffer;
 };
 
 export type RenderPass = {
@@ -126,12 +131,12 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   }
 
   const sceneBVH = new BVH([
-    new VoxelObject(mat4.identity(), [50, 50, 50], [0, 0, 0]),
-    new VoxelObject(
-      mat4.translate(mat4.identity(), [50, 0, 0]),
-      [25, 25, 25],
-      [0, 0, 0],
-    ),
+    // new VoxelObject(
+    //   mat4.identity(),
+    //   vec3.create(20, 20, 20),
+    //   vec3.create(0, 0, 0),
+    // ),
+    ...voxelObjects,
   ]);
 
   console.log({ sceneBVH });
@@ -479,6 +484,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         timestampWrites,
         sunDirectionBuffer,
         blueNoiseTexture,
+        bvhBuffer: BVHBuffer,
       }).forEach((commands) => {
         commandBuffers.push(commands);
       });
@@ -542,7 +548,7 @@ const start = async () => {
     // volumeAtlas.addVolume(dragonTexture, "dragon");
     // dragonTexture.destroy();
 
-    createTavern(device, volumeAtlas);
+    await createTavern(device, volumeAtlas);
 
     const computePassPromises: Promise<RenderPass>[] = [
       // getDepthPrepass(),

@@ -7,7 +7,7 @@ import { VoxelObject } from "./voxel-object";
 import { GetObjectsArgs } from "./get-objects-transforms/objects-worker";
 import { camera } from "./app";
 
-let voxelObjects: VoxelObject[] = [];
+export let voxelObjects: VoxelObject[] = [];
 
 type TSceneDefinition = {
   name: string;
@@ -62,14 +62,14 @@ export const createTavern = async (
         "BarTop",
         "BarTopS",
         "BarTop1",
-        // "Barrel",
-        // "Keg",
-        // "Candle",
+        "Barrel",
+        "Keg",
+        "Candle",
         "Bed",
-        // "Torch",
-        // "TorchHolder",
+        "Torch",
+        "TorchHolder",
         "FireLogs",
-        // "Tankard",
+        "Tankard",
       ].includes(child.name)
     ) {
       return;
@@ -80,7 +80,7 @@ export const createTavern = async (
     mat4.multiply(m, mat4.fromQuat(child.rotation), m);
     voxelObjects.push(new VoxelObject(m, volume.size, volume.location));
   });
-  console.log("Tavern created", voxelObjects);
+  console.log(`Tavern created with ${voxelObjects.length} items`);
 };
 
 const paddingElement = new VoxelObject(mat4.identity(), [0, 0, 0], [0, 0, 0]);

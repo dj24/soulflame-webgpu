@@ -85,11 +85,11 @@ export const getVolumeAtlas = (device: GPUDevice): VolumeAtlas => {
       );
     }
     const { width, height, depthOrArrayLayers } = texture;
-    console.log(`Adding ${label} to atlas`, {
-      width,
-      height,
-      depthOrArrayLayers,
-    });
+    // console.log(`Adding ${label} to atlas`, {
+    //   width,
+    //   height,
+    //   depthOrArrayLayers,
+    // });
     if (!atlasTexture) {
       const commandEncoder = device.createCommandEncoder();
       atlasTexture = device.createTexture({
