@@ -1,7 +1,5 @@
 import { Vec3 } from "wgpu-matrix";
 import { VoxelObject } from "./voxel-object";
-import { device } from "./app";
-import { voxelObjects } from "./create-tavern";
 
 type BVHNode = {
   leftChildIndex: number;
@@ -77,6 +75,14 @@ const getAABB = (voxelObjects: VoxelObject[]) => {
   return { min, max };
 };
 
+const getMortonCode = (voxelObject: VoxelObject) => {
+  const center = voxelObject.worldSpaceCenter;
+  const x = center[0];
+  const y = center[1];
+  const z = center[2];
+  return (x & 0x1ff) | ((y & 0x1ff) << 10) | ((z & 0x1ff) << 20);
+};
+
 export class BVH {
   nodes: BVHNode[];
 
@@ -118,27 +124,25 @@ export class BVH {
       this.buildBVH(left, leftChildIndex);
     } else if (left.length === 1) {
       const AABB = getAABB(left);
-      const node = {
+      this.nodes[leftChildIndex] = {
         AABBMin: AABB.min,
         AABBMax: AABB.max,
         leftChildIndex: -1,
         rightChildIndex: -1,
         objectCount: 1,
       };
-      this.nodes.push(node);
     }
     if (right.length > 1) {
       this.buildBVH(right, rightChildIndex);
     } else if (right.length === 1) {
       const AABB = getAABB(right);
-      const node = {
+      this.nodes[rightChildIndex] = {
         AABBMin: AABB.min,
         AABBMax: AABB.max,
         leftChildIndex: -1,
         rightChildIndex: -1,
         objectCount: 1,
       };
-      this.nodes.push(node);
     }
     if (left.length <= 1 && right.length <= 1) {
       return;

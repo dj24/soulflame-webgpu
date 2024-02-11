@@ -21,6 +21,29 @@ struct ViewProjectionMatrices {
 //TODO: make this a buffer
 @group(0) @binding(10) var<storage> bvhNodes: array<BVHNode>;
 
+var<private> BDEPTH: f32 = 0.;
+var<private> TDEPTH: f32 = -1.;
+
+const STACK_LEN: u32 = 24u;
+struct Stack {
+  arr: array<i32, STACK_LEN>,
+	head: u32,
+}
+
+fn stack_new() -> Stack {
+    var arr: array<i32, STACK_LEN>;
+    return Stack(arr, 0u);
+}
+
+fn stack_push(stack: ptr<function, Stack>, val: i32) {
+    (*stack).arr[(*stack).head] = val;
+    (*stack).head += 1u;
+}
+
+fn stack_pop(stack: ptr<function, Stack>) -> i32 {
+    (*stack).head -= 1u;
+    return (*stack).arr[(*stack).head];
+}
 
 fn plainIntersect(ro: vec3<f32>, rd: vec3<f32>, p: vec4<f32>) -> f32 {
     return -(dot(ro, p.xyz) + p.w) / dot(rd, p.xyz);
@@ -47,18 +70,48 @@ fn getVelocity(rayMarchResult: RayMarchResult, viewProjections: ViewProjectionMa
   return velocity;
 }
 
-fn BVHNodeIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, bvhNode: BVHNode) -> BoxIntersectionResult {
+fn BVHNodeIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, bvhNode: BVHNode) -> f32 {
   let boxSize = (bvhNode.max.xyz - bvhNode.min.xyz) / 2;
   let boxPosition = bvhNode.min.xyz;
 
   let isInside = all(rayOrigin >= boxPosition - boxSize) && all(rayOrigin <= boxPosition + boxSize);
   if(isInside){
-    return BoxIntersectionResult(0.0, 0.0, vec3(0.0), true);
+    return 0.0;
   }
-  return boxIntersection(rayOrigin - boxPosition, rayDirection, boxSize);
+  return boxIntersection(rayOrigin - boxPosition, rayDirection, boxSize).tNear;
+}
+
+fn getLeftChildIndex(index: i32) -> i32 {
+  return index * 2 + 1;
+}
+
+fn getRightChildIndex(index: i32) -> i32 {
+  return index * 2 + 2;
+}
+
+fn getParentIndex(index: i32) -> i32 {
+  return (index - 1) / 2;
 }
 
 const FAR_PLANE = 10000.0;
+
+fn swapu(a: ptr<function, u32>, b: ptr<function, u32>) {
+  let temp = *a;
+  *a = *b;
+  *b = temp;
+}
+
+fn swapf(a: ptr<function, f32>, b: ptr<function, f32>) {
+  let temp = *a;
+  *a = *b;
+  *b = temp;
+}
+
+fn swapi(a: ptr<function, i32>, b: ptr<function, i32>) {
+  let temp = *a;
+  *a = *b;
+  *b = temp;
+}
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
@@ -94,46 +147,43 @@ fn main(
     var colour = vec3(0.0);
     var nodeIndex = 0;
 
-
     var iterations = 0;
     var debugColour = vec3(0.0);
 
-    let maxDepth = 16;
+     var stack = stack_new();
+    stack_push(&stack, 0);
 
-    for(var i = 0; i < maxDepth; i++){
-      iterations++;
-      let bvhNode = bvhNodes[nodeIndex];
-      let isLeaf = bvhNode.objectCount == 1;
-      if(isLeaf){
-        debugColour = vec3(0.0, 0.0, 1.0);
-        break;
+    // TODO: make this struct
+    var hit = 0.0;
+    while (stack.head > 0u && iterations < 32) {
+       let node = bvhNodes[stack_pop(&stack)];
+       if(node.objectCount == 1){ // leaf
+          debugColour = vec3(0.0, 1.0, 0.0);
+          break;
+       } else{
+        var minIndex = getLeftChildIndex(nodeIndex);
+        var maxIndex = getRightChildIndex(nodeIndex);
+
+        let minChild = bvhNodes[minIndex];
+        let maxChild = bvhNodes[maxIndex];
+
+        var minDist = BVHNodeIntersection(rayOrigin, rayDirection, minChild);
+        var maxDist = BVHNodeIntersection(rayOrigin, rayDirection, maxChild);
+        if(minDist > maxDist) {
+          swapi(&minIndex, &maxIndex);
+          swapf(&minDist, &maxDist);
+        }
+        if(minDist >= hit){
+          continue;
+        }
+        if(maxDist <= hit){
+          debugColour = vec3(1.0, 0.0, 0.0);
+          stack_push(&stack, maxIndex);
+        }
+        stack_push(&stack, minIndex);
+        BDEPTH += 1.0;
       }
-
-      let leftIndex = bvhNode.leftIndex;
-      let leftChild = bvhNodes[leftIndex];
-      let leftIntersect = BVHNodeIntersection(rayOrigin, rayDirection, leftChild);
-
-      let rightIndex = bvhNode.rightIndex;
-      let rightChild = bvhNodes[rightIndex];
-      let rightIntersect = BVHNodeIntersection(rayOrigin, rayDirection, rightChild);
-
-      let leftIsCloser = leftIntersect.tNear < rightIntersect.tNear + EPSILON;
-      let rightIsCloser = rightIntersect.tNear < leftIntersect.tNear;
-
-      let isBothHit = leftIntersect.isHit && rightIntersect.isHit;
-      let isOnlyLeftHit = leftIntersect.isHit && !rightIntersect.isHit;
-      let isOnlyRightHit = rightIntersect.isHit && !leftIntersect.isHit;
-
-      if(isOnlyLeftHit || (isBothHit && leftIsCloser)){
-        nodeIndex = leftIndex;
-        debugColour = vec3(1.0, 0, 0);
-      }
-      else if(isOnlyRightHit || (isBothHit && rightIsCloser)){
-        nodeIndex = rightIndex;
-        debugColour = vec3(0,0,1.0);
-      } else{
-        break; // TODO: go back up the tree
-      }
+      iterations += 1;
     }
 
 //      for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
@@ -167,7 +217,7 @@ fn main(
   let velocity = getVelocity(closestIntersection, viewProjections);
 
   textureStore(depthWrite, GlobalInvocationID.xy, vec4(closestIntersection.worldPos, depth));
-  textureStore(albedoTex, pixel, vec4(albedo + vec3(f32(iterations) /f32(maxDepth) * 1.5) * debugColour, 1));
+  textureStore(albedoTex, pixel, vec4(albedo + vec3(f32(iterations) * 0.5) * debugColour, 1));
   textureStore(normalTex, pixel, vec4(normal,1));
   textureStore(velocityTex, pixel, vec4(velocity,0));
 }

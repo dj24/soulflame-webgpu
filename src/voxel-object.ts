@@ -7,6 +7,9 @@ export class VoxelObject {
   previousInverseTransform: Mat4;
   size: Vec3;
   atlasLocation: Vec3;
+  worldSpaceCenter: Vec3;
+  worldSpaceCorners: Vec3[];
+
   constructor(transform: Mat4, size: Vec3, atlasLocation: Vec3) {
     this.transform = transform;
     this.size = size;
@@ -14,16 +17,11 @@ export class VoxelObject {
     this.previousTransform = mat4.clone(this.transform);
     this.previousInverseTransform = mat4.clone(this.inverseTransform);
     this.atlasLocation = atlasLocation;
-  }
+    const minBound = vec3.transformMat4(vec3.create(), this.transform);
+    const maxBound = vec3.transformMat4(this.size, this.transform);
+    this.worldSpaceCenter = vec3.lerp(minBound, maxBound, 0.5);
 
-  get worldSpaceBounds() {
-    let minBound = vec3.transformMat4(vec3.create(), this.transform);
-    let maxBound = vec3.transformMat4(this.size, this.transform);
-    return { minBound, maxBound };
-  }
-
-  get objectSpaceCorners() {
-    return [
+    const objectSpaceCorners = [
       [0, 0, 0],
       [0, 0, this.size[2]],
       [0, this.size[1], 0],
@@ -33,20 +31,9 @@ export class VoxelObject {
       [this.size[0], this.size[1], 0],
       [this.size[0], this.size[1], this.size[2]],
     ];
-  }
-
-  get worldSpaceCorners() {
-    return this.objectSpaceCorners.map((corner) => {
+    this.worldSpaceCorners = objectSpaceCorners.map((corner) => {
       return vec3.transformMat4(corner, this.transform);
     });
-  }
-
-  get worldSpaceCenter() {
-    return vec3.lerp(
-      this.worldSpaceBounds.minBound,
-      this.worldSpaceBounds.maxBound,
-      0.5,
-    );
   }
 
   toArray() {

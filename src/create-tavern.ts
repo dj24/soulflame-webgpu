@@ -57,19 +57,19 @@ export const createTavern = async (
     if (
       ![
         "Table",
-        "Bench",
-        "Stool",
+        // "Bench",
+        // "Stool",
         "BarTop",
         "BarTopS",
         "BarTop1",
-        "Barrel",
-        "Keg",
-        "Candle",
-        "Bed",
+        // "Barrel",
+        // "Keg",
+        // "Candle",
+        // "Bed",
         // "Torch",
-        "TorchHolder",
+        // "TorchHolder",
         "FireLogs",
-        "Tankard",
+        // "Tankard",
       ].includes(child.name)
     ) {
       return;
