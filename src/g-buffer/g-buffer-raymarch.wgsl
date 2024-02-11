@@ -80,44 +80,47 @@ fn main(
   let minMipLevel = u32(0);
   var mipLevel = maxMipLevel;
 
-
     var colour = vec3(0.0);
     var nodeIndex = 0;
+
+
+    var iterations = 0;
+    var currentPos = rayOrigin;
+    var debugColour = vec3(0.0);
+
     for(var i = 0; i < 1; i++){
       let bvhNode = bvhNodes[nodeIndex];
 
       let leftIndex = bvhNode.leftIndex;
-      let leftChild = bvhNodes[1];
+      let leftChild = bvhNodes[leftIndex];
       let leftBoxSize = (leftChild.max.xyz - leftChild.min.xyz) / 2;
       let leftBoxPosition = leftChild.min.xyz;
-      let leftIntersect = boxIntersection(rayOrigin - leftBoxPosition, rayDirection, leftBoxSize);
+      let leftIntersect = boxIntersection(currentPos - leftBoxPosition, rayDirection, leftBoxSize);
 
       let rightIndex = bvhNode.rightIndex;
-      let rightChild = bvhNodes[2];
+      let rightChild = bvhNodes[rightIndex];
       let rightBoxSize = (rightChild.max.xyz - rightChild.min.xyz) / 2;
       let rightBoxPosition = rightChild.min.xyz;
-      let rightIntersect = boxIntersection(rayOrigin - rightBoxPosition, rayDirection, rightBoxSize);
+      let rightIntersect = boxIntersection(currentPos - rightBoxPosition, rayDirection, rightBoxSize);
 
       if(!leftIntersect.isHit && !rightIntersect.isHit){
         break;
       }
 
       var closestIntersect = BoxIntersectionResult();
-      if(leftIntersect.tNear < rightIntersect.tNear){
+      // TODO: correctly sort by distance so that bounds dont clip eachotherdwad
+      if(leftIntersect.isHit){
         closestIntersect = leftIntersect;
-        nodeIndex = bvhNode.leftIndex;
-         closestIntersection.colour +=  vec3(0.5,0.0,0.0);
-      } else {
-        closestIntersect = rightIntersect;
-        nodeIndex = bvhNode.rightIndex;
-        closestIntersection.colour +=  vec3(0.0,0.0,0.5);
+        nodeIndex = leftIndex;
+        debugColour = vec3(1.0,0.0,0.0);
       }
-
-      closestIntersection.normal = leftIntersect.normal;
-      closestIntersection.worldPos = rayOrigin + rayDirection * leftIntersect.tNear;
-
-
-
+      if(rightIntersect.isHit){
+        closestIntersect = rightIntersect;
+        nodeIndex = rightIndex;
+        debugColour = vec3(0.0,0.0,1.0);
+      }
+      currentPos = currentPos + rayDirection * (closestIntersect.tNear - EPSILON);
+      iterations++;
     }
 
       for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
@@ -151,7 +154,7 @@ fn main(
   let velocity = getVelocity(closestIntersection, viewProjections);
 
   textureStore(depthWrite, GlobalInvocationID.xy, vec4(closestIntersection.worldPos, depth));
-  textureStore(albedoTex, pixel, vec4(albedo, 1));
+  textureStore(albedoTex, pixel, vec4(albedo + vec3(f32(iterations) / 2.0) * debugColour, 1));
   textureStore(normalTex, pixel, vec4(normal,1));
   textureStore(velocityTex, pixel, vec4(velocity,0));
 }

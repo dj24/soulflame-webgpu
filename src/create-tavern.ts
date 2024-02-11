@@ -66,7 +66,7 @@ export const createTavern = async (
         "Keg",
         "Candle",
         "Bed",
-        "Torch",
+        // "Torch",
         "TorchHolder",
         "FireLogs",
         "Tankard",

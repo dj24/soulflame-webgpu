@@ -1,6 +1,7 @@
 import { Vec3 } from "wgpu-matrix";
 import { VoxelObject } from "./voxel-object";
 import { device } from "./app";
+import { voxelObjects } from "./create-tavern";
 
 type BVHNode = {
   leftChildIndex: number;
@@ -10,12 +11,21 @@ type BVHNode = {
   objectCount: number;
 };
 
-const getMedian = (voxelObjects: VoxelObject[], axis: number) => {
+const getMidpoint = (voxelObjects: VoxelObject[], axis: number) => {
   const centers = voxelObjects.map(
     (voxelObject) => voxelObject.worldSpaceCenter,
   );
   centers.sort((a, b) => a[axis] - b[axis]);
   return centers[Math.floor(centers.length / 2)][axis];
+};
+
+const sortVoxeObjectsByMidpoint = (
+  voxelObjects: VoxelObject[],
+  axis: number,
+) => {
+  return voxelObjects.sort(
+    (a, b) => a.worldSpaceCenter[axis] - b.worldSpaceCenter[axis],
+  );
 };
 
 const getLongestAxis = (AABBMin: Vec3, AABBMax: Vec3) => {
@@ -30,15 +40,15 @@ const getLongestAxis = (AABBMin: Vec3, AABBMax: Vec3) => {
 
 const splitVoxelObjects = (
   voxelObjects: VoxelObject[],
-  median: number,
+  midPoint: number,
   axis: number,
 ) => {
   const left = [];
   const right = [];
   for (const voxelObject of voxelObjects) {
-    if (voxelObject.worldSpaceCenter[axis] < median) {
+    if (voxelObject.worldSpaceCenter[axis] < midPoint) {
       left.push(voxelObject);
-    } else if (voxelObject.worldSpaceCenter[axis] > median) {
+    } else if (voxelObject.worldSpaceCenter[axis] > midPoint) {
       right.push(voxelObject);
     }
   }
@@ -53,8 +63,12 @@ const getAABB = (voxelObjects: VoxelObject[]) => {
   let min = [Infinity, Infinity, Infinity];
   let max = [-Infinity, -Infinity, -Infinity];
   for (const voxelObject of voxelObjects) {
-    const corners = voxelObject.worldSpaceCorners;
-    for (const corner of corners) {
+    // const midPoint = voxelObject.worldSpaceCenter;
+    // for (let i = 0; i < 3; i++) {
+    //   min[i] = Math.min(min[i], midPoint[i]);
+    //   max[i] = Math.max(max[i], midPoint[i]);
+    // }
+    for (const corner of voxelObject.worldSpaceCorners) {
       for (let i = 0; i < 3; i++) {
         min[i] = Math.min(min[i], corner[i]);
         max[i] = Math.max(max[i], corner[i]);
@@ -75,8 +89,8 @@ export class BVH {
   }
 
   buildBVH(voxelObjects: VoxelObject[], startIndex: number) {
-    // console.log(this.nodes);
     const AABB = getAABB(voxelObjects);
+
     const leftChildIndex = 2 * startIndex + 1;
     const rightChildIndex = 2 * startIndex + 2;
     const node = {
@@ -88,10 +102,17 @@ export class BVH {
     };
     this.nodes[startIndex] = node;
     const longestAxis = getLongestAxis(node.AABBMin, node.AABBMax);
-    const median = getMedian(voxelObjects, longestAxis);
+
+    voxelObjects = sortVoxeObjectsByMidpoint(voxelObjects, longestAxis);
+
+    // const midPoint = getMidpoint(voxelObjects, longestAxis);
+
+    const medianIndex = Math.floor(voxelObjects.length / 2);
+    const midPoint = voxelObjects[medianIndex].worldSpaceCenter[longestAxis];
+
     const { left, right } = splitVoxelObjects(
       voxelObjects,
-      median,
+      midPoint,
       longestAxis,
     );
     if (left.length > 1) {
@@ -142,8 +163,8 @@ export class BVH {
       const bufferView = new DataView(arrayBuffer);
 
       // Write childIndices
-      bufferView.setInt32(0, node.leftChildIndex);
-      bufferView.setInt32(4, node.rightChildIndex);
+      bufferView.setInt32(0, node.leftChildIndex, true);
+      bufferView.setInt32(4, node.rightChildIndex, true);
 
       // Write AABB
       bufferView.setFloat32(16, node.AABBMin[0], true); // 16 byte alignment

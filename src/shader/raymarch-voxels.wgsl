@@ -31,9 +31,7 @@ struct VoxelObject {
   previousTransform: mat4x4<f32>,
   previousInverseTransform: mat4x4<f32>,
   size : vec3<f32>,
-  sizePadding : f32,
   atlasLocation : vec3<f32>,
-  atlasLocationPadding : f32,
 }
 
 struct RayMarchResult {
