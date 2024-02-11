@@ -47,6 +47,17 @@ fn getVelocity(rayMarchResult: RayMarchResult, viewProjections: ViewProjectionMa
   return velocity;
 }
 
+fn BVHNodeIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, bvhNode: BVHNode) -> BoxIntersectionResult {
+  let boxSize = (bvhNode.max.xyz - bvhNode.min.xyz) / 2;
+  let boxPosition = bvhNode.min.xyz;
+
+  let isInside = all(rayOrigin >= boxPosition - boxSize) && all(rayOrigin <= boxPosition + boxSize);
+  if(isInside){
+    return BoxIntersectionResult(0.0, 0.0, vec3(0.0), true);
+  }
+  return boxIntersection(rayOrigin - boxPosition, rayDirection, boxSize);
+}
+
 const FAR_PLANE = 10000.0;
 
 @compute @workgroup_size(8, 8, 1)
@@ -62,13 +73,13 @@ fn main(
   closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
 
   // Floor plane for debugging
-  let planeIntersect = planeIntersection(rayOrigin, rayDirection, vec3(0,1,0), 0.0);
-  if(planeIntersect.isHit){
-    closestIntersection.worldPos = rayOrigin + rayDirection * planeIntersect.tNear;
-    closestIntersection.hit = planeIntersect.isHit;
-    closestIntersection.normal = planeIntersect.normal;
-    closestIntersection.colour = vec3(0.15,0.3,0.1);
-  }
+//  let planeIntersect = planeIntersection(rayOrigin, rayDirection, vec3(0,1,0), 0.0);
+//  if(planeIntersect.isHit){
+//    closestIntersection.worldPos = rayOrigin + rayDirection * planeIntersect.tNear;
+//    closestIntersection.hit = planeIntersect.isHit;
+//    closestIntersection.normal = planeIntersect.normal;
+//    closestIntersection.colour = vec3(0.15,0.3,0.1);
+//  }
 
   textureStore(depthWrite, GlobalInvocationID.xy, vec4(vec3(0.0), FAR_PLANE));
   textureStore(normalTex, GlobalInvocationID.xy, vec4(0.0));
@@ -85,68 +96,70 @@ fn main(
 
 
     var iterations = 0;
-    var currentPos = rayOrigin;
     var debugColour = vec3(0.0);
 
-    for(var i = 0; i < 1; i++){
+    let maxDepth = 16;
+
+    for(var i = 0; i < maxDepth; i++){
+      iterations++;
       let bvhNode = bvhNodes[nodeIndex];
-
-      let leftIndex = bvhNode.leftIndex;
-      let leftChild = bvhNodes[leftIndex];
-      let leftBoxSize = (leftChild.max.xyz - leftChild.min.xyz) / 2;
-      let leftBoxPosition = leftChild.min.xyz;
-      let leftIntersect = boxIntersection(currentPos - leftBoxPosition, rayDirection, leftBoxSize);
-
-      let rightIndex = bvhNode.rightIndex;
-      let rightChild = bvhNodes[rightIndex];
-      let rightBoxSize = (rightChild.max.xyz - rightChild.min.xyz) / 2;
-      let rightBoxPosition = rightChild.min.xyz;
-      let rightIntersect = boxIntersection(currentPos - rightBoxPosition, rayDirection, rightBoxSize);
-
-      if(!leftIntersect.isHit && !rightIntersect.isHit){
+      let isLeaf = bvhNode.objectCount == 1;
+      if(isLeaf){
+        debugColour = vec3(0.0, 0.0, 1.0);
         break;
       }
 
-      var closestIntersect = BoxIntersectionResult();
-      // TODO: correctly sort by distance so that bounds dont clip eachotherdwad
-      if(leftIntersect.isHit){
-        closestIntersect = leftIntersect;
+      let leftIndex = bvhNode.leftIndex;
+      let leftChild = bvhNodes[leftIndex];
+      let leftIntersect = BVHNodeIntersection(rayOrigin, rayDirection, leftChild);
+
+      let rightIndex = bvhNode.rightIndex;
+      let rightChild = bvhNodes[rightIndex];
+      let rightIntersect = BVHNodeIntersection(rayOrigin, rayDirection, rightChild);
+
+      let leftIsCloser = leftIntersect.tNear < rightIntersect.tNear + EPSILON;
+      let rightIsCloser = rightIntersect.tNear < leftIntersect.tNear;
+
+      let isBothHit = leftIntersect.isHit && rightIntersect.isHit;
+      let isOnlyLeftHit = leftIntersect.isHit && !rightIntersect.isHit;
+      let isOnlyRightHit = rightIntersect.isHit && !leftIntersect.isHit;
+
+      if(isOnlyLeftHit || (isBothHit && leftIsCloser)){
         nodeIndex = leftIndex;
-        debugColour = vec3(1.0,0.0,0.0);
+        debugColour = vec3(1.0, 0, 0);
       }
-      if(rightIntersect.isHit){
-        closestIntersect = rightIntersect;
+      else if(isOnlyRightHit || (isBothHit && rightIsCloser)){
         nodeIndex = rightIndex;
-        debugColour = vec3(0.0,0.0,1.0);
+        debugColour = vec3(0,0,1.0);
+      } else{
+        break; // TODO: go back up the tree
       }
-      currentPos = currentPos + rayDirection * (closestIntersect.tNear - EPSILON);
-      iterations++;
     }
 
-      for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
-        let voxelObject = voxelObjects[i];
-        if(any(voxelObject.size == vec3(0.0))){
-          continue;
-        }
-        var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
-        let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-        let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
-        let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size);
-        if(!intersect.isHit && !isInBounds) {
-          continue;
-        }
-        // Advance ray origin to the point of intersection
-        if(!isInBounds){
-          objectRayOrigin = objectRayOrigin + objectRayDirection * intersect.tNear + EPSILON;
-        }
-
-        // Bounds for octree node
-        let raymarchResult = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 1);
-        if(raymarchResult.hit){
-          closestIntersection = raymarchResult;
-          break;
-        }
-      }
+//      for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
+//        let voxelObject = voxelObjects[i];
+//        if(any(voxelObject.size == vec3(0.0))){
+//          continue;
+//        }
+//        var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
+//        let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+//        let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
+//        let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size);
+//        if(!intersect.isHit && !isInBounds) {
+//          continue;
+//        }
+//        // Advance ray origin to the point of intersection
+//        if(!isInBounds){
+//          objectRayOrigin = objectRayOrigin + objectRayDirection * intersect.tNear + EPSILON;
+//        }
+//
+//        // Bounds for octree node
+//        let raymarchResult = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 1);
+//        if(raymarchResult.hit){
+//          closestIntersection = raymarchResult;
+//          break;
+//        }
+//      }
 
   let normal = closestIntersection.normal;
   let depth = distance(cameraPosition, closestIntersection.worldPos);
@@ -154,7 +167,7 @@ fn main(
   let velocity = getVelocity(closestIntersection, viewProjections);
 
   textureStore(depthWrite, GlobalInvocationID.xy, vec4(closestIntersection.worldPos, depth));
-  textureStore(albedoTex, pixel, vec4(albedo + vec3(f32(iterations) / 2.0) * debugColour, 1));
+  textureStore(albedoTex, pixel, vec4(albedo + vec3(f32(iterations) /f32(maxDepth) * 1.5) * debugColour, 1));
   textureStore(normalTex, pixel, vec4(normal,1));
   textureStore(velocityTex, pixel, vec4(velocity,0));
 }

@@ -29,7 +29,6 @@ const sortVoxeObjectsByMidpoint = (
 };
 
 const getLongestAxis = (AABBMin: Vec3, AABBMax: Vec3) => {
-  return 0;
   const size = [
     AABBMax[0] - AABBMin[0],
     AABBMax[1] - AABBMin[1],
@@ -122,8 +121,8 @@ export class BVH {
       const node = {
         AABBMin: AABB.min,
         AABBMax: AABB.max,
-        leftChildIndex: 0,
-        rightChildIndex: 0,
+        leftChildIndex: -1,
+        rightChildIndex: -1,
         objectCount: 1,
       };
       this.nodes.push(node);
@@ -135,8 +134,8 @@ export class BVH {
       const node = {
         AABBMin: AABB.min,
         AABBMax: AABB.max,
-        leftChildIndex: 0,
-        rightChildIndex: 0,
+        leftChildIndex: -1,
+        rightChildIndex: -1,
         objectCount: 1,
       };
       this.nodes.push(node);
