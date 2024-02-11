@@ -113,6 +113,10 @@ fn swapi(a: ptr<function, i32>, b: ptr<function, i32>) {
   *b = temp;
 }
 
+fn dirIsNegative(dir: vec3<f32>, axis: i32) -> bool {
+  return dir[axis] < 0.0;
+}
+
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
@@ -155,61 +159,71 @@ fn main(
 
     // TODO: make this struct
     var hit = 0.0;
-    while (stack.head > 0u && iterations < 32) {
-       let node = bvhNodes[stack_pop(&stack)];
-       if(node.objectCount == 1){ // leaf
-          debugColour = vec3(0.0, 1.0, 0.0);
-          break;
-       } else{
-        var minIndex = getLeftChildIndex(nodeIndex);
-        var maxIndex = getRightChildIndex(nodeIndex);
-
-        let minChild = bvhNodes[minIndex];
-        let maxChild = bvhNodes[maxIndex];
-
-        var minDist = BVHNodeIntersection(rayOrigin, rayDirection, minChild);
-        var maxDist = BVHNodeIntersection(rayOrigin, rayDirection, maxChild);
-        if(minDist > maxDist) {
-          swapi(&minIndex, &maxIndex);
-          swapf(&minDist, &maxDist);
-        }
-        if(minDist >= hit){
-          continue;
-        }
-        if(maxDist <= hit){
-          debugColour = vec3(1.0, 0.0, 0.0);
-          stack_push(&stack, maxIndex);
-        }
-        stack_push(&stack, minIndex);
-        BDEPTH += 1.0;
+    while (stack.head > 0u && iterations < 16) {
+      nodeIndex = stack_pop(&stack);
+      let node = bvhNodes[nodeIndex];
+      let isLeaf = node.objectCount == 1;
+      if(isLeaf){
+//        debugColour += vec3(0.0, 0.5, 0.0);
+        break;
       }
+
+      let intersect = BVHNodeIntersection(rayOrigin, rayDirection, node);
+      if(intersect < 0.0){
+        continue;
+      }
+      debugColour += vec3(0.1, 0.0, 0.0);
+
+      var minIndex = getLeftChildIndex(nodeIndex);
+      var maxIndex = getRightChildIndex(nodeIndex);
+
+      let minChild = bvhNodes[minIndex];
+      let maxChild = bvhNodes[maxIndex];
+
+      var minDist = BVHNodeIntersection(rayOrigin, rayDirection, minChild);
+      var maxDist = BVHNodeIntersection(rayOrigin, rayDirection, maxChild);
+
+      // Ensure minDist is the closest intersection
+      if(minDist > maxDist) {
+        swapi(&minIndex, &maxIndex);
+        swapf(&minDist, &maxDist);
+      }
+      // valid hit
+      if(maxDist > -1.0) {
+        stack_push(&stack, maxIndex);
+      }
+      if(minDist > -1.0) {
+        stack_push(&stack, minIndex);
+      }
+
+      BDEPTH += 1.0;
       iterations += 1;
     }
 
-//      for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
-//        let voxelObject = voxelObjects[i];
-//        if(any(voxelObject.size == vec3(0.0))){
-//          continue;
-//        }
-//        var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
-//        let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-//        let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
-//        let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size);
-//        if(!intersect.isHit && !isInBounds) {
-//          continue;
-//        }
-//        // Advance ray origin to the point of intersection
-//        if(!isInBounds){
-//          objectRayOrigin = objectRayOrigin + objectRayDirection * intersect.tNear + EPSILON;
-//        }
-//
-//        // Bounds for octree node
-//        let raymarchResult = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 1);
-//        if(raymarchResult.hit){
-//          closestIntersection = raymarchResult;
-//          break;
-//        }
-//      }
+      for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
+        let voxelObject = voxelObjects[i];
+        if(any(voxelObject.size == vec3(0.0))){
+          continue;
+        }
+        var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
+        let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+        let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
+        let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size);
+        if(!intersect.isHit && !isInBounds) {
+          continue;
+        }
+        // Advance ray origin to the point of intersection
+        if(!isInBounds){
+          objectRayOrigin = objectRayOrigin + objectRayDirection * intersect.tNear + EPSILON;
+        }
+
+        // Bounds for octree node
+        let raymarchResult = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 1);
+        if(raymarchResult.hit){
+          closestIntersection = raymarchResult;
+          break;
+        }
+      }
 
   let normal = closestIntersection.normal;
   let depth = distance(cameraPosition, closestIntersection.worldPos);
@@ -217,7 +231,7 @@ fn main(
   let velocity = getVelocity(closestIntersection, viewProjections);
 
   textureStore(depthWrite, GlobalInvocationID.xy, vec4(closestIntersection.worldPos, depth));
-  textureStore(albedoTex, pixel, vec4(albedo + vec3(f32(iterations) * 0.5) * debugColour, 1));
+  textureStore(albedoTex, pixel, vec4(albedo + debugColour, 1));
   textureStore(normalTex, pixel, vec4(normal,1));
   textureStore(velocityTex, pixel, vec4(velocity,0));
 }
