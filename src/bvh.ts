@@ -1,5 +1,6 @@
 import { Vec3 } from "wgpu-matrix";
 import { VoxelObject } from "./voxel-object";
+import { indexOf } from "lodash";
 
 type BVHNode = {
   leftChildIndex: number;
@@ -85,10 +86,14 @@ const getMortonCode = (voxelObject: VoxelObject) => {
 
 export class BVH {
   nodes: BVHNode[];
+  allVoxelObjects: VoxelObject[];
+  leafNodes: VoxelObject[];
 
   constructor(voxelObjects: VoxelObject[]) {
     console.time("BVH Created in");
+    this.allVoxelObjects = voxelObjects;
     this.nodes = [];
+    this.leafNodes = [];
     this.buildBVH(voxelObjects, 0);
     console.timeEnd("BVH Created in");
   }
@@ -127,10 +132,11 @@ export class BVH {
       this.nodes[leftChildIndex] = {
         AABBMin: AABB.min,
         AABBMax: AABB.max,
-        leftChildIndex: -1,
+        leftChildIndex: indexOf(this.allVoxelObjects, left[0]),
         rightChildIndex: -1,
         objectCount: 1,
       };
+      this.leafNodes.push(left[0]);
     }
     if (right.length > 1) {
       this.buildBVH(right, rightChildIndex);
@@ -139,10 +145,11 @@ export class BVH {
       this.nodes[rightChildIndex] = {
         AABBMin: AABB.min,
         AABBMax: AABB.max,
-        leftChildIndex: -1,
+        leftChildIndex: indexOf(this.allVoxelObjects, right[0]),
         rightChildIndex: -1,
         objectCount: 1,
       };
+      this.leafNodes.push(right[0]);
     }
     if (left.length <= 1 && right.length <= 1) {
       return;
@@ -179,7 +186,7 @@ export class BVH {
       bufferView.setFloat32(40, node.AABBMax[2], true);
 
       // Write objectCount
-      bufferView.setUint32(44, node.objectCount);
+      bufferView.setUint32(44, node.objectCount, true);
       // Write the entire ArrayBuffer to the GPU buffer
       device.queue.writeBuffer(
         buffer,

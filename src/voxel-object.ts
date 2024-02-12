@@ -1,6 +1,7 @@
 import { mat4, Mat4, vec3, Vec3 } from "wgpu-matrix";
 
 export class VoxelObject {
+  name: string;
   transform: Mat4;
   inverseTransform: Mat4;
   previousTransform: Mat4;
@@ -10,7 +11,13 @@ export class VoxelObject {
   worldSpaceCenter: Vec3;
   worldSpaceCorners: Vec3[];
 
-  constructor(transform: Mat4, size: Vec3, atlasLocation: Vec3) {
+  constructor(
+    transform: Mat4,
+    size: Vec3,
+    atlasLocation: Vec3,
+    name = "unnamed",
+  ) {
+    this.name = name;
     this.transform = transform;
     this.size = size;
     this.inverseTransform = mat4.invert(this.transform);

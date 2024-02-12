@@ -16,5 +16,10 @@ export class KeyboardControls {
       const key = event.key.toLowerCase() as keyof KeyboardControls["pressed"];
       this.pressed[key] = false;
     });
+    window.addEventListener("blur", () => {
+      Object.keys(this.pressed).forEach((key) => {
+        this.pressed[key as keyof KeyboardControls["pressed"]] = false;
+      });
+    });
   }
 }

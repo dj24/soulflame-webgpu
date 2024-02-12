@@ -157,6 +157,8 @@ fn main(
      var stack = stack_new();
     stack_push(&stack, 0);
 
+    var voxelObjectIndex = -1;
+
     // TODO: make this struct
     var hit = 0.0;
     while (stack.head > 0u && iterations < 16) {
@@ -164,7 +166,8 @@ fn main(
       let node = bvhNodes[nodeIndex];
       let isLeaf = node.objectCount == 1;
       if(isLeaf){
-//        debugColour += vec3(0.0, 0.5, 0.0);
+      debugColour = vec3(0.0, 0.5, 0.0);
+//        voxelObjectIndex = node.leftIndex;
         break;
       }
 
@@ -176,6 +179,8 @@ fn main(
 
       var minIndex = getLeftChildIndex(nodeIndex);
       var maxIndex = getRightChildIndex(nodeIndex);
+//      minIndex = node.leftIndex;
+//      maxIndex = node.rightIndex;
 
       let minChild = bvhNodes[minIndex];
       let maxChild = bvhNodes[maxIndex];
@@ -218,12 +223,30 @@ fn main(
         }
 
         // Bounds for octree node
-        let raymarchResult = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 1);
+        let raymarchResult = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
         if(raymarchResult.hit){
           closestIntersection = raymarchResult;
           break;
         }
       }
+
+//      let voxelObject = voxelObjects[0];
+//      var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
+//      let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+//      let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
+//      let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size);
+//
+//      // Advance ray origin to the point of intersection
+//      if(!isInBounds){
+//        objectRayOrigin = objectRayOrigin + objectRayDirection * intersect.tNear + EPSILON;
+//      }
+//
+//      // Bounds for octree node
+//      let raymarchResult = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
+//      if(raymarchResult.hit){
+//        closestIntersection = raymarchResult;
+//      }
+
 
   let normal = closestIntersection.normal;
   let depth = distance(cameraPosition, closestIntersection.worldPos);

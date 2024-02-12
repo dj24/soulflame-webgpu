@@ -78,7 +78,9 @@ export const createTavern = async (
     mat4.translate(m, child.position, m);
     mat4.scale(m, child.scale, m);
     mat4.multiply(m, mat4.fromQuat(child.rotation), m);
-    voxelObjects.push(new VoxelObject(m, volume.size, volume.location));
+    voxelObjects.push(
+      new VoxelObject(m, volume.size, volume.location, child.name),
+    );
   });
   console.log(`Tavern created with ${voxelObjects.length} items`);
 };
