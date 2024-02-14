@@ -1,6 +1,7 @@
-import { Vec3 } from "wgpu-matrix";
+import { vec3, Vec3 } from "wgpu-matrix";
 import { VoxelObject } from "./voxel-object";
 import { indexOf } from "lodash";
+import { voxelObjects } from "./create-tavern";
 
 type BVHNode = {
   leftChildIndex: number;
@@ -46,11 +47,28 @@ const splitVoxelObjects = (
   for (const voxelObject of voxelObjects) {
     if (voxelObject.worldSpaceCenter[axis] < midPoint) {
       left.push(voxelObject);
-    } else if (voxelObject.worldSpaceCenter[axis] > midPoint) {
+    } else {
       right.push(voxelObject);
     }
   }
   return { left, right };
+};
+
+const getObjectCenterVariance = (voxelObjects: VoxelObject[]) => {
+  const centers = voxelObjects.map(
+    (voxelObject) => voxelObject.worldSpaceCenter,
+  );
+  let mean = centers.reduce((acc, center) => {
+    return vec3.add(acc, center);
+  }, vec3.create());
+  mean = vec3.divScalar(mean, centers.length);
+  const variance = centers.reduce((acc, center) => {
+    return vec3.add(
+      acc,
+      vec3.mul(vec3.sub(center, mean), vec3.sub(center, mean)),
+    );
+  }, vec3.create());
+  return vec3.divScalar(variance, centers.length);
 };
 
 const ceilToNearestMultipleOf = (n: number, multiple: number) => {
@@ -118,13 +136,36 @@ export class BVH {
     // const midPoint = getMidpoint(voxelObjects, longestAxis);
 
     const medianIndex = Math.floor(voxelObjects.length / 2);
-    const midPoint = voxelObjects[medianIndex].worldSpaceCenter[longestAxis];
+    let midPoint = voxelObjects[medianIndex].worldSpaceCenter[longestAxis];
 
-    const { left, right } = splitVoxelObjects(
+    console.log({
+      midPoint,
+      longestAxis,
+      objectCount: voxelObjects.length,
+      voxelObjects,
+    });
+
+    let { left, right } = splitVoxelObjects(
       voxelObjects,
       midPoint,
       longestAxis,
     );
+
+    // If longest axis failed, try another axis
+    if (left.length === 0 || right.length === 0) {
+      let variance = getObjectCenterVariance(voxelObjects);
+      const axisWithHighestVariance = variance.indexOf(Math.max(...variance));
+      midPoint =
+        voxelObjects[medianIndex].worldSpaceCenter[axisWithHighestVariance];
+      const splitResult = splitVoxelObjects(
+        voxelObjects,
+        midPoint,
+        axisWithHighestVariance,
+      );
+      left = splitResult.left;
+      right = splitResult.right;
+    }
+
     if (left.length > 1) {
       this.buildBVH(left, leftChildIndex);
     } else if (left.length === 1) {
