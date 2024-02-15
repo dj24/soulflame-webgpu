@@ -139,7 +139,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     ...voxelObjects,
   ]);
 
-  console.log(sceneBVH.nodes, voxelObjects, sceneBVH.leafNodes);
+  console.log(sceneBVH);
 
   const BVHBuffer = sceneBVH.toGPUBuffer(device);
 

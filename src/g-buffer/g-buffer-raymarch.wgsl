@@ -164,17 +164,35 @@ fn main(
     while (stack.head > 0u && iterations < 16) {
       nodeIndex = stack_pop(&stack);
       let node = bvhNodes[nodeIndex];
-      let isLeaf = node.objectCount == 1;
-      if(isLeaf){
-      debugColour = vec3(0.0, 0.5, 0.0);
-//        voxelObjectIndex = node.leftIndex;
-        break;
-      }
-
       let intersect = BVHNodeIntersection(rayOrigin, rayDirection, node);
       if(intersect < 0.0){
         continue;
       }
+
+      let isLeaf = node.objectCount == 1;
+      if(isLeaf){
+        debugColour = vec3(0.0, 0.5, 0.0);
+        let bvhNode = bvhNodes[nodeIndex];
+        let objectIndex = bvhNode.leftIndex;
+        let voxelObject = voxelObjects[objectIndex];
+        var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
+        let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+        let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
+        let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size);
+
+        // Advance ray origin to the point of intersection
+        if(!isInBounds){
+          objectRayOrigin = objectRayOrigin + objectRayDirection * intersect.tNear + EPSILON;
+        }
+
+        // Bounds for octree node
+        let raymarchResult = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
+        if(raymarchResult.hit){
+          closestIntersection = raymarchResult;
+          break;
+        }
+      }
+
       debugColour += vec3(0.1, 0.0, 0.0);
 
       var minIndex = getLeftChildIndex(nodeIndex);
@@ -205,47 +223,31 @@ fn main(
       iterations += 1;
     }
 
-      for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
-        let voxelObject = voxelObjects[i];
-        if(any(voxelObject.size == vec3(0.0))){
-          continue;
-        }
-        var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
-        let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-        let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
-        let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size);
-        if(!intersect.isHit && !isInBounds) {
-          continue;
-        }
-        // Advance ray origin to the point of intersection
-        if(!isInBounds){
-          objectRayOrigin = objectRayOrigin + objectRayDirection * intersect.tNear + EPSILON;
-        }
-
-        // Bounds for octree node
-        let raymarchResult = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
-        if(raymarchResult.hit){
-          closestIntersection = raymarchResult;
-          break;
-        }
-      }
-
-//      let voxelObject = voxelObjects[0];
-//      var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
-//      let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-//      let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
-//      let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size);
+//      for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
+//        let voxelObject = voxelObjects[i];
+//        if(any(voxelObject.size == vec3(0.0))){
+//          continue;
+//        }
+//        var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
+//        let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+//        let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
+//        let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size);
+//        if(!intersect.isHit && !isInBounds) {
+//          continue;
+//        }
+//        // Advance ray origin to the point of intersection
+//        if(!isInBounds){
+//          objectRayOrigin = objectRayOrigin + objectRayDirection * intersect.tNear + EPSILON;
+//        }
 //
-//      // Advance ray origin to the point of intersection
-//      if(!isInBounds){
-//        objectRayOrigin = objectRayOrigin + objectRayDirection * intersect.tNear + EPSILON;
+//        // Bounds for octree node
+//        let raymarchResult = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
+//        if(raymarchResult.hit){
+//          closestIntersection = raymarchResult;
+//          break;
+//        }
 //      }
-//
-//      // Bounds for octree node
-//      let raymarchResult = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
-//      if(raymarchResult.hit){
-//        closestIntersection = raymarchResult;
-//      }
+
 
 
   let normal = closestIntersection.normal;

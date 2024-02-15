@@ -129,42 +129,12 @@ export class BVH {
       objectCount: voxelObjects.length,
     };
     this.nodes[startIndex] = node;
-    const longestAxis = getLongestAxis(node.AABBMin, node.AABBMax);
 
-    voxelObjects = sortVoxeObjectsByMidpoint(voxelObjects, longestAxis);
-
-    // const midPoint = getMidpoint(voxelObjects, longestAxis);
+    voxelObjects.sort((a, b) => getMortonCode(a) - getMortonCode(b));
 
     const medianIndex = Math.floor(voxelObjects.length / 2);
-    let midPoint = voxelObjects[medianIndex].worldSpaceCenter[longestAxis];
-
-    console.log({
-      midPoint,
-      longestAxis,
-      objectCount: voxelObjects.length,
-      voxelObjects,
-    });
-
-    let { left, right } = splitVoxelObjects(
-      voxelObjects,
-      midPoint,
-      longestAxis,
-    );
-
-    // If longest axis failed, try another axis
-    if (left.length === 0 || right.length === 0) {
-      let variance = getObjectCenterVariance(voxelObjects);
-      const axisWithHighestVariance = variance.indexOf(Math.max(...variance));
-      midPoint =
-        voxelObjects[medianIndex].worldSpaceCenter[axisWithHighestVariance];
-      const splitResult = splitVoxelObjects(
-        voxelObjects,
-        midPoint,
-        axisWithHighestVariance,
-      );
-      left = splitResult.left;
-      right = splitResult.right;
-    }
+    const left = voxelObjects.slice(0, medianIndex);
+    const right = voxelObjects.slice(medianIndex);
 
     if (left.length > 1) {
       this.buildBVH(left, leftChildIndex);

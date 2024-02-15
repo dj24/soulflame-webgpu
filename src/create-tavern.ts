@@ -63,7 +63,7 @@ export const createTavern = async (
         "BarTopS",
         "BarTop1",
         // "Barrel",
-        // "Keg",
+        "Keg",
         // "Candle",
         // "Bed",
         // "Torch",
