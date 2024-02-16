@@ -56,10 +56,10 @@ export const createTavern = async (
     }
     if (
       ![
-        // "Table",
+        "Table",
         // "Bench",
         // "Stool",
-        // "BarTop",
+        "BarTop",
         // "BarTopS",
         // "BarTop1",
         // "Barrel",

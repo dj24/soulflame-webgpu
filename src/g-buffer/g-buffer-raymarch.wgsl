@@ -21,9 +21,6 @@ struct ViewProjectionMatrices {
 //TODO: make this a buffer
 @group(0) @binding(10) var<storage> bvhNodes: array<BVHNode>;
 
-var<private> BDEPTH: f32 = 0.;
-var<private> TDEPTH: f32 = -1.;
-
 const STACK_LEN: u32 = 24u;
 struct Stack {
   arr: array<i32, STACK_LEN>,
@@ -160,52 +157,63 @@ fn main(
   let minMipLevel = u32(0);
   var mipLevel = maxMipLevel;
 
-    var colour = vec3(0.0);
-    var nodeIndex = 0;
+  var colour = vec3(0.0);
+  var nodeIndex = 0;
 
-    var iterations = 0;
-    var debugColour = vec3(0.0);
+  var iterations = 0;
+  var debugColour = vec3(0.0);
 
-     var stack = stack_new();
-    stack_push(&stack, 0);
+   var stack = stack_new();
+  stack_push(&stack, 0);
+  var closestDist = 1e30f;
 
-    // TODO: make this struct
-    var hit = 0.0;
-    while (stack.head > 0u && iterations < 32) {
-      nodeIndex = stack_pop(&stack);
-      let node = bvhNodes[nodeIndex];
-      let intersect = BVHNodeIntersection(rayOrigin, rayDirection, node);
-      if(intersect < 0.0){
-        continue;
-      }
-
-      let isLeaf = node.objectCount == 1;
-      if(isLeaf){
-      let voxelObject = voxelObjects[node.leftIndex];
-        debugColour = getDebugColour(node.leftIndex) * 0.5;
-        break;
-      }
-
-      debugColour += vec3(0.1);
-
-      var leftIndex = node.leftIndex;
-      var rightIndex = node.rightIndex;
-      let minChild = bvhNodes[leftIndex];
-      let maxChild = bvhNodes[rightIndex];
-      var leftDist = BVHNodeIntersection(rayOrigin, rayDirection, minChild);
-      var rightDist = BVHNodeIntersection(rayOrigin, rayDirection, maxChild);
-
-      if(leftDist < rightDist + EPSILON){
-         stack_push(&stack, rightIndex);
-         stack_push(&stack, leftIndex);
-      } else {
-        stack_push(&stack, leftIndex);
-        stack_push(&stack, rightIndex);
-      }
-
-      BDEPTH += 1.0;
-      iterations += 1;
+  // TODO: make this struct
+  var hit = 0.0;
+  while (stack.head > 0u && iterations < 64) {
+    let node = bvhNodes[nodeIndex];
+    let intersect = BVHNodeIntersection(rayOrigin, rayDirection, node);
+    let isLeaf = node.objectCount == 1;
+    if(isLeaf){
+    let voxelObject = voxelObjects[node.leftIndex];
+      debugColour = getDebugColour(node.leftIndex) * 0.5;
+      closestDist = intersect;
+      break;
     }
+
+    debugColour += vec3(0.1);
+
+    let leftChild = bvhNodes[node.leftIndex];
+    let rightChild = bvhNodes[node.rightIndex];
+    var leftDist = BVHNodeIntersection(rayOrigin, rayDirection, leftChild);
+    var rightDist = BVHNodeIntersection(rayOrigin, rayDirection, rightChild);
+
+    var leftValid  = leftDist  > -1 && leftDist  <= closestDist;
+    var rightValid = rightDist > -1 && rightDist <= closestDist;
+
+    if (leftValid && rightValid) {
+      //traverse the closer child first and
+      //push the other index to the stack
+      var furtherIndex = 0;
+      if (leftDist < rightDist) {
+          furtherIndex = node.rightIndex;
+          nodeIndex  = node.leftIndex;
+      } else {
+          furtherIndex = node.leftIndex;
+          nodeIndex  = node.rightIndex;
+      }
+      stack_push(&stack, furtherIndex);
+    }
+    else if (leftValid) {
+      nodeIndex = node.leftIndex;
+    }
+    else if (rightValid) {
+      nodeIndex = node.rightIndex;
+    } else {
+      //traverse neither, go down the stack
+      nodeIndex = stack_pop(&stack);
+    }
+    iterations += 1;
+  }
 
 //      for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
 //        let voxelObject = voxelObjects[i];
@@ -234,6 +242,7 @@ fn main(
 //      }
 
 //  debugColour = vec3(f32(totalSteps)) / 120.0;
+debugColour = vec3(1.0) - (vec3(closestDist) * 0.015);
 
   let normal = closestIntersection.normal;
   let depth = distance(cameraPosition, closestIntersection.worldPos);
