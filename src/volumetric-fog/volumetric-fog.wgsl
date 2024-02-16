@@ -95,10 +95,10 @@ fn main(
 //    var shadowRayDirection = -sunDirection;
     var lightColour = SUN_COLOR;
 
-    if(randomCo.x < 0.5){
-      shadowRayDirection.z *= -1.0;
-      lightColour = vec3(3,0,0);
-    }
+//    if(randomCo.x < 0.5){
+//      shadowRayDirection.z *= -1.0;
+//      lightColour = vec3(3,0,0);
+//    }
 
     var accumFog = vec3(0.0);
     var samplePos = rayOrigin;

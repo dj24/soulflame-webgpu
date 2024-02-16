@@ -34,6 +34,7 @@ import dragonVolume from "./voxel-models/dragon.vxm";
 import { VoxelObject } from "./voxel-object";
 import { getBoxOutlinePass } from "./box-outline/get-box-outline-pass";
 import { BVH } from "./bvh";
+import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
 
 export type RenderArgs = {
   enabled?: boolean;

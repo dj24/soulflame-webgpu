@@ -1,4 +1,4 @@
-import raymarchDepth from "./raymarch-voxels-depth.wgsl";
+import raymarchGBuffer from "../g-buffer/g-buffer-raymarch.wgsl";
 import boxIntersection from "../shader/box-intersection.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
@@ -41,7 +41,7 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
           ${boxIntersection}
           ${raymarchVoxels}
           ${getRayDirection}
-          ${raymarchDepth}`,
+          ${raymarchGBuffer}`,
       }),
       entryPoint: "main",
     },

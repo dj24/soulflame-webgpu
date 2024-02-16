@@ -117,6 +117,18 @@ fn dirIsNegative(dir: vec3<f32>, axis: i32) -> bool {
   return dir[axis] < 0.0;
 }
 
+fn getDebugColour(index: i32) -> vec3<f32> {
+  let colours = array<vec3<f32>, 6>(
+    vec3<f32>(1.0, 0.0, 0.0),
+    vec3<f32>(0.0, 1.0, 0.0),
+    vec3<f32>(0.0, 0.0, 1.0),
+    vec3<f32>(1.0, 1.0, 0.0),
+    vec3<f32>(1.0, 0.0, 1.0),
+    vec3<f32>(0.0, 1.0, 1.0)
+  );
+  return colours[index % 6];
+}
+
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
@@ -125,7 +137,7 @@ fn main(
   var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
   let pixel = GlobalInvocationID.xy;
   let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
-  let rayOrigin = cameraPosition;
+  var rayOrigin = cameraPosition;
   var closestIntersection = RayMarchResult();
   closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
 
@@ -157,11 +169,9 @@ fn main(
      var stack = stack_new();
     stack_push(&stack, 0);
 
-    var voxelObjectIndex = -1;
-
     // TODO: make this struct
     var hit = 0.0;
-    while (stack.head > 0u && iterations < 16) {
+    while (stack.head > 0u && iterations < 32) {
       nodeIndex = stack_pop(&stack);
       let node = bvhNodes[nodeIndex];
       let intersect = BVHNodeIntersection(rayOrigin, rayDirection, node);
@@ -171,52 +181,26 @@ fn main(
 
       let isLeaf = node.objectCount == 1;
       if(isLeaf){
-        debugColour = vec3(0.0, 0.5, 0.0);
-        let bvhNode = bvhNodes[nodeIndex];
-        let objectIndex = bvhNode.leftIndex;
-        let voxelObject = voxelObjects[objectIndex];
-        var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
-        let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-        let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
-        let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size);
-
-        // Advance ray origin to the point of intersection
-        if(!isInBounds){
-          objectRayOrigin = objectRayOrigin + objectRayDirection * intersect.tNear + EPSILON;
-        }
-
-        // Bounds for octree node
-        let raymarchResult = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
-        if(raymarchResult.hit){
-          closestIntersection = raymarchResult;
-          break;
-        }
+      let voxelObject = voxelObjects[node.leftIndex];
+        debugColour = getDebugColour(node.leftIndex) * 0.5;
+        break;
       }
 
-      debugColour += vec3(0.1, 0.0, 0.0);
+      debugColour += vec3(0.1);
 
-      var minIndex = getLeftChildIndex(nodeIndex);
-      var maxIndex = getRightChildIndex(nodeIndex);
-//      minIndex = node.leftIndex;
-//      maxIndex = node.rightIndex;
+      var leftIndex = node.leftIndex;
+      var rightIndex = node.rightIndex;
+      let minChild = bvhNodes[leftIndex];
+      let maxChild = bvhNodes[rightIndex];
+      var leftDist = BVHNodeIntersection(rayOrigin, rayDirection, minChild);
+      var rightDist = BVHNodeIntersection(rayOrigin, rayDirection, maxChild);
 
-      let minChild = bvhNodes[minIndex];
-      let maxChild = bvhNodes[maxIndex];
-
-      var minDist = BVHNodeIntersection(rayOrigin, rayDirection, minChild);
-      var maxDist = BVHNodeIntersection(rayOrigin, rayDirection, maxChild);
-
-      // Ensure minDist is the closest intersection
-      if(minDist > maxDist) {
-        swapi(&minIndex, &maxIndex);
-        swapf(&minDist, &maxDist);
-      }
-      // valid hit
-      if(maxDist > -1.0) {
-        stack_push(&stack, maxIndex);
-      }
-      if(minDist > -1.0) {
-        stack_push(&stack, minIndex);
+      if(leftDist < rightDist + EPSILON){
+         stack_push(&stack, rightIndex);
+         stack_push(&stack, leftIndex);
+      } else {
+        stack_push(&stack, leftIndex);
+        stack_push(&stack, rightIndex);
       }
 
       BDEPTH += 1.0;
@@ -225,6 +209,7 @@ fn main(
 
 //      for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
 //        let voxelObject = voxelObjects[i];
+//        totalSteps += 1;
 //        if(any(voxelObject.size == vec3(0.0))){
 //          continue;
 //        }
@@ -248,7 +233,7 @@ fn main(
 //        }
 //      }
 
-
+//  debugColour = vec3(f32(totalSteps)) / 120.0;
 
   let normal = closestIntersection.normal;
   let depth = distance(cameraPosition, closestIntersection.worldPos);
