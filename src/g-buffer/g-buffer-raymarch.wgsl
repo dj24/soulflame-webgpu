@@ -169,26 +169,40 @@ fn main(
 
   // TODO: make this struct
   var hit = 0.0;
-  while (stack.head > 0u && iterations < 64) {
+  while (stack.head > 0u && iterations < 128) {
     let node = bvhNodes[nodeIndex];
     let intersect = BVHNodeIntersection(rayOrigin, rayDirection, node);
     let isLeaf = node.objectCount == 1;
     if(isLeaf){
-    let voxelObject = voxelObjects[node.leftIndex];
       debugColour = getDebugColour(node.leftIndex) * 0.5;
+
+      let voxelObject = voxelObjects[node.leftIndex];
+      if(any(voxelObject.size == vec3(0.0))){
+        continue;
+      }
+      var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
+      let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+
+      // Bounds for octree node
+      let raymarchResult = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
+      if(raymarchResult.hit){
+        closestIntersection = raymarchResult;
+        debugColour = closestIntersection.colour;
+        break;
+      }
+
       closestDist = intersect;
-      break;
     }
 
-    debugColour += vec3(0.1);
+    debugColour += vec3(0.01);
 
     let leftChild = bvhNodes[node.leftIndex];
     let rightChild = bvhNodes[node.rightIndex];
-    var leftDist = BVHNodeIntersection(rayOrigin, rayDirection, leftChild);
+    var leftDist = BVHNodeIntersection(rayOrigin, rayDirection, leftChild) - EPSILON;
     var rightDist = BVHNodeIntersection(rayOrigin, rayDirection, rightChild);
 
-    var leftValid  = leftDist  > -1 && leftDist  <= closestDist;
-    var rightValid = rightDist > -1 && rightDist <= closestDist;
+    var leftValid  = leftDist  > -0.0 && leftDist < closestDist;
+    var rightValid = rightDist > -0.0 && rightDist < closestDist;
 
     if (leftValid && rightValid) {
       //traverse the closer child first and
@@ -242,7 +256,7 @@ fn main(
 //      }
 
 //  debugColour = vec3(f32(totalSteps)) / 120.0;
-debugColour = vec3(1.0) - (vec3(closestDist) * 0.015);
+//debugColour = (vec3(closestDist) * 0.1) % 1.0;
 
   let normal = closestIntersection.normal;
   let depth = distance(cameraPosition, closestIntersection.worldPos);
