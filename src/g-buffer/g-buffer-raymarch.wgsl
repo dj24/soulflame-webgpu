@@ -70,12 +70,12 @@ fn getVelocity(rayMarchResult: RayMarchResult, viewProjections: ViewProjectionMa
 fn BVHNodeIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, bvhNode: BVHNode) -> f32 {
   let boxSize = (bvhNode.max.xyz - bvhNode.min.xyz) / 2;
   let boxPosition = bvhNode.min.xyz;
-
   let isInside = all(rayOrigin >= boxPosition - boxSize) && all(rayOrigin <= boxPosition + boxSize);
   if(isInside){
     return 0.0;
   }
   return boxIntersection(rayOrigin - boxPosition, rayDirection, boxSize).tNear;
+//  return simpleBoxIntersection(rayOrigin - boxPosition, rayDirection, boxSize);
 }
 
 fn getLeftChildIndex(index: i32) -> i32 {
@@ -147,10 +147,12 @@ fn main(
     closestIntersection.colour = vec3(0.15,0.3,0.1);
   }
 
-  textureStore(depthWrite, GlobalInvocationID.xy, vec4(vec3(0.0), FAR_PLANE));
-  textureStore(normalTex, GlobalInvocationID.xy, vec4(0.0));
-  textureStore(albedoTex, GlobalInvocationID.xy, vec4(0.0));
-  textureStore(velocityTex, pixel, vec4(0.0));
+//  textureStore(depthWrite, GlobalInvocationID.xy, vec4(vec3(0.0), FAR_PLANE));
+//  textureStore(normalTex, GlobalInvocationID.xy, vec4(0.0));
+//  textureStore(albedoTex, GlobalInvocationID.xy, vec4(0.0));
+//  textureStore(velocityTex, pixel, vec4(0.0));
+
+
 
   var totalSteps = 0;
   let maxMipLevel = u32(0);
@@ -168,16 +170,20 @@ fn main(
   var closestDist = 1e30f;
   var closestRaymarchDist = 1e30f;
 
+//  let rootIntersect = BVHNodeIntersection(rayOrigin, rayDirection, bvhNodes[0]);
+//  if(rootIntersect < 0.0){
+//    debugColour = vec3(1.0,0,0);
+//    return;
+//  }
+
   // TODO: make this struct
   var hit = 0.0;
-  while (stack.head > 0u && iterations < 128) {
+  while (stack.head > 0u && iterations < 64) {
     let node = bvhNodes[nodeIndex];
     let intersect = BVHNodeIntersection(rayOrigin, rayDirection, node);
     let isLeaf = node.objectCount == 1;
-    if(isLeaf && intersect < closestRaymarchDist){
+    if(isLeaf){
       let voxelObjectIndex = node.leftIndex;
-//      debugColour = getDebugColour(voxelObjectIndex);
-
       let voxelObject = voxelObjects[voxelObjectIndex];
       var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
       let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
@@ -192,7 +198,7 @@ fn main(
       }
     }
 
-//    debugColour += vec3(0.01);
+    debugColour += vec3(0.01);
 
     let leftChild = bvhNodes[node.leftIndex];
     let rightChild = bvhNodes[node.rightIndex];

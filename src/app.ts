@@ -74,7 +74,7 @@ let volumeAtlas: VolumeAtlas;
 const startingCameraFieldOfView = 80 * (Math.PI / 180);
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
-  position: vec3.create(-30, 20, -100),
+  position: vec3.create(-25, 10, -70),
   direction: vec3.create(),
 });
 
@@ -560,8 +560,8 @@ const start = async () => {
       getGBufferPass(),
       // getDiffusePass(),
       // getReflectionsPass(),
-      // getShadowsPass(),
-      getSkyPass(),
+      getShadowsPass(),
+      // getSkyPass(),
       // getVolumetricFog(),
       // getTaaPass(),
       // getMotionBlurPass(),
