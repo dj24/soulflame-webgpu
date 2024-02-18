@@ -80,7 +80,7 @@ export let camera = new Camera({
 
 const debugUI = new DebugUI();
 
-const frameTimeTracker = getFrameTimeTracker();
+export const frameTimeTracker = getFrameTimeTracker();
 frameTimeTracker.addSample("frame time", 0);
 
 let voxelTextureView: GPUTextureView;
@@ -142,7 +142,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
   console.log(sceneBVH);
 
-  const BVHBuffer = sceneBVH.toGPUBuffer(device);
+  let BVHBuffer = sceneBVH.toGPUBuffer(device);
 
   const init = () => {
     const { clientWidth, clientHeight } = canvas.parentElement;
@@ -376,6 +376,10 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       rotateY: debugValues.rotateY,
     });
 
+    const sceneBVH = new BVH(voxelObjects);
+
+    BVHBuffer = sceneBVH.toGPUBuffer(device);
+
     const voxelObjectsArray = voxelObjects.flatMap((voxelObject) =>
       voxelObject.toArray(),
     );
@@ -557,7 +561,7 @@ const start = async () => {
       // getDiffusePass(),
       // getReflectionsPass(),
       // getShadowsPass(),
-      // getSkyPass(),
+      getSkyPass(),
       // getVolumetricFog(),
       // getTaaPass(),
       // getMotionBlurPass(),

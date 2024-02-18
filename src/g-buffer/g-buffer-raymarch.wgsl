@@ -139,13 +139,13 @@ fn main(
   closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
 
   // Floor plane for debugging
-//  let planeIntersect = planeIntersection(rayOrigin, rayDirection, vec3(0,1,0), 0.0);
-//  if(planeIntersect.isHit){
-//    closestIntersection.worldPos = rayOrigin + rayDirection * planeIntersect.tNear;
-//    closestIntersection.hit = planeIntersect.isHit;
-//    closestIntersection.normal = planeIntersect.normal;
-//    closestIntersection.colour = vec3(0.15,0.3,0.1);
-//  }
+  let planeIntersect = planeIntersection(rayOrigin, rayDirection, vec3(0,1,0), -1.0);
+  if(planeIntersect.isHit){
+    closestIntersection.worldPos = rayOrigin + rayDirection * planeIntersect.tNear;
+    closestIntersection.hit = planeIntersect.isHit;
+    closestIntersection.normal = planeIntersect.normal;
+    closestIntersection.colour = vec3(0.15,0.3,0.1);
+  }
 
   textureStore(depthWrite, GlobalInvocationID.xy, vec4(vec3(0.0), FAR_PLANE));
   textureStore(normalTex, GlobalInvocationID.xy, vec4(0.0));
@@ -166,6 +166,7 @@ fn main(
    var stack = stack_new();
   stack_push(&stack, 0);
   var closestDist = 1e30f;
+  var closestRaymarchDist = 1e30f;
 
   // TODO: make this struct
   var hit = 0.0;
@@ -173,36 +174,33 @@ fn main(
     let node = bvhNodes[nodeIndex];
     let intersect = BVHNodeIntersection(rayOrigin, rayDirection, node);
     let isLeaf = node.objectCount == 1;
-    if(isLeaf){
-      debugColour = getDebugColour(node.leftIndex) * 0.5;
+    if(isLeaf && intersect < closestRaymarchDist){
+      let voxelObjectIndex = node.leftIndex;
+//      debugColour = getDebugColour(voxelObjectIndex);
 
-      let voxelObject = voxelObjects[node.leftIndex];
-      if(any(voxelObject.size == vec3(0.0))){
-        continue;
-      }
+      let voxelObject = voxelObjects[voxelObjectIndex];
       var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
       let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-
-      // Bounds for octree node
+      objectRayOrigin = objectRayOrigin + objectRayDirection * intersect;
       let raymarchResult = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
-      if(raymarchResult.hit){
+      let raymarchDist = distance(raymarchResult.worldPos, rayOrigin);
+      if(raymarchResult.hit && raymarchDist < closestRaymarchDist){
         closestIntersection = raymarchResult;
-        debugColour = closestIntersection.colour;
-        break;
+        debugColour = raymarchResult.colour;
+        closestDist = intersect;
+        closestRaymarchDist = raymarchDist;
       }
-
-      closestDist = intersect;
     }
 
-    debugColour += vec3(0.01);
+//    debugColour += vec3(0.01);
 
     let leftChild = bvhNodes[node.leftIndex];
     let rightChild = bvhNodes[node.rightIndex];
-    var leftDist = BVHNodeIntersection(rayOrigin, rayDirection, leftChild) - EPSILON;
+    var leftDist = BVHNodeIntersection(rayOrigin, rayDirection, leftChild);
     var rightDist = BVHNodeIntersection(rayOrigin, rayDirection, rightChild);
 
-    var leftValid  = leftDist  > -0.0 && leftDist < closestDist;
-    var rightValid = rightDist > -0.0 && rightDist < closestDist;
+    var leftValid  = leftDist > -1.0 && leftDist < closestDist;
+    var rightValid = rightDist > -1.0 && rightDist < closestDist;
 
     if (leftValid && rightValid) {
       //traverse the closer child first and

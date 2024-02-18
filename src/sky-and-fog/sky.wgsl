@@ -28,9 +28,9 @@ fn sample_sky(rayDirection: vec3<f32>) -> vec3<f32> {
   return vec3(1.0,1.0, 1.0);
 }
 
-const SKY_COLOUR: vec3<f32> = vec3<f32>(0.0);
+const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const START_DISTANCE: f32 = 0.0;
-const FOG_DENSITY: f32 = 0.01;
+const FOG_DENSITY: f32 = 0.005;
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
@@ -41,8 +41,8 @@ fn main(
     uv = vec2(uv.x, 1.0 - uv.y);
     let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
     let pixel = GlobalInvocationID.xy;
-    let sky = sample_sky(rayDirection);
-//    let sky = SKY_COLOUR;
+//    let sky = sample_sky(rayDirection);
+    let sky = SKY_COLOUR;
     let depthSample = textureLoad(depth, pixel, 0).a;
     let inputSample = textureLoad(inputTex, pixel, 0).rgb;
     let depthFactor = clamp(exp(-(depthSample - START_DISTANCE) * FOG_DENSITY), 0.0, 1.0);

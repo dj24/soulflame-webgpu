@@ -57,19 +57,21 @@ export const createTavern = async (
     if (
       ![
         "Table",
-        // "Bench",
-        // "Stool",
+        "Bench",
+        "Stool",
         "BarTop",
-        // "BarTopS",
-        // "BarTop1",
-        // "Barrel",
-        // "Keg",
-        // "Candle",
+        "BarTopS",
+        "BarTop1",
+        "Barrel",
+        "Keg",
+        "Candle",
         "Bed",
         // "Torch",
         // "TorchHolder",
         "FireLogs",
-        // "Tankard",
+        "Tankard",
+        "Bookshelf",
+        "Books4",
       ].includes(child.name)
     ) {
       return;
@@ -109,10 +111,10 @@ const sortObjectsByDistanceToCamera = (
 export const getObjectTransforms = ({ maxObjectCount }: GetObjectsArgs) => {
   let objectCount = Math.min(maxObjectCount, voxelObjects.length);
   let activeVoxelObjects = voxelObjects.slice(0, objectCount);
-  activeVoxelObjects = sortObjectsByDistanceToCamera(
-    activeVoxelObjects,
-    camera.position,
-  );
+  // activeVoxelObjects = sortObjectsByDistanceToCamera(
+  //   activeVoxelObjects,
+  //   camera.position,
+  // );
 
   const differenceInObjectCount = maxObjectCount - objectCount;
   const padding = new Array(differenceInObjectCount).fill(paddingElement);

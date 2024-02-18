@@ -2,6 +2,7 @@ import { vec3, Vec3 } from "wgpu-matrix";
 import { VoxelObject } from "./voxel-object";
 import { indexOf } from "lodash";
 import { voxelObjects } from "./create-tavern";
+import { frameTimeTracker } from "./app";
 
 type BVHNode = {
   leftChildIndex: number;
@@ -108,12 +109,13 @@ export class BVH {
   leafNodes: VoxelObject[];
 
   constructor(voxelObjects: VoxelObject[]) {
-    console.time("BVH Created in");
+    const start = performance.now();
     this.allVoxelObjects = voxelObjects;
     this.nodes = [];
     this.leafNodes = [];
     this.buildBVH(voxelObjects, 0);
-    console.timeEnd("BVH Created in");
+    const end = performance.now();
+    frameTimeTracker.addSample("create bvh", end - start);
   }
 
   buildBVH(voxelObjects: VoxelObject[], startIndex: number) {
