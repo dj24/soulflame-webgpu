@@ -50,7 +50,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     binding: 7,
     visibility: GPUShaderStage.COMPUTE,
     storageTexture: {
-      format: "rg32float",
+      format: "rgba32float",
       viewDimension: "2d",
     },
   };

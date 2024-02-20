@@ -35,6 +35,7 @@ import { VoxelObject } from "./voxel-object";
 import { getBoxOutlinePass } from "./box-outline/get-box-outline-pass";
 import { BVH } from "./bvh";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
+import { getWaterPass } from "./water-pass/get-water-pass";
 
 export type RenderArgs = {
   enabled?: boolean;
@@ -63,7 +64,7 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.create(4, 4);
-let downscale = 1.0;
+let downscale = 1.5;
 let startTime = 0;
 export let elapsedTime = startTime;
 export let deltaTime = 0;
@@ -71,7 +72,7 @@ export let frameCount = 0;
 
 let volumeAtlas: VolumeAtlas;
 
-const startingCameraFieldOfView = 80 * (Math.PI / 180);
+const startingCameraFieldOfView = 60 * (Math.PI / 180);
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
   position: vec3.create(-25, 10, -70),
@@ -221,7 +222,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     if (!velocityTexture) {
       velocityTexture = device.createTexture({
         size: [resolution[0], resolution[1], 1],
-        format: "rg32float",
+        format: "rgba32float",
         usage:
           GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
       });
@@ -560,12 +561,13 @@ const start = async () => {
       getGBufferPass(),
       // getDiffusePass(),
       // getReflectionsPass(),
-      getShadowsPass(),
+      // getShadowsPass(),
       // getSkyPass(),
       // getVolumetricFog(),
       // getTaaPass(),
       // getMotionBlurPass(),
       // getBoxOutlinePass(),
+      getWaterPass(),
       fullscreenQuad(device),
     ];
 

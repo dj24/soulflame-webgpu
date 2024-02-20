@@ -140,3 +140,9 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
   }
   return output;
 }
+
+fn rayMarchTransformed(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>, mipLevel: u32) -> RayMarchResult {
+      var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
+      let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+      return  rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
+}

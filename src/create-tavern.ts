@@ -41,7 +41,7 @@ export const createTavern = async (
       voxels.size,
       name,
     );
-    texture = await removeInternalVoxels(device, texture);
+    // texture = await removeInternalVoxels(device, texture);
     generateOctreeMips(device, texture);
     volumeAtlas.addVolume(texture, name);
     texture.destroy();
@@ -59,19 +59,19 @@ export const createTavern = async (
         "Table",
         // "Bench",
         // "Stool",
-        "BarTop",
-        "BarTopS",
-        "BarTop1",
-        "Barrel",
+        // "BarTop",
+        // "BarTopS",
+        // "BarTop1",
+        // "Barrel",
         // "Keg",
         // "Candle",
-        "Bed",
+        // "Bed",
         // "Torch",
         // "TorchHolder",
-        "FireLogs",
+        // "FireLogs",
         // "Tankard",
-        "Bookshelf",
-        "Books4",
+        // "Bookshelf",
+        // "Books4",
       ].includes(child.name)
     ) {
       return;

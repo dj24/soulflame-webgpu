@@ -114,6 +114,14 @@ const nearestSamplerEntry: GPUBindGroupLayoutEntry = {
   sampler: {},
 };
 
+const velocityAndWaterEntry: GPUBindGroupLayoutEntry = {
+  binding: 14,
+  visibility: GPUShaderStage.COMPUTE,
+  texture: {
+    sampleType: "unfilterable-float",
+  },
+};
+
 const baseBindGroupLayoutEntries = [
   depthEntry,
   inputTextureEntry,
@@ -128,6 +136,7 @@ const baseBindGroupLayoutEntries = [
   blueNoiseTextureEntry,
   timeEntry,
   nearestSamplerEntry,
+  velocityAndWaterEntry,
 ];
 
 const NUM_THREADS_X = 8;
@@ -183,6 +192,7 @@ export const createComputeCompositePass = async ({
 @group(0) @binding(11) var blueNoiseTex : texture_2d<f32>;
 @group(0) @binding(12) var<uniform> time : vec2<u32>;
 @group(0) @binding(13) var nearestSampler : sampler;
+@group(0) @binding(14) var velocityAndWaterTex : texture_2d<f32>;
 
 const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
 const DOWNSCALE = ${downscale};
@@ -337,6 +347,10 @@ ${shaderCode}`;
       {
         binding: 13,
         resource: nearestSampler,
+      },
+      {
+        binding: 14,
+        resource: outputTextures.velocityTexture.createView(),
       },
     ];
 

@@ -1,5 +1,6 @@
 import { vec3, Vec3 } from "wgpu-matrix";
 import { numMipLevels } from "webgpu-utils";
+import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels";
 
 const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
   format: "rgba8unorm",
@@ -165,6 +166,7 @@ export const getVolumeAtlas = (device: GPUDevice): VolumeAtlas => {
     await device.queue.onSubmittedWorkDone();
     atlasTexture = newAtlasTexture;
     oldAtlasTexture.destroy();
+    atlasTexture = await removeInternalVoxels(device, atlasTexture);
     dictionary[label] = {
       location: [newAtlasTexture.width - width, 0, 0],
       size: [width, height, depthOrArrayLayers],

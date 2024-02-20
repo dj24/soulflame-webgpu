@@ -15,7 +15,7 @@ struct ViewProjectionMatrices {
 @group(0) @binding(5) var albedoTex : texture_storage_2d<rgba8unorm, write>;
 //@group(0) @binding(6) var depthRead : texture_2d<f32>;
 @group(0) @binding(6) var depthWrite : texture_storage_2d<rgba32float, write>;
-@group(0) @binding(7) var velocityTex : texture_storage_2d<rg32float, write>;
+@group(0) @binding(7) var velocityTex : texture_storage_2d<rgba32float, write>;
 @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;
 @group(0) @binding(9) var<uniform> sunDirection : vec3<f32>;
 //TODO: make this a buffer
@@ -137,21 +137,24 @@ fn main(
   var rayOrigin = cameraPosition;
   var closestIntersection = RayMarchResult();
   closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
+  var isWater = false;
 
   // Floor plane for debugging
-  let planeIntersect = planeIntersection(rayOrigin, rayDirection, vec3(0,1,0), -1.0);
+  let planeY = 0.0;
+  let planeIntersect = planeIntersection(rayOrigin, rayDirection, vec3(0,1,0), planeY);
   if(planeIntersect.isHit){
     closestIntersection.worldPos = rayOrigin + rayDirection * planeIntersect.tNear;
+    closestIntersection.worldPos.y = planeY;
     closestIntersection.hit = planeIntersect.isHit;
     closestIntersection.normal = planeIntersect.normal;
     closestIntersection.colour = vec3(0.15,0.3,0.1);
+    isWater = true;
   }
 
 //  textureStore(depthWrite, GlobalInvocationID.xy, vec4(vec3(0.0), FAR_PLANE));
 //  textureStore(normalTex, GlobalInvocationID.xy, vec4(0.0));
 //  textureStore(albedoTex, GlobalInvocationID.xy, vec4(0.0));
 //  textureStore(velocityTex, pixel, vec4(0.0));
-
 
 
   var totalSteps = 0;
@@ -165,16 +168,9 @@ fn main(
   var iterations = 0;
   var debugColour = vec3(0.0);
 
-   var stack = stack_new();
+  var stack = stack_new();
   stack_push(&stack, 0);
-  var closestDist = 1e30f;
   var closestRaymarchDist = 1e30f;
-
-//  let rootIntersect = BVHNodeIntersection(rayOrigin, rayDirection, bvhNodes[0]);
-//  if(rootIntersect < 0.0){
-//    debugColour = vec3(1.0,0,0);
-//    return;
-//  }
 
   // TODO: make this struct
   var hit = 0.0;
@@ -185,32 +181,27 @@ fn main(
     if(isLeaf){
       let voxelObjectIndex = node.leftIndex;
       let voxelObject = voxelObjects[voxelObjectIndex];
-      var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
-      let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-      objectRayOrigin = objectRayOrigin + objectRayDirection * intersect;
-      let raymarchResult = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
+      let raymarchResult = rayMarchTransformed(voxelObject, rayDirection, rayOrigin + rayDirection * intersect, 0);
       let raymarchDist = distance(raymarchResult.worldPos, rayOrigin);
+//      debugColour = getDebugColour(voxelObjectIndex);
+//      debugColour = vec3(raymarchDist % 1.0);
       if(raymarchResult.hit && raymarchDist < closestRaymarchDist){
+        isWater = false;
         closestIntersection = raymarchResult;
         debugColour = raymarchResult.colour;
-        closestDist = intersect;
         closestRaymarchDist = raymarchDist;
       }
     }
 
-    debugColour += vec3(0.01);
+//    debugColour += vec3(0.01);
 
-    let leftChild = bvhNodes[node.leftIndex];
-    let rightChild = bvhNodes[node.rightIndex];
-    var leftDist = BVHNodeIntersection(rayOrigin, rayDirection, leftChild);
-    var rightDist = BVHNodeIntersection(rayOrigin, rayDirection, rightChild);
-
-    var leftValid  = leftDist > -1.0 && leftDist < closestDist;
-    var rightValid = rightDist > -1.0 && rightDist < closestDist;
+    var leftDist = BVHNodeIntersection(rayOrigin, rayDirection, bvhNodes[node.leftIndex]);
+    var rightDist = BVHNodeIntersection(rayOrigin, rayDirection, bvhNodes[node.rightIndex]);
+    var leftValid  = leftDist > -1.0 && leftDist < closestRaymarchDist;
+    var rightValid = rightDist > -1.0 && rightDist < closestRaymarchDist;
 
     if (leftValid && rightValid) {
-      //traverse the closer child first and
-      //push the other index to the stack
+      // traverse the closer child first, push the other index to the stack
       var furtherIndex = 0;
       if (leftDist < rightDist) {
           furtherIndex = node.rightIndex;
@@ -260,7 +251,6 @@ fn main(
 //      }
 
 //  debugColour = vec3(f32(totalSteps)) / 120.0;
-//debugColour = (vec3(closestDist) * 0.1) % 1.0;
 
   let normal = closestIntersection.normal;
   let depth = distance(cameraPosition, closestIntersection.worldPos);
@@ -270,5 +260,5 @@ fn main(
   textureStore(depthWrite, GlobalInvocationID.xy, vec4(closestIntersection.worldPos, depth));
   textureStore(albedoTex, pixel, vec4(albedo + debugColour, 1));
   textureStore(normalTex, pixel, vec4(normal,1));
-  textureStore(velocityTex, pixel, vec4(velocity,0));
+  textureStore(velocityTex, pixel, vec4(velocity,select(0.,1.,isWater)));
 }
