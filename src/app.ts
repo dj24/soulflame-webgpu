@@ -64,7 +64,7 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.create(4, 4);
-let downscale = 1.5;
+let downscale = 1.0;
 let startTime = 0;
 export let elapsedTime = startTime;
 export let deltaTime = 0;
@@ -567,7 +567,7 @@ const start = async () => {
       // getTaaPass(),
       // getMotionBlurPass(),
       // getBoxOutlinePass(),
-      getWaterPass(),
+      // getWaterPass(),
       fullscreenQuad(device),
     ];
 

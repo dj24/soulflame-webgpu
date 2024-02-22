@@ -1,15 +1,17 @@
-import { vec3, Vec3 } from "wgpu-matrix";
+import { Vec3 } from "wgpu-matrix";
 import { VoxelObject } from "./voxel-object";
-import { indexOf } from "lodash";
-import { voxelObjects } from "./create-tavern";
 import { frameTimeTracker } from "./app";
 
 type BVHNode = {
   leftChildIndex: number;
+  leftAABBMin: Vec3;
+  leftAABBMax: Vec3;
+  leftObjectCount: number;
+
   rightChildIndex: number;
-  AABBMin: Vec3;
-  AABBMax: Vec3;
-  objectCount: number;
+  rightAABBMin: Vec3;
+  rightAABBMax: Vec3;
+  rightObjectCount: number;
 };
 
 const getMidpoint = (voxelObjects: VoxelObject[], axis: number) => {
@@ -98,52 +100,42 @@ export class BVH {
   }
 
   buildBVH(voxelObjects: VoxelObject[], startIndex: number) {
-    const AABB = getAABB(voxelObjects);
-    const leftChildIndex = 2 * startIndex + 1;
-    const rightChildIndex = 2 * startIndex + 2;
-    const node = {
-      AABBMin: AABB.min,
-      AABBMax: AABB.max,
-      leftChildIndex,
-      rightChildIndex,
-      objectCount: voxelObjects.length,
-    };
-    this.nodes[startIndex] = node;
-
     voxelObjects.sort((a, b) => getMortonCode(a) - getMortonCode(b));
 
     const medianIndex = Math.floor(voxelObjects.length / 2);
     const left = voxelObjects.slice(0, medianIndex);
     const right = voxelObjects.slice(medianIndex);
 
+    const leftAABB = getAABB(left);
+    const rightAABB = getAABB(right);
+
+    let leftChildIndex = 2 * startIndex + 1;
+    let rightChildIndex = 2 * startIndex + 2;
+
+    // Use voxel object index for leaf nodes
+    if (left.length === 1) {
+      leftChildIndex = this.allVoxelObjects.indexOf(left[0]);
+    }
+    if (right.length === 1) {
+      rightChildIndex = this.allVoxelObjects.indexOf(right[0]);
+    }
+
+    this.nodes[startIndex] = {
+      leftAABBMin: leftAABB.min,
+      leftAABBMax: leftAABB.max,
+      leftObjectCount: left.length,
+      rightAABBMin: rightAABB.min,
+      rightAABBMax: rightAABB.max,
+      rightObjectCount: right.length,
+      leftChildIndex,
+      rightChildIndex,
+    };
+
     if (left.length > 1) {
       this.buildBVH(left, leftChildIndex);
-    } else if (left.length === 1) {
-      const AABB = getAABB(left);
-      this.nodes[leftChildIndex] = {
-        AABBMin: AABB.min,
-        AABBMax: AABB.max,
-        leftChildIndex: indexOf(this.allVoxelObjects, left[0]),
-        rightChildIndex: -1,
-        objectCount: 1,
-      };
-      this.leafNodes.push(left[0]);
     }
     if (right.length > 1) {
       this.buildBVH(right, rightChildIndex);
-    } else if (right.length === 1) {
-      const AABB = getAABB(right);
-      this.nodes[rightChildIndex] = {
-        AABBMin: AABB.min,
-        AABBMax: AABB.max,
-        leftChildIndex: indexOf(this.allVoxelObjects, right[0]),
-        rightChildIndex: -1,
-        objectCount: 1,
-      };
-      this.leafNodes.push(right[0]);
-    }
-    if (left.length <= 1 && right.length <= 1) {
-      return;
     }
   }
 
@@ -178,8 +170,8 @@ export class BVH {
 
   toGPUBuffer(device: GPUDevice) {
     const childIndicesSize = Int32Array.BYTES_PER_ELEMENT * 2;
-    const AABBSize = Float32Array.BYTES_PER_ELEMENT * 8;
-    const objectCountSize = Uint32Array.BYTES_PER_ELEMENT;
+    const AABBSize = Float32Array.BYTES_PER_ELEMENT * 8 * 2;
+    const objectCountSize = Uint32Array.BYTES_PER_ELEMENT * 2;
     let stride = childIndicesSize + AABBSize + objectCountSize;
     stride = ceilToNearestMultipleOf(stride, 16);
     const buffer = device.createBuffer({
@@ -196,17 +188,28 @@ export class BVH {
       bufferView.setInt32(0, node.leftChildIndex, true);
       bufferView.setInt32(4, node.rightChildIndex, true);
 
-      // Write AABB
-      bufferView.setFloat32(16, node.AABBMin[0], true); // 16 byte alignment
-      bufferView.setFloat32(20, node.AABBMin[1], true);
-      bufferView.setFloat32(24, node.AABBMin[2], true);
-
-      bufferView.setFloat32(32, node.AABBMax[0], true); // 16 byte alignment
-      bufferView.setFloat32(36, node.AABBMax[1], true);
-      bufferView.setFloat32(40, node.AABBMax[2], true);
-
       // Write objectCount
-      bufferView.setUint32(44, node.objectCount, true);
+      bufferView.setUint32(8, node.leftObjectCount, true);
+      bufferView.setUint32(12, node.rightObjectCount, true);
+
+      // Write left AABB
+      bufferView.setFloat32(16, node.leftAABBMin[0], true); // 16 byte alignment
+      bufferView.setFloat32(20, node.leftAABBMin[1], true);
+      bufferView.setFloat32(24, node.leftAABBMin[2], true);
+
+      bufferView.setFloat32(32, node.leftAABBMin[0], true); // 16 byte alignment
+      bufferView.setFloat32(36, node.leftAABBMin[1], true);
+      bufferView.setFloat32(40, node.leftAABBMin[2], true);
+
+      // Write right AABB
+      bufferView.setFloat32(48, node.rightAABBMin[0], true); // 16 byte alignment
+      bufferView.setFloat32(52, node.rightAABBMin[1], true);
+      bufferView.setFloat32(56, node.rightAABBMin[2], true);
+
+      bufferView.setFloat32(64, node.rightAABBMin[0], true); // 16 byte alignment
+      bufferView.setFloat32(68, node.rightAABBMin[1], true);
+      bufferView.setFloat32(72, node.rightAABBMin[2], true);
+
       // Write the entire ArrayBuffer to the GPU buffer
       device.queue.writeBuffer(
         buffer,

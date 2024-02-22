@@ -7,6 +7,19 @@ struct ViewProjectionMatrices {
   inverseProjection: mat4x4<f32>
 };
 
+struct BVHNode {
+  rightIndex: i32,
+  leftIndex: i32,
+  rightObjectCount: i32,
+  leftObjectCount: i32,
+
+  rightMin: vec3<f32>,
+  rightMax: vec3<f32>,
+
+  leftMin: vec3<f32>,
+  leftMax: vec3<f32>,
+}
+
 @group(0) @binding(0) var voxels : texture_3d<f32>;
 @group(0) @binding(2) var<uniform> cameraPosition : vec3<f32>;
 @group(0) @binding(3) var<uniform> voxelObjects : array<VoxelObject, VOXEL_OBJECT_COUNT>; // TODO: dynamic amount of these using string interpolation
@@ -67,16 +80,16 @@ fn getVelocity(rayMarchResult: RayMarchResult, viewProjections: ViewProjectionMa
   return velocity;
 }
 
-fn BVHNodeIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, bvhNode: BVHNode) -> f32 {
-  let boxSize = (bvhNode.max.xyz - bvhNode.min.xyz) / 2;
-  let boxPosition = bvhNode.min.xyz;
-  let isInside = all(rayOrigin >= boxPosition - boxSize) && all(rayOrigin <= boxPosition + boxSize);
-  if(isInside){
-    return 0.0;
-  }
-  return boxIntersection(rayOrigin - boxPosition, rayDirection, boxSize).tNear;
-//  return simpleBoxIntersection(rayOrigin - boxPosition, rayDirection, boxSize);
-}
+//fn BVHNodeIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, bvhNode: BVHNode) -> f32 {
+//  let boxSize = (bvhNode.max.xyz - bvhNode.min.xyz) / 2;
+//  let boxPosition = bvhNode.min.xyz;
+//  let isInside = all(rayOrigin >= boxPosition - boxSize) && all(rayOrigin <= boxPosition + boxSize);
+//  if(isInside){
+//    return 0.0;
+//  }
+//  return boxIntersection(rayOrigin - boxPosition, rayDirection, boxSize).tNear;
+////  return simpleBoxIntersection(rayOrigin - boxPosition, rayDirection, boxSize);
+//}
 
 fn getLeftChildIndex(index: i32) -> i32 {
   return index * 2 + 1;
@@ -174,16 +187,18 @@ fn main(
 
   // TODO: make this struct
   var hit = 0.0;
+  var isLeaf = false;
+  var intersect = 0.0;
+  var voxelObjectIndex = -1;
   while (stack.head > 0u && iterations < 64) {
     let node = bvhNodes[nodeIndex];
-    let intersect = BVHNodeIntersection(rayOrigin, rayDirection, node);
-    let isLeaf = node.objectCount == 1;
+//    let intersect = BVHNodeIntersection(rayOrigin, rayDirection, node);
+//    let isLeaf = node.objectCount == 1;
     if(isLeaf){
-      let voxelObjectIndex = node.leftIndex;
       let voxelObject = voxelObjects[voxelObjectIndex];
       let raymarchResult = rayMarchTransformed(voxelObject, rayDirection, rayOrigin + rayDirection * intersect, 0);
       let raymarchDist = distance(raymarchResult.worldPos, rayOrigin);
-//      debugColour = getDebugColour(voxelObjectIndex);
+      debugColour = getDebugColour(voxelObjectIndex);
 //      debugColour = vec3(raymarchDist % 1.0);
       if(raymarchResult.hit && raymarchDist < closestRaymarchDist){
         isWater = false;
@@ -193,10 +208,12 @@ fn main(
       }
     }
 
-//    debugColour += vec3(0.01);
+    debugColour += vec3(0.01);
 
-    var leftDist = BVHNodeIntersection(rayOrigin, rayDirection, bvhNodes[node.leftIndex]);
-    var rightDist = BVHNodeIntersection(rayOrigin, rayDirection, bvhNodes[node.rightIndex]);
+    let leftBoxSize = (node.leftMax - node.leftMin) / 2;
+    var leftDist = boxIntersection(rayOrigin - node.leftMin, rayDirection, leftBoxSize).tNear;
+    let rightBoxSize = (node.rightMax - node.rightMin) / 2;
+    var rightDist = boxIntersection(rayOrigin - node.rightMin, rayDirection, rightBoxSize).tNear;
     var leftValid  = leftDist > -1.0 && leftDist < closestRaymarchDist;
     var rightValid = rightDist > -1.0 && rightDist < closestRaymarchDist;
 
@@ -206,17 +223,29 @@ fn main(
       if (leftDist < rightDist) {
           furtherIndex = node.rightIndex;
           nodeIndex  = node.leftIndex;
+          intersect = leftDist;
+          isLeaf = node.leftObjectCount == 1;
+          voxelObjectIndex = node.leftIndex;
       } else {
           furtherIndex = node.leftIndex;
           nodeIndex  = node.rightIndex;
+          intersect = rightDist;
+          isLeaf = node.rightObjectCount == 1;
+          voxelObjectIndex = node.rightIndex;
       }
       stack_push(&stack, furtherIndex);
     }
     else if (leftValid) {
       nodeIndex = node.leftIndex;
+      intersect = leftDist;
+      isLeaf = node.leftObjectCount == 1;
+      voxelObjectIndex = node.leftIndex;
     }
     else if (rightValid) {
       nodeIndex = node.rightIndex;
+      intersect = rightDist;
+      isLeaf = node.rightObjectCount == 1;
+      voxelObjectIndex = node.rightIndex;
     } else {
       //traverse neither, go down the stack
       nodeIndex = stack_pop(&stack);
