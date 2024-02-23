@@ -86,13 +86,11 @@ const getMortonCode = (voxelObject: VoxelObject) => {
 export class BVH {
   nodes: BVHNode[];
   allVoxelObjects: VoxelObject[];
-  leafNodes: VoxelObject[];
 
   constructor(voxelObjects: VoxelObject[]) {
     const start = performance.now();
     this.allVoxelObjects = voxelObjects;
     this.nodes = [];
-    this.leafNodes = [];
     this.buildBVH(voxelObjects, 0);
     // this.compress();
     const end = performance.now();
@@ -121,11 +119,11 @@ export class BVH {
     }
 
     this.nodes[startIndex] = {
-      leftAABBMin: leftAABB.min,
-      leftAABBMax: leftAABB.max,
+      leftAABBMin: left.length > 0 ? leftAABB.min : [0, 0, 0],
+      leftAABBMax: left.length > 0 ? leftAABB.max : [0, 0, 0],
       leftObjectCount: left.length,
-      rightAABBMin: rightAABB.min,
-      rightAABBMax: rightAABB.max,
+      rightAABBMin: right.length > 0 ? rightAABB.min : [0, 0, 0],
+      rightAABBMax: right.length > 0 ? rightAABB.max : [0, 0, 0],
       rightObjectCount: right.length,
       leftChildIndex,
       rightChildIndex,
@@ -197,18 +195,18 @@ export class BVH {
       bufferView.setFloat32(20, node.leftAABBMin[1], true);
       bufferView.setFloat32(24, node.leftAABBMin[2], true);
 
-      bufferView.setFloat32(32, node.leftAABBMin[0], true); // 16 byte alignment
-      bufferView.setFloat32(36, node.leftAABBMin[1], true);
-      bufferView.setFloat32(40, node.leftAABBMin[2], true);
+      bufferView.setFloat32(32, node.leftAABBMax[0], true); // 16 byte alignment
+      bufferView.setFloat32(36, node.leftAABBMax[1], true);
+      bufferView.setFloat32(40, node.leftAABBMax[2], true);
 
       // Write right AABB
       bufferView.setFloat32(48, node.rightAABBMin[0], true); // 16 byte alignment
       bufferView.setFloat32(52, node.rightAABBMin[1], true);
       bufferView.setFloat32(56, node.rightAABBMin[2], true);
 
-      bufferView.setFloat32(64, node.rightAABBMin[0], true); // 16 byte alignment
-      bufferView.setFloat32(68, node.rightAABBMin[1], true);
-      bufferView.setFloat32(72, node.rightAABBMin[2], true);
+      bufferView.setFloat32(64, node.rightAABBMax[0], true); // 16 byte alignment
+      bufferView.setFloat32(68, node.rightAABBMax[1], true);
+      bufferView.setFloat32(72, node.rightAABBMax[2], true);
 
       // Write the entire ArrayBuffer to the GPU buffer
       device.queue.writeBuffer(

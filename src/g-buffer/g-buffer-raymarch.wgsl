@@ -10,14 +10,14 @@ struct ViewProjectionMatrices {
 struct BVHNode {
   rightIndex: i32,
   leftIndex: i32,
-  rightObjectCount: i32,
-  leftObjectCount: i32,
-
-  rightMin: vec3<f32>,
-  rightMax: vec3<f32>,
+  rightObjectCount: u32,
+  leftObjectCount: u32,
 
   leftMin: vec3<f32>,
   leftMax: vec3<f32>,
+
+  rightMin: vec3<f32>,
+  rightMax: vec3<f32>,
 }
 
 @group(0) @binding(0) var voxels : texture_3d<f32>;
@@ -185,6 +185,8 @@ fn main(
   stack_push(&stack, 0);
   var closestRaymarchDist = 1e30f;
 
+
+
   // TODO: make this struct
   var hit = 0.0;
   var isLeaf = false;
@@ -208,7 +210,7 @@ fn main(
       }
     }
 
-    debugColour += vec3(0.01);
+    debugColour += vec3(0.05);
 
     let leftBoxSize = (node.leftMax - node.leftMin) / 2;
     var leftDist = boxIntersection(rayOrigin - node.leftMin, rayDirection, leftBoxSize).tNear;
@@ -253,31 +255,32 @@ fn main(
     iterations += 1;
   }
 
-//      for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
-//        let voxelObject = voxelObjects[i];
-//        totalSteps += 1;
-//        if(any(voxelObject.size == vec3(0.0))){
-//          continue;
-//        }
-//        var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
-//        let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-//        let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
-//        let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size);
-//        if(!intersect.isHit && !isInBounds) {
-//          continue;
-//        }
-//        // Advance ray origin to the point of intersection
-//        if(!isInBounds){
-//          objectRayOrigin = objectRayOrigin + objectRayDirection * intersect.tNear + EPSILON;
-//        }
-//
-//        // Bounds for octree node
-//        let raymarchResult = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
-//        if(raymarchResult.hit){
-//          closestIntersection = raymarchResult;
-//          break;
-//        }
-//      }
+    // TODO: pass object count as buffer, otherwise we waste time on empty objects
+      for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
+        let voxelObject = voxelObjects[i];
+        totalSteps += 1;
+        if(any(voxelObject.size == vec3(0.0))){
+          continue;
+        }
+        var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
+        let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+        let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
+        let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size);
+        if(!intersect.isHit && !isInBounds) {
+          continue;
+        }
+        // Advance ray origin to the point of intersection
+        if(!isInBounds){
+          objectRayOrigin = objectRayOrigin + objectRayDirection * intersect.tNear + EPSILON;
+        }
+
+        // Bounds for octree node
+        let raymarchResult = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
+        if(raymarchResult.hit){
+          closestIntersection = raymarchResult;
+          break;
+        }
+      }
 
 //  debugColour = vec3(f32(totalSteps)) / 120.0;
 
