@@ -3,58 +3,16 @@ import { VoxelObject } from "./voxel-object";
 import { frameTimeTracker } from "./app";
 
 type BVHNode = {
+  rightChildIndex: number;
   leftChildIndex: number;
+  leftObjectCount: number;
+  rightObjectCount: number;
+
   leftAABBMin: Vec3;
   leftAABBMax: Vec3;
-  leftObjectCount: number;
 
-  rightChildIndex: number;
   rightAABBMin: Vec3;
   rightAABBMax: Vec3;
-  rightObjectCount: number;
-};
-
-const getMidpoint = (voxelObjects: VoxelObject[], axis: number) => {
-  const centers = voxelObjects.map(
-    (voxelObject) => voxelObject.worldSpaceCenter,
-  );
-  centers.sort((a, b) => a[axis] - b[axis]);
-  return centers[Math.floor(centers.length / 2)][axis];
-};
-
-const sortVoxeObjectsByMidpoint = (
-  voxelObjects: VoxelObject[],
-  axis: number,
-) => {
-  return voxelObjects.sort(
-    (a, b) => a.worldSpaceCenter[axis] - b.worldSpaceCenter[axis],
-  );
-};
-
-const getLongestAxis = (AABBMin: Vec3, AABBMax: Vec3) => {
-  const size = [
-    AABBMax[0] - AABBMin[0],
-    AABBMax[1] - AABBMin[1],
-    AABBMax[2] - AABBMin[2],
-  ];
-  return size.indexOf(Math.max(...size));
-};
-
-const splitVoxelObjects = (
-  voxelObjects: VoxelObject[],
-  midPoint: number,
-  axis: number,
-) => {
-  const left = [];
-  const right = [];
-  for (const voxelObject of voxelObjects) {
-    if (voxelObject.worldSpaceCenter[axis] < midPoint) {
-      left.push(voxelObject);
-    } else {
-      right.push(voxelObject);
-    }
-  }
-  return { left, right };
 };
 
 const ceilToNearestMultipleOf = (n: number, multiple: number) => {
@@ -92,7 +50,6 @@ export class BVH {
     this.allVoxelObjects = voxelObjects;
     this.nodes = [];
     this.buildBVH(voxelObjects, 0);
-    // this.compress();
     const end = performance.now();
     frameTimeTracker.addSample("create bvh", end - start);
   }
@@ -135,35 +92,6 @@ export class BVH {
     if (right.length > 1) {
       this.buildBVH(right, rightChildIndex);
     }
-  }
-
-  compress() {
-    let compressedNodes: BVHNode[] = [];
-    let lastFilledIndex = 0;
-    for (let i = 0; i < this.nodes.length; i++) {
-      const node = this.nodes[i];
-      if (node) {
-        lastFilledIndex = i;
-        compressedNodes.push(node);
-        let newIndex = compressedNodes.length;
-        compressedNodes = compressedNodes.map((node, index) => {
-          let leftChildIndex = node.leftChildIndex;
-          let rightChildIndex = node.rightChildIndex;
-          if (leftChildIndex === i) {
-            leftChildIndex = newIndex;
-          }
-          if (rightChildIndex === i) {
-            rightChildIndex = newIndex;
-          }
-          return {
-            ...node,
-            leftChildIndex,
-            rightChildIndex,
-          };
-        });
-      }
-    }
-    this.nodes = compressedNodes;
   }
 
   toGPUBuffer(device: GPUDevice) {

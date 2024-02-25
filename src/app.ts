@@ -142,24 +142,36 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   ]);
 
   console.log(sceneBVH);
+  console.log(volumeAtlas.getVolumes());
 
   let BVHBuffer = sceneBVH.toGPUBuffer(device);
 
   const init = () => {
+    if (depthTexture) {
+      depthTexture = null;
+    }
+    if (normalTexture) {
+      normalTexture = null;
+    }
+    if (albedoTexture) {
+      albedoTexture = null;
+    }
+    if (velocityTexture) {
+      velocityTexture = null;
+    }
+    if (outputTexture) {
+      outputTexture = null;
+    }
     const { clientWidth, clientHeight } = canvas.parentElement;
-    // let pixelRatio = Math.min(window.devicePixelRatio, 1.5);
     let pixelRatio = 1.0;
     const canvasResolution = vec2.create(
       clientWidth * pixelRatio,
       clientHeight * pixelRatio,
     );
     resolution = vec2.mulScalar(canvasResolution, 1 / downscale);
-    // Rounded to nearest multiple of 4 for buffer
-    resolution = vec2.mulScalar(vec2.ceil(vec2.divScalar(resolution, 4)), 4);
     canvas.width = canvasResolution[0];
     canvas.height = canvasResolution[1];
     canvas.style.transform = `scale(${1 / pixelRatio})`;
-    animationFrameId = requestAnimationFrame(frame);
   };
 
   const createOutputTexture = () => {
@@ -507,12 +519,17 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   };
 
   init();
+  window.onresize = init;
+  animationFrameId = requestAnimationFrame(frame);
 };
 
 const start = async () => {
-  cancelAnimationFrame(animationFrameId);
-  if (navigator.gpu !== undefined) {
-    const adapter = await navigator.gpu.requestAdapter();
+  if (!navigator.gpu) {
+    console.error("WebGPU not supported");
+    return;
+  }
+  const adapter = await navigator.gpu.requestAdapter();
+  if (!device) {
     try {
       device = await adapter.requestDevice({
         requiredFeatures: ["timestamp-query"],
@@ -520,68 +537,47 @@ const start = async () => {
     } catch (e) {
       device = await adapter.requestDevice();
     }
+  }
 
-    console.log(device.limits);
-    skyTexture = await createTextureFromImages(device, [
-      "cubemaps/town-square/posx.jpg",
-      "cubemaps/town-square/negx.jpg",
-      "cubemaps/town-square/posy.jpg",
-      "cubemaps/town-square/negy.jpg",
-      "cubemaps/town-square/posz.jpg",
-      "cubemaps/town-square/negz.jpg",
-    ]);
-    volumeAtlas = getVolumeAtlas(device);
+  console.log(device.limits);
+  skyTexture = await createTextureFromImages(device, [
+    "cubemaps/town-square/posx.jpg",
+    "cubemaps/town-square/negx.jpg",
+    "cubemaps/town-square/posy.jpg",
+    "cubemaps/town-square/negy.jpg",
+    "cubemaps/town-square/posz.jpg",
+    "cubemaps/town-square/negz.jpg",
+  ]);
+  volumeAtlas = getVolumeAtlas(device);
 
-    // let barrelTexture = await create3dTexture(
-    //   device,
-    //   barrel.sliceFilePaths,
-    //   barrel.size,
-    //   "barrel",
-    // );
-    // barrelTexture = await removeInternalVoxels(device, barrelTexture);
-    // generateOctreeMips(device, barrelTexture);
-    // volumeAtlas.addVolume(barrelTexture, "barrel");
-    // barrelTexture.destroy();
-    //
-    // let dragonTexture = await create3dTexture(
-    //   device,
-    //   dragon.sliceFilePaths,
-    //   dragon.size,
-    //   "dragon",
-    // );
-    // dragonTexture = await removeInternalVoxels(device, dragonTexture);
-    // generateOctreeMips(device, dragonTexture);
-    // volumeAtlas.addVolume(dragonTexture, "dragon");
-    // dragonTexture.destroy();
+  await createTavern(device, volumeAtlas);
 
-    await createTavern(device, volumeAtlas);
+  const computePassPromises: Promise<RenderPass>[] = [
+    // getDepthPrepass(),
+    getGBufferPass(),
+    // getDiffusePass(),
+    // getReflectionsPass(),
+    // getShadowsPass(),
+    // getSkyPass(),
+    // getVolumetricFog(),
+    // getTaaPass(),
+    // getMotionBlurPass(),
+    // getBoxOutlinePass(),
+    // getWaterPass(),
+    fullscreenQuad(device),
+  ];
 
-    const computePassPromises: Promise<RenderPass>[] = [
-      // getDepthPrepass(),
-      getGBufferPass(),
-      // getDiffusePass(),
-      // getReflectionsPass(),
-      // getShadowsPass(),
-      // getSkyPass(),
-      // getVolumetricFog(),
-      // getTaaPass(),
-      // getMotionBlurPass(),
-      // getBoxOutlinePass(),
-      // getWaterPass(),
-      fullscreenQuad(device),
-    ];
+  const computePasses = await Promise.all(computePassPromises);
 
-    const computePasses = await Promise.all(computePassPromises);
+  renderLoop(device, await Promise.all(computePasses));
 
-    renderLoop(device, await Promise.all(computePasses));
-
-    document.getElementById("flags").innerHTML = computePasses.reduce(
-      (acc, pass) => {
-        if (!pass.label) {
-          return acc;
-        }
-        const id = `flag-${pass.label}`;
-        return `${acc}<div class="debug-row">
+  document.getElementById("flags").innerHTML = computePasses.reduce(
+    (acc, pass) => {
+      if (!pass.label) {
+        return acc;
+      }
+      const id = `flag-${pass.label}`;
+      return `${acc}<div class="debug-row">
                     <label for="${id}">
                         ${pass.label}
                     </label>
@@ -589,20 +585,15 @@ const start = async () => {
                         <input id="${id}" type="checkbox" checked>
                    </div>
                 </div>`;
-      },
-      "",
-    );
-  } else {
-    console.error("WebGPU not supported");
-  }
+    },
+    "",
+  );
 };
 
 let startPromise = start();
+//
 // window.onresize = async () => {
 //   await startPromise;
-//   device.destroy();
+//   cancelAnimationFrame(animationFrameId);
 //   start();
 // };
-//
-// const resizeObserver = new ResizeObserver(start);
-// resizeObserver.observe(canvas.parentElement);
