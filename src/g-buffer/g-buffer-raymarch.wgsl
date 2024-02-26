@@ -23,7 +23,7 @@ struct BVHNode {
 
 @group(0) @binding(0) var voxels : texture_3d<f32>;
 @group(0) @binding(2) var<uniform> cameraPosition : vec3<f32>;
-@group(0) @binding(3) var<uniform> voxelObjects : array<VoxelObject, VOXEL_OBJECT_COUNT>; // TODO: dynamic amount of these using string interpolation
+@group(0) @binding(3) var<storage> voxelObjects : array<VoxelObject>; // TODO: dynamic amount of these using string interpolation
 // TODO: maybe make a G-Buffer bind group to resuse across shaders
 @group(0) @binding(4) var normalTex : texture_storage_2d<rgba8snorm, write>;
 @group(0) @binding(5) var albedoTex : texture_storage_2d<rgba8unorm, write>;
@@ -106,23 +106,6 @@ fn getParentIndex(index: i32) -> i32 {
 
 const FAR_PLANE = 10000.0;
 
-fn swapu(a: ptr<function, u32>, b: ptr<function, u32>) {
-  let temp = *a;
-  *a = *b;
-  *b = temp;
-}
-
-fn swapf(a: ptr<function, f32>, b: ptr<function, f32>) {
-  let temp = *a;
-  *a = *b;
-  *b = temp;
-}
-
-fn swapi(a: ptr<function, i32>, b: ptr<function, i32>) {
-  let temp = *a;
-  *a = *b;
-  *b = temp;
-}
 
 fn dirIsNegative(dir: vec3<f32>, axis: i32) -> bool {
   return dir[axis] < 0.0;
@@ -186,27 +169,14 @@ fn main(
   var debugColour = vec3(0.0);
 
   var stack = stack_new();
-//  stack_push(&stack, 0);
+  stack_push(&stack, 0);
   var closestRaymarchDist = 1e30f;
-
-  let node = bvhNodes[0];
-  let rightBoxSize = (node.rightMax - node.rightMin) / 2;
-  let rightDist = boxIntersection(rayOrigin - node.rightMin, rayDirection, rightBoxSize).tNear;
-  if(rightDist > -1.0){
-    debugColour += vec3(0.0, 1.0, 0.0);
-  }
-
-  let leftBoxSize = (node.leftMax - node.leftMin) / 2;
-  let leftDist = boxIntersection(rayOrigin - node.leftMin, rayDirection, leftBoxSize).tNear;
-  if(leftDist > -1.0){
-    debugColour += vec3(1.0, 0.0, 0.0);
-  }
 
   var nodeIndex = 0;
   var intersect = 0.0;
   var voxelObjectIndex = -1;
   var newLeaf = false;
-  while (stack.head > 0u && iterations < 8) {
+  while (stack.head > 0u && iterations < 1) {
     let node = bvhNodes[nodeIndex];
     // Get the distance to the left and right child nodes
     let leftBoxSize = (node.leftMax - node.leftMin) / 2;
@@ -216,59 +186,57 @@ fn main(
     let leftValid  = leftDist > -1.0 && leftDist < closestRaymarchDist;
     let rightValid = rightDist > -1.0 && rightDist < closestRaymarchDist;
 
+    if(leftValid && rightValid) {
+      // traverse the closer child first, push the other index to the stack
+      if (leftDist < rightDist) {
+          // TODO: update the stack push to account for left and right nodes being at the same level
+          // sometimes the same node will need to be visited twice, so this logic isnt quite right
+          nodeIndex  = node.leftIndex;
+          stack_push(&stack, node.rightIndex);
+          intersect = leftDist;
+          let isLeaf = node.leftObjectCount == 1;
+          voxelObjectIndex = select(-1, node.leftIndex, isLeaf);
+      } else {
+          nodeIndex  = node.rightIndex;
+          stack_push(&stack, node.leftIndex);
+          intersect = rightDist;
+          let isLeaf = node.rightObjectCount == 1;
+          voxelObjectIndex = select(-1, node.leftIndex, isLeaf);
+      }
+    }
+    else if (leftValid) {
+      nodeIndex = node.leftIndex;
+      intersect = leftDist;
+      let isLeaf = node.leftObjectCount == 1;
+      voxelObjectIndex = select(-1, node.leftIndex, isLeaf);
+      debugColour = vec3(1.0, 0.0, 0.0);
+    }
+    else if (rightValid) {
+      nodeIndex = node.rightIndex;
+      intersect = rightDist;
+      let isLeaf = node.rightObjectCount == 1;
+      voxelObjectIndex = select(-1, node.rightIndex, isLeaf);
+      debugColour += vec3(0.0, 0.0, 0.5);
+    } else {
+      //traverse neither, go down the stack
+      nodeIndex = stack_pop(&stack);
+    }
+
         // valid leaf
     if(voxelObjectIndex != -1){
         // Raymarch the voxel object if it's a leaf node
-  //      let voxelObject = voxelObjects[voxelObjectIndex];
+        let voxelObject = voxelObjects[voxelObjectIndex];
         debugColour = getDebugColour(voxelObjectIndex);
-  //      let raymarchResult = rayMarchTransformed(voxelObject, rayDirection, rayOrigin + rayDirection * intersect, 0);
-  //      let raymarchDist = distance(raymarchResult.worldPos, rayOrigin);
+        let raymarchResult = rayMarchTransformed(voxelObject, rayDirection, rayOrigin + rayDirection * intersect, 0);
+        let raymarchDist = distance(raymarchResult.worldPos, rayOrigin);
 
-  //      if(raymarchResult.hit && raymarchDist < closestRaymarchDist){
-  //        isWater = false;
-  //        closestIntersection = raymarchResult;
-  //        debugColour = raymarchResult.colour;
-  //        closestRaymarchDist = raymarchDist;
-  //      }
-    }
-    else {
-      if(leftValid && rightValid) {
-        // traverse the closer child first, push the other index to the stack
-        if (leftDist < rightDist) {
-            // TODO: update the stack push to account for left and right nodes being at the same level
-            // sometimes the same node will need to be visited twice, so this logic isnt quite right
-            nodeIndex  = node.leftIndex;
-            stack_push(&stack, node.rightIndex);
-            intersect = leftDist;
-            let isLeaf = node.leftObjectCount == 1;
-            voxelObjectIndex = select(-1, node.leftIndex, isLeaf);
-        } else {
-            nodeIndex  = node.rightIndex;
-            stack_push(&stack, node.leftIndex);
-            intersect = rightDist;
-            let isLeaf = node.rightObjectCount == 1;
-            voxelObjectIndex = select(-1, node.leftIndex, isLeaf);
+        if(raymarchResult.hit && raymarchDist < closestRaymarchDist){
+          isWater = false;
+          closestIntersection = raymarchResult;
+          debugColour = raymarchResult.colour;
+          closestRaymarchDist = raymarchDist;
         }
-      }
-      else if (leftValid) {
-        nodeIndex = node.leftIndex;
-        intersect = leftDist;
-        let isLeaf = node.leftObjectCount == 1;
-        voxelObjectIndex = select(-1, node.leftIndex, isLeaf);
-        debugColour = vec3(1.0, 0.0, 0.0);
-      }
-      else if (rightValid) {
-        nodeIndex = node.rightIndex;
-        intersect = rightDist;
-        let isLeaf = node.rightObjectCount == 1;
-        voxelObjectIndex = select(-1, node.rightIndex, isLeaf);
-        debugColour += vec3(0.0, 0.0, 0.5);
-      } else {
-        //traverse neither, go down the stack
-        debugColour += vec3(1.0, 0.0, 0.0);
-        nodeIndex = stack_pop(&stack);
-      }
-  }
+    }
 
 
 //    debugColour += vec3(0.05);

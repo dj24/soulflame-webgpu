@@ -56,22 +56,22 @@ export const createTavern = async (
     }
     if (
       ![
-        // "Table",
-        // "Bench",
-        // "Stool",
-        // "BarTop",
-        // "BarTopS",
-        // "BarTop1",
+        "Table",
+        "Bench",
+        "Stool",
+        "BarTop",
+        "BarTopS",
+        "BarTop1",
         "Barrel",
-        // "Keg",
-        // "Candle",
-        // "Bed",
-        // "Torch",
-        // "TorchHolder",
-        // "FireLogs",
-        // "Tankard",
-        // "Bookshelf",
-        // "Books4",
+        "Keg",
+        "Candle",
+        "Bed",
+        "Torch",
+        "TorchHolder",
+        "FireLogs",
+        "Tankard",
+        "Bookshelf",
+        "Books4",
       ].includes(child.name)
     ) {
       return;
@@ -108,7 +108,16 @@ const sortObjectsByDistanceToCamera = (
   });
 };
 
-export const getObjectTransforms = ({ maxObjectCount }: GetObjectsArgs) => {
+/**
+ * Returns the object transforms with padding to fill the maxObjectCount
+ * This is temporary until the matrices buffer is dynamically sized
+ * @param maxObjectCount
+ */
+export const getObjectTransformsWithPadding = ({
+  maxObjectCount,
+}: GetObjectsArgs) => {
+  console.log({ maxObjectCount });
+  console.log({ objectCount: voxelObjects.length });
   let objectCount = Math.min(maxObjectCount, voxelObjects.length);
   let activeVoxelObjects = voxelObjects.slice(0, objectCount);
   // activeVoxelObjects = sortObjectsByDistanceToCamera(

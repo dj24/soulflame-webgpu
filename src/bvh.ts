@@ -50,6 +50,18 @@ export class BVH {
     this.allVoxelObjects = voxelObjects;
     this.nodes = [];
     this.buildBVH(voxelObjects, 0);
+    // this.nodes = [
+    //   {
+    //     leftAABBMin: [0, 0, 0],
+    //     leftAABBMax: [0, 0, 0],
+    //     leftObjectCount: 0,
+    //     rightAABBMin: [-20, 0, -20],
+    //     rightAABBMax: [-10, 10, -10],
+    //     rightObjectCount: 1,
+    //     leftChildIndex: 0,
+    //     rightChildIndex: 0,
+    //   },
+    // ];
     const end = performance.now();
     frameTimeTracker.addSample("create bvh", end - start);
   }

@@ -26,7 +26,7 @@ import { getSkyPass } from "./sky-and-fog/get-sky-pass";
 import { getVolumetricFog } from "./volumetric-fog/get-volumetric-fog";
 import {
   createTavern,
-  getObjectTransforms,
+  getObjectTransformsWithPadding,
   voxelObjects,
 } from "./create-tavern";
 import { GetObjectsArgs } from "./get-objects-transforms/objects-worker";
@@ -132,17 +132,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     });
   }
 
-  const sceneBVH = new BVH([
-    // new VoxelObject(
-    //   mat4.identity(),
-    //   vec3.create(20, 20, 20),
-    //   vec3.create(0, 0, 0),
-    // ),
-    ...voxelObjects,
-  ]);
-
-  console.log(sceneBVH);
-  console.log(volumeAtlas.getVolumes());
+  const sceneBVH = new BVH(voxelObjects);
 
   let BVHBuffer = sceneBVH.toGPUBuffer(device);
 
@@ -381,18 +371,7 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   createBlueNoiseTexture();
 
   const getVoxelObjectsBuffer = () => {
-    const voxelObjects = getObjectTransforms({
-      maxObjectCount: debugValues.maxObjectCount,
-      objectCount: debugValues.objectCount,
-      scale: debugValues.scale,
-      translateX: debugValues.translateX,
-      rotateY: debugValues.rotateY,
-    });
-
-    const sceneBVH = new BVH(voxelObjects);
-
-    BVHBuffer = sceneBVH.toGPUBuffer(device);
-
+    new BVH(voxelObjects).toGPUBuffer(device);
     const voxelObjectsArray = voxelObjects.flatMap((voxelObject) =>
       voxelObject.toArray(),
     );
@@ -405,6 +384,11 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         voxelObjectsArray,
         "voxel object",
       );
+      transformationMatrixBuffer = device.createBuffer({
+        size: new Float32Array(voxelObjectsArray).byteLength,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        mappedAtCreation: false,
+      });
     }
   };
 

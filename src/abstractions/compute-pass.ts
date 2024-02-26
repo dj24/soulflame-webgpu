@@ -33,7 +33,7 @@ const matricesEntry: GPUBindGroupLayoutEntry = {
   binding: 3,
   visibility: GPUShaderStage.COMPUTE,
   buffer: {
-    type: "uniform",
+    type: "read-only-storage",
   },
 };
 

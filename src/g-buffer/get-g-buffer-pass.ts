@@ -79,35 +79,13 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     },
   };
 
-  // Layout for clearing the pixel buffer and copying it to the screen
-  const utilLayout = device.createBindGroupLayout({
-    entries: [
-      // Resolution
-      {
-        binding: 0,
-        visibility: GPUShaderStage.COMPUTE,
-        buffer: {
-          type: "uniform",
-        },
-      },
-      // Pixel buffer
-      {
-        binding: 1,
-        visibility: GPUShaderStage.COMPUTE,
-        buffer: {
-          type: "storage",
-        },
-      },
-      {
-        binding: 2,
-        visibility: GPUShaderStage.COMPUTE,
-        storageTexture: {
-          format: "rgba8unorm",
-          viewDimension: "2d",
-        },
-      },
-    ],
-  });
+  const matricesBufferEntry: GPUBindGroupLayoutEntry = {
+    binding: 3,
+    visibility: GPUShaderStage.COMPUTE,
+    buffer: {
+      type: "read-only-storage",
+    },
+  };
 
   const uniformsBindGroupLayout = device.createBindGroupLayout({
     entries: [
@@ -126,13 +104,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           type: "uniform",
         },
       },
-      {
-        binding: 3,
-        visibility: GPUShaderStage.COMPUTE,
-        buffer: {
-          type: "uniform",
-        },
-      },
+      matricesBufferEntry,
       normalEntry,
       albedoEntry,
       depthAndClusterEntry,
@@ -156,7 +128,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     compute: {
       module: device.createShaderModule({
         code: `
-          const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
           ${getRayDirection}
           ${boxIntersection}
           ${raymarchVoxels}
