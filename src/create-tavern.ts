@@ -71,7 +71,7 @@ export const createTavern = async (
         "FireLogs",
         "Tankard",
         "Bookshelf",
-        "Books4",
+        // "Books4",
       ].includes(child.name)
     ) {
       return;

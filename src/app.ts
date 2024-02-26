@@ -423,6 +423,8 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     debugUI.log(frameTimeTracker.toHTML());
 
+    document.getElementById("resolution").innerHTML = resolution.join(" x ");
+
     getTimeBuffer();
     getResolutionBuffer();
     getSunDirectionBuffer();

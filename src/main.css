@@ -50,7 +50,8 @@
     gap: 4px;
     padding: 8px;
     position: relative;
-    background: rgb(30,30,30);
+    background: rgba(30,30,30, 0.6);
+    backdrop-filter: blur(32px);
 }
 
 button{
