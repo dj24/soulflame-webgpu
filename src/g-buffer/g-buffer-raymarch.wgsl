@@ -35,6 +35,8 @@ struct BVHNode {
 //TODO: make this a buffer
 @group(0) @binding(10) var<storage> bvhNodes: array<BVHNode>;
 
+const NEAR_PLANE = 1.0;
+
 const STACK_LEN: u32 = 24u;
 struct Stack {
   arr: array<i32, STACK_LEN>,
@@ -120,7 +122,7 @@ fn main(
   var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
   let pixel = GlobalInvocationID.xy;
   let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
-  var rayOrigin = cameraPosition;
+  var rayOrigin = cameraPosition + rayDirection * NEAR_PLANE;
   var closestIntersection = RayMarchResult();
   closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
   var isWater = false;
@@ -166,69 +168,11 @@ fn main(
   var voxelObjectIndex = -1;
   var newLeaf = false;
   while (stack.head > 0u && iterations < 256) {
-    let node = bvhNodes[nodeIndex];
-
-    // Get the distance to the left and right child nodes
-
-
-    var leftDist = -1.0;
-    if(all(rayOrigin >= node.leftMin) && all(rayOrigin <= node.leftMax)){
-      leftDist = 0.0;
-    } else {
-      let leftBoxSize = (node.leftMax - node.leftMin) / 2;
-      leftDist = boxIntersection(rayOrigin - node.leftMin, rayDirection, leftBoxSize).tNear - EPSILON;
-    }
-
-    var rightDist = -1.0;
-    if(all(rayOrigin >= node.rightMin) && all(rayOrigin <= node.rightMax)){
-      rightDist = 0.0;
-    } else {
-      var rightBoxSize = (node.rightMax - node.rightMin) / 2;
-      rightDist = boxIntersection(rayOrigin - node.rightMin, rayDirection, rightBoxSize).tNear;
-    }
-
-    let leftValid  = leftDist > -1.0 && leftDist < closestRaymarchDist;
-    let rightValid = rightDist > -1.0 && rightDist < closestRaymarchDist;
-
-    if(leftValid && rightValid) {
-      // traverse the closer child first, push the other index to the stack
-      if (leftDist < rightDist) {
-          // TODO: update the stack push to account for left and right nodes being at the same level
-          // sometimes the same node will need to be visited twice, so this logic isnt quite right
-          nodeIndex  = node.leftIndex;
-          stack_push(&stack, node.rightIndex);
-          intersect = leftDist;
-          let isLeaf = node.leftObjectCount == 1;
-          voxelObjectIndex = select(-1, node.leftIndex, isLeaf);
-      } else {
-          nodeIndex  = node.rightIndex;
-          stack_push(&stack, node.leftIndex);
-          intersect = rightDist;
-          let isLeaf = node.rightObjectCount == 1;
-          voxelObjectIndex = select(-1, node.leftIndex, isLeaf);
-      }
-    }
-    else if (leftValid) {
-      nodeIndex = node.leftIndex;
-      intersect = leftDist;
-      let isLeaf = node.leftObjectCount == 1;
-      voxelObjectIndex = select(-1, node.leftIndex, isLeaf);
-    }
-    else if (rightValid) {
-      nodeIndex = node.rightIndex;
-      intersect = rightDist;
-      let isLeaf = node.rightObjectCount == 1;
-      voxelObjectIndex = select(-1, node.rightIndex, isLeaf);
-    } else {
-      //traverse neither, go down the stack
-      nodeIndex = stack_pop(&stack);
-    }
-
-        // valid leaf
-    if(voxelObjectIndex != -1){
+    // valid leaf, raymarch it
+    if(voxelObjectIndex != -1 && newLeaf){
+        newLeaf = false;
         // Raymarch the voxel object if it's a leaf node
         let voxelObject = voxelObjects[voxelObjectIndex];
-//        debugColour = getDebugColour(voxelObjectIndex);
         let raymarchResult = rayMarchTransformed(voxelObject, rayDirection, rayOrigin + rayDirection * intersect, 0);
         let raymarchDist = distance(raymarchResult.worldPos, rayOrigin);
 
@@ -240,17 +184,69 @@ fn main(
         }
         voxelObjectIndex = -1;
         totalSteps += raymarchResult.stepsTaken;
+    } else{
+      let node = bvhNodes[nodeIndex];
+
+      // Get the distance to the left and right child nodes
+      var leftDist = -1.0;
+      if(all(rayOrigin >= node.leftMin) && all(rayOrigin <= node.leftMax)){
+        leftDist = 0.0;
+      } else {
+        let leftBoxSize = (node.leftMax - node.leftMin) / 2;
+        leftDist = boxIntersection(rayOrigin - node.leftMin, rayDirection, leftBoxSize).tNear - EPSILON;
+      }
+
+      var rightDist = -1.0;
+      if(all(rayOrigin >= node.rightMin) && all(rayOrigin <= node.rightMax)){
+        rightDist = 0.0;
+      } else {
+        var rightBoxSize = (node.rightMax - node.rightMin) / 2;
+        rightDist = boxIntersection(rayOrigin - node.rightMin, rayDirection, rightBoxSize).tNear;
+      }
+
+      let leftValid  = leftDist > -1.0 && leftDist < closestRaymarchDist;
+      let rightValid = rightDist > -1.0 && rightDist < closestRaymarchDist;
+      var isLeaf = false;
+
+      if(leftValid && rightValid) {
+        // traverse the closer child first, push the other index to the stack
+        if (leftDist < rightDist) {
+            nodeIndex  = node.leftIndex;
+            stack_push(&stack, node.rightIndex);
+            intersect = leftDist;
+            isLeaf = node.leftObjectCount == 1;
+            voxelObjectIndex = select(-1, node.leftIndex, isLeaf);
+        } else {
+            nodeIndex  = node.rightIndex;
+            stack_push(&stack, node.leftIndex);
+            intersect = rightDist;
+            isLeaf = node.rightObjectCount == 1;
+            voxelObjectIndex = select(-1, node.leftIndex, isLeaf);
+        }
+      }
+      else if (leftValid) {
+        nodeIndex = node.leftIndex;
+        intersect = leftDist;
+        isLeaf = node.leftObjectCount == 1;
+        voxelObjectIndex = select(-1, node.leftIndex, isLeaf);
+      }
+      else if (rightValid) {
+        nodeIndex = node.rightIndex;
+        intersect = rightDist;
+        isLeaf = node.rightObjectCount == 1;
+        voxelObjectIndex = select(-1, node.rightIndex, isLeaf);
+      } else {
+        //traverse neither, go down the stack
+        nodeIndex = stack_pop(&stack);
+      }
+      newLeaf = isLeaf;
     }
 
-
     debugColour += vec3(0.01);
-
     iterations += 1;
   }
 
-  debugColour = vec3(f32(totalSteps)) / 120.0;
-
-
+  debugColour = mix(vec3(0.1,0.2,1.0), vec3(1.0,0.5, 0.0), f32(totalSteps) / 120.0);
 
   let normal = closestIntersection.normal;
   let depth = distance(cameraPosition, closestIntersection.worldPos);
