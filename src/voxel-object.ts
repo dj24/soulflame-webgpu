@@ -1,5 +1,22 @@
 import { mat4, Mat4, vec3, Vec3 } from "wgpu-matrix";
 
+const transformPointToNDC = (point: Vec3, viewProjection: Mat4) => {
+  return vec3.transformMat4(point, viewProjection);
+};
+
+export const isVoxelObjectInFrustrum = (
+  voxelObject: VoxelObject,
+  viewProjection: Mat4,
+) => {
+  const isAnyCornerInFrustrum = voxelObject.worldSpaceCorners.some((corner) => {
+    const ndc = transformPointToNDC(corner, viewProjection);
+    return (
+      ndc[0] >= -1 && ndc[0] <= 1 && ndc[1] >= -1 && ndc[1] <= 1 && ndc[2] >= 0
+    );
+  });
+  return isAnyCornerInFrustrum;
+};
+
 export class VoxelObject {
   name: string;
   transform: Mat4;

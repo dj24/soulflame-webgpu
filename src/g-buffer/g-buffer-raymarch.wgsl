@@ -122,7 +122,7 @@ fn main(
   var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
   let pixel = GlobalInvocationID.xy;
   let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
-  var rayOrigin = cameraPosition + rayDirection * NEAR_PLANE;
+  var rayOrigin = cameraPosition;
   var closestIntersection = RayMarchResult();
   closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
   var isWater = false;
@@ -167,9 +167,10 @@ fn main(
   var intersect = 0.0;
   var voxelObjectIndex = -1;
   var newLeaf = false;
-  while (stack.head > 0u && iterations < 256) {
+  while (stack.head > 0u && iterations < 128) {
     // valid leaf, raymarch it
     if(voxelObjectIndex != -1 && newLeaf){
+
         newLeaf = false;
         // Raymarch the voxel object if it's a leaf node
         let voxelObject = voxelObjects[voxelObjectIndex];
@@ -179,7 +180,8 @@ fn main(
         if(raymarchResult.hit && raymarchDist < closestRaymarchDist){
           isWater = false;
           closestIntersection = raymarchResult;
-          debugColour = raymarchResult.colour;
+//          debugColour = raymarchResult.colour;
+          debugColour = vec3(raymarchDist * 0.01);
           closestRaymarchDist = raymarchDist;
         }
         voxelObjectIndex = -1;
@@ -204,8 +206,8 @@ fn main(
         rightDist = boxIntersection(rayOrigin - node.rightMin, rayDirection, rightBoxSize).tNear;
       }
 
-      let leftValid  = leftDist > -1.0 && leftDist < closestRaymarchDist;
-      let rightValid = rightDist > -1.0 && rightDist < closestRaymarchDist;
+      let leftValid  = leftDist >= 0.0 && leftDist < closestRaymarchDist;
+      let rightValid = rightDist >= 0.0 && rightDist < closestRaymarchDist;
       var isLeaf = false;
 
       if(leftValid && rightValid) {
@@ -242,11 +244,11 @@ fn main(
       newLeaf = isLeaf;
     }
 
-    debugColour += vec3(0.01);
+//    debugColour += vec3(0.01);
     iterations += 1;
   }
 
-  debugColour = mix(vec3(0.1,0.2,1.0), vec3(1.0,0.5, 0.0), f32(totalSteps) / 120.0);
+  debugColour = mix(vec3(0.1,0.2,1.0), vec3(1.0,0.5, 0.0), f32(totalSteps) / 128.0);
 
   let normal = closestIntersection.normal;
   let depth = distance(cameraPosition, closestIntersection.worldPos);

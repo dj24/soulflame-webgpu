@@ -106,14 +106,14 @@ export class BVH {
     }
   }
 
-  toGPUBuffer(device: GPUDevice) {
+  toGPUBuffer(device: GPUDevice, length: number) {
     const childIndicesSize = Int32Array.BYTES_PER_ELEMENT * 2;
     const AABBSize = Float32Array.BYTES_PER_ELEMENT * 8 * 2;
     const objectCountSize = Uint32Array.BYTES_PER_ELEMENT * 2;
     let stride = childIndicesSize + AABBSize + objectCountSize;
     stride = ceilToNearestMultipleOf(stride, 16);
     const buffer = device.createBuffer({
-      size: this.nodes.length * stride,
+      size: length * stride,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       mappedAtCreation: false,
     });

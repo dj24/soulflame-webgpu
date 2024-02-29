@@ -31,7 +31,7 @@ import {
 } from "./create-tavern";
 import { GetObjectsArgs } from "./get-objects-transforms/objects-worker";
 import dragonVolume from "./voxel-models/dragon.vxm";
-import { VoxelObject } from "./voxel-object";
+import { isVoxelObjectInFrustrum, VoxelObject } from "./voxel-object";
 import { getBoxOutlinePass } from "./box-outline/get-box-outline-pass";
 import { BVH } from "./bvh";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
@@ -134,7 +134,9 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
   const sceneBVH = new BVH(voxelObjects);
 
-  let BVHBuffer = sceneBVH.toGPUBuffer(device);
+  const nodeCount = sceneBVH.nodes.length;
+
+  let BVHBuffer = sceneBVH.toGPUBuffer(device, nodeCount);
 
   const init = () => {
     if (depthTexture) {
@@ -371,8 +373,18 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   createBlueNoiseTexture();
 
   const getVoxelObjectsBuffer = () => {
-    new BVH(voxelObjects).toGPUBuffer(device);
-    const voxelObjectsArray = voxelObjects.flatMap((voxelObject) =>
+    // const voxelObjectsInFrustrum = voxelObjects.filter((voxelObject) =>
+    //   isVoxelObjectInFrustrum(voxelObject, camera.viewProjectionMatrix),
+    // );
+    const voxelObjectsInFrustrum = voxelObjects;
+
+    document.getElementById("objectcount").innerHTML =
+      `Objects: ${voxelObjectsInFrustrum.length} / ${voxelObjects.length} in view`;
+
+    BVHBuffer.destroy();
+    const bvh = new BVH(voxelObjectsInFrustrum);
+    BVHBuffer = bvh.toGPUBuffer(device, bvh.nodes.length);
+    const voxelObjectsArray = voxelObjectsInFrustrum.flatMap((voxelObject) =>
       voxelObject.toArray(),
     );
 
@@ -391,6 +403,10 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       });
     }
   };
+
+  setInterval(() => {
+    debugUI.log(frameTimeTracker.toHTML());
+  }, 500);
 
   const frame = (now: number) => {
     if (startTime === 0) {
@@ -420,8 +436,6 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     );
 
     // const jitteredCameraPosition = camera.position;
-
-    debugUI.log(frameTimeTracker.toHTML());
 
     document.getElementById("resolution").innerHTML = resolution.join(" x ");
 

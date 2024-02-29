@@ -92,6 +92,7 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
     let mipSample4 = textureLoad(voxels, mip3SamplePosition, 4);
 
     if(mipSample0.a > 0.0){
+//    if(true){
         output.objectPos = objectPos;
         output.worldPos = (voxelObject.transform *  vec4(output.objectPos, 1.0)).xyz;
         output.normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(objectNormal));
