@@ -42,7 +42,7 @@ struct RayMarchResult {
 }
 
 fn isInBounds(position: vec3<i32>, size: vec3<i32>) -> bool {
-  return all(position >= vec3(0)) && all(position <= size);
+  return all(position >= vec3(0)) && all(position <= size - vec3(1));
 }
 
 fn getMipLevelFromVoxelSize(voxelSize: vec3<f32>) -> u32 {
@@ -91,7 +91,7 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
     let mipSample3 = textureLoad(voxels, mip3SamplePosition, 3);
     let mipSample4 = textureLoad(voxels, mip3SamplePosition, 4);
 
-    if(mipSample0.a > 0.0){
+    if(mipSample0.a > 0.0 && isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
 //    if(true){
         output.objectPos = objectPos;
         output.worldPos = (voxelObject.transform *  vec4(output.objectPos, 1.0)).xyz;

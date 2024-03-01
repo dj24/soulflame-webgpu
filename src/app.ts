@@ -373,15 +373,23 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   createBlueNoiseTexture();
 
   const getVoxelObjectsBuffer = () => {
+    // BVHBuffer.destroy();
     // const voxelObjectsInFrustrum = voxelObjects.filter((voxelObject) =>
     //   isVoxelObjectInFrustrum(voxelObject, camera.viewProjectionMatrix),
     // );
+
+    // const m = mat4.identity();
+    // mat4.setTranslation(m, [debugValues.translateX, 0, 0], m);
+    // mat4.rotateY(m, debugValues.rotateY, m);
+    // mat4.scale(m, [debugValues.scale, debugValues.scale, debugValues.scale], m);
+    // voxelObjects[0].transform = m;
+    // voxelObjects[0].inverseTransform = mat4.invert(m);
+
     const voxelObjectsInFrustrum = voxelObjects;
 
     document.getElementById("objectcount").innerHTML =
       `Objects: ${voxelObjectsInFrustrum.length} / ${voxelObjects.length} in view`;
 
-    BVHBuffer.destroy();
     const bvh = new BVH(voxelObjectsInFrustrum);
     BVHBuffer = bvh.toGPUBuffer(device, bvh.nodes.length);
     const voxelObjectsArray = voxelObjectsInFrustrum.flatMap((voxelObject) =>

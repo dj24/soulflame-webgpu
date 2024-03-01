@@ -4,6 +4,8 @@ export class KeyboardControls {
     a: false,
     s: false,
     d: false,
+    q: false,
+    e: false,
     " ": false,
     shift: false,
   };

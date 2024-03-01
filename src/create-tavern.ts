@@ -64,14 +64,14 @@ export const createTavern = async (
         "BarTop1",
         "Barrel",
         "Keg",
-        "Candle",
+        // "Candle",
         "Bed",
-        "Torch",
-        "TorchHolder",
+        // "Torch",
+        // "TorchHolder",
         "FireLogs",
         "Tankard",
         "Bookshelf",
-        // "Books4",
+        "Books4",
       ].includes(child.name)
     ) {
       return;
