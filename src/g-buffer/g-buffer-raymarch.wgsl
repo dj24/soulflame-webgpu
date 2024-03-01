@@ -7,23 +7,9 @@ struct ViewProjectionMatrices {
   inverseProjection: mat4x4<f32>
 };
 
-struct BVHNode {
-  leftIndex: i32,
-  rightIndex: i32,
-
-  leftObjectCount: u32,
-  rightObjectCount: u32,
-
-  leftMin: vec3<f32>,
-  leftMax: vec3<f32>,
-
-  rightMin: vec3<f32>,
-  rightMax: vec3<f32>,
-}
-
 @group(0) @binding(0) var voxels : texture_3d<f32>;
 @group(0) @binding(2) var<uniform> cameraPosition : vec3<f32>;
-@group(0) @binding(3) var<storage> voxelObjects : array<VoxelObject>; // TODO: dynamic amount of these using string interpolation
+@group(0) @binding(3) var<storage> voxelObjects : array<VoxelObject>;
 // TODO: maybe make a G-Buffer bind group to resuse across shaders
 @group(0) @binding(4) var normalTex : texture_storage_2d<rgba8snorm, write>;
 @group(0) @binding(5) var albedoTex : texture_storage_2d<rgba8unorm, write>;
@@ -32,31 +18,9 @@ struct BVHNode {
 @group(0) @binding(7) var velocityTex : texture_storage_2d<rgba32float, write>;
 @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;
 @group(0) @binding(9) var<uniform> sunDirection : vec3<f32>;
-//TODO: make this a buffer
-@group(0) @binding(10) var<storage> bvhNodes: array<BVHNode>;
 
 const NEAR_PLANE = 1.0;
 
-const STACK_LEN: u32 = 24u;
-struct Stack {
-  arr: array<i32, STACK_LEN>,
-	head: u32,
-}
-
-fn stack_new() -> Stack {
-    var arr: array<i32, STACK_LEN>;
-    return Stack(arr, 0u);
-}
-
-fn stack_push(stack: ptr<function, Stack>, val: i32) {
-    (*stack).arr[(*stack).head] = val;
-    (*stack).head += 1u;
-}
-
-fn stack_pop(stack: ptr<function, Stack>) -> i32 {
-    (*stack).head -= 1u;
-    return (*stack).arr[(*stack).head];
-}
 
 fn plainIntersect(ro: vec3<f32>, rd: vec3<f32>, p: vec4<f32>) -> f32 {
     return -(dot(ro, p.xyz) + p.w) / dot(rd, p.xyz);
@@ -95,8 +59,6 @@ fn getParentIndex(index: i32) -> i32 {
   return (index - 1) / 2;
 }
 
-const FAR_PLANE = 10000.0;
-
 
 fn dirIsNegative(dir: vec3<f32>, axis: i32) -> bool {
   return dir[axis] < 0.0;
@@ -125,7 +87,6 @@ fn main(
   var rayOrigin = cameraPosition;
   var closestIntersection = RayMarchResult();
   closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
-  var isWater = false;
 
   // Floor plane for debugging
   let planeY = 0.0;
@@ -136,7 +97,7 @@ fn main(
     closestIntersection.hit = planeIntersect.isHit;
     closestIntersection.normal = planeIntersect.normal;
     closestIntersection.colour = vec3(0.15,0.3,0.1);
-    isWater = true;
+    // TODO: hit water here
   }
 
 //  textureStore(depthWrite, GlobalInvocationID.xy, vec4(vec3(0.0), FAR_PLANE));
@@ -152,126 +113,21 @@ fn main(
 
   var colour = vec3(0.0);
 
-
-  var iterations = 0;
-  var debugColour = vec3(0.0);
-
-  var stack = stack_new();
-  stack_push(&stack, 0);
-  var closestRaymarchDist = 1e30f;
-
-  var nodeIndex = 0;
-  var intersect = 0.0;
-  var voxelObjectIndex = -1;
-  while (stack.head > 0u && iterations < 256) {
-    // valid leaf, raymarch it
-    if(voxelObjectIndex != -1){
-        // Raymarch the voxel object if it's a leaf node
-        let voxelObject = voxelObjects[voxelObjectIndex];
-        let raymarchResult = rayMarchTransformed(voxelObject, rayDirection, rayOrigin + rayDirection * intersect, 0);
-        let raymarchDist = distance(raymarchResult.worldPos, rayOrigin);
-        let debugColour = getDebugColour(voxelObjectIndex);
-        if(raymarchResult.hit && raymarchDist < closestRaymarchDist){
-          isWater = false;
-          closestIntersection = raymarchResult;
-          closestRaymarchDist = raymarchDist;
-        }
-        voxelObjectIndex = -1;
-        totalSteps += raymarchResult.stepsTaken;
-        nodeIndex = stack_pop(&stack);
-    }
-    else{
-      let node = bvhNodes[nodeIndex];
-
-      // Get the distance to the left and right child nodes
-      var leftDist = -1.0;
-      if(all(rayOrigin >= node.leftMin) && all(rayOrigin <= node.leftMax)){
-        leftDist = 0.0;
-      } else {
-        let leftBoxSize = (node.leftMax - node.leftMin) / 2;
-        leftDist = boxIntersection(rayOrigin - node.leftMin, rayDirection, leftBoxSize).tNear;
-      }
-      let leftValid  = leftDist >= 0.0 && leftDist < closestRaymarchDist;
-
-      var rightDist = -1.0;
-      if(all(rayOrigin >= node.rightMin) && all(rayOrigin <= node.rightMax)){
-        rightDist = 0.0;
-      } else {
-        var rightBoxSize = (node.rightMax - node.rightMin) / 2;
-        rightDist = boxIntersection(rayOrigin - node.rightMin, rayDirection, rightBoxSize).tNear;
-      }
-      let rightValid = rightDist >= 0.0 && rightDist < closestRaymarchDist;
-
-      if(leftValid && rightValid) {
-        // traverse the closer child first, push the other index to the stack
-        if (leftDist < rightDist) {
-
-            let isLeftLeaf = node.leftObjectCount == 1;
-            let isRightLeaf = node.rightObjectCount == 1;
-            if(isLeftLeaf){
-              intersect = leftDist;
-              voxelObjectIndex = node.leftIndex;
-            } else {
-              nodeIndex  = node.leftIndex;
-              if(!isRightLeaf){
-                stack_push(&stack, node.rightIndex);
-              }
-              voxelObjectIndex = -1;
-            }
-        } else {
-
-            let isRightLeaf = node.rightObjectCount == 1;
-            let isLeftLeaf = node.leftObjectCount == 1;
-            if(isRightLeaf){
-              intersect = rightDist;
-              voxelObjectIndex = node.rightIndex;
-            } else {
-              nodeIndex  = node.rightIndex;
-              if(!isLeftLeaf){
-                stack_push(&stack, node.leftIndex);
-              }
-              voxelObjectIndex = -1;
-            }
-        }
-      }
-      else if (leftValid) {
-
-        let isLeaf = node.leftObjectCount == 1;
-        if(isLeaf){
-          intersect = leftDist;
-          voxelObjectIndex = node.leftIndex;
-        } else {
-          nodeIndex = node.leftIndex;
-          voxelObjectIndex = -1;
-        }
-      }
-      else if (rightValid) {
-        let isLeaf = node.rightObjectCount == 1;
-        if(isLeaf){
-          intersect = rightDist;
-          voxelObjectIndex = node.rightIndex;
-        } else {
-          nodeIndex = node.rightIndex;
-          voxelObjectIndex = -1;
-        }
-      }
-      else {
-        //traverse neither, go down the stack
-        nodeIndex = stack_pop(&stack);
-      }
-    }
-    iterations += 1;
+  let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
+  if(bvhResult.hit){
+    closestIntersection = bvhResult;
   }
 
-  debugColour = mix(vec3(0.1,0.2,1.0), vec3(1.0,0.5, 0.0), f32(totalSteps) / 64.0);
+//  debugColour = mix(vec3(0.1,0.2,1.0), vec3(1.0,0.5, 0.0), f32(totalSteps) / 64.0);
 
   let normal = closestIntersection.normal;
   let depth = distance(cameraPosition, closestIntersection.worldPos);
   let albedo = closestIntersection.colour;
   let velocity = getVelocity(closestIntersection, viewProjections);
+  let isWater = false;
 
   textureStore(depthWrite, GlobalInvocationID.xy, vec4(closestIntersection.worldPos, depth));
-  textureStore(albedoTex, pixel, vec4(albedo + debugColour, 1));
+  textureStore(albedoTex, pixel, vec4(albedo, 1));
   textureStore(normalTex, pixel, vec4(normal,1));
   textureStore(velocityTex, pixel, vec4(velocity,select(0.,1.,isWater)));
 }

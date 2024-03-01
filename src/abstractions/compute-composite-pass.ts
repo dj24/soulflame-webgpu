@@ -33,7 +33,7 @@ const matricesEntry: GPUBindGroupLayoutEntry = {
   binding: 3,
   visibility: GPUShaderStage.COMPUTE,
   buffer: {
-    type: "read-only-storage",
+    type: "uniform",
   },
 };
 
@@ -58,7 +58,7 @@ const voxelObjectsEntry: GPUBindGroupLayoutEntry = {
   binding: 6,
   visibility: GPUShaderStage.COMPUTE,
   buffer: {
-    type: "uniform",
+    type: "read-only-storage",
   },
 };
 
@@ -122,6 +122,14 @@ const velocityAndWaterEntry: GPUBindGroupLayoutEntry = {
   },
 };
 
+const bvhBufferEntry: GPUBindGroupLayoutEntry = {
+  binding: 15,
+  visibility: GPUShaderStage.COMPUTE,
+  buffer: {
+    type: "read-only-storage",
+  },
+};
+
 const baseBindGroupLayoutEntries = [
   depthEntry,
   inputTextureEntry,
@@ -137,6 +145,7 @@ const baseBindGroupLayoutEntries = [
   timeEntry,
   nearestSamplerEntry,
   velocityAndWaterEntry,
+  bvhBufferEntry,
 ];
 
 const NUM_THREADS_X = 8;
@@ -184,7 +193,7 @@ export const createComputeCompositePass = async ({
 @group(0) @binding(3) var<uniform> viewProjections : ViewProjectionMatrices;
 @group(0) @binding(4) var voxels : texture_3d<f32>;
 @group(0) @binding(5) var<uniform> cameraPosition : vec3<f32>;
-@group(0) @binding(6) var<uniform> voxelObjects : array<VoxelObject, VOXEL_OBJECT_COUNT>;
+@group(0) @binding(6) var<storage> voxelObjects : array<VoxelObject>;
 @group(0) @binding(7) var<uniform> sunDirection : vec3<f32>;
 @group(0) @binding(8) var linearSampler : sampler;
 @group(0) @binding(9) var intermediaryTexture : texture_2d<f32>;
@@ -193,6 +202,7 @@ export const createComputeCompositePass = async ({
 @group(0) @binding(12) var<uniform> time : vec2<u32>;
 @group(0) @binding(13) var nearestSampler : sampler;
 @group(0) @binding(14) var velocityAndWaterTex : texture_2d<f32>;
+@group(0) @binding(15) var<storage> bvhNodes: array<BVHNode>;
 
 const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
 const DOWNSCALE = ${downscale};
@@ -250,6 +260,7 @@ ${shaderCode}`;
     sunDirectionBuffer,
     blueNoiseTexture,
     timeBuffer,
+    bvhBuffer,
   }: RenderArgs) => {
     if (!copyOutputTexture) {
       copyOutputTexture = device.createTexture({
@@ -351,6 +362,12 @@ ${shaderCode}`;
       {
         binding: 14,
         resource: outputTextures.velocityTexture.createView(),
+      },
+      {
+        binding: 15,
+        resource: {
+          buffer: bvhBuffer,
+        },
       },
     ];
 

@@ -102,10 +102,10 @@ export const moveCamera = () => {
     direction = vec3.subtract(direction, camera.direction);
   }
   if (keyboardControls.pressed.e) {
-    camera.targetRotation = quat.rotateY(camera.targetRotation, -1.0);
+    camera.targetRotation = quat.rotateY(camera.targetRotation, 0.01);
   }
   if (keyboardControls.pressed.q) {
-    camera.targetRotation = quat.rotateY(camera.targetRotation, 1.0);
+    camera.targetRotation = quat.rotateY(camera.targetRotation, -0.01);
   }
   if (keyboardControls.pressed[" "]) {
     direction = vec3.add(direction, camera.up);

@@ -1,5 +1,7 @@
 const EPSILON = 0.0001;
 const MAX_RAY_STEPS = 128;
+const FAR_PLANE = 10000.0;
+
 
 // Function to transform a normal vector from object to world space
 fn transformNormal(inverseTransform: mat4x4<f32>, normal: vec3<f32>) -> vec3<f32> {
@@ -18,7 +20,6 @@ fn getMaxMipLevel(size: vec3<f32>) -> u32 {
 }
 
 
-
 struct VoxelObject {
   transform: mat4x4<f32>,
   inverseTransform: mat4x4<f32>,
@@ -26,6 +27,20 @@ struct VoxelObject {
   previousInverseTransform: mat4x4<f32>,
   size : vec3<f32>,
   atlasLocation : vec3<f32>,
+}
+
+struct BVHNode {
+  leftIndex: i32,
+  rightIndex: i32,
+
+  leftObjectCount: u32,
+  rightObjectCount: u32,
+
+  leftMin: vec3<f32>,
+  leftMax: vec3<f32>,
+
+  rightMin: vec3<f32>,
+  rightMax: vec3<f32>,
 }
 
 struct RayMarchResult {
@@ -39,6 +54,7 @@ struct RayMarchResult {
   inverseModelMatrix: mat4x4<f32>,
   previousInverseModelMatrix: mat4x4<f32>,
   stepsTaken: i32,
+  isWater: bool
 }
 
 fn isInBounds(position: vec3<i32>, size: vec3<i32>) -> bool {
@@ -140,4 +156,138 @@ fn rayMarchTransformed(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOri
       var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
       let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
       return  rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
+}
+
+const STACK_LEN: u32 = 24u;
+struct Stack {
+  arr: array<i32, STACK_LEN>,
+	head: u32,
+}
+
+fn stack_new() -> Stack {
+    var arr: array<i32, STACK_LEN>;
+    return Stack(arr, 0u);
+}
+
+fn stack_push(stack: ptr<function, Stack>, val: i32) {
+    (*stack).arr[(*stack).head] = val;
+    (*stack).head += 1u;
+}
+
+fn stack_pop(stack: ptr<function, Stack>) -> i32 {
+    (*stack).head -= 1u;
+    return (*stack).arr[(*stack).head];
+}
+
+fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult {
+  var closestIntersection = RayMarchResult();
+  closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
+
+  var stack = stack_new();
+  stack_push(&stack, 0);
+
+  var closestRaymarchDist = 1e30f;
+  var iterations = 0;
+  var nodeIndex = 0;
+  var nodeAABBIntersect = 0.0;
+  var voxelObjectIndex = -1;
+
+  while (stack.head > 0u && iterations < 256) {
+    // valid leaf, raymarch it
+    if(voxelObjectIndex != -1){
+        // Raymarch the voxel object if it's a leaf node
+        let voxelObject = voxelObjects[voxelObjectIndex];
+        let raymarchResult = rayMarchTransformed(voxelObject, rayDirection, rayOrigin + rayDirection * nodeAABBIntersect, 0);
+        let raymarchDist = distance(raymarchResult.worldPos, rayOrigin);
+        if(raymarchResult.hit && raymarchDist < closestRaymarchDist){
+          closestIntersection = raymarchResult;
+          closestRaymarchDist = raymarchDist;
+        }
+        voxelObjectIndex = -1;
+//        totalSteps += raymarchResult.stepsTaken;
+        nodeIndex = stack_pop(&stack);
+    }
+    else{
+      let node = bvhNodes[nodeIndex];
+
+      // Get the distance to the left and right child nodes
+      var leftDist = -1.0;
+      if(all(rayOrigin >= node.leftMin) && all(rayOrigin <= node.leftMax)){
+        leftDist = 0.0;
+      } else {
+        let leftBoxSize = (node.leftMax - node.leftMin) / 2;
+        leftDist = boxIntersection(rayOrigin - node.leftMin, rayDirection, leftBoxSize).tNear;
+      }
+      let leftValid  = leftDist >= 0.0 && leftDist < closestRaymarchDist;
+
+      var rightDist = -1.0;
+      if(all(rayOrigin >= node.rightMin) && all(rayOrigin <= node.rightMax)){
+        rightDist = 0.0;
+      } else {
+        var rightBoxSize = (node.rightMax - node.rightMin) / 2;
+        rightDist = boxIntersection(rayOrigin - node.rightMin, rayDirection, rightBoxSize).tNear;
+      }
+      let rightValid = rightDist >= 0.0 && rightDist < closestRaymarchDist;
+
+      if(leftValid && rightValid) {
+        // traverse the closer child first, push the other index to the stack
+        if (leftDist < rightDist) {
+
+            let isLeftLeaf = node.leftObjectCount == 1;
+            let isRightLeaf = node.rightObjectCount == 1;
+            if(isLeftLeaf){
+              nodeAABBIntersect = leftDist;
+              voxelObjectIndex = node.leftIndex;
+            } else {
+              nodeIndex  = node.leftIndex;
+              if(!isRightLeaf){
+                stack_push(&stack, node.rightIndex);
+              }
+              voxelObjectIndex = -1;
+            }
+        } else {
+
+            let isRightLeaf = node.rightObjectCount == 1;
+            let isLeftLeaf = node.leftObjectCount == 1;
+            if(isRightLeaf){
+              nodeAABBIntersect = rightDist;
+              voxelObjectIndex = node.rightIndex;
+            } else {
+              nodeIndex  = node.rightIndex;
+              if(!isLeftLeaf){
+                stack_push(&stack, node.leftIndex);
+              }
+              voxelObjectIndex = -1;
+            }
+        }
+      }
+      else if (leftValid) {
+
+        let isLeaf = node.leftObjectCount == 1;
+        if(isLeaf){
+          nodeAABBIntersect = leftDist;
+          voxelObjectIndex = node.leftIndex;
+        } else {
+          nodeIndex = node.leftIndex;
+          voxelObjectIndex = -1;
+        }
+      }
+      else if (rightValid) {
+        let isLeaf = node.rightObjectCount == 1;
+        if(isLeaf){
+          nodeAABBIntersect = rightDist;
+          voxelObjectIndex = node.rightIndex;
+        } else {
+          nodeIndex = node.rightIndex;
+          voxelObjectIndex = -1;
+        }
+      }
+      else {
+        //traverse neither, go down the stack
+        nodeIndex = stack_pop(&stack);
+      }
+    }
+    iterations += 1;
+  }
+  return closestIntersection;
 }

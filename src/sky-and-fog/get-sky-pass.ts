@@ -30,7 +30,7 @@ export const getSkyPass = async (): Promise<RenderPass> => {
     binding: 3,
     visibility: GPUShaderStage.COMPUTE,
     buffer: {
-      type: "read-only-storage",
+      type: "uniform",
     },
   };
 

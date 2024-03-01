@@ -128,6 +128,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     compute: {
       module: device.createShaderModule({
         code: `
+          @group(0) @binding(10) var<storage> bvhNodes: array<BVHNode>;
           ${getRayDirection}
           ${boxIntersection}
           ${raymarchVoxels}

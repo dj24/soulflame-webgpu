@@ -2,28 +2,29 @@ const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SHADOW_ACNE_OFFSET: f32 = 0.0005;
 
 fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>) -> bool {
-  for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
-      let voxelObject = voxelObjects[i];
-      if(any(voxelObject.size == vec3(0.0))){
-        continue;
-      }
-      var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(worldPos, 1.0)).xyz;
-      let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(shadowRayDirection, 0.0)).xyz;
-      let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
-      let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size);
-      if(!intersect.isHit && !isInBounds) {
-        continue;
-      }
-      // Advance ray origin to the point of intersection
-      if(!isInBounds){
-        objectRayOrigin = objectRayOrigin + objectRayDirection * intersect.tNear + EPSILON;
-      }
-      let output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
-      if(output.hit){
-        return true;
-      }
-  }
-  return false;
+  return rayMarchBVH(worldPos, shadowRayDirection).hit;
+//  for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
+//      let voxelObject = voxelObjects[i];
+//      if(any(voxelObject.size == vec3(0.0))){
+//        continue;
+//      }
+//      var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(worldPos, 1.0)).xyz;
+//      let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(shadowRayDirection, 0.0)).xyz;
+//      let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
+//      let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size);
+//      if(!intersect.isHit && !isInBounds) {
+//        continue;
+//      }
+//      // Advance ray origin to the point of intersection
+//      if(!isInBounds){
+//        objectRayOrigin = objectRayOrigin + objectRayDirection * intersect.tNear + EPSILON;
+//      }
+//      let output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
+//      if(output.hit){
+//        return true;
+//      }
+//  }
+//  return false;
 }
 
 
@@ -92,14 +93,14 @@ fn main(
         -sunDirection,
         SUN_COLOR,
       ),
-//      Light(
-//              -sunDirection,
-//              SUN_COLOR,
-//            ),
       Light(
-              vec3( 0, 1, 0),
-              vec3(0.3,0.4,0.6),
+              -sunDirection,
+              SUN_COLOR,
             ),
+//      Light(
+//              vec3( 0, 1, 0),
+//              vec3(0.3,0.4,0.6),
+//            ),
     );
 
 
