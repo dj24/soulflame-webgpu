@@ -76,7 +76,6 @@ const splitObjectsBySurfaceAreaHeuristic = (voxelObjects: VoxelObject[]) => {
   for (let axis = 0; axis < 3; axis++) {
     // Sort the objects along the current axis
     const sortedAlongAxis = voxelObjects.sort((a, b) => {
-      console.log({ a: a.worldSpaceCenter[0], b: b.worldSpaceCenter[0] });
       return a.worldSpaceCenter[axis] - b.worldSpaceCenter[axis];
     });
 
@@ -101,8 +100,6 @@ const splitObjectsBySurfaceAreaHeuristic = (voxelObjects: VoxelObject[]) => {
       const splitCost =
         (leftSurfaceArea / parentSurfaceArea) * leftSet.length +
         (rightSurfaceArea / parentSurfaceArea) * rightSet.length;
-
-      console.log({ leftSet, rightSet, splitCost });
 
       // Update the best split if this split has lower cost
       if (splitCost < bestSplitCost) {
