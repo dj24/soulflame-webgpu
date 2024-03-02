@@ -158,7 +158,7 @@ fn rayMarchTransformed(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOri
       return  rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
 }
 
-const STACK_LEN: u32 = 24u;
+const STACK_LEN: u32 = 32u;
 struct Stack {
   arr: array<i32, STACK_LEN>,
 	head: u32,

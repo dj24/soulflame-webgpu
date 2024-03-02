@@ -390,8 +390,8 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     document.getElementById("objectcount").innerHTML =
       `Objects: ${voxelObjectsInFrustrum.length} / ${voxelObjects.length} in view`;
 
-    const bvh = new BVH(voxelObjectsInFrustrum);
-    BVHBuffer = bvh.toGPUBuffer(device, bvh.nodes.length);
+    // const bvh = new BVH(voxelObjectsInFrustrum);
+    // BVHBuffer = bvh.toGPUBuffer(device, bvh.nodes.length);
     const voxelObjectsArray = voxelObjectsInFrustrum.flatMap((voxelObject) =>
       voxelObject.toArray(),
     );
@@ -565,8 +565,8 @@ const start = async () => {
     getGBufferPass(),
     // getDiffusePass(),
     // getReflectionsPass(),
-    getShadowsPass(),
-    getSkyPass(),
+    // getShadowsPass(),
+    // getSkyPass(),
     // getVolumetricFog(),
     // getTaaPass(),
     // getMotionBlurPass(),

@@ -41,6 +41,84 @@ const getMortonCode = (voxelObject: VoxelObject) => {
   return (x & 0x1ff) | ((y & 0x1ff) << 10) | ((z & 0x1ff) << 20);
 };
 
+const calculateSurfaceArea = (min: Vec3, max: Vec3) => {
+  const width = max[0] - min[0];
+  const height = max[1] - min[1];
+  const depth = max[2] - min[2];
+  return 2 * (width * height + width * depth + height * depth);
+};
+
+const splitObjectsByMortonCode = (voxelObjects: VoxelObject[]) => {
+  voxelObjects.sort((a, b) => getMortonCode(a) - getMortonCode(b));
+
+  const medianIndex = Math.floor(voxelObjects.length / 2);
+  const left = voxelObjects.slice(0, medianIndex);
+  const right = voxelObjects.slice(medianIndex);
+
+  return { left, right };
+};
+
+const splitObjectsBySurfaceAreaHeuristic = (voxelObjects: VoxelObject[]) => {
+  let left: VoxelObject[] = [];
+  let right: VoxelObject[] = [];
+  let bestSplitAxis = 0; // Initialize best split axis
+  let bestSplitPosition = 0; // Initialize best split position
+  let bestSplitCost = Infinity; // Initialize best split cost
+
+  // Calculate the surface area of the parent AABB
+  const parentAABB = getAABB(voxelObjects);
+  const parentSurfaceArea = calculateSurfaceArea(
+    parentAABB.min,
+    parentAABB.max,
+  );
+
+  // Iterate over each axis (X, Y, Z)
+  for (let axis = 0; axis < 3; axis++) {
+    // Sort the objects along the current axis
+    const sortedAlongAxis = voxelObjects.sort((a, b) => {
+      console.log({ a: a.worldSpaceCenter[0], b: b.worldSpaceCenter[0] });
+      return a.worldSpaceCenter[axis] - b.worldSpaceCenter[axis];
+    });
+
+    // Iterate over potential split positions
+    for (let i = 1; i < sortedAlongAxis.length; i++) {
+      // Split the objects into left and right sets
+      const leftSet = sortedAlongAxis.slice(0, i);
+      const rightSet = sortedAlongAxis.slice(i);
+
+      // Calculate the surface area of the AABBs for the left and right sets
+      const leftAABB = getAABB(leftSet);
+      const rightAABB = getAABB(rightSet);
+
+      // Calculate the surface areas of the left and right AABBs
+      const leftSurfaceArea = calculateSurfaceArea(leftAABB.min, leftAABB.max);
+      const rightSurfaceArea = calculateSurfaceArea(
+        rightAABB.min,
+        rightAABB.max,
+      );
+
+      // Calculate the SAH cost for this split
+      const splitCost =
+        (leftSurfaceArea / parentSurfaceArea) * leftSet.length +
+        (rightSurfaceArea / parentSurfaceArea) * rightSet.length;
+
+      console.log({ leftSet, rightSet, splitCost });
+
+      // Update the best split if this split has lower cost
+      if (splitCost < bestSplitCost) {
+        bestSplitAxis = axis;
+        bestSplitPosition =
+          sortedAlongAxis[i - 1].worldSpaceCenter[axis] +
+          sortedAlongAxis[i].worldSpaceCenter[axis] / 2;
+        bestSplitCost = splitCost;
+        left = leftSet;
+        right = rightSet;
+      }
+    }
+  }
+  return { left, right };
+};
+
 export class BVH {
   nodes: BVHNode[];
   allVoxelObjects: VoxelObject[];
@@ -50,28 +128,14 @@ export class BVH {
     this.allVoxelObjects = voxelObjects;
     this.nodes = [];
     this.buildBVH(voxelObjects, 0);
-    // this.nodes = [
-    //   {
-    //     leftAABBMin: [0, 0, 0],
-    //     leftAABBMax: [0, 0, 0],
-    //     leftObjectCount: 0,
-    //     rightAABBMin: [-20, 0, -20],
-    //     rightAABBMax: [-10, 10, -10],
-    //     rightObjectCount: 1,
-    //     leftChildIndex: 0,
-    //     rightChildIndex: 0,
-    //   },
-    // ];
     const end = performance.now();
     frameTimeTracker.addSample("create bvh", end - start);
   }
 
   buildBVH(voxelObjects: VoxelObject[], startIndex: number) {
-    voxelObjects.sort((a, b) => getMortonCode(a) - getMortonCode(b));
+    // const { left, right } = splitObjectsByMortonCode(voxelObjects);
 
-    const medianIndex = Math.floor(voxelObjects.length / 2);
-    const left = voxelObjects.slice(0, medianIndex);
-    const right = voxelObjects.slice(medianIndex);
+    const { left, right } = splitObjectsBySurfaceAreaHeuristic(voxelObjects);
 
     const leftAABB = getAABB(left);
     const rightAABB = getAABB(right);

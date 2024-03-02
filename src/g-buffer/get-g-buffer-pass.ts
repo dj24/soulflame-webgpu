@@ -210,8 +210,15 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     });
 
     // Raymarch the scene
-    const workGroupsX = Math.ceil(resolution[0] / 8);
-    const workGroupsY = Math.ceil(resolution[1] / 8);
+    const threadGroupCountX = 8;
+    const threadGroupCountY = 8;
+    const spatialKernelSize = 9;
+    const workGroupsX = Math.ceil(
+      resolution[0] / threadGroupCountX / spatialKernelSize,
+    );
+    const workGroupsY = Math.ceil(
+      resolution[1] / threadGroupCountY / spatialKernelSize,
+    );
     computePass.setPipeline(rayPipeline);
     computePass.setBindGroup(0, computeBindGroup);
     computePass.dispatchWorkgroups(workGroupsX, workGroupsY);

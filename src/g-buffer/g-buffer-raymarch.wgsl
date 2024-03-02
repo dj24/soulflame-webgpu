@@ -76,58 +76,118 @@ fn getDebugColour(index: i32) -> vec3<f32> {
   return colours[index % 6];
 }
 
+const SPATIAL_KERNEL_SIZE = 9;
+
+const SPATIAL_SAMPLE_COUNT = 5;
+
+const KERNEL_CORNER_OFFSETS_1 = array<vec2<u32>, SPATIAL_SAMPLE_COUNT>(
+  vec2(0,0),
+  vec2(SPATIAL_KERNEL_SIZE - 1,0),
+  vec2(0,SPATIAL_KERNEL_SIZE - 1),
+  vec2(SPATIAL_KERNEL_SIZE / 2,SPATIAL_KERNEL_SIZE / 2),
+  vec2(SPATIAL_KERNEL_SIZE - 1,SPATIAL_KERNEL_SIZE - 1)
+);
+
+// TODO: incrementally sample more points if variance is high
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
   let resolution = textureDimensions(albedoTex);
-  var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
-  let pixel = GlobalInvocationID.xy;
-  let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
-  var rayOrigin = cameraPosition;
-  var closestIntersection = RayMarchResult();
-  closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
 
-  // Floor plane for debugging
-  let planeY = 0.0;
-  let planeIntersect = planeIntersection(rayOrigin, rayDirection, vec3(0,1,0), planeY);
-  if(planeIntersect.isHit){
-    closestIntersection.worldPos = rayOrigin + rayDirection * planeIntersect.tNear;
-    closestIntersection.worldPos.y = planeY;
-    closestIntersection.hit = planeIntersect.isHit;
-    closestIntersection.normal = planeIntersect.normal;
-    closestIntersection.colour = vec3(0.15,0.3,0.1);
-    // TODO: hit water here
+  var albedos = array<vec3<f32>, SPATIAL_SAMPLE_COUNT>();
+  var normals = array<vec3<f32>, SPATIAL_SAMPLE_COUNT>();
+  var depths = array<f32, SPATIAL_SAMPLE_COUNT>();
+  var worldPositions = array<vec3<f32>, SPATIAL_SAMPLE_COUNT>();
+
+  for(var i = 0; i < SPATIAL_SAMPLE_COUNT; i++){
+    let pixelOffset = KERNEL_CORNER_OFFSETS_1[i];
+    let pixel = (GlobalInvocationID.xy * SPATIAL_KERNEL_SIZE) + pixelOffset;
+    var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
+    let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
+    var rayOrigin = cameraPosition;
+    var closestIntersection = RayMarchResult();
+    closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
+
+    // Floor plane for debugging
+    let planeY = 0.0;
+    let planeIntersect = planeIntersection(rayOrigin, rayDirection, vec3(0,1,0), planeY);
+    if(planeIntersect.isHit){
+      closestIntersection.worldPos = rayOrigin + rayDirection * planeIntersect.tNear;
+      closestIntersection.worldPos.y = planeY;
+      closestIntersection.hit = planeIntersect.isHit;
+      closestIntersection.normal = planeIntersect.normal;
+      closestIntersection.colour = vec3(0.15,0.3,0.1);
+      // TODO: hit water here
+    }
+
+    var totalSteps = 0;
+    let maxMipLevel = u32(0);
+    let minMipLevel = u32(0);
+    var mipLevel = maxMipLevel;
+
+    let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
+    if(bvhResult.hit){
+      closestIntersection = bvhResult;
+    }
+
+    let normal = closestIntersection.normal;
+    let depth = distance(cameraPosition, closestIntersection.worldPos);
+    let albedo = closestIntersection.colour;
+    let velocity = getVelocity(closestIntersection, viewProjections);
+    let isWater = false;
+
+    normals[i] = normal;
+    albedos[i] = albedo;
+    depths[i] = depth;
+    worldPositions[i] = closestIntersection.worldPos;
   }
 
-//  textureStore(depthWrite, GlobalInvocationID.xy, vec4(vec3(0.0), FAR_PLANE));
-//  textureStore(normalTex, GlobalInvocationID.xy, vec4(0.0));
-//  textureStore(albedoTex, GlobalInvocationID.xy, vec4(0.0));
-//  textureStore(velocityTex, pixel, vec4(0.0));
-
-
-  var totalSteps = 0;
-  let maxMipLevel = u32(0);
-  let minMipLevel = u32(0);
-  var mipLevel = maxMipLevel;
-
-  var colour = vec3(0.0);
-
-  let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
-  if(bvhResult.hit){
-    closestIntersection = bvhResult;
+  var normalVariance = vec3<f32>(0.0,0.0,0.0);
+  for (var i = 0; i < SPATIAL_SAMPLE_COUNT; i++){
+    for (var j = 0; j < SPATIAL_SAMPLE_COUNT; j++){
+      normalVariance += abs(normals[i] - normals[j]);
+    }
   }
 
-//  debugColour = mix(vec3(0.1,0.2,1.0), vec3(1.0,0.5, 0.0), f32(totalSteps) / 64.0);
+  var albedoVariance = vec3<f32>(0.0,0.0,0.0);
+  for (var i = 0; i < SPATIAL_SAMPLE_COUNT; i++){
+    for (var j = 0; j < SPATIAL_SAMPLE_COUNT; j++){
+      albedoVariance += abs(albedos[i] - albedos[j]);
+    }
+  }
 
-  let normal = closestIntersection.normal;
-  let depth = distance(cameraPosition, closestIntersection.worldPos);
-  let albedo = closestIntersection.colour;
-  let velocity = getVelocity(closestIntersection, viewProjections);
-  let isWater = false;
+  var normal = vec3<f32>(0.0,0.0,0.0);
+  var albedo = vec3<f32>(0.0,0.0,0.0);
+  var depth = 0.0;
+  var worldPos = vec3<f32>(0.0,0.0,0.0);
+  for(var i = 0; i < SPATIAL_SAMPLE_COUNT; i++){
+    normal += normals[i];
+    albedo += albedos[i];
+    depth += depths[i];
+    worldPos += worldPositions[i];
+  }
+  normal /= f32(SPATIAL_SAMPLE_COUNT);
+  albedo /= f32(SPATIAL_SAMPLE_COUNT);
 
-  textureStore(depthWrite, GlobalInvocationID.xy, vec4(closestIntersection.worldPos, depth));
-  textureStore(albedoTex, pixel, vec4(albedo, 1));
-  textureStore(normalTex, pixel, vec4(normal,1));
-  textureStore(velocityTex, pixel, vec4(velocity,select(0.,1.,isWater)));
+
+
+//  albedo = vec3(length(normalVariance), length(albedoVariance), 0);
+  depth /= f32(SPATIAL_SAMPLE_COUNT);
+  worldPos /= f32(SPATIAL_SAMPLE_COUNT);
+
+  let totalVariance = length(normalVariance) + length(albedoVariance);
+  if(totalVariance > 0.1){
+    albedo = vec3(1.0,0.0,0.0);
+  }
+
+  for(var x = 0u; x < SPATIAL_KERNEL_SIZE; x++){
+    for(var y = 0u; y < SPATIAL_KERNEL_SIZE; y++){
+      let pixel = (GlobalInvocationID.xy * SPATIAL_KERNEL_SIZE) + vec2<u32>(x,y);
+      textureStore(albedoTex, pixel, vec4(albedo, 1));
+      textureStore(normalTex, pixel, vec4(normal,1));
+      textureStore(depthWrite, pixel, vec4(worldPos, depth));
+    }
+  }
+  //    textureStore(velocityTex, pixel, vec4(velocity,select(0.,1.,isWater)));
 }

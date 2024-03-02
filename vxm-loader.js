@@ -31,10 +31,8 @@ module.exports = function (source, ...args) {
   const fileName = fileNameParts[fileNameParts.length - 1];
   const timeLabel = coloredText(`imported ${fileName} in`, "magenta");
   console.time(timeLabel);
-  const decoder = new TextDecoder("utf-8");
   const fileBuffer = fs.readFileSync(this.resourcePath);
   const bufferReader = Buffer.from(fileBuffer);
-  const bytes = bufferReader.buffer.byteLength;
   let magic = [];
   let voxels = [];
   let index = 0;
