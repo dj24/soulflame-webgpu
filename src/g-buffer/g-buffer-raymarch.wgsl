@@ -87,6 +87,10 @@ fn getSpatialPosition(index: u32, size: u32) -> vec2<u32> {
   return vec2<u32>(x, y);
 }
 
+fn gaussian(x: f32, a: f32, b: f32, c: f32) -> f32 {
+    return a * exp(-(x - b) * (x - b) / (2.0 * c * c));
+}
+
 fn getIndexFromSpatialPosition(position: vec2<u32>, size: u32) -> u32 {
     // Calculate the index from spatial position
     return position.y * size / 2u + position.x / 2u;
@@ -223,20 +227,43 @@ fn main(
   let depthWeight = 0.1;
 
   var totalDiff = length(normalDiff) + length(albedoDiff) + depthDiff * depthWeight;
-  if(totalDiff < 0.5){
-    // TODO: linear interpolation instead of average colour
-    for(var x = 0u; x < SPATIAL_KERNEL_SIZE; x++){
-      for(var y = 0u; y < SPATIAL_KERNEL_SIZE; y++){
-        let pixel = (GlobalInvocationID.xy * SPATIAL_KERNEL_SIZE) + vec2<u32>(x,y);
-        textureStore(albedoTex, pixel, vec4(albedo, 1));
-        textureStore(normalTex, pixel, vec4(normal,1));
-        textureStore(depthWrite, pixel, vec4(worldPos, depth));
-        //    textureStore(velocityTex, pixel, vec4(velocity,select(0.,1.,isWater)));
-      }
-    }
+  if(totalDiff > 10.0){
+    //TODO: move this to seperate compute shader with indirect dispatch
+    // Difference is too high, sample more points
     return;
   }
-//  return;
-  //TODO: move this to seperate compute shader with indirect dispatch
-  // Difference is too high, sample more points
+  // TODO: linear interpolation instead of average colour
+  for(var x = 0u; x < SPATIAL_KERNEL_SIZE; x++){
+    for(var y = 0u; y < SPATIAL_KERNEL_SIZE; y++){
+      var totalWeight = 0.0;
+      var totalNormal = vec3<f32>(0.0,0.0,0.0);
+      var totalAlbedo = vec3<f32>(0.0,0.0,0.0);
+      var totalDepth = 0.0;
+      var totalWorldPos = vec3<f32>(0.0,0.0,0.0);
+      for(var i = 0u; i < 5; i ++){
+        let pixelOffset = getSpatialPosition(i, 3) * 4;
+        let distance = distance(vec2(f32(x),f32(y)), vec2<f32>(pixelOffset));
+        // TODO: use simpler sampling method, maybe msaa pattern (haltone)
+        if(distance < 0.0001){
+          totalNormal = normals[i];
+          totalAlbedo = albedos[i];
+          totalDepth = depths[i];
+          totalWorldPos = worldPositions[i];
+          totalWeight = 1.0;
+          break;
+        }
+        let weight = 1.0 / (distance * distance);
+        totalNormal += normals[i] * weight;
+        totalAlbedo += albedos[i] * weight;
+        totalDepth += depths[i] * weight;
+        totalWorldPos += worldPositions[i] * weight;
+        totalWeight += weight;
+      }
+      let pixel = (GlobalInvocationID.xy * SPATIAL_KERNEL_SIZE) + vec2<u32>(x,y);
+      textureStore(albedoTex, pixel, vec4(totalAlbedo / totalWeight, 1));
+      textureStore(normalTex, pixel, vec4(totalNormal / totalWeight,1));
+      textureStore(depthWrite, pixel, vec4(totalWorldPos / totalWeight, totalDepth / totalWeight));
+      //    textureStore(velocityTex, pixel, vec4(velocity,select(0.,1.,isWater)));
+    }
+  }
 }
