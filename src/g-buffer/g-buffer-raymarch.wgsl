@@ -89,9 +89,7 @@ fn getSpatialPosition(index: u32, size: u32) -> vec2<u32> {
 
 fn getIndexFromSpatialPosition(position: vec2<u32>, size: u32) -> u32 {
     // Calculate the index from spatial position
-    let index = position.y * size / 2u + position.x / 2u;
-
-    return index;
+    return position.y * size / 2u + position.x / 2u;
 }
 
 /*
@@ -214,17 +212,11 @@ fn main(
   worldPos /= f32(SPATIAL_SAMPLE_COUNT_1);
 
   var normalDiff = vec3<f32>(0.0,0.0,0.0);
-  for (var i = 0; i < SPATIAL_SAMPLE_COUNT_1; i++){
-    normalDiff += abs(normals[i] - normal);
-  }
-
   var albedoDiff = vec3<f32>(0.0,0.0,0.0);
-  for (var i = 0; i < SPATIAL_SAMPLE_COUNT_1; i++){
-    albedoDiff += abs(albedos[i] - albedo);
-  }
-
   var depthDiff = 0.0;
   for (var i = 0; i < SPATIAL_SAMPLE_COUNT_1; i++){
+    normalDiff += abs(normals[i] - normal);
+    albedoDiff += abs(albedos[i] - albedo);
     depthDiff += abs(depths[i] - depth);
   }
 
