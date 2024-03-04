@@ -77,23 +77,10 @@ fn getDebugColour(index: i32) -> vec3<f32> {
 }
 
 const SPATIAL_KERNEL_SIZE = 9;
-const SPATIAL_SAMPLE_COUNT_1 = 5;
-const SPATIAL_SAMPLE_COUNT_2 = 13;
-const SPATIAL_SAMPLE_COUNT = 13;
-
-fn getSpatialPosition(index: u32, size: u32) -> vec2<u32> {
-  let x = (index * 2) % size;
-  let y = (index * 2) / size;
-  return vec2<u32>(x, y);
-}
+const SPATIAL_SAMPLE_COUNT = 4;
 
 fn gaussian(x: f32, a: f32, b: f32, c: f32) -> f32 {
     return a * exp(-(x - b) * (x - b) / (2.0 * c * c));
-}
-
-fn getIndexFromSpatialPosition(position: vec2<u32>, size: u32) -> u32 {
-    // Calculate the index from spatial position
-    return position.y * size / 2u + position.x / 2u;
 }
 
 /*
@@ -124,18 +111,8 @@ const KERNEL_CORNER_OFFSETS_1 = array<vec2<u32>, SPATIAL_SAMPLE_COUNT>(
   // First set
   vec2(0,0),
   vec2(8,0),
-  vec2(4,4),
   vec2(0,8),
   vec2(8,8),
-  // Second set
-  vec2(2,2),
-  vec2(6,2),
-  vec2(2,6),
-  vec2(6,6),
-  vec2(0,4),
-  vec2(4,0),
-  vec2(8,4),
-  vec2(4,8)
 );
 
 // TODO: incrementally sample more points if variance is high
@@ -151,9 +128,9 @@ fn main(
   var worldPositions = array<vec3<f32>, SPATIAL_SAMPLE_COUNT>();
 
   // first kernel
-  for(var i = 0u; i < SPATIAL_SAMPLE_COUNT_1; i++){
-//    let pixelOffset = KERNEL_CORNER_OFFSETS_1[i];
-    let pixelOffset = getSpatialPosition(i, 3) * 4;
+  for(var i = 0u; i < SPATIAL_SAMPLE_COUNT; i++){
+    let pixelOffset = KERNEL_CORNER_OFFSETS_1[i];
+//    let pixelOffset = getSpatialPosition(i, 3) * 4;
     let pixel = (GlobalInvocationID.xy * SPATIAL_KERNEL_SIZE) + pixelOffset;
 
     textureStore(albedoTex, pixel, vec4(1.0,0.0,0.0,1.0));
@@ -204,30 +181,30 @@ fn main(
   var albedo = vec3<f32>(0.0,0.0,0.0);
   var depth = 0.0;
   var worldPos = vec3<f32>(0.0,0.0,0.0);
-  for(var i = 0; i < SPATIAL_SAMPLE_COUNT_1; i++){
+  for(var i = 0; i < SPATIAL_SAMPLE_COUNT; i++){
     normal += normals[i];
     albedo += albedos[i];
     depth += depths[i];
     worldPos += worldPositions[i];
   }
-  normal /= f32(SPATIAL_SAMPLE_COUNT_1);
-  albedo /= f32(SPATIAL_SAMPLE_COUNT_1);
-  depth /= f32(SPATIAL_SAMPLE_COUNT_1);
-  worldPos /= f32(SPATIAL_SAMPLE_COUNT_1);
+  normal /= f32(SPATIAL_SAMPLE_COUNT);
+  albedo /= f32(SPATIAL_SAMPLE_COUNT);
+  depth /= f32(SPATIAL_SAMPLE_COUNT);
+  worldPos /= f32(SPATIAL_SAMPLE_COUNT);
 
   var normalDiff = vec3<f32>(0.0,0.0,0.0);
   var albedoDiff = vec3<f32>(0.0,0.0,0.0);
   var depthDiff = 0.0;
-  for (var i = 0; i < SPATIAL_SAMPLE_COUNT_1; i++){
+  for (var i = 0; i < SPATIAL_SAMPLE_COUNT; i++){
     normalDiff += abs(normals[i] - normal);
     albedoDiff += abs(albedos[i] - albedo);
     depthDiff += abs(depths[i] - depth);
   }
 
-  let depthWeight = 0.1;
+  let depthWeight = 0.01;
 
   var totalDiff = length(normalDiff) + length(albedoDiff) + depthDiff * depthWeight;
-  if(totalDiff > 10.0){
+  if(totalDiff > 0.05){
     //TODO: move this to seperate compute shader with indirect dispatch
     // Difference is too high, sample more points
     return;
@@ -240,26 +217,28 @@ fn main(
       var totalAlbedo = vec3<f32>(0.0,0.0,0.0);
       var totalDepth = 0.0;
       var totalWorldPos = vec3<f32>(0.0,0.0,0.0);
-      for(var i = 0u; i < 5; i ++){
-        let pixelOffset = getSpatialPosition(i, 3) * 4;
-        let distance = distance(vec2(f32(x),f32(y)), vec2<f32>(pixelOffset));
-        // TODO: use simpler sampling method, maybe msaa pattern (haltone)
-        if(distance < 0.0001){
-          totalNormal = normals[i];
-          totalAlbedo = albedos[i];
-          totalDepth = depths[i];
-          totalWorldPos = worldPositions[i];
-          totalWeight = 1.0;
-          break;
-        }
-        let weight = 1.0 / (distance * distance);
+      var distances = vec4<f32>(0.0);
+      let pixel = (GlobalInvocationID.xy * SPATIAL_KERNEL_SIZE) + vec2<u32>(x,y);
+
+      for(var i = 0u; i < SPATIAL_SAMPLE_COUNT; i ++){
+        distances[i] = distance(vec2(f32(x),f32(y)), vec2<f32>(KERNEL_CORNER_OFFSETS_1[i]));
+      }
+
+      // Normalize the weights so they sum to 1
+      var weights = normalize(distances);
+
+      // Calculate the weights based on the distances
+      weights = vec4<f32>(1.0) - weights;
+
+      for(var i = 0u; i < SPATIAL_SAMPLE_COUNT; i ++){
+        let weight = weights[i];
         totalNormal += normals[i] * weight;
         totalAlbedo += albedos[i] * weight;
         totalDepth += depths[i] * weight;
         totalWorldPos += worldPositions[i] * weight;
         totalWeight += weight;
       }
-      let pixel = (GlobalInvocationID.xy * SPATIAL_KERNEL_SIZE) + vec2<u32>(x,y);
+
       textureStore(albedoTex, pixel, vec4(totalAlbedo / totalWeight, 1));
       textureStore(normalTex, pixel, vec4(totalNormal / totalWeight,1));
       textureStore(depthWrite, pixel, vec4(totalWorldPos / totalWeight, totalDepth / totalWeight));
