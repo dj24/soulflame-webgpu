@@ -27,6 +27,10 @@ export type OutputTextures = {
   skyTexture?: GPUTexture;
 };
 
+const ceilToNearestMultipleOf = (n: number, multiple: number) => {
+  return Math.ceil(n / multiple) * multiple;
+};
+
 export const getGBufferPass = async (): Promise<RenderPass> => {
   const normalEntry: GPUBindGroupLayoutEntry = {
     binding: 4,
@@ -87,6 +91,22 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     },
   };
 
+  const kernelGroupsToFullyTraceEntry: GPUBindGroupLayoutEntry = {
+    binding: 11,
+    visibility: GPUShaderStage.COMPUTE,
+    buffer: {
+      type: "storage",
+    },
+  };
+
+  const indirectArgsEntry: GPUBindGroupLayoutEntry = {
+    binding: 12,
+    visibility: GPUShaderStage.COMPUTE,
+    buffer: {
+      type: "storage",
+    },
+  };
+
   const uniformsBindGroupLayout = device.createBindGroupLayout({
     entries: [
       {
@@ -118,17 +138,24 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       },
       sunDirectionEntry,
       bvhBufferEntry,
+      kernelGroupsToFullyTraceEntry,
+      indirectArgsEntry,
     ],
   });
 
-  const rayPipeline = device.createComputePipeline({
+  const adaptiveTracePipeline = device.createComputePipeline({
     layout: device.createPipelineLayout({
       bindGroupLayouts: [uniformsBindGroupLayout],
     }),
     compute: {
       module: device.createShaderModule({
         code: `
+          struct IndirectArgs {
+            count: atomic<u32>
+          };
           @group(0) @binding(10) var<storage> bvhNodes: array<BVHNode>;
+          @group(0) @binding(11) var<storage, read_write> groupsToFullyTrace: array<vec2<u32>>;
+          @group(0) @binding(12) var<storage, read_write> indirectArgs: IndirectArgs;
           ${getRayDirection}
           ${boxIntersection}
           ${raymarchVoxels}
@@ -137,6 +164,32 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       entryPoint: "main",
     },
   });
+
+  const fullTracePipeline = device.createComputePipeline({
+    layout: device.createPipelineLayout({
+      bindGroupLayouts: [uniformsBindGroupLayout],
+    }),
+    compute: {
+      module: device.createShaderModule({
+        code: `
+          struct IndirectArgs {
+            count: atomic<u32>
+          };
+          @group(0) @binding(10) var<storage> bvhNodes: array<BVHNode>;
+          @group(0) @binding(11) var<storage, read_write> groupsToFullyTrace: array<vec2<u32>>;
+          @group(0) @binding(12) var<storage, read_write> indirectArgs: IndirectArgs;
+          ${getRayDirection}
+          ${boxIntersection}
+          ${raymarchVoxels}
+          ${gBufferRaymarch}`,
+      }),
+      entryPoint: "fullTrace",
+    },
+  });
+
+  let kernelGroupsToFullyTraceBuffer: GPUBuffer;
+  let indirectBuffer: GPUBuffer;
+  let indirectBufferCopy: GPUBuffer;
 
   const render = ({
     commandEncoder,
@@ -149,7 +202,36 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     sunDirectionBuffer,
     bvhBuffer,
   }: RenderArgs) => {
-    const computePass = commandEncoder.beginComputePass({
+    // TODO: combine into one buffer, store indirect args at the front
+    if (!indirectBuffer) {
+      indirectBuffer = device.createBuffer({
+        size: 4 * 4,
+        usage:
+          GPUBufferUsage.STORAGE |
+          GPUBufferUsage.COPY_SRC |
+          GPUBufferUsage.COPY_DST,
+      });
+    }
+    if (!indirectBufferCopy) {
+      indirectBufferCopy = device.createBuffer({
+        size: 4 * 4,
+        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.INDIRECT,
+      });
+    }
+    if (!kernelGroupsToFullyTraceBuffer) {
+      // 9 is kernel size
+      const maxGroupsToFullyTrace = (resolution[0] * resolution[1]) / 9;
+      kernelGroupsToFullyTraceBuffer = device.createBuffer({
+        size: ceilToNearestMultipleOf(4 * maxGroupsToFullyTrace, 4),
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      });
+    } else {
+      commandEncoder.clearBuffer(kernelGroupsToFullyTraceBuffer);
+    }
+
+    device.queue.writeBuffer(indirectBuffer, 0, new Uint32Array([128, 1, 1]));
+
+    let computePass = commandEncoder.beginComputePass({
       timestampWrites,
     });
 
@@ -206,6 +288,18 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
             buffer: bvhBuffer,
           },
         },
+        {
+          binding: 11,
+          resource: {
+            buffer: kernelGroupsToFullyTraceBuffer,
+          },
+        },
+        {
+          binding: 12,
+          resource: {
+            buffer: indirectBuffer,
+          },
+        },
       ],
     });
 
@@ -219,11 +313,29 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     const workGroupsY = Math.ceil(
       resolution[1] / threadGroupCountY / spatialKernelSize,
     );
-    computePass.setPipeline(rayPipeline);
+    computePass.setPipeline(adaptiveTracePipeline);
     computePass.setBindGroup(0, computeBindGroup);
     computePass.dispatchWorkgroups(workGroupsX, workGroupsY);
-
     computePass.end();
+
+    // Copy first 4 bytes - the count of groups to fully trace aka length of the buffer
+    commandEncoder.copyBufferToBuffer(
+      indirectBuffer,
+      0,
+      indirectBufferCopy,
+      0,
+      12,
+    );
+
+    // TODO: find way of recording sub pass timings
+    // Fully raymarch high variance sections
+    computePass = commandEncoder.beginComputePass();
+    computePass.setPipeline(fullTracePipeline);
+    computePass.setBindGroup(0, computeBindGroup);
+    // Dispatch one per group to fully trace
+    computePass.dispatchWorkgroupsIndirect(indirectBufferCopy, 0);
+    computePass.end();
+
     commandEncoder.copyTextureToTexture(
       {
         texture: outputTextures.albedoTexture, // TODO: pass texture as well as view

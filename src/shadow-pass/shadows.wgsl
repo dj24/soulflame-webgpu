@@ -73,7 +73,7 @@ fn main(
   let outputPixel = GlobalInvocationID.xy;
 
   var blueNoisePixel = outputPixel % BLUE_NOISE_SIZE;
-  if(time.x % 2 == 0){
+  if(time.frame % 2 == 0){
     blueNoisePixel.x = BLUE_NOISE_SIZE - blueNoisePixel.x;
   }
   let blueNoiseUv = vec2<f32>(blueNoisePixel) / vec2<f32>(BLUE_NOISE_SIZE);

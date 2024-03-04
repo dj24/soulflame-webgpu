@@ -1,24 +1,12 @@
-struct Time {
-  frameCount: u32,
-  deltaTime: f32,
-}
-
 const TARGET_DELTA_TIME: f32 = 16.66;
 const MAX_SAMPLES: i32 = 8;
-const EPSILON: f32 = 0.00001;
-
-@group(0) @binding(0) var velocityTex : texture_2d<f32>;
-@group(0) @binding(1) var inputTex : texture_2d<f32>;
-@group(0) @binding(2) var outputTex : texture_storage_2d<rgba8unorm, write>;
-@group(0) @binding(3) var pointSample : sampler;
-@group(0) @binding(4) var <uniform>time : Time;
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
   let pixel = GlobalInvocationID.xy;
-  var velocity = textureLoad(velocityTex, pixel, 0).xy;
+  var velocity = textureLoad(velocityAndWaterTex, pixel, 0).xy;
   let resolution = textureDimensions(inputTex);
   let centerOfPixel = vec2<f32>(GlobalInvocationID.xy) + vec2<f32>(0.5);
   var uv = centerOfPixel / vec2<f32>(resolution);
@@ -33,7 +21,7 @@ fn main(
     if(offsetUv.x < 0.0 || offsetUv.x > 1.0 || offsetUv.y < 0.0 || offsetUv.y > 1.0){
       continue;
     }
-    let textureSample = textureSampleLevel(inputTex, pointSample, offsetUv, 0.0);
+    let textureSample = textureSampleLevel(inputTex, nearestSampler, offsetUv, 0.0);
     result += textureSample;
     validSamples += 1.0;
   }

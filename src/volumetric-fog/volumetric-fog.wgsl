@@ -144,7 +144,7 @@ fn blur(
 
   // use blue noise to select random neighbours
   var blueNoisePixel = pixel % BLUE_NOISE_SIZE;
-  if(time.x % 2 == 0){
+  if(time.frame % 2 == 0){
     blueNoisePixel.x = 512 - blueNoisePixel.x;
   }
   let randomCo = textureLoad(blueNoiseTex, blueNoisePixel, 0).xy;

@@ -76,11 +76,20 @@ fn getDebugColour(index: i32) -> vec3<f32> {
   return colours[index % 6];
 }
 
-const SPATIAL_KERNEL_SIZE = 9;
-const SPATIAL_SAMPLE_COUNT = 4;
 
-fn gaussian(x: f32, a: f32, b: f32, c: f32) -> f32 {
-    return a * exp(-(x - b) * (x - b) / (2.0 * c * c));
+fn customNormalize(value: f32, min: f32, max: f32) -> f32 {
+    return (value - min) / (max - min);
+}
+
+fn catmullRomSpline(t: f32, p0: f32, p1: f32, p2: f32, p3: f32) -> f32 {
+  let t2 = t * t;
+  let t3 = t2 * t;
+  return 0.5 * (
+    (2.0 * p1) +
+    (-p0 + p2) * t +
+    (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 +
+    (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3
+  );
 }
 
 /*
@@ -107,12 +116,17 @@ o o o o o o o o o
 1 o o o 2 o o o 1
 
 */
-const KERNEL_CORNER_OFFSETS_1 = array<vec2<u32>, SPATIAL_SAMPLE_COUNT>(
+
+const SPATIAL_KERNEL_SIZE = 9;
+const SPATIAL_SAMPLE_COUNT = 5;
+
+const KERNEL_CORNER_OFFSETS = array<vec2<u32>, SPATIAL_SAMPLE_COUNT>(
   // First set
   vec2(0,0),
   vec2(8,0),
   vec2(0,8),
   vec2(8,8),
+  vec2(4,4)
 );
 
 // TODO: incrementally sample more points if variance is high
@@ -126,16 +140,18 @@ fn main(
   var normals = array<vec3<f32>, SPATIAL_SAMPLE_COUNT>();
   var depths = array<f32, SPATIAL_SAMPLE_COUNT>();
   var worldPositions = array<vec3<f32>, SPATIAL_SAMPLE_COUNT>();
+  var velocities = array<vec3<f32>, SPATIAL_SAMPLE_COUNT>();
 
   // first kernel
   for(var i = 0u; i < SPATIAL_SAMPLE_COUNT; i++){
-    let pixelOffset = KERNEL_CORNER_OFFSETS_1[i];
+    let pixelOffset = KERNEL_CORNER_OFFSETS[i];
 //    let pixelOffset = getSpatialPosition(i, 3) * 4;
     let pixel = (GlobalInvocationID.xy * SPATIAL_KERNEL_SIZE) + pixelOffset;
 
     textureStore(albedoTex, pixel, vec4(1.0,0.0,0.0,1.0));
     textureStore(normalTex, pixel, vec4(0.0,0.0,0.0,1.0));
     textureStore(depthWrite, pixel, vec4(0.0,0.0,0.0,FAR_PLANE));
+    textureStore(velocityTex, pixel, vec4(0,0,0,0));
 
     var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
     let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
@@ -168,45 +184,45 @@ fn main(
     let depth = distance(cameraPosition, closestIntersection.worldPos);
     let albedo = closestIntersection.colour;
     let velocity = getVelocity(closestIntersection, viewProjections);
-    let isWater = false;
 
     normals[i] = normal;
     albedos[i] = albedo;
     depths[i] = depth;
     worldPositions[i] = closestIntersection.worldPos;
+    velocities[i] = velocity;
   }
 
   // Get averages
   var normal = vec3<f32>(0.0,0.0,0.0);
   var albedo = vec3<f32>(0.0,0.0,0.0);
-  var depth = 0.0;
   var worldPos = vec3<f32>(0.0,0.0,0.0);
   for(var i = 0; i < SPATIAL_SAMPLE_COUNT; i++){
     normal += normals[i];
     albedo += albedos[i];
-    depth += depths[i];
     worldPos += worldPositions[i];
   }
   normal /= f32(SPATIAL_SAMPLE_COUNT);
   albedo /= f32(SPATIAL_SAMPLE_COUNT);
-  depth /= f32(SPATIAL_SAMPLE_COUNT);
   worldPos /= f32(SPATIAL_SAMPLE_COUNT);
 
   var normalDiff = vec3<f32>(0.0,0.0,0.0);
   var albedoDiff = vec3<f32>(0.0,0.0,0.0);
-  var depthDiff = 0.0;
+  var worldPosDiff = vec3<f32>(0.0,0.0,0.0);
   for (var i = 0; i < SPATIAL_SAMPLE_COUNT; i++){
     normalDiff += abs(normals[i] - normal);
     albedoDiff += abs(albedos[i] - albedo);
-    depthDiff += abs(depths[i] - depth);
+    worldPosDiff += abs(worldPositions[i] - worldPos);
   }
 
-  let depthWeight = 0.01;
+  let depthWeight = 0.001;
+  let normalWeight = 1.0;
+  let albedoWeight = 1.0;
 
-  var totalDiff = length(normalDiff) + length(albedoDiff) + depthDiff * depthWeight;
+  var totalDiff = length(normalDiff) + length(albedoDiff) + length(worldPosDiff) * depthWeight;
   if(totalDiff > 0.05){
-    //TODO: move this to seperate compute shader with indirect dispatch
     // Difference is too high, sample more points
+    let bufferIndex = atomicAdd(&indirectArgs.count, 1);
+    groupsToFullyTrace[bufferIndex] = GlobalInvocationID.xy * SPATIAL_KERNEL_SIZE;
     return;
   }
   // TODO: linear interpolation instead of average colour
@@ -217,32 +233,85 @@ fn main(
       var totalAlbedo = vec3<f32>(0.0,0.0,0.0);
       var totalDepth = 0.0;
       var totalWorldPos = vec3<f32>(0.0,0.0,0.0);
-      var distances = vec4<f32>(0.0);
+      var totalVelocity = vec3<f32>(0.0,0.0,0.0);
+      var weights = array<f32, SPATIAL_SAMPLE_COUNT>();
       let pixel = (GlobalInvocationID.xy * SPATIAL_KERNEL_SIZE) + vec2<u32>(x,y);
 
+      var minWeight = 9999999999.0;
+      var maxWeight = 0.0;
       for(var i = 0u; i < SPATIAL_SAMPLE_COUNT; i ++){
-        distances[i] = distance(vec2(f32(x),f32(y)), vec2<f32>(KERNEL_CORNER_OFFSETS_1[i]));
+        let d = distance(vec2(f32(x),f32(y)), vec2<f32>(KERNEL_CORNER_OFFSETS[i]));
+        let weight = 1.0 - d;
+        minWeight = min(minWeight, weight);
+        maxWeight = max(maxWeight, weight);
+        weights[i] = weight;
       }
 
-      // Normalize the weights so they sum to 1
-      var weights = normalize(distances);
-
-      // Calculate the weights based on the distances
-      weights = vec4<f32>(1.0) - weights;
-
       for(var i = 0u; i < SPATIAL_SAMPLE_COUNT; i ++){
-        let weight = weights[i];
+        let weight = customNormalize(weights[i], minWeight, maxWeight);
         totalNormal += normals[i] * weight;
         totalAlbedo += albedos[i] * weight;
         totalDepth += depths[i] * weight;
         totalWorldPos += worldPositions[i] * weight;
+        totalVelocity += velocities[i] * weight;
         totalWeight += weight;
       }
 
       textureStore(albedoTex, pixel, vec4(totalAlbedo / totalWeight, 1));
       textureStore(normalTex, pixel, vec4(totalNormal / totalWeight,1));
       textureStore(depthWrite, pixel, vec4(totalWorldPos / totalWeight, totalDepth / totalWeight));
-      //    textureStore(velocityTex, pixel, vec4(velocity,select(0.,1.,isWater)));
-    }
+      textureStore(velocityTex, pixel, vec4(totalVelocity / totalWeight,0));
   }
+  }
+}
+
+
+@compute @workgroup_size(SPATIAL_KERNEL_SIZE, SPATIAL_KERNEL_SIZE, 1)
+fn fullTrace(
+  @builtin(local_invocation_id) LocalInvocationID : vec3<u32>,
+  @builtin(workgroup_id) WorkgroupID : vec3<u32>,
+) {
+   let resolution = textureDimensions(albedoTex);
+  let pixelOffset = LocalInvocationID.xy;
+  let groupOrigin = groupsToFullyTrace[WorkgroupID.x];
+//  let groupOrigin = vec2(500 + (WorkgroupID.x % 50) * SPATIAL_KERNEL_SIZE, 500 + (WorkgroupID.x / 50) * SPATIAL_KERNEL_SIZE);
+  let pixel = groupOrigin + pixelOffset;
+
+  var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
+  let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
+  var rayOrigin = cameraPosition;
+  var closestIntersection = RayMarchResult();
+  closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
+
+  // Floor plane for debugging
+  let planeY = 0.0;
+  let planeIntersect = planeIntersection(rayOrigin, rayDirection, vec3(0,1,0), planeY);
+  if(planeIntersect.isHit){
+    closestIntersection.worldPos = rayOrigin + rayDirection * planeIntersect.tNear;
+    closestIntersection.worldPos.y = planeY;
+    closestIntersection.hit = planeIntersect.isHit;
+    closestIntersection.normal = planeIntersect.normal;
+    closestIntersection.colour = vec3(0.15,0.3,0.1);
+    // TODO: hit water here
+  }
+
+  let maxMipLevel = u32(0);
+  let minMipLevel = u32(0);
+  var mipLevel = maxMipLevel;
+
+  let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
+  if(bvhResult.hit){
+    closestIntersection = bvhResult;
+  }
+
+  let normal = closestIntersection.normal;
+  let depth = distance(cameraPosition, closestIntersection.worldPos);
+  let albedo = closestIntersection.colour;
+  let velocity = getVelocity(closestIntersection, viewProjections);
+  let worldPos = closestIntersection.worldPos;
+
+  textureStore(albedoTex, pixel, vec4(albedo, 1));
+//  textureStore(albedoTex, pixel, vec4(0,0,1, 1));
+  textureStore(normalTex, pixel, vec4(normal,1));
+  textureStore(depthWrite, pixel, vec4(worldPos, depth));
 }

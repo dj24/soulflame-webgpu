@@ -187,6 +187,11 @@ export const createComputeCompositePass = async ({
   });
 
   const code = `
+struct Time {
+  frame: u32,
+  deltaTime: f32
+};
+
 @group(0) @binding(0) var depthTex : texture_2d<f32>;
 @group(0) @binding(1) var inputTex : texture_2d<f32>;
 @group(0) @binding(2) var outputTex : texture_storage_2d<rgba8unorm, write>;
@@ -199,7 +204,7 @@ export const createComputeCompositePass = async ({
 @group(0) @binding(9) var intermediaryTexture : texture_2d<f32>;
 @group(0) @binding(10) var normalTex : texture_2d<f32>;
 @group(0) @binding(11) var blueNoiseTex : texture_2d<f32>;
-@group(0) @binding(12) var<uniform> time : vec2<u32>;
+@group(0) @binding(12) var<uniform> time : Time;
 @group(0) @binding(13) var nearestSampler : sampler;
 @group(0) @binding(14) var velocityAndWaterTex : texture_2d<f32>;
 @group(0) @binding(15) var<storage> bvhNodes: array<BVHNode>;
