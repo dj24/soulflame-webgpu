@@ -130,9 +130,9 @@ export class BVH {
   }
 
   buildBVH(voxelObjects: VoxelObject[], startIndex: number) {
-    // const { left, right } = splitObjectsByMortonCode(voxelObjects);
+    const { left, right } = splitObjectsByMortonCode(voxelObjects);
 
-    const { left, right } = splitObjectsBySurfaceAreaHeuristic(voxelObjects);
+    // const { left, right } = splitObjectsBySurfaceAreaHeuristic(voxelObjects);
 
     const leftAABB = getAABB(left);
     const rightAABB = getAABB(right);

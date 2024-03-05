@@ -158,7 +158,7 @@ fn rayMarchTransformed(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOri
       return  rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
 }
 
-const STACK_LEN: u32 = 32u;
+const STACK_LEN: u32 = 64u;
 struct Stack {
   arr: array<i32, STACK_LEN>,
 	head: u32,
@@ -192,7 +192,7 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
   var nodeAABBIntersect = 0.0;
   var voxelObjectIndex = -1;
 
-  while (stack.head > 0u && iterations < 256) {
+  while (stack.head > 0u && iterations < 128) {
     // valid leaf, raymarch it
     if(voxelObjectIndex != -1){
         // Raymarch the voxel object if it's a leaf node
