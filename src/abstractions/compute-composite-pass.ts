@@ -130,7 +130,7 @@ const bvhBufferEntry: GPUBindGroupLayoutEntry = {
   },
 };
 
-const baseBindGroupLayoutEntries = [
+export const baseBindGroupLayoutEntries = [
   depthEntry,
   inputTextureEntry,
   outputTextureEntry,

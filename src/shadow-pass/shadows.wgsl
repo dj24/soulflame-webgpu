@@ -85,7 +85,7 @@ fn main(
 
   let randomCo = vec2<f32>(samplePixel);
 
-  let scatterAmount = 0.02;
+  let scatterAmount = 0.04;
   var total = vec3(0.0);
   var count = 0.0;
 
@@ -100,8 +100,8 @@ fn main(
               SUN_COLOR,
             ),
 //      Light(
-//              vec3( 0, 1, 0),
-//              vec3(0.3,0.4,0.6),
+//              vec3(-sunDirection.x, sunDirection.y, sunDirection.z),
+//              vec3(1.0,0.8,0.6),
 //            ),
     );
 

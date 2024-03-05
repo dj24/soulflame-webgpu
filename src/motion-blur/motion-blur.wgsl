@@ -1,4 +1,4 @@
-const TARGET_DELTA_TIME: f32 = 16.66;
+const TARGET_DELTA_TIME: f32 = 33.33;
 const MAX_SAMPLES: i32 = 8;
 
 @compute @workgroup_size(8, 8, 1)
@@ -6,7 +6,7 @@ fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
   let pixel = GlobalInvocationID.xy;
-  var velocity = textureLoad(velocityAndWaterTex, pixel, 0).xy;
+  var velocity = min(textureLoad(velocityAndWaterTex, pixel, 0).xy, vec2(0.00001));
   let resolution = textureDimensions(inputTex);
   let centerOfPixel = vec2<f32>(GlobalInvocationID.xy) + vec2<f32>(0.5);
   var uv = centerOfPixel / vec2<f32>(resolution);
@@ -17,10 +17,8 @@ fn main(
   var result = vec4<f32>(0.0);
   for (var i = 0; i < samples; i++) {
     var offset = scaledVelocity * (f32(i) / f32(samples - 1) - 0.5);
+//    var offset = scaledVelocity * f32(i);
     let offsetUv = uv + offset;
-    if(offsetUv.x < 0.0 || offsetUv.x > 1.0 || offsetUv.y < 0.0 || offsetUv.y > 1.0){
-      continue;
-    }
     let textureSample = textureSampleLevel(inputTex, nearestSampler, offsetUv, 0.0);
     result += textureSample;
     validSamples += 1.0;

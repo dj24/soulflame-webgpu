@@ -4,123 +4,7 @@ import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
 import randomCommon from "../random-common.wgsl";
 import matrices from "../shader/matrices.wgsl";
-
-const depthEntry: GPUBindGroupLayoutEntry = {
-  binding: 0,
-  visibility: GPUShaderStage.COMPUTE,
-  texture: {
-    sampleType: "unfilterable-float",
-  },
-};
-
-const inputTextureEntry: GPUBindGroupLayoutEntry = {
-  binding: 1,
-  visibility: GPUShaderStage.COMPUTE,
-  texture: {
-    sampleType: "float",
-  },
-};
-
-const outputTextureEntry: GPUBindGroupLayoutEntry = {
-  binding: 2,
-  visibility: GPUShaderStage.COMPUTE,
-  storageTexture: {
-    format: "rgba8unorm",
-  },
-};
-
-const matricesEntry: GPUBindGroupLayoutEntry = {
-  binding: 3,
-  visibility: GPUShaderStage.COMPUTE,
-  buffer: {
-    type: "read-only-storage",
-  },
-};
-
-const voxelsEntry: GPUBindGroupLayoutEntry = {
-  binding: 4,
-  visibility: GPUShaderStage.COMPUTE,
-  texture: {
-    sampleType: "float",
-    viewDimension: "3d",
-  },
-};
-
-const cameraPositionEntry: GPUBindGroupLayoutEntry = {
-  binding: 5,
-  visibility: GPUShaderStage.COMPUTE,
-  buffer: {
-    type: "uniform",
-  },
-};
-
-const voxelObjectsEntry: GPUBindGroupLayoutEntry = {
-  binding: 6,
-  visibility: GPUShaderStage.COMPUTE,
-  buffer: {
-    type: "uniform",
-  },
-};
-
-const sunDirectionEntry: GPUBindGroupLayoutEntry = {
-  binding: 7,
-  visibility: GPUShaderStage.COMPUTE,
-  buffer: {
-    type: "uniform",
-  },
-};
-
-const linearSamplerEntry: GPUBindGroupLayoutEntry = {
-  binding: 8,
-  visibility: GPUShaderStage.COMPUTE,
-  sampler: {},
-};
-
-const normalTextureEntry: GPUBindGroupLayoutEntry = {
-  binding: 9,
-  visibility: GPUShaderStage.COMPUTE,
-  texture: {
-    sampleType: "float",
-  },
-};
-
-const blueNoiseTextureEntry: GPUBindGroupLayoutEntry = {
-  binding: 10,
-  visibility: GPUShaderStage.COMPUTE,
-  texture: {
-    sampleType: "float",
-  },
-};
-
-const timeEntry: GPUBindGroupLayoutEntry = {
-  binding: 11,
-  visibility: GPUShaderStage.COMPUTE,
-  buffer: {
-    type: "uniform",
-  },
-};
-
-const nearestSamplerEntry: GPUBindGroupLayoutEntry = {
-  binding: 12,
-  visibility: GPUShaderStage.COMPUTE,
-  sampler: {},
-};
-
-const baseBindGroupLayoutEntries = [
-  depthEntry,
-  inputTextureEntry,
-  outputTextureEntry,
-  matricesEntry,
-  voxelsEntry,
-  cameraPositionEntry,
-  voxelObjectsEntry,
-  sunDirectionEntry,
-  linearSamplerEntry,
-  normalTextureEntry,
-  blueNoiseTextureEntry,
-  timeEntry,
-  nearestSamplerEntry,
-];
+import { baseBindGroupLayoutEntries } from "./compute-composite-pass";
 
 const NUM_THREADS_X = 8;
 const NUM_THREADS_Y = 8;
@@ -147,19 +31,27 @@ export const createComputePass = async ({
   });
 
   const code = `
+struct Time {
+  frame: u32,
+  deltaTime: f32
+};
+
 @group(0) @binding(0) var depthTex : texture_2d<f32>;
 @group(0) @binding(1) var inputTex : texture_2d<f32>;
 @group(0) @binding(2) var outputTex : texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(3) var<uniform> viewProjections : ViewProjectionMatrices;
 @group(0) @binding(4) var voxels : texture_3d<f32>;
 @group(0) @binding(5) var<uniform> cameraPosition : vec3<f32>;
-@group(0) @binding(6) var<uniform> voxelObjects : array<VoxelObject, VOXEL_OBJECT_COUNT>;
+@group(0) @binding(6) var<storage> voxelObjects : array<VoxelObject>;
 @group(0) @binding(7) var<uniform> sunDirection : vec3<f32>;
 @group(0) @binding(8) var linearSampler : sampler;
-@group(0) @binding(9) var normalTex : texture_2d<f32>;
-@group(0) @binding(10) var blueNoiseTex : texture_2d<f32>;
-@group(0) @binding(11) var<uniform> time : vec2<u32>;
-@group(0) @binding(12) var nearestSampler : sampler;
+@group(0) @binding(9) var intermediaryTexture : texture_2d<f32>;
+@group(0) @binding(10) var normalTex : texture_2d<f32>;
+@group(0) @binding(11) var blueNoiseTex : texture_2d<f32>;
+@group(0) @binding(12) var<uniform> time : Time;
+@group(0) @binding(13) var nearestSampler : sampler;
+@group(0) @binding(14) var velocityAndWaterTex : texture_2d<f32>;
+@group(0) @binding(15) var<storage> bvhNodes: array<BVHNode>;
 
 const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
 ${matrices}
@@ -203,6 +95,7 @@ ${shaderCode}`;
     sunDirectionBuffer,
     blueNoiseTexture,
     timeBuffer,
+    bvhBuffer,
   }: RenderArgs) => {
     if (!copyOutputTexture) {
       copyOutputTexture = device.createTexture({
@@ -277,22 +170,32 @@ ${shaderCode}`;
         resource: linearSampler,
       },
       {
-        binding: 9,
+        binding: 10,
         resource: outputTextures.normalTexture.createView(),
       },
       {
-        binding: 10,
+        binding: 11,
         resource: blueNoiseTexture.createView(),
       },
       {
-        binding: 11,
+        binding: 12,
         resource: {
           buffer: timeBuffer,
         },
       },
       {
-        binding: 12,
+        binding: 13,
         resource: nearestSampler,
+      },
+      {
+        binding: 14,
+        resource: outputTextures.velocityTexture.createView(),
+      },
+      {
+        binding: 15,
+        resource: {
+          buffer: bvhBuffer,
+        },
       },
     ];
 

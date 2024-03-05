@@ -1,13 +1,12 @@
 import { RenderPass } from "../app";
 import motionBlur from "./motion-blur.wgsl";
 import { createComputeCompositePass } from "../abstractions/compute-composite-pass";
+import { createComputePass } from "../abstractions/compute-pass";
 
 export const getMotionBlurPass = async (): Promise<RenderPass> => {
-  return createComputeCompositePass({
+  return createComputePass({
     shaderCode: motionBlur,
-    effectEntryPoint: "main",
-    compositeEntryPoint: "composite",
-    downscale: 1,
+    entryPoint: "main",
     label: "motion blur",
   });
 };
