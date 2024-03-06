@@ -230,35 +230,31 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
       let rightValid = rightDist >= 0.0 && rightDist < closestRaymarchDist;
 
       if(leftValid && rightValid) {
+        let isLeftLeaf = node.leftObjectCount == 1;
+        let isRightLeaf = node.rightObjectCount == 1;
         // traverse the closer child first, push the other index to the stack
         if (leftDist < rightDist) {
-
-            let isLeftLeaf = node.leftObjectCount == 1;
-            let isRightLeaf = node.rightObjectCount == 1;
-            if(isLeftLeaf){
-              nodeAABBIntersect = leftDist;
-              voxelObjectIndex = node.leftIndex;
-            } else {
-              nodeIndex  = node.leftIndex;
-              if(!isRightLeaf){
-                stack_push(&stack, node.rightIndex);
-              }
-              voxelObjectIndex = -1;
-            }
+          if(isLeftLeaf){
+            nodeAABBIntersect = leftDist;
+            voxelObjectIndex = node.leftIndex;
+          } else {
+            nodeIndex  = node.leftIndex;
+            voxelObjectIndex = -1;
+          }
+          if(!isRightLeaf){
+            stack_push(&stack, node.rightIndex);
+          }
         } else {
-
-            let isRightLeaf = node.rightObjectCount == 1;
-            let isLeftLeaf = node.leftObjectCount == 1;
-            if(isRightLeaf){
-              nodeAABBIntersect = rightDist;
-              voxelObjectIndex = node.rightIndex;
-            } else {
-              nodeIndex  = node.rightIndex;
-              if(!isLeftLeaf){
-                stack_push(&stack, node.leftIndex);
-              }
-              voxelObjectIndex = -1;
-            }
+          if(isRightLeaf){
+            nodeAABBIntersect = rightDist;
+            voxelObjectIndex = node.rightIndex;
+          } else {
+            nodeIndex  = node.rightIndex;
+            voxelObjectIndex = -1;
+          }
+          if(!isLeftLeaf){
+            stack_push(&stack, node.leftIndex);
+          }
         }
       }
       else if (leftValid) {
@@ -288,6 +284,7 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
       }
     }
     iterations += 1;
+    closestIntersection.colour += vec3<f32>(0.0075);
   }
   return closestIntersection;
 }

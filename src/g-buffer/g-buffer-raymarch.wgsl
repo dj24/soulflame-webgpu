@@ -176,9 +176,9 @@ fn main(
     var mipLevel = maxMipLevel;
 
     let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
-    if(bvhResult.hit){
+//    if(bvhResult.hit){
       closestIntersection = bvhResult;
-    }
+//    }
 
     let normal = closestIntersection.normal;
     let depth = distance(cameraPosition, closestIntersection.worldPos);
@@ -258,8 +258,8 @@ fn main(
         totalWeight += weight;
       }
 
-      textureStore(albedoTex, pixel, vec4((totalWorldPos / totalWeight) % 1, 1));
-//      textureStore(albedoTex, pixel, vec4(totalAlbedo / totalWeight, 1));
+//      textureStore(albedoTex, pixel, vec4((totalWorldPos / totalWeight) % 1, 1));
+      textureStore(albedoTex, pixel, vec4(totalAlbedo / totalWeight, 1));
       textureStore(normalTex, pixel, vec4(totalNormal / totalWeight,1));
       textureStore(depthWrite, pixel, vec4(totalWorldPos / totalWeight, totalDepth / totalWeight));
       textureStore(velocityTex, pixel, vec4(totalVelocity / totalWeight,0));
@@ -302,9 +302,9 @@ fn fullTrace(
   var mipLevel = maxMipLevel;
 
   let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
-  if(bvhResult.hit){
+//  if(bvhResult.hit){
     closestIntersection = bvhResult;
-  }
+//  }
 
   let normal = closestIntersection.normal;
   let depth = distance(cameraPosition, closestIntersection.worldPos);
@@ -313,7 +313,7 @@ fn fullTrace(
   let worldPos = closestIntersection.worldPos;
 
   textureStore(albedoTex, pixel, vec4(albedo, 1));
-  textureStore(albedoTex, pixel, vec4(0,0,1, 1));
+//  textureStore(albedoTex, pixel, vec4(0,0,1, 1));
   textureStore(normalTex, pixel, vec4(normal,1));
   textureStore(depthWrite, pixel, vec4(worldPos, depth));
   textureStore(velocityTex, pixel, vec4(velocity ,0));
