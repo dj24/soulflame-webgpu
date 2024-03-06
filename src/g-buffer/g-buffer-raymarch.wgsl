@@ -135,7 +135,7 @@ fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
   let resolution = textureDimensions(albedoTex);
-
+  let originPixel = GlobalInvocationID.xy * (SPATIAL_KERNEL_SIZE);
   var albedos = array<vec3<f32>, SPATIAL_SAMPLE_COUNT>();
   var normals = array<vec3<f32>, SPATIAL_SAMPLE_COUNT>();
   var depths = array<f32, SPATIAL_SAMPLE_COUNT>();
@@ -146,7 +146,7 @@ fn main(
   for(var i = 0u; i < SPATIAL_SAMPLE_COUNT; i++){
     let pixelOffset = KERNEL_CORNER_OFFSETS[i];
 //    let pixelOffset = getSpatialPosition(i, 3) * 4;
-    let pixel = (GlobalInvocationID.xy * SPATIAL_KERNEL_SIZE) + pixelOffset;
+    let pixel = originPixel + pixelOffset;
 
     textureStore(albedoTex, pixel, vec4(1.0,0.0,0.0,1.0));
     textureStore(normalTex, pixel, vec4(0.0,0.0,0.0,1.0));
@@ -218,11 +218,12 @@ fn main(
   let normalWeight = 1.0;
   let albedoWeight = 1.0;
 
+
   var totalDiff = length(normalDiff) + length(albedoDiff) + length(worldPosDiff) * depthWeight;
   if(totalDiff > 0.5){
     // Difference is too high, sample more points
     let bufferIndex = atomicAdd(&indirectArgs.count, 1);
-    groupsToFullyTrace[bufferIndex] = GlobalInvocationID.xy * SPATIAL_KERNEL_SIZE;
+    groupsToFullyTrace[bufferIndex] = originPixel;
     return;
   }
   // TODO: linear interpolation instead of average colour
@@ -235,7 +236,7 @@ fn main(
       var totalWorldPos = vec3<f32>(0.0,0.0,0.0);
       var totalVelocity = vec3<f32>(0.0,0.0,0.0);
       var weights = array<f32, SPATIAL_SAMPLE_COUNT>();
-      let pixel = (GlobalInvocationID.xy * SPATIAL_KERNEL_SIZE) + vec2<u32>(x,y);
+      let pixel = originPixel + vec2<u32>(x,y);
 
       var minWeight = 9999999999.0;
       var maxWeight = 0.0;
@@ -262,7 +263,7 @@ fn main(
       textureStore(normalTex, pixel, vec4(totalNormal / totalWeight,1));
       textureStore(depthWrite, pixel, vec4(totalWorldPos / totalWeight, totalDepth / totalWeight));
       textureStore(velocityTex, pixel, vec4(totalVelocity / totalWeight,0));
-  }
+    }
   }
 }
 

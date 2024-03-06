@@ -565,7 +565,7 @@ const start = async () => {
     getGBufferPass(),
     // getDiffusePass(),
     // getReflectionsPass(),
-    getShadowsPass(),
+    // getShadowsPass(),
     getSkyPass(),
     // getVolumetricFog(),
     // getTaaPass(),

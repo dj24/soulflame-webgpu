@@ -231,9 +231,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
 
     device.queue.writeBuffer(indirectBuffer, 0, new Uint32Array([128, 1, 1]));
 
-    let computePass = commandEncoder.beginComputePass({
-      timestampWrites,
-    });
+    let computePass = commandEncoder.beginComputePass();
 
     const computeBindGroup = device.createBindGroup({
       layout: uniformsBindGroupLayout,
@@ -329,7 +327,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
 
     // TODO: find way of recording sub pass timings
     // Fully raymarch high variance sections
-    computePass = commandEncoder.beginComputePass();
+    computePass = commandEncoder.beginComputePass({ timestampWrites });
     computePass.setPipeline(fullTracePipeline);
     computePass.setBindGroup(0, computeBindGroup);
     // Dispatch one per group to fully trace
