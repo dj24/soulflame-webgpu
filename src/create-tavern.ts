@@ -22,58 +22,63 @@ type TSceneDefinition = {
   }[];
 };
 
+const NAME_ALLOWLIST = [
+  "Dragon",
+  "Table",
+  "Bench",
+  "Stool",
+  "BarTop",
+  "BarTopS",
+  "BarTop1",
+  "Barrel",
+  "Keg",
+  "Candle",
+  "Bed",
+  "Torch",
+  "TorchHolder",
+  "FireLogs",
+  "Tankard",
+  "Bookshelf",
+  "Books4",
+];
+
 export const createTavern = async (
   device: GPUDevice,
   volumeAtlas: VolumeAtlas,
 ) => {
   const tavernResponse = await fetch("./Tavern.json");
   const tavernDefinition = (await tavernResponse.json()) as TSceneDefinition;
-
-  const childObjects = tavernDefinition.children;
+  const childObjects = tavernDefinition.children.filter((child) =>
+    NAME_ALLOWLIST.includes(child.name),
+  );
   const uniqueChildNames = new Set(childObjects.map((child) => child.name));
   const uniqueChildNamesArray = Array.from(uniqueChildNames);
 
+  console.log({ uniqueChildNamesArray });
+
   for (const name of uniqueChildNamesArray) {
     const voxels = await import(`./voxel-models/Tavern/${name}.vxm`);
+    if (name === "Dragon") {
+      console.log({ [name]: voxels });
+    }
     let texture = await create3dTexture(
       device,
       voxels.sliceFilePaths,
       voxels.size,
       name,
     );
-    // texture = await removeInternalVoxels(device, texture);
+    texture = await removeInternalVoxels(device, texture);
     generateOctreeMips(device, texture);
-    volumeAtlas.addVolume(texture, name);
+    await volumeAtlas.addVolume(texture, name);
     texture.destroy();
   }
 
   const volumes = volumeAtlas.getVolumes();
+
   childObjects.forEach((child, index) => {
     const volume = volumes[child.name];
     if (!volume) {
       console.warn(`Volume not found for child ${child.name}, skipping...`);
-      return;
-    }
-    if (
-      ![
-        "Table",
-        "Bench",
-        "Stool",
-        "BarTop",
-        "BarTopS",
-        "BarTop1",
-        "Barrel",
-        "Keg",
-        // "Candle",
-        // "Bed",
-        // "Torch",
-        // "TorchHolder",
-        // "FireLogs",
-        // "Tankard",
-        // "Bookshelf",
-        // "Books4",
-      ].includes(child.name)
-    ) {
       return;
     }
     const m = mat4.identity();
@@ -84,29 +89,10 @@ export const createTavern = async (
       new VoxelObject(m, volume.size, volume.location, child.name),
     );
   });
-  console.log(`Tavern created with ${voxelObjects.length} items`);
+  console.debug(`Tavern created with ${voxelObjects.length} items`);
 };
 
 const paddingElement = new VoxelObject(mat4.identity(), [0, 0, 0], [0, 0, 0]);
-
-const getClosestPointToCamera = (object: VoxelObject) => {
-  return object.worldSpaceCorners.sort((a, b) => {
-    const aDistance = vec3.distance(a, camera.position);
-    const bDistance = vec3.distance(b, camera.position);
-    return aDistance - bDistance;
-  })[0];
-};
-
-const sortObjectsByDistanceToCamera = (
-  voxelObjects: VoxelObject[],
-  cameraPosition: Vec3,
-) => {
-  return voxelObjects.sort((a, b) => {
-    const aDistance = vec3.distance(a.worldSpaceCenter, cameraPosition);
-    const bDistance = vec3.distance(b.worldSpaceCenter, cameraPosition);
-    return aDistance - bDistance;
-  });
-};
 
 /**
  * Returns the object transforms with padding to fill the maxObjectCount

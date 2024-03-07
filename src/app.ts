@@ -547,7 +547,7 @@ const start = async () => {
     }
   }
 
-  console.log(device.limits);
+  console.debug(device.limits);
   skyTexture = await createTextureFromImages(device, [
     "cubemaps/town-square/posx.jpg",
     "cubemaps/town-square/negx.jpg",

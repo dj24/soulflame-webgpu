@@ -1,5 +1,5 @@
 const EPSILON = 0.0001;
-const MAX_RAY_STEPS = 128;
+const MAX_RAY_STEPS = 256;
 const FAR_PLANE = 10000.0;
 
 
@@ -239,18 +239,15 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
   var iterations = 0;
   var nodeIndex = 0;
   var furthestAABBDist = 0.0;
-  var voxelObjectIndex = -1;
 
-  while (stack.head > 0u && iterations < 64) {
+  while (stack.head > 0u && iterations < 128) {
     let node = bvhNodes[nodeIndex];
-
+    var voxelObjectIndex = -1;
     let leftDist = getDistanceToLeftNode(rayOrigin, rayDirection, node);
     let rightDist = getDistanceToRightNode(rayOrigin, rayDirection, node);
     let hitLeft = leftDist >= 0.0 && leftDist < closestRaymarchDist;
     let hitRight = rightDist >= 0.0 && rightDist < closestRaymarchDist;
-
     var AABBDist = 0.0;
-
     if(hitLeft){
       var nearIndex = node.leftIndex;
       AABBDist = leftDist;
@@ -276,10 +273,8 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
       AABBDist = rightDist;
       voxelObjectIndex = getVoxelObjectIndexFromFromRightNode(node);
     } else{
-      voxelObjectIndex = -1;
       nodeIndex = stack_pop(&stack);
     }
-
     iterations += 1;
     closestIntersection.colour += vec3<f32>(0.0075);
 
@@ -294,7 +289,7 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
           closestIntersection = raymarchResult;
           closestRaymarchDist = raymarchDist;
         }
-        voxelObjectIndex = -1;
+//        voxelObjectIndex = -1;
     }
   }
 

@@ -20,6 +20,10 @@ export class DebugUI {
         console.log(event.target);
       });
     });
+    document.addEventListener("wheel", (event) => {
+      camera.fieldOfView += event.deltaY * 0.001;
+      camera.fieldOfView = Math.max(Math.min(camera.fieldOfView, 2), 0.1);
+    });
     ["fov", "scale", "translate", "sun"].forEach((id) => {
       document.getElementById(id).addEventListener("input", (event) => {
         const input = event.target as HTMLInputElement;

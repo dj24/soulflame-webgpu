@@ -24,7 +24,7 @@ export type VolumeAtlasDictionary = {
 export type VolumeAtlas = {
   getVolumes: () => VolumeAtlasDictionary;
   getVolume: (label: string) => VolumeAtlasEntry;
-  addVolume: (texture: GPUTexture, label: string) => void;
+  addVolume: (texture: GPUTexture, label: string) => Promise<void>;
   removeVolume: (label: string) => void;
   getAtlasTextureView: () => GPUTextureView;
 };
@@ -86,11 +86,11 @@ export const getVolumeAtlas = (device: GPUDevice): VolumeAtlas => {
       );
     }
     const { width, height, depthOrArrayLayers } = texture;
-    // console.log(`Adding ${label} to atlas`, {
-    //   width,
-    //   height,
-    //   depthOrArrayLayers,
-    // });
+    console.debug(`Adding ${label} to atlas`, {
+      width,
+      height,
+      depthOrArrayLayers,
+    });
     if (!atlasTexture) {
       const commandEncoder = device.createCommandEncoder();
       atlasTexture = device.createTexture({
