@@ -72,7 +72,7 @@ export let frameCount = 0;
 
 let volumeAtlas: VolumeAtlas;
 
-const startingCameraFieldOfView = 60 * (Math.PI / 180);
+const startingCameraFieldOfView = 90 * (Math.PI / 180);
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
   position: vec3.create(-25, 10, -70),
