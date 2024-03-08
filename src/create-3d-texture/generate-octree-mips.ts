@@ -1,10 +1,10 @@
 import { numMipLevels } from "webgpu-utils";
 import generateMips from "./generate-mips.wgsl";
 
-export const generateOctreeMips = (
+export const generateOctreeMips = async (
   device: GPUDevice,
   volume: GPUTexture,
-): void => {
+): Promise<void> => {
   const mipLevelCount = numMipLevels(volume, "3d");
 
   const bindGroupLayout = device.createBindGroupLayout({
@@ -88,4 +88,5 @@ export const generateOctreeMips = (
     commandBuffers.push(commandEncoder.finish());
   }
   device.queue.submit(commandBuffers);
+  await device.queue.onSubmittedWorkDone();
 };

@@ -1,11 +1,9 @@
 import { VolumeAtlas } from "./volume-atlas";
 import { create3dTexture } from "./create-3d-texture/create-3d-texture";
-import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels";
 import { generateOctreeMips } from "./create-3d-texture/generate-octree-mips";
-import { mat4, vec3, Vec3 } from "wgpu-matrix";
+import { mat4 } from "wgpu-matrix";
 import { VoxelObject } from "./voxel-object";
-import { GetObjectsArgs } from "./get-objects-transforms/objects-worker";
-import { camera } from "./app";
+import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels";
 
 export let voxelObjects: VoxelObject[] = [];
 
@@ -40,6 +38,8 @@ const NAME_ALLOWLIST = [
   "Tankard",
   "Bookshelf",
   "Books4",
+  "Door",
+  "BigDoor",
 ];
 
 export const createTavern = async (
@@ -54,13 +54,8 @@ export const createTavern = async (
   const uniqueChildNames = new Set(childObjects.map((child) => child.name));
   const uniqueChildNamesArray = Array.from(uniqueChildNames);
 
-  console.log({ uniqueChildNamesArray });
-
   for (const name of uniqueChildNamesArray) {
     const voxels = await import(`./voxel-models/Tavern/${name}.vxm`);
-    if (name === "Dragon") {
-      console.log({ [name]: voxels });
-    }
     let texture = await create3dTexture(
       device,
       voxels.sliceFilePaths,
@@ -68,7 +63,7 @@ export const createTavern = async (
       name,
     );
     texture = await removeInternalVoxels(device, texture);
-    generateOctreeMips(device, texture);
+    await generateOctreeMips(device, texture);
     await volumeAtlas.addVolume(texture, name);
     texture.destroy();
   }
@@ -90,29 +85,4 @@ export const createTavern = async (
     );
   });
   console.debug(`Tavern created with ${voxelObjects.length} items`);
-};
-
-const paddingElement = new VoxelObject(mat4.identity(), [0, 0, 0], [0, 0, 0]);
-
-/**
- * Returns the object transforms with padding to fill the maxObjectCount
- * This is temporary until the matrices buffer is dynamically sized
- * @param maxObjectCount
- */
-export const getObjectTransformsWithPadding = ({
-  maxObjectCount,
-}: GetObjectsArgs) => {
-  console.log({ maxObjectCount });
-  console.log({ objectCount: voxelObjects.length });
-  let objectCount = Math.min(maxObjectCount, voxelObjects.length);
-  let activeVoxelObjects = voxelObjects.slice(0, objectCount);
-  // activeVoxelObjects = sortObjectsByDistanceToCamera(
-  //   activeVoxelObjects,
-  //   camera.position,
-  // );
-
-  const differenceInObjectCount = maxObjectCount - objectCount;
-  const padding = new Array(differenceInObjectCount).fill(paddingElement);
-  voxelObjects = [...activeVoxelObjects, ...padding];
-  return voxelObjects;
 };

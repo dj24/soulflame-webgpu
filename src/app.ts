@@ -24,11 +24,7 @@ import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels
 import { getShadowsPass } from "./shadow-pass/get-shadows-pass";
 import { getSkyPass } from "./sky-and-fog/get-sky-pass";
 import { getVolumetricFog } from "./volumetric-fog/get-volumetric-fog";
-import {
-  createTavern,
-  getObjectTransformsWithPadding,
-  voxelObjects,
-} from "./create-tavern";
+import { createTavern, voxelObjects } from "./create-tavern";
 import { GetObjectsArgs } from "./get-objects-transforms/objects-worker";
 import dragonVolume from "./voxel-models/dragon.vxm";
 import { isVoxelObjectInFrustrum, VoxelObject } from "./voxel-object";
@@ -556,7 +552,7 @@ const start = async () => {
     "cubemaps/town-square/posz.jpg",
     "cubemaps/town-square/negz.jpg",
   ]);
-  volumeAtlas = getVolumeAtlas(device);
+  volumeAtlas = await getVolumeAtlas(device);
 
   await createTavern(device, volumeAtlas);
 

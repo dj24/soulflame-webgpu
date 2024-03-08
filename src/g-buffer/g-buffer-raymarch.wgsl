@@ -220,7 +220,8 @@ fn main(
 
 
   var totalDiff = length(normalDiff) + length(albedoDiff) + length(worldPosDiff) * depthWeight;
-  if(totalDiff > 0.5){
+  if(totalDiff > 0.05){
+//if(true){
     // Difference is too high, sample more points
     let bufferIndex = atomicAdd(&indirectArgs.count, 1);
     groupsToFullyTrace[bufferIndex] = originPixel;

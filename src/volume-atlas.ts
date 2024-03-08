@@ -1,5 +1,4 @@
 import { vec3, Vec3 } from "wgpu-matrix";
-import { numMipLevels } from "webgpu-utils";
 import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels";
 
 const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
@@ -66,9 +65,21 @@ const copyTextureWithMips = (
  * @param device - The GPU device
  * @returns { getAtlasTextureView, addVolume, removeVolume }
  */
-export const getVolumeAtlas = (device: GPUDevice): VolumeAtlas => {
+export const getVolumeAtlas = async (
+  device: GPUDevice,
+): Promise<VolumeAtlas> => {
   let atlasTexture: GPUTexture = null;
   let dictionary: VolumeAtlasDictionary = {};
+
+  const commandEncoder = device.createCommandEncoder();
+  atlasTexture = device.createTexture({
+    size: { width: 1, height: 1, depthOrArrayLayers: 1 },
+    ...descriptorPartial,
+    label: `Volume atlas containing `,
+    mipLevelCount: 1,
+  });
+  device.queue.submit([commandEncoder.finish()]);
+  await device.queue.onSubmittedWorkDone();
 
   const getVolume = (label: string) => {
     return dictionary[label];
@@ -91,18 +102,7 @@ export const getVolumeAtlas = (device: GPUDevice): VolumeAtlas => {
       height,
       depthOrArrayLayers,
     });
-    if (!atlasTexture) {
-      const commandEncoder = device.createCommandEncoder();
-      atlasTexture = device.createTexture({
-        size: { width, height, depthOrArrayLayers },
-        ...descriptorPartial,
-        label: `Volume atlas containing ${texture.label || "unnamed volume"}`,
-        mipLevelCount: texture.mipLevelCount,
-      });
-      copyTextureWithMips(commandEncoder, texture, atlasTexture);
-      device.queue.submit([commandEncoder.finish()]);
-      return;
-    }
+
     const newWidth = atlasTexture.width + width;
     if (newWidth > device.limits.maxTextureDimension3D) {
       throw new Error(
@@ -120,9 +120,9 @@ export const getVolumeAtlas = (device: GPUDevice): VolumeAtlas => {
       texture.mipLevelCount,
       atlasTexture.mipLevelCount,
     );
-    // console.log(
-    //   `Expanding atlas texture to [${newWidth}, ${newHeight}, ${newDepth}], mip levels: ${newMipLevelCount}`,
-    // );
+    console.debug(
+      `Expanding atlas texture to [${newWidth}, ${newHeight}, ${newDepth}], mip levels: ${newMipLevelCount}`,
+    );
     const newAtlasTexture = device.createTexture({
       size: {
         width: newWidth,
