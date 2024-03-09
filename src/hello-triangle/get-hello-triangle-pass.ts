@@ -54,9 +54,16 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     };
 
     const eye = camera.position;
+    // Create a scaling matrix that will reverse the X component
+    let scalingMatrix = mat4.scaling([-1, 1, 1]);
+
     const viewMatrix = mat4.lookAt(
       eye,
-      vec3.add(eye, camera.direction),
+      vec3.add(eye, [
+        camera.direction[0],
+        camera.direction[1],
+        camera.direction[2],
+      ]),
       camera.up,
     );
 
@@ -76,7 +83,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     device.queue.writeBuffer(
       modelViewProjectionMatrixBuffer,
       0,
-      new Float32Array(viewProjectionMatrix),
+      new Float32Array(modelViewProjectionMatrix),
     );
 
     const bindGroup = device.createBindGroup({
