@@ -19,12 +19,13 @@ export class Camera extends MoveableObject {
   }) {
     super({
       position: options.position,
-      rotation: quat.fromEuler(0, 0, 0, "xyz"),
+      rotation: quat.identity(),
     });
     this.fieldOfView = options.fieldOfView;
   }
 
   get direction() {
+    // TODO: figure out why this is negative in render pass but not compute
     return vec3.transformQuat(vec3.create(0, 0, 1), this.rotation);
   }
 

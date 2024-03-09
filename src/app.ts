@@ -32,6 +32,7 @@ import { getBoxOutlinePass } from "./box-outline/get-box-outline-pass";
 import { BVH } from "./bvh";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
 import { getWaterPass } from "./water-pass/get-water-pass";
+import { getHelloTrianglePass } from "./hello-triangle/get-hello-triangle-pass";
 
 export type RenderArgs = {
   enabled?: boolean;
@@ -171,7 +172,8 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
           GPUTextureUsage.TEXTURE_BINDING |
           GPUTextureUsage.COPY_SRC |
           GPUTextureUsage.COPY_DST |
-          GPUTextureUsage.STORAGE_BINDING,
+          GPUTextureUsage.STORAGE_BINDING |
+          GPUTextureUsage.RENDER_ATTACHMENT,
       });
     }
     return outputTexture;
@@ -565,9 +567,11 @@ const start = async () => {
     // getSkyPass(),
     // getVolumetricFog(),
     // getTaaPass(),
+    getHelloTrianglePass(),
     getMotionBlurPass(),
     // getBoxOutlinePass(),
     // getWaterPass(),
+
     fullscreenQuad(device),
   ];
 
