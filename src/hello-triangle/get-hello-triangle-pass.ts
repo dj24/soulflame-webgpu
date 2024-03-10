@@ -81,14 +81,14 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     entries: [
       {
         binding: 0,
-        visibility: GPUShaderStage.VERTEX,
+        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
         buffer: {
           type: "uniform",
         },
       },
       {
         binding: 1,
-        visibility: GPUShaderStage.FRAGMENT,
+        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
         buffer: {
           type: "uniform",
         },
@@ -100,7 +100,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     bindGroupLayouts: [bindGroupLayout],
   });
 
-  const cubeVertexPositions = getCuboidVertices([4, 4, 1]);
+  const cubeVertexPositions = getCuboidVertices(voxelObjects[0].size);
 
   const verticesBuffer = device.createBuffer({
     size: cubeVertexPositions.byteLength,
@@ -149,7 +149,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
   });
 
   let modelViewProjectionMatrixBuffer: GPUBuffer;
-  let inverseModelViewProjectionMatrixBuffer: GPUBuffer;
+  let modelMatrixBuffer: GPUBuffer;
 
   const render = ({
     commandEncoder,
@@ -185,6 +185,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     const viewProjectionMatrix = mat4.mul(camera.projectionMatrix, viewMatrix);
 
     const m = mat4.identity();
+    // const m = voxelObjects[0].transform;
     mat4.translate(m, [debugValues.translateX, 0, 0], m);
     mat4.scale(m, [debugValues.scale, 1, 1], m);
 
@@ -206,20 +207,13 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
       new Float32Array(modelViewProjectionMatrix),
     );
 
-    if (!inverseModelViewProjectionMatrixBuffer) {
-      inverseModelViewProjectionMatrixBuffer = device.createBuffer({
+    if (!modelMatrixBuffer) {
+      modelMatrixBuffer = device.createBuffer({
         size: 64,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       });
     }
-    const inverseModelViewProjectionMatrix = mat4.invert(
-      modelViewProjectionMatrix,
-    );
-    device.queue.writeBuffer(
-      inverseModelViewProjectionMatrixBuffer,
-      0,
-      new Float32Array(inverseModelViewProjectionMatrix),
-    );
+    device.queue.writeBuffer(modelMatrixBuffer, 0, new Float32Array(m));
 
     const bindGroup = device.createBindGroup({
       layout: bindGroupLayout,
@@ -233,7 +227,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
         {
           binding: 1,
           resource: {
-            buffer: inverseModelViewProjectionMatrixBuffer,
+            buffer: modelMatrixBuffer,
           },
         },
       ],
