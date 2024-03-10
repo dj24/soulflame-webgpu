@@ -72,7 +72,8 @@ let volumeAtlas: VolumeAtlas;
 const startingCameraFieldOfView = 90 * (Math.PI / 180);
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
-  position: vec3.create(-25, 10, -70),
+  // position: vec3.create(-25, 10, -70),
+  position: vec3.create(0, 2, -10),
   direction: vec3.create(),
 });
 
@@ -86,7 +87,7 @@ let skyTexture: GPUTexture;
 
 let animationFrameId: ReturnType<typeof requestAnimationFrame>;
 
-const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
+const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let normalTexture: GPUTexture;
   let albedoTexture: GPUTexture;
   let outputTexture: GPUTexture;
@@ -371,25 +372,11 @@ const renderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   createBlueNoiseTexture();
 
   const getVoxelObjectsBuffer = () => {
-    // BVHBuffer.destroy();
-    // const voxelObjectsInFrustrum = voxelObjects.filter((voxelObject) =>
-    //   isVoxelObjectInFrustrum(voxelObject, camera.viewProjectionMatrix),
-    // );
-
-    // const m = mat4.identity();
-    // mat4.setTranslation(m, [debugValues.translateX, 0, 0], m);
-    // mat4.rotateY(m, debugValues.rotateY, m);
-    // mat4.scale(m, [debugValues.scale, debugValues.scale, debugValues.scale], m);
-    // voxelObjects[0].transform = m;
-    // voxelObjects[0].inverseTransform = mat4.invert(m);
-
     const voxelObjectsInFrustrum = voxelObjects;
 
     document.getElementById("objectcount").innerHTML =
       `Objects: ${voxelObjectsInFrustrum.length} / ${voxelObjects.length} in view`;
 
-    // const bvh = new BVH(voxelObjectsInFrustrum);
-    // BVHBuffer = bvh.toGPUBuffer(device, bvh.nodes.length);
     const voxelObjectsArray = voxelObjectsInFrustrum.flatMap((voxelObject) =>
       voxelObject.toArray(),
     );
@@ -560,7 +547,7 @@ const start = async () => {
 
   const computePassPromises: Promise<RenderPass>[] = [
     // getDepthPrepass(),
-    getGBufferPass(),
+    // getGBufferPass(),
     // getDiffusePass(),
     // getReflectionsPass(),
     // getShadowsPass(),
@@ -568,7 +555,7 @@ const start = async () => {
     // getVolumetricFog(),
     // getTaaPass(),
     getHelloTrianglePass(),
-    getMotionBlurPass(),
+    // getMotionBlurPass(),
     // getBoxOutlinePass(),
     // getWaterPass(),
 
@@ -577,7 +564,7 @@ const start = async () => {
 
   const computePasses = await Promise.all(computePassPromises);
 
-  renderLoop(device, await Promise.all(computePasses));
+  beginRenderLoop(device, await Promise.all(computePasses));
 
   document.getElementById("flags").innerHTML = computePasses.reduce(
     (acc, pass) => {
