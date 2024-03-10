@@ -4,6 +4,7 @@
 @fragment
 fn main(
    @builtin(position) clipPos: vec4f,
+   @location(0) objectPos : vec3f,
 ) -> @location(0) vec4f {
 
   let ndc = clipPos.xy / clipPos.w;
@@ -14,5 +15,5 @@ fn main(
 
   // Perform shading calculations or any other operations here
   // For now, let's just output the reconstructed world position color
-  return vec4f(worldPosition.xyz % 1.0, 1.0);
+  return vec4f((objectPos.xyz % 1.0), 1.0);
 }

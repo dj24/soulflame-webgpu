@@ -3,7 +3,7 @@
 
 struct VertexOutput {
   @builtin(position) position : vec4f,
-  @location(0) worldPos : vec3f,
+  @location(0) objectPos : vec3f,
 }
 
 @vertex
@@ -13,6 +13,6 @@ fn main(
   var output : VertexOutput;
   var vertex = modelViewProjectionMatrix * position;
   output.position = vertex;
-  output.worldPos = position.xyz;
+  output.objectPos = position.xyz;
   return output;
 }
