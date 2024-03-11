@@ -4,6 +4,7 @@ import { generateOctreeMips } from "./create-3d-texture/generate-octree-mips";
 import { mat4 } from "wgpu-matrix";
 import { VoxelObject } from "./voxel-object";
 import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels";
+import { convertVxm } from "./convert-vxm";
 
 export let voxelObjects: VoxelObject[] = [];
 
@@ -53,6 +54,13 @@ export const createTavern = async (
   );
   const uniqueChildNames = new Set(childObjects.map((child) => child.name));
   const uniqueChildNamesArray = Array.from(uniqueChildNames);
+
+  const dragonResponse = await fetch("./Dragon.vxm");
+  const dragonArrayBuffer = await dragonResponse.arrayBuffer();
+  console.time("convertVxm");
+  const dragonVoxels = convertVxm(dragonArrayBuffer);
+  console.timeEnd("convertVxm");
+  console.log({ dragonVoxels });
 
   for (const name of uniqueChildNamesArray) {
     const voxels = await import(`./voxel-models/Tavern/${name}.vxm`);
