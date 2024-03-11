@@ -39,7 +39,7 @@ const NAME_ALLOWLIST = [
   // "Bookshelf",
   // "Books4",
   // "Door",
-  "BigDoor",
+  // "BigDoor",
 ];
 
 export const createTavern = async (

@@ -4,6 +4,7 @@
 struct VertexOutput {
   @builtin(position) position : vec4f,
   @location(0) worldPos : vec3f,
+  @location(1) @interpolate(linear) ndc : vec3f,
 }
 
 @vertex
@@ -14,5 +15,6 @@ fn main(
   var vertex = modelViewProjectionMatrix * objectPos;
   output.position = vertex;
   output.worldPos = (modelMatrix * objectPos).xyz;
+  output.ndc = vertex.xyz / vertex.w;
   return output;
 }

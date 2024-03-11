@@ -3,20 +3,9 @@ import redFrag from "./red.frag.wgsl";
 import triangleVert from "./triangle.vert.wgsl";
 import { mat4, Vec3, vec3 } from "wgpu-matrix";
 import { voxelObjects } from "../create-tavern";
-
-const cubeVertexPositions = new Float32Array([
-  1, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1,
-
-  1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1,
-
-  0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1,
-
-  0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1,
-
-  1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1,
-
-  1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1,
-]);
+import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
+import boxIntersection from "../shader/box-intersection.wgsl";
+import getRayDirection from "../shader/get-ray-direction.wgsl";
 
 const getCuboidVertices = (size: Vec3) => {
   const [x, y, z] = size;
@@ -88,9 +77,24 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
       },
       {
         binding: 1,
-        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+        visibility: GPUShaderStage.VERTEX,
         buffer: {
           type: "uniform",
+        },
+      },
+      {
+        binding: 2,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: {
+          type: "uniform",
+        },
+      },
+      {
+        binding: 3,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: {
+          sampleType: "float",
+          viewDimension: "3d",
         },
       },
     ],
@@ -133,7 +137,12 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     },
     fragment: {
       module: device.createShaderModule({
-        code: redFrag,
+        code: `
+        ${getRayDirection}
+        ${boxIntersection}
+        ${raymarchVoxels}
+        ${redFrag}
+        `,
       }),
       entryPoint: "main",
       targets: [
@@ -155,6 +164,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     commandEncoder,
     outputTextures,
     transformationMatrixBuffer,
+    voxelTextureView,
     viewProjectionMatricesBuffer,
     timestampWrites,
   }: RenderArgs) => {
@@ -187,7 +197,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     const m = mat4.identity();
     // const m = voxelObjects[0].transform;
     mat4.translate(m, [debugValues.translateX, 0, 0], m);
-    mat4.scale(m, [debugValues.scale, 1, 1], m);
+    mat4.uniformScale(m, debugValues.scale, m);
 
     const scale = voxelObjects[0].size;
     // mat4.scale(modelMatrix, [debugValues.scale, 1, 1], modelMatrix);
@@ -229,6 +239,16 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
           resource: {
             buffer: modelMatrixBuffer,
           },
+        },
+        {
+          binding: 2,
+          resource: {
+            buffer: viewProjectionMatricesBuffer,
+          },
+        },
+        {
+          binding: 3,
+          resource: voxelTextureView,
         },
       ],
     });

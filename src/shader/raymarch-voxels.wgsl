@@ -1,5 +1,5 @@
 const EPSILON = 0.0001;
-const MAX_RAY_STEPS = 256;
+const MAX_RAY_STEPS = 64;
 const FAR_PLANE = 10000.0;
 
 
@@ -227,7 +227,7 @@ fn getVoxelObjectIndexFromFromLeftNode(node: BVHNode) -> i32 {
   }
   return -1;
 }
-
+/*
 fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult {
   var closestIntersection = RayMarchResult();
   closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
@@ -296,4 +296,4 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
 //  closestIntersection.colour = mix(vec3(0,0,1), vec3(1,0.3,0.05), length(closestIntersection.colour));
 
   return closestIntersection;
-}
+} */
