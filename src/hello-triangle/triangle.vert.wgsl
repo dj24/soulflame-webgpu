@@ -12,9 +12,10 @@ fn main(
   @location(0) objectPos : vec4f,
 ) -> VertexOutput {
   var output : VertexOutput;
-  var vertex = modelViewProjectionMatrix * objectPos;
-  output.position = vertex;
-  output.worldPos = (modelMatrix * objectPos).xyz;
-  output.ndc = vertex.xyz / vertex.w;
+  var clipPosition = modelViewProjectionMatrix * objectPos;
+  output.position = clipPosition;
+//  output.worldPos = (modelMatrix * objectPos).xyz;
+  output.worldPos = objectPos.xyz;
+  output.ndc = clipPosition.xyz / clipPosition.w;
   return output;
 }

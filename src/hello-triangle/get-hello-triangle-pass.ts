@@ -84,7 +84,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
       },
       {
         binding: 2,
-        visibility: GPUShaderStage.FRAGMENT,
+        visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX,
         buffer: {
           type: "uniform",
         },
@@ -95,6 +95,13 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
         texture: {
           sampleType: "float",
           viewDimension: "3d",
+        },
+      },
+      {
+        binding: 4,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: {
+          type: "uniform",
         },
       },
     ],
@@ -118,7 +125,9 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     layout: pipelineLayout,
     vertex: {
       module: device.createShaderModule({
-        code: triangleVert,
+        code: `
+        ${getRayDirection}
+        ${triangleVert}`,
       }),
       entryPoint: "main",
       buffers: [
@@ -159,6 +168,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
 
   let modelViewProjectionMatrixBuffer: GPUBuffer;
   let modelMatrixBuffer: GPUBuffer;
+  let voxelObjectBuffer: GPUBuffer;
 
   const render = ({
     commandEncoder,
@@ -167,6 +177,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     voxelTextureView,
     viewProjectionMatricesBuffer,
     timestampWrites,
+    cameraPositionBuffer,
   }: RenderArgs) => {
     const renderPassDescriptor: GPURenderPassDescriptor = {
       colorAttachments: [
@@ -180,26 +191,29 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
       timestampWrites,
     };
 
-    const pos = [-camera.position[0], camera.position[1], camera.position[2]];
+    const pos = [camera.position[0], camera.position[1], camera.position[2]];
 
     const viewMatrix = mat4.lookAt(
       pos,
       vec3.add(pos, [
-        -camera.direction[0],
+        camera.direction[0],
         camera.direction[1],
         camera.direction[2],
       ]),
-      camera.up,
+      camera.down,
     );
 
-    const viewProjectionMatrix = mat4.mul(camera.projectionMatrix, viewMatrix);
+    let projectionMatrix = camera.projectionMatrix;
+
+    const viewProjectionMatrix = mat4.mul(projectionMatrix, viewMatrix);
+
+    // const m = voxelObjects[0].transform;
 
     const m = mat4.identity();
-    // const m = voxelObjects[0].transform;
-    mat4.translate(m, [debugValues.translateX, 0, 0], m);
-    mat4.uniformScale(m, debugValues.scale, m);
+    // mat4.translate(m, [debugValues.translateX * 100, 0, 0], m);
+    // mat4.uniformScale(m, debugValues.scale, m);
 
-    const scale = voxelObjects[0].size;
+    // const scale = voxelObjects[0].size;
     // mat4.scale(modelMatrix, [debugValues.scale, 1, 1], modelMatrix);
     // mat4.translate(modelMatrix, [debugValues.translateX, 0, 0], modelMatrix);
 
@@ -225,6 +239,18 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     }
     device.queue.writeBuffer(modelMatrixBuffer, 0, new Float32Array(m));
 
+    if (!voxelObjectBuffer) {
+      voxelObjectBuffer = device.createBuffer({
+        size: 288,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+    }
+    device.queue.writeBuffer(
+      voxelObjectBuffer,
+      0,
+      new Float32Array(voxelObjects[0].toArray()),
+    );
+
     const bindGroup = device.createBindGroup({
       layout: bindGroupLayout,
       entries: [
@@ -249,6 +275,12 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
         {
           binding: 3,
           resource: voxelTextureView,
+        },
+        {
+          binding: 4,
+          resource: {
+            buffer: voxelObjectBuffer,
+          },
         },
       ],
     });

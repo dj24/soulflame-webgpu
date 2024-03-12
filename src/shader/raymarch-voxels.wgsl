@@ -1,5 +1,5 @@
 const EPSILON = 0.0001;
-const MAX_RAY_STEPS = 64;
+const MAX_RAY_STEPS = 256;
 const FAR_PLANE = 10000.0;
 
 

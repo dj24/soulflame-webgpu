@@ -87,7 +87,7 @@ export const moveCamera = () => {
   // if (!document.hasFocus()) {
   //   return;
   // }
-  const speed = 0.02 * deltaTime;
+  const speed = 0.2 * deltaTime;
   let direction = vec3.zero();
   // TODO: Why is it backwards?
   if (keyboardControls.pressed.a) {
@@ -103,10 +103,10 @@ export const moveCamera = () => {
     direction = vec3.subtract(direction, camera.direction);
   }
   if (keyboardControls.pressed.e) {
-    camera.targetRotation = quat.rotateY(camera.targetRotation, 0.02);
+    camera.targetRotation = quat.rotateY(camera.targetRotation, 0.05);
   }
   if (keyboardControls.pressed.q) {
-    camera.targetRotation = quat.rotateY(camera.targetRotation, -0.02);
+    camera.targetRotation = quat.rotateY(camera.targetRotation, -0.05);
   }
   if (keyboardControls.pressed[" "]) {
     direction = vec3.add(direction, camera.up);
