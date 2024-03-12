@@ -5,6 +5,7 @@ import { mat4 } from "wgpu-matrix";
 import { VoxelObject } from "./voxel-object";
 import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels";
 import { convertVxm } from "./convert-vxm";
+import { createTextureFromVoxels } from "./create-texture-from-voxels/create-texture-from-voxels";
 
 export let voxelObjects: VoxelObject[] = [];
 
@@ -55,31 +56,26 @@ export const createTavern = async (
   const uniqueChildNames = new Set(childObjects.map((child) => child.name));
   const uniqueChildNamesArray = Array.from(uniqueChildNames);
 
-  const dragonResponse = await fetch("./Dragon.vxm");
-  const dragonArrayBuffer = await dragonResponse.arrayBuffer();
-  console.time("convertVxm");
-  const dragonVoxels = convertVxm(dragonArrayBuffer);
-  console.timeEnd("convertVxm");
-  console.log({ dragonVoxels });
-
+  // TODO: find race condition
   for (const name of uniqueChildNamesArray) {
-    const voxels = await import(`./voxel-models/Tavern/${name}.vxm`);
-    let texture = await create3dTexture(
-      device,
-      voxels.sliceFilePaths,
-      voxels.size,
-      name,
-    );
-    texture = await removeInternalVoxels(device, texture);
-    await generateOctreeMips(device, texture);
-    await volumeAtlas.addVolume(texture, name);
+    const response = await fetch(`./${name}.vxm`);
+    const arrayBuffer = await response.arrayBuffer();
+    const voxels = convertVxm(arrayBuffer);
+    console.log({ voxels, kb: arrayBuffer.byteLength / 1000 });
+    let texture = await createTextureFromVoxels(device, voxels);
+    // texture = await removeInternalVoxels(device, texture);
+    // await generateOctreeMips(device, texture);
+    await volumeAtlas.addVolume(texture, "dragon");
     texture.destroy();
   }
 
   const volumes = volumeAtlas.getVolumes();
 
-  childObjects.forEach((child, index) => {
+  console.log({ volumes });
+
+  for (const child of childObjects) {
     const volume = volumes[child.name];
+    console.log({ volume, child });
     if (!volume) {
       console.warn(`Volume not found for child ${child.name}, skipping...`);
       return;
@@ -91,6 +87,6 @@ export const createTavern = async (
     voxelObjects.push(
       new VoxelObject(m, volume.size, volume.location, child.name),
     );
-  });
+  }
   console.debug(`Tavern created with ${voxelObjects.length} items`);
 };
