@@ -11,5 +11,5 @@
     let paletteIndex = voxel.w;
     let position = voxel.xyz;
     let color = paletteBuffer[paletteIndex];
-    textureStore(output, position, color);
+    textureStore(output, position, vec4(1,0,0,1));
  }

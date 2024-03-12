@@ -58,15 +58,17 @@ export const createTavern = async (
 
   // TODO: find race condition
   for (const name of uniqueChildNamesArray) {
+    console.time(`Loaded ${name} in`);
     const response = await fetch(`./${name}.vxm`);
     const arrayBuffer = await response.arrayBuffer();
     const voxels = convertVxm(arrayBuffer);
     console.log({ voxels, kb: arrayBuffer.byteLength / 1000 });
     let texture = await createTextureFromVoxels(device, voxels);
-    // texture = await removeInternalVoxels(device, texture);
+    texture = await removeInternalVoxels(device, texture);
     // await generateOctreeMips(device, texture);
-    await volumeAtlas.addVolume(texture, "dragon");
+    await volumeAtlas.addVolume(texture, name);
     texture.destroy();
+    console.timeEnd(`Loaded ${name} in`);
   }
 
   const volumes = volumeAtlas.getVolumes();
@@ -75,7 +77,7 @@ export const createTavern = async (
 
   for (const child of childObjects) {
     const volume = volumes[child.name];
-    console.log({ volume, child });
+    console.log({ volumes, volume, child });
     if (!volume) {
       console.warn(`Volume not found for child ${child.name}, skipping...`);
       return;

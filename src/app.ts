@@ -533,14 +533,14 @@ const start = async () => {
   }
 
   console.debug(device.limits);
-  skyTexture = await createTextureFromImages(device, [
-    "cubemaps/town-square/posx.jpg",
-    "cubemaps/town-square/negx.jpg",
-    "cubemaps/town-square/posy.jpg",
-    "cubemaps/town-square/negy.jpg",
-    "cubemaps/town-square/posz.jpg",
-    "cubemaps/town-square/negz.jpg",
-  ]);
+  // skyTexture = await createTextureFromImages(device, [
+  //   "cubemaps/town-square/posx.jpg",
+  //   "cubemaps/town-square/negx.jpg",
+  //   "cubemaps/town-square/posy.jpg",
+  //   "cubemaps/town-square/negy.jpg",
+  //   "cubemaps/town-square/posz.jpg",
+  //   "cubemaps/town-square/negz.jpg",
+  // ]);
   volumeAtlas = await getVolumeAtlas(device);
 
   await createTavern(device, volumeAtlas);

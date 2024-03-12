@@ -39,14 +39,14 @@ export const createTextureFromVoxels = async (
       GPUBufferUsage.STORAGE,
   });
 
-  writeToUniformBuffer(
+  writeToFloatUniformBuffer(
     paletteBuffer,
-    voxels.RGBA.map((v) => [v.r, v.g, v.b, v.a]).flat(),
+    voxels.RGBA.map((v) => [v.r / 255, v.g / 255, v.b / 255, v.a / 255]).flat(),
   );
 
-  writeToFloatUniformBuffer(
+  writeToUniformBuffer(
     voxelsBuffer,
-    voxels.XYZI.map((v) => [v.x / 255, v.y / 255, v.z / 255, v.c / 255]).flat(),
+    voxels.XYZI.map((v) => [v.x, v.y, v.z, v.c]).flat(),
   );
 
   const bindGroupLayout = device.createBindGroupLayout({
@@ -115,7 +115,7 @@ export const createTextureFromVoxels = async (
   const passEncoder = commandEncoder.beginComputePass();
   passEncoder.setPipeline(pipeline);
   passEncoder.setBindGroup(0, bindGroup);
-  passEncoder.dispatchWorkgroups(voxels.XYZI.length / 64);
+  passEncoder.dispatchWorkgroups(voxels.XYZI.length / 64, 1, 1);
   passEncoder.end();
   device.queue.submit([commandEncoder.finish()]);
   await device.queue.onSubmittedWorkDone();
