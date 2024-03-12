@@ -131,6 +131,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   }
 
   const sceneBVH = new BVH(voxelObjects);
+  console.log(sceneBVH);
 
   const nodeCount = sceneBVH.nodes.length;
 

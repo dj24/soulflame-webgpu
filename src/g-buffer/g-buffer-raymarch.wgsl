@@ -285,6 +285,7 @@ fn fullTrace(
   var rayOrigin = cameraPosition;
   var closestIntersection = RayMarchResult();
   closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
+  closestIntersection.colour = rayDirection;
 
   // Floor plane for debugging
   let planeY = 0.0;
@@ -304,7 +305,7 @@ fn fullTrace(
 
   let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
 //  if(bvhResult.hit){
-    closestIntersection = bvhResult;
+//    closestIntersection = bvhResult;
 //  }
 
   let normal = closestIntersection.normal;

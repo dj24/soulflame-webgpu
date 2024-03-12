@@ -44,6 +44,6 @@ fn main(
     let result = rayMarchAtMip(voxelObject, rayDirection, worldPos, 0);
 
 //return vec4(screenUV,0, 1);
-//    return vec4(abs(result.normal), 1);
+//    return vec4(rayDirection, 1);
 return vec4(f32(result.stepsTaken) * 0.01);
 }

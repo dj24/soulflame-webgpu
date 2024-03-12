@@ -4,6 +4,7 @@ import clearPixelBuffer from "./clear-pixel-buffer.wgsl";
 import pixelBufferElement from "./pixel-buffer-element.wgsl";
 import boxIntersection from "../shader/box-intersection.wgsl";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
+import bvh from "../shader/bvh.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
 import treeHouse from "../voxel-models/tavern.vxm";
 
@@ -159,6 +160,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           ${getRayDirection}
           ${boxIntersection}
           ${raymarchVoxels}
+          ${bvh}
           ${gBufferRaymarch}`,
       }),
       entryPoint: "main",
@@ -181,6 +183,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           ${getRayDirection}
           ${boxIntersection}
           ${raymarchVoxels}
+          ${bvh}
           ${gBufferRaymarch}`,
       }),
       entryPoint: "fullTrace",
