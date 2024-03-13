@@ -24,8 +24,8 @@ type TSceneDefinition = {
 
 const NAME_ALLOWLIST = [
   "Dragon",
-  // "Table",
-  // "Bench",
+  "Table",
+  "Bench",
   // "Stool",
   // "BarTop",
   // "BarTopS",
@@ -44,6 +44,27 @@ const NAME_ALLOWLIST = [
   // "BigDoor",
 ];
 
+const processTavernObject = async (
+  name: string,
+  device: GPUDevice,
+): Promise<GPUTexture> => {
+  console.time(`Fetch ${name}`);
+  const response = await fetch(`./Tavern/${name}.vxm`);
+  console.timeEnd(`Fetch ${name}`);
+  const arrayBuffer = await response.arrayBuffer();
+  const voxels = convertVxm(arrayBuffer);
+  console.time(`Create texture from voxels for ${name}`);
+  let texture = await createTextureFromVoxels(device, voxels);
+  console.timeEnd(`Create texture from voxels for ${name}`);
+  console.time(`Remove internal voxels from ${name}`);
+  texture = await removeInternalVoxels(device, texture);
+  console.timeEnd(`Remove internal voxels from ${name}`);
+  console.time(`Generate octree mips for ${name}`);
+  await generateOctreeMips(device, texture);
+  console.timeEnd(`Generate octree mips for ${name}`);
+  return texture;
+};
+
 export const createTavern = async (
   device: GPUDevice,
   volumeAtlas: VolumeAtlas,
@@ -56,24 +77,21 @@ export const createTavern = async (
   const uniqueChildNames = new Set(childObjects.map((child) => child.name));
   const uniqueChildNamesArray = Array.from(uniqueChildNames);
 
-  // TODO: find race condition
+  console.time("Load all volumes");
+
+  // TODO: promise all or web worker here
   for (const name of uniqueChildNamesArray) {
-    console.time(`Loaded ${name} in`);
-    const response = await fetch(`./${name}.vxm`);
-    const arrayBuffer = await response.arrayBuffer();
-    const voxels = convertVxm(arrayBuffer);
-    console.log({ voxels, kb: arrayBuffer.byteLength / 1000 });
-    let texture = await createTextureFromVoxels(device, voxels);
-    texture = await removeInternalVoxels(device, texture);
-    // await generateOctreeMips(device, texture);
+    console.time(`Loaded ${name}`);
+    const texture = await processTavernObject(name, device);
+    console.time(`Add volume for ${name}`);
     await volumeAtlas.addVolume(texture, name);
+    console.timeEnd(`Add volume for ${name}`);
     texture.destroy();
-    console.timeEnd(`Loaded ${name} in`);
+    console.timeEnd(`Loaded ${name}`);
   }
+  console.timeEnd("Load all volumes");
 
   const volumes = volumeAtlas.getVolumes();
-
-  console.log({ volumes });
 
   for (const child of childObjects) {
     const volume = volumes[child.name];

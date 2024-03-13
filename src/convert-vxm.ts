@@ -1,3 +1,6 @@
+import { ByteReader } from "./abstractions/byte-reader";
+import { vec3 } from "wgpu-matrix";
+
 const isNullCharacter = (byte: any) => {
   return byte === 0x00;
 };
@@ -11,24 +14,22 @@ export type TVoxels = {
 };
 
 export const convertVxm = (arrayBuffer: ArrayBuffer): TVoxels => {
-  const dataView = new DataView(arrayBuffer);
+  console.time("convert vxm");
+  const reader = new ByteReader(arrayBuffer);
   let palette = [];
-  let magic = [];
+  let magic = "";
   let voxels = [];
-  let index = 0;
 
   // Read magic
-  magic[index] = String.fromCodePoint(dataView.getUint8(index));
-  index++;
-  magic[index] = String.fromCodePoint(dataView.getUint8(index));
-  index++;
-  magic[index] = String.fromCodePoint(dataView.getUint8(index));
-  index++;
-  magic[index] = String.fromCodePoint(dataView.getUint8(index));
-  index++;
+  magic = String.fromCodePoint(
+    reader.readUint8(),
+    reader.readUint8(),
+    reader.readUint8(),
+    reader.readUint8(),
+  );
 
-  if (magic.join("") !== "VXMC" && magic.join("") !== "VXMA") {
-    throw new Error(`Incorrect magic: ${magic.join("")}`);
+  if (magic !== "VXMC" && magic !== "VXMA") {
+    throw new Error(`Incorrect magic: ${magic}`);
   }
   let version;
   if (
@@ -51,54 +52,38 @@ export const convertVxm = (arrayBuffer: ArrayBuffer): TVoxels => {
   }
 
   let scale = [0, 0, 0];
-  scale[0] = dataView.getUint32(index, true);
-  index += 4;
-  scale[1] = dataView.getUint32(index, true);
-  index += 4;
-  scale[2] = dataView.getUint32(index, true);
-  index += 4;
+  scale[0] = reader.readUint32();
+  scale[1] = reader.readUint32();
+  scale[2] = reader.readUint32();
 
   let normalisedPivot = [0.5, 0, 0.5];
 
-  normalisedPivot[0] = dataView.getFloat32(index, true);
-  index += 4;
-  normalisedPivot[1] = dataView.getFloat32(index, true);
-  index += 4;
-  normalisedPivot[2] = dataView.getFloat32(index, true);
-  index += 4;
+  normalisedPivot[0] = reader.readFloat32();
+  normalisedPivot[1] = reader.readFloat32();
+  normalisedPivot[2] = reader.readFloat32();
 
-  let surface = dataView.getUint8(index);
-  index++;
+  let surface = reader.readUint8();
   if (surface > 0) {
     let skipWidth = 0;
     let skipHeight = 0;
 
     // since version 10 the start and end values are floats
     // but for us this fact doesn't matter
-    let startx = dataView.getUint32(index, true);
-    index += 4;
-    let starty = dataView.getUint32(index, true);
-    index += 4;
-    let startz = dataView.getUint32(index, true);
-    index += 4;
+    let startx = reader.readUint32();
+    let starty = reader.readUint32();
+    let startz = reader.readUint32();
 
-    let endx = dataView.getUint32(index, true);
-    index += 4;
-    let endy = dataView.getUint32(index, true);
-    index += 4;
-    let endz = dataView.getUint32(index, true);
-    index += 4;
-    let normal = dataView.getUint32(index, true);
-    index += 4;
+    let endx = reader.readUint32();
+    let endy = reader.readUint32();
+    let endz = reader.readUint32();
+    let normal = reader.readUint32();
 
-    skipWidth = dataView.getUint32(index, true);
-    index += 4;
-    skipHeight = dataView.getUint32(index, true);
-    index += 4;
+    skipWidth = reader.readUint32();
+    skipHeight = reader.readUint32();
 
     // TODO: check skip implementation
     let toSkip = skipWidth * skipHeight;
-    index += toSkip * 4;
+    reader.skip(toSkip * 4);
   }
 
   if (version >= 8) {
@@ -109,28 +94,23 @@ export const convertVxm = (arrayBuffer: ArrayBuffer): TVoxels => {
      * float: lod pivot y
      * float: lod pivot z
      */
-    index += 4 * 4;
+    reader.skip(4 * 4);
   }
 
-  let lodLevels = dataView.getUint32(index, true);
-  index += 4;
+  let lodLevels = reader.readUint32();
 
   for (let lodLevel = 0; lodLevel < lodLevels; ++lodLevel) {
-    let textureDimX = dataView.getUint32(index, true);
-    index += 4;
-    let textureDimY = dataView.getUint32(index, true);
-    index += 4;
+    let textureDimX = reader.readUint32();
+    let textureDimY = reader.readUint32();
     if (textureDimX > 2048 || textureDimY > 2048) {
       throw new Error("Size of texture exceeds the max allowed value");
     }
 
-    let size = dataView.getUint32(index, true);
-    index += 4;
-    index += size; // skip zipped pixel data
+    let size = reader.readUint32();
+    reader.skip(size); // skip zipped pixel data
 
     for (let i = 0; i < 6; ++i) {
-      let quadAmount = dataView.getUint32(index, true);
-      index += 4;
+      let quadAmount = reader.readUint32();
 
       if (quadAmount > 0x40000) {
         console.warn(
@@ -141,36 +121,26 @@ export const convertVxm = (arrayBuffer: ArrayBuffer): TVoxels => {
       // skip quad vertex
       let sizeOfQuadVertex = 20;
       let bytesToSkip = quadAmount * 4 * sizeOfQuadVertex;
-      index += bytesToSkip;
+      reader.skip(bytesToSkip);
     }
   }
 
-  index += 256 * 4; // palette data rgba
-  index += 256 * 4; // palette data rgba for emissive materials
-  let chunkAmount = dataView.getUint8(index); // palette chunks
-  index++;
+  reader.skip(256 * 4); // palette data rgba
+  reader.skip(256 * 4); // palette data rgba for emissive materials
+  let chunkAmount = reader.readUint8();
   for (let i = 0; i < chunkAmount; ++i) {
-    index += 1024; // chunk id
-    dataView.getUint8(index);
-    index++; // chunk offset
-    dataView.getUint8(index);
-    index++; // chunk length
+    reader.skip(1024); // chunk id
+    reader.readUint8(); // chunk offset
+    reader.readUint8(); // chunk length
   }
 
-  let materialAmount = dataView.getUint8(index);
-  index++;
-
+  let materialAmount = reader.readUint8();
   for (let i = 0; i < materialAmount; ++i) {
-    let blue = dataView.getUint8(index);
-    index++;
-    let green = dataView.getUint8(index);
-    index++;
-    let red = dataView.getUint8(index);
-    index++;
-    let alpha = dataView.getUint8(index);
-    index++;
-    let emissive = dataView.getUint8(index);
-    index++;
+    let blue = reader.readUint8();
+    let green = reader.readUint8();
+    let red = reader.readUint8();
+    let alpha = reader.readUint8();
+    let emissive = reader.readUint8();
 
     if (emissive === 1) {
       alpha = 2;
@@ -183,13 +153,12 @@ export const convertVxm = (arrayBuffer: ArrayBuffer): TVoxels => {
 
   let maxLayers = 1;
   if (version >= 12) {
-    maxLayers = dataView.getUint8(index);
-    index++;
+    maxLayers = reader.readUint8();
   }
 
   let bounds = {
-    min: [9999, 9999, 9999],
-    max: [0, 0, 0],
+    min: vec3.create(9999, 9999, 9999),
+    max: vec3.create(0, 0, 0),
   };
 
   for (let layer = 0; layer < maxLayers; ++layer) {
@@ -198,29 +167,28 @@ export const convertVxm = (arrayBuffer: ArrayBuffer): TVoxels => {
     let layerName = "";
     if (version >= 12) {
       for (;;) {
-        const byte = dataView.getUint8(index);
-        index++;
+        const byte = reader.readUint8();
         if (isNullCharacter(byte)) {
           break;
         }
         const character = String.fromCharCode(byte);
         layerName = `${layerName}${character}`;
       }
-      visible = dataView.getUint8(index) > 0;
-      index++;
+      visible = reader.readUint8() > 0;
     } else {
       layerName = `Layer ${layer}`;
     }
 
+    // list of numbers that represent the size of the block of voxels
+    // block will share the same material
     for (;;) {
-      let length = dataView.getUint8(index);
-      index++;
+      let length = reader.readUint8();
+
       if (length === 0) {
         break;
       }
 
-      let matIdx = dataView.getUint8(index);
-      index++;
+      let matIdx = reader.readUint8();
       let EMPTY_PALETTE = 0xff;
       if (matIdx === EMPTY_PALETTE) {
         idx += length;
@@ -238,17 +206,14 @@ export const convertVxm = (arrayBuffer: ArrayBuffer): TVoxels => {
         let x = Math.floor(i / (scale[1] * scale[2]));
         let y = Math.floor((i / scale[2]) % scale[1]);
         let z = Math.floor(i % scale[2]);
-        if (x < bounds.min[0]) bounds.min = [x, bounds.min[1], bounds.min[2]];
-        if (y < bounds.min[1]) bounds.min = [bounds.min[0], y, bounds.min[2]];
-        if (z < bounds.min[2]) bounds.min = [bounds.min[0], bounds.min[1], z];
-        if (x > bounds.max[0]) bounds.max = [x, bounds.max[1], bounds.max[2]];
-        if (y > bounds.max[1]) bounds.max = [bounds.max[0], y, bounds.max[2]];
-        if (z > bounds.max[2]) bounds.max = [bounds.max[0], bounds.max[1], z];
+        bounds.min = vec3.min(bounds.min, [x, y, z]);
+        bounds.max = vec3.max(bounds.max, [x, y, z]);
         voxels.push({ x, y, z, c: matIdx });
       }
       idx += length;
     }
   }
+  console.timeEnd("convert vxm");
 
   return {
     VOX: voxels.length,
