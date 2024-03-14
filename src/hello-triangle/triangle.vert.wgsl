@@ -17,5 +17,6 @@ fn main(
 //  output.worldPos = (modelMatrix * objectPos).xyz;
   output.worldPos = objectPos.xyz;
   output.ndc = clipPosition.xyz / clipPosition.w;
+  output.ndc.y = -output.ndc.y;
   return output;
 }

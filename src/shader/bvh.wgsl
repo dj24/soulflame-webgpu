@@ -10,7 +10,7 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
   var nodeIndex = 0;
   var furthestAABBDist = 0.0;
 
-  while (stack.head > 0u && iterations < 128) {
+  while (stack.head > 0u && iterations < 16) {
     let node = bvhNodes[nodeIndex];
     var voxelObjectIndex = -1;
     let leftDist = getDistanceToLeftNode(rayOrigin, rayDirection, node);

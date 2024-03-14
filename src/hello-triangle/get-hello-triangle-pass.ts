@@ -184,36 +184,16 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
         {
           view: outputTextures.finalTexture.createView(),
           clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-          loadOp: "clear",
+          loadOp: "load",
           storeOp: "store",
         },
       ],
       timestampWrites,
     };
 
-    const pos = [camera.position[0], camera.position[1], camera.position[2]];
+    const m = voxelObjects[0].transform;
 
-    const viewMatrix = mat4.lookAt(
-      pos,
-      vec3.add(pos, [
-        camera.direction[0],
-        camera.direction[1],
-        camera.direction[2],
-      ]),
-      camera.down,
-    );
-
-    let projectionMatrix = camera.projectionMatrix;
-    let yFlippedProjectionMatrix = mat4.scale(
-      camera.projectionMatrix,
-      [1, -1, 1],
-    );
-
-    const viewProjectionMatrix = mat4.mul(yFlippedProjectionMatrix, viewMatrix);
-
-    // const m = voxelObjects[0].transform;
-
-    const m = mat4.identity();
+    // const m = mat4.identity();
     // mat4.translate(m, [debugValues.translateX * 100, 0, 0], m);
     // mat4.uniformScale(m, debugValues.scale, m);
 
@@ -221,7 +201,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     // mat4.scale(modelMatrix, [debugValues.scale, 1, 1], modelMatrix);
     // mat4.translate(modelMatrix, [debugValues.translateX, 0, 0], modelMatrix);
 
-    const modelViewProjectionMatrix = mat4.mul(viewProjectionMatrix, m);
+    const modelViewProjectionMatrix = mat4.mul(camera.viewProjectionMatrix, m);
 
     if (!modelViewProjectionMatrixBuffer) {
       modelViewProjectionMatrixBuffer = device.createBuffer({

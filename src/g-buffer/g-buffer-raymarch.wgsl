@@ -131,7 +131,7 @@ const KERNEL_CORNER_OFFSETS = array<vec2<u32>, SPATIAL_SAMPLE_COUNT>(
 
 // TODO: incrementally sample more points if variance is high
 @compute @workgroup_size(8, 8, 1)
-fn main(
+fn adaptive(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
   let resolution = textureDimensions(albedoTex);
@@ -269,6 +269,57 @@ fn main(
 }
 
 
+@compute @workgroup_size(8, 8, 1)
+fn main(
+  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
+) {
+  let resolution = textureDimensions(albedoTex);
+  let pixel = GlobalInvocationID.xy;
+  var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
+//  uv.y = 1.0 - uv.y;
+  let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
+  var rayOrigin = cameraPosition;
+  var closestIntersection = RayMarchResult();
+  closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
+  closestIntersection.colour = rayDirection;
+
+  // Floor plane for debugging
+  let planeY = 0.0;
+  let planeIntersect = planeIntersection(rayOrigin, rayDirection, vec3(0,1,0), planeY);
+  if(planeIntersect.isHit){
+    closestIntersection.worldPos = rayOrigin + rayDirection * planeIntersect.tNear;
+    closestIntersection.worldPos.y = planeY;
+    closestIntersection.hit = planeIntersect.isHit;
+    closestIntersection.normal = planeIntersect.normal;
+    closestIntersection.colour = vec3(0.15,0.3,0.1);
+    // TODO: hit water here
+  }
+
+  let maxMipLevel = u32(0);
+  let minMipLevel = u32(0);
+  var mipLevel = maxMipLevel;
+
+  let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
+  if(bvhResult.hit){
+    closestIntersection = bvhResult;
+  }
+
+  let normal = closestIntersection.normal;
+  let depth = distance(cameraPosition, closestIntersection.worldPos);
+  let albedo = closestIntersection.colour;
+  let velocity = getVelocity(closestIntersection, viewProjections);
+  let worldPos = closestIntersection.worldPos;
+
+
+  let objectPos = (voxelObjects[0].inverseTransform * vec4(worldPos, 1.0)).xyz;
+//  textureStore(albedoTex, pixel, vec4(rayDirection, 1));
+  textureStore(albedoTex, pixel, vec4(objectPos / voxelObjects[0].size, 1));
+//  textureStore(albedoTex, pixel, vec4(0,0,1, 1));
+  textureStore(normalTex, pixel, vec4(normal,1));
+  textureStore(depthWrite, pixel, vec4(worldPos, depth));
+  textureStore(velocityTex, pixel, vec4(velocity ,0));
+}
+
 @compute @workgroup_size(SPATIAL_KERNEL_SIZE, SPATIAL_KERNEL_SIZE, 1)
 fn fullTrace(
   @builtin(local_invocation_id) LocalInvocationID : vec3<u32>,
@@ -304,9 +355,9 @@ fn fullTrace(
   var mipLevel = maxMipLevel;
 
   let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
-//  if(bvhResult.hit){
-//    closestIntersection = bvhResult;
-//  }
+  if(bvhResult.hit){
+    closestIntersection = bvhResult;
+  }
 
   let normal = closestIntersection.normal;
   let depth = distance(cameraPosition, closestIntersection.worldPos);
