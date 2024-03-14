@@ -213,11 +213,22 @@ export const convertVxm = (arrayBuffer: ArrayBuffer): TVoxels => {
       idx += length;
     }
   }
+  voxels = voxels.map(({ x, y, z, c }) => {
+    return {
+      x: x - bounds.min[0],
+      y: y - bounds.min[1],
+      z: z - bounds.min[2],
+      c,
+    };
+  });
+
+  const trimmedSize = vec3.sub(bounds.max, bounds.min);
+  console.log({ bounds, trimmedSize });
   console.timeEnd("convert vxm");
 
   return {
     VOX: voxels.length,
-    SIZE: scale,
+    SIZE: [trimmedSize[0] + 1, trimmedSize[1] + 1, trimmedSize[2] + 1],
     XYZI: voxels,
     RGBA: palette,
   };

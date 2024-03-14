@@ -1,14 +1,10 @@
 import removeInternalVoxelsCompute from "./remove-internal-voxels.wgsl";
 
-type RemoveInternalVoxels = {
-  texture: GPUTexture;
-  commandBuffer: GPUCommandBuffer;
-};
-
 export const removeInternalVoxels = (
+  commandEncoder: GPUCommandEncoder,
   device: GPUDevice,
   volumeTexture: GPUTexture,
-): RemoveInternalVoxels => {
+): GPUTexture => {
   const {
     width,
     height,
@@ -82,7 +78,6 @@ export const removeInternalVoxels = (
     ],
   });
 
-  const commandEncoder = device.createCommandEncoder();
   const computePass = commandEncoder.beginComputePass();
   computePass.setPipeline(pipeline);
   computePass.setBindGroup(0, bindGroup);
@@ -92,5 +87,5 @@ export const removeInternalVoxels = (
   computePass.dispatchWorkgroups(workGroupsX, workGroupsY, workGroupsZ);
   computePass.end();
 
-  return { commandBuffer: commandEncoder.finish(), texture: outputTexture };
+  return outputTexture;
 };

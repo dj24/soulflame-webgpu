@@ -24,14 +24,14 @@ type TSceneDefinition = {
 
 const NAME_ALLOWLIST = [
   "Dragon",
-  "Table",
-  "Bench",
-  "Stool",
-  "BarTop",
-  "BarTopS",
-  "BarTop1",
-  "Barrel",
-  "Keg",
+  // "Table",
+  // "Bench",
+  // "Stool",
+  // "BarTop",
+  // "BarTopS",
+  // "BarTop1",
+  // "Barrel",
+  // "Keg",
   // "Candle",
   // "Bed",
   // "Torch",
@@ -46,9 +46,8 @@ const NAME_ALLOWLIST = [
 
 type ProcessTavernObject = { name: string; texture: GPUTexture };
 
-// TODO: use same command encoder for all commands
-// TODO: try and encode all objects into one command buffer
 const processTavernObject = async (
+  commandEncoder: GPUCommandEncoder,
   name: string,
   device: GPUDevice,
 ): Promise<ProcessTavernObject> => {
@@ -58,33 +57,19 @@ const processTavernObject = async (
 
   const arrayBuffer = await response.arrayBuffer();
 
-  console.time(`Convert ${name}`);
   const voxels = convertVxm(arrayBuffer);
-  console.timeEnd(`Convert ${name}`);
 
   console.time(`Create texture from voxels for ${name}`);
-  const createTextureResult = createTextureFromVoxels(device, voxels);
-  let texture = createTextureResult.texture;
+  let texture = createTextureFromVoxels(commandEncoder, device, voxels);
   console.timeEnd(`Create texture from voxels for ${name}`);
 
   console.time(`Remove internal voxels from ${name}`);
-  const removeInternalVoxelsResult = removeInternalVoxels(device, texture);
-  texture = removeInternalVoxelsResult.texture;
+  texture = removeInternalVoxels(commandEncoder, device, texture);
   console.timeEnd(`Remove internal voxels from ${name}`);
 
-  console.time(`Generate octree mips for ${name}`);
-  const generateOctreesResult = generateOctreeMips(device, texture);
-  console.timeEnd(`Generate octree mips for ${name}`);
-
-  console.time(`Command buffers ${name}`);
-  const commandBuffers = [
-    removeInternalVoxelsResult.commandBuffer,
-    createTextureResult.commandBuffer,
-    ...generateOctreesResult.commandBuffers,
-  ];
-  device.queue.submit(commandBuffers);
-  await device.queue.onSubmittedWorkDone();
-  console.timeEnd(`Command buffers ${name}`);
+  // console.time(`Generate octree mips for ${name}`);
+  // generateOctreeMips(commandEncoder, device, texture);
+  // console.timeEnd(`Generate octree mips for ${name}`);
 
   return { name, texture };
 };
@@ -101,39 +86,38 @@ export const createTavern = async (
   const uniqueChildNames = new Set(childObjects.map((child) => child.name));
   const uniqueChildNamesArray = Array.from(uniqueChildNames);
 
+  let commandEncoder = device.createCommandEncoder();
+
   console.time("Load all volumes");
+  {
+    console.time("Process all volumes");
+    let textures = await Promise.all(
+      uniqueChildNamesArray.map((name) =>
+        processTavernObject(commandEncoder, name, device),
+      ),
+    );
 
-  let textures: ProcessTavernObject[] = [];
+    console.timeEnd("Process all volumes");
 
-  console.time("Process all volumes");
-  // for (const name of uniqueChildNamesArray) {
-  //   const texture = await processTavernObject(name, device);
-  //   textures.push(texture);
-  // }
+    // TODO: promise all or web worker here
+    console.time("Add all volumes to atlas");
+    for (const { name, texture } of textures) {
+      console.time(`Add volume for ${name}`);
+      volumeAtlas.addVolume(commandEncoder, texture, name);
+      device.queue.submit([commandEncoder.finish()]);
+      commandEncoder = device.createCommandEncoder();
+      console.timeEnd(`Add volume for ${name}`);
+    }
 
-  textures = await Promise.all(
-    uniqueChildNamesArray.map((name) => processTavernObject(name, device)),
-  );
-
-  console.timeEnd("Process all volumes");
-
-  // TODO: promise all or web worker here
-  console.time("Add all volumes to atlas");
-  for (const { name, texture } of textures) {
-    console.time(`Add volume for ${name}`);
-    await volumeAtlas.addVolume(texture, name);
-    console.timeEnd(`Add volume for ${name}`);
-    texture.destroy();
-    console.timeEnd(`Loaded ${name}`);
+    await device.queue.onSubmittedWorkDone();
+    console.timeEnd("Add all volumes to atlas");
   }
-  console.timeEnd("Add all volumes to atlas");
   console.timeEnd("Load all volumes");
 
   const volumes = volumeAtlas.getVolumes();
 
   for (const child of childObjects) {
     const volume = volumes[child.name];
-    console.log({ volumes, volume, child });
     if (!volume) {
       console.warn(`Volume not found for child ${child.name}, skipping...`);
       return;
@@ -146,5 +130,6 @@ export const createTavern = async (
       new VoxelObject(m, volume.size, volume.location, child.name),
     );
   }
+  console.log({ volumes });
   console.debug(`Tavern created with ${voxelObjects.length} items`);
 };

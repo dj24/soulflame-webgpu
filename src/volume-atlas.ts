@@ -23,7 +23,11 @@ export type VolumeAtlasDictionary = {
 export type VolumeAtlas = {
   getVolumes: () => VolumeAtlasDictionary;
   getVolume: (label: string) => VolumeAtlasEntry;
-  addVolume: (texture: GPUTexture, label: string) => Promise<void>;
+  addVolume: (
+    commandEncoder: GPUCommandEncoder,
+    texture: GPUTexture,
+    label: string,
+  ) => void;
   removeVolume: (label: string) => void;
   getAtlasTextureView: () => GPUTextureView;
 };
@@ -72,12 +76,14 @@ export const getVolumeAtlas = async (
   let dictionary: VolumeAtlasDictionary = {};
 
   const commandEncoder = device.createCommandEncoder();
-  atlasTexture = device.createTexture({
-    size: { width: 1, height: 1, depthOrArrayLayers: 1 },
-    ...descriptorPartial,
-    label: `Volume atlas containing `,
-    mipLevelCount: 1,
-  });
+  if (!atlasTexture) {
+    atlasTexture = device.createTexture({
+      size: { width: 1, height: 1, depthOrArrayLayers: 1 },
+      ...descriptorPartial,
+      label: `Volume atlas containing `,
+      mipLevelCount: 1,
+    });
+  }
   device.queue.submit([commandEncoder.finish()]);
   await device.queue.onSubmittedWorkDone();
 
@@ -86,11 +92,16 @@ export const getVolumeAtlas = async (
   };
 
   /**
-   * Add a volume to the atlas
+   * Add a volume to the atlas. Requires `commandEncoder.finish()` to be called to execute the copy
+   * @param commandEncoder - command encoder to use for copying the texture
    * @param texture - 3d texture to copy into the atlas
    * @param label - label to use for the volume in the dictionary
    */
-  const addVolume = async (texture: GPUTexture, label: string) => {
+  const addVolume = (
+    commandEncoder: GPUCommandEncoder,
+    texture: GPUTexture,
+    label: string,
+  ) => {
     if (dictionary[label]) {
       throw new Error(
         `Error adding volume to atlas: volume with label ${label} already exists`,
@@ -109,7 +120,7 @@ export const getVolumeAtlas = async (
         `Error adding volume to atlas: adding volume would exceed device max texture dimension of ${device.limits.maxTextureDimension3D}`,
       );
     }
-    const oldAtlasTexture = atlasTexture;
+
     const newHeight = Math.max(atlasTexture.height, height);
     const newDepth = Math.max(
       atlasTexture.depthOrArrayLayers,
@@ -133,7 +144,6 @@ export const getVolumeAtlas = async (
       ...descriptorPartial,
       label: `${atlasTexture.label}, ${texture.label || "unnamed volume"}`,
     });
-    const commandEncoder = device.createCommandEncoder();
     // Copy the old atlas texture into the new larger one
     commandEncoder.copyTextureToTexture(
       {
@@ -162,12 +172,7 @@ export const getVolumeAtlas = async (
         depthOrArrayLayers,
       },
     );
-    device.queue.submit([commandEncoder.finish()]);
-    await device.queue.onSubmittedWorkDone();
     atlasTexture = newAtlasTexture;
-    oldAtlasTexture.destroy();
-    // TODO: refactor this for new command buffer return type, or remove
-    // atlasTexture = await removeInternalVoxels(device, atlasTexture);
     dictionary[label] = {
       location: [newAtlasTexture.width - width, 0, 0],
       size: [width, height, depthOrArrayLayers],

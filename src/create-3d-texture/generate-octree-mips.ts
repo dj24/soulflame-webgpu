@@ -2,9 +2,10 @@ import { numMipLevels } from "webgpu-utils";
 import generateMips from "./generate-mips.wgsl";
 
 export const generateOctreeMips = (
+  commandEncoder: GPUCommandEncoder,
   device: GPUDevice,
   volume: GPUTexture,
-): { commandBuffers: GPUCommandBuffer[] } => {
+): void => {
   const mipLevelCount = numMipLevels(volume, "3d");
 
   const bindGroupLayout = device.createBindGroupLayout({
@@ -85,7 +86,5 @@ export const generateOctreeMips = (
     computePass.dispatchWorkgroups(workGroupsX, workGroupsY, workGroupsZ);
 
     computePass.end();
-    commandBuffers.push(commandEncoder.finish());
   }
-  return { commandBuffers };
 };

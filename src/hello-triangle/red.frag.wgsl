@@ -37,7 +37,7 @@ fn main(
     let result = rayMarchAtMip(voxelObject, rayDirection, worldPos, 0);
 
 //  return clipPos / 1280.0;
-//      return vec4(worldPos / voxelObject.size, 1);
-//  return vec4(abs(result.normal), 1.0);
+      return vec4(worldPos / voxelObject.size, 1);
+  return vec4(abs(result.normal), 1.0);
   return vec4(f32(result.stepsTaken) * 0.01);
 }

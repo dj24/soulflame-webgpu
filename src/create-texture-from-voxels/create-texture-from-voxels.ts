@@ -13,14 +13,16 @@ type CreateTextureFromVoxels = {
 /**
  * Create a command buffer for creating 3D texture from voxels
  * Command buffer must be submitted to the GPUQueue to execute
+ * @param commandEncoder GPUCommandEncoder used to create the command buffer
  * @param device GPUDevice used to create the texture
  * @param voxels TVoxels object containing the voxel data
  * @returns CreateTextureFromVoxels object containing the command buffer and texture
  */
 export const createTextureFromVoxels = (
+  commandEncoder: GPUCommandEncoder,
   device: GPUDevice,
   voxels: TVoxels,
-): CreateTextureFromVoxels => {
+): GPUTexture => {
   const texture = device.createTexture({
     size: {
       width: voxels.SIZE[0],
@@ -123,11 +125,10 @@ export const createTextureFromVoxels = (
     ],
   });
 
-  const commandEncoder = device.createCommandEncoder();
   const passEncoder = commandEncoder.beginComputePass();
   passEncoder.setPipeline(pipeline);
   passEncoder.setBindGroup(0, bindGroup);
   passEncoder.dispatchWorkgroups(voxels.XYZI.length / 64, 1, 1);
   passEncoder.end();
-  return { commandBuffer: commandEncoder.finish(), texture };
+  return texture;
 };

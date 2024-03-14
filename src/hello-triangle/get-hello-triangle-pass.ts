@@ -204,8 +204,12 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     );
 
     let projectionMatrix = camera.projectionMatrix;
+    let yFlippedProjectionMatrix = mat4.scale(
+      camera.projectionMatrix,
+      [1, -1, 1],
+    );
 
-    const viewProjectionMatrix = mat4.mul(projectionMatrix, viewMatrix);
+    const viewProjectionMatrix = mat4.mul(yFlippedProjectionMatrix, viewMatrix);
 
     // const m = voxelObjects[0].transform;
 
