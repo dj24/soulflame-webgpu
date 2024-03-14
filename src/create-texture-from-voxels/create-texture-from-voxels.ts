@@ -5,10 +5,22 @@ import {
 } from "../buffer-utils";
 import createTextureFromVoxelsCompute from "./create-texture-from-voxels.wgsl";
 
-export const createTextureFromVoxels = async (
+type CreateTextureFromVoxels = {
+  commandBuffer: GPUCommandBuffer;
+  texture: GPUTexture;
+};
+
+/**
+ * Create a command buffer for creating 3D texture from voxels
+ * Command buffer must be submitted to the GPUQueue to execute
+ * @param device GPUDevice used to create the texture
+ * @param voxels TVoxels object containing the voxel data
+ * @returns CreateTextureFromVoxels object containing the command buffer and texture
+ */
+export const createTextureFromVoxels = (
   device: GPUDevice,
   voxels: TVoxels,
-): Promise<GPUTexture> => {
+): CreateTextureFromVoxels => {
   const texture = device.createTexture({
     size: {
       width: voxels.SIZE[0],
@@ -117,7 +129,5 @@ export const createTextureFromVoxels = async (
   passEncoder.setBindGroup(0, bindGroup);
   passEncoder.dispatchWorkgroups(voxels.XYZI.length / 64, 1, 1);
   passEncoder.end();
-  device.queue.submit([commandEncoder.finish()]);
-  await device.queue.onSubmittedWorkDone();
-  return texture;
+  return { commandBuffer: commandEncoder.finish(), texture };
 };

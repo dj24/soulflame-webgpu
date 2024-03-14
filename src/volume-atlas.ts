@@ -166,7 +166,8 @@ export const getVolumeAtlas = async (
     await device.queue.onSubmittedWorkDone();
     atlasTexture = newAtlasTexture;
     oldAtlasTexture.destroy();
-    atlasTexture = await removeInternalVoxels(device, atlasTexture);
+    // TODO: refactor this for new command buffer return type, or remove
+    // atlasTexture = await removeInternalVoxels(device, atlasTexture);
     dictionary[label] = {
       location: [newAtlasTexture.width - width, 0, 0],
       size: [width, height, depthOrArrayLayers],
