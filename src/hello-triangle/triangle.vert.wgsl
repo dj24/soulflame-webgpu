@@ -3,8 +3,9 @@
 
 struct VertexOutput {
   @builtin(position) position : vec4f,
-  @location(0) worldPos : vec3f,
-  @location(1) @interpolate(linear) ndc : vec3f,
+  @location(0) objectPos : vec3f,
+  @location(1) worldPos : vec3f,
+  @location(2) @interpolate(linear) ndc : vec3f,
 }
 
 @vertex
@@ -13,9 +14,10 @@ fn main(
 ) -> VertexOutput {
   var output : VertexOutput;
   var clipPosition = modelViewProjectionMatrix * objectPos;
+//  clipPosition.z = -clipPosition.z;
   output.position = clipPosition;
-//  output.worldPos = (modelMatrix * objectPos).xyz;
-  output.worldPos = objectPos.xyz;
+  output.worldPos = (modelMatrix * objectPos).xyz;
+  output.objectPos = objectPos.xyz;
   output.ndc = clipPosition.xyz / clipPosition.w;
   output.ndc.y = -output.ndc.y;
   return output;

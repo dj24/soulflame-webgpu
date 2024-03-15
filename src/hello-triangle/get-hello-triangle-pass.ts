@@ -162,7 +162,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     },
     primitive: {
       topology: "triangle-list",
-      cullMode: "back",
+      cullMode: "front",
     },
   });
 
@@ -184,7 +184,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
         {
           view: outputTextures.finalTexture.createView(),
           clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-          loadOp: "load",
+          loadOp: "clear",
           storeOp: "store",
         },
       ],
@@ -201,7 +201,12 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     // mat4.scale(modelMatrix, [debugValues.scale, 1, 1], modelMatrix);
     // mat4.translate(modelMatrix, [debugValues.translateX, 0, 0], modelMatrix);
 
-    const modelViewProjectionMatrix = mat4.mul(camera.viewProjectionMatrix, m);
+    const vp = mat4.mul(
+      mat4.scale(camera.projectionMatrix, [-1, 1, 1]),
+      camera.viewMatrix,
+    );
+
+    const modelViewProjectionMatrix = mat4.mul(vp, m);
 
     if (!modelViewProjectionMatrixBuffer) {
       modelViewProjectionMatrixBuffer = device.createBuffer({
