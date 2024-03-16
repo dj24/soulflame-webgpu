@@ -1,4 +1,11 @@
-import { camera, debugValues, device, RenderArgs, RenderPass } from "../app";
+import {
+  camera,
+  debugValues,
+  device,
+  RenderArgs,
+  RenderPass,
+  resolution,
+} from "../app";
 import redFrag from "./red.frag.wgsl";
 import triangleVert from "./triangle.vert.wgsl";
 import { mat4, Vec3, vec3 } from "wgpu-matrix";
@@ -19,49 +26,67 @@ const getCuboidVertices = (size: Vec3) => {
   const topLeftFront = [0, y, z, 1];
   const topRightFront = [x, y, z, 1];
 
+  let backFace = [
+    bottomLeftBack,
+    bottomRightBack,
+    topLeftBack,
+    topLeftBack,
+    bottomRightBack,
+    topRightBack,
+  ].flat();
+
+  let frontFace = [
+    bottomLeftFront,
+    topLeftFront,
+    bottomRightFront,
+    bottomRightFront,
+    topLeftFront,
+    topRightFront,
+  ].flat();
+
+  let topFace = [
+    topLeftBack,
+    topRightBack,
+    topLeftFront,
+    topLeftFront,
+    topRightBack,
+    topRightFront,
+  ].flat();
+
+  let bottomFace = [
+    bottomLeftBack,
+    bottomLeftFront,
+    bottomRightBack,
+    bottomRightBack,
+    bottomLeftFront,
+    bottomRightFront,
+  ].flat();
+
+  let rightFace = [
+    bottomRightBack,
+    bottomRightFront,
+    topRightBack,
+    topRightBack,
+    bottomRightFront,
+    topRightFront,
+  ].flat();
+
+  let leftFace = [
+    bottomLeftBack,
+    topLeftBack,
+    bottomLeftFront,
+    bottomLeftFront,
+    topLeftBack,
+    topLeftFront,
+  ].flat();
+
   return new Float32Array([
-    // Back face
-    ...bottomLeftBack,
-    ...topLeftBack,
-    ...bottomRightBack,
-    ...bottomRightBack,
-    ...topLeftBack,
-    ...topRightBack,
-    // Front face
-    ...bottomLeftFront,
-    ...bottomRightFront,
-    ...topLeftFront,
-    ...topLeftFront,
-    ...bottomRightFront,
-    ...topRightFront,
-    // Top face
-    ...topLeftBack,
-    ...topLeftFront,
-    ...topRightBack,
-    ...topRightBack,
-    ...topLeftFront,
-    ...topRightFront,
-    // Bottom face
-    ...bottomLeftBack,
-    ...bottomRightBack,
-    ...bottomLeftFront,
-    ...bottomLeftFront,
-    ...bottomRightBack,
-    ...bottomRightFront,
-    // Right face
-    ...bottomRightBack,
-    ...topRightBack,
-    ...bottomRightFront,
-    ...bottomRightFront,
-    ...topRightBack,
-    ...topRightFront,
-    // Left face
-    ...bottomLeftBack,
-    ...bottomLeftFront,
-    ...topLeftBack,
-    ...topLeftBack,
-    ...bottomLeftFront,
-    ...topLeftFront,
+    ...backFace,
+    ...frontFace,
+    ...topFace,
+    ...bottomFace,
+    ...rightFace,
+    ...leftFace,
   ]);
 };
 
@@ -115,11 +140,14 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
 
   const verticesBuffer = device.createBuffer({
     size: cubeVertexPositions.byteLength,
-    usage: GPUBufferUsage.VERTEX,
-    mappedAtCreation: true,
+    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
   });
-  new Float32Array(verticesBuffer.getMappedRange()).set(cubeVertexPositions);
-  verticesBuffer.unmap();
+
+  // const depthTexture = device.createTexture({
+  //   size: resolution,
+  //   format: "depth24plus",
+  //   usage: GPUTextureUsage.RENDER_ATTACHMENT,
+  // });
 
   const pipeline = device.createRenderPipeline({
     layout: pipelineLayout,
@@ -162,13 +190,27 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     },
     primitive: {
       topology: "triangle-list",
-      cullMode: "front",
+      cullMode: "back",
     },
+    // depthStencil: {
+    //   depthWriteEnabled: true,
+    //   depthCompare: "less",
+    //   format: "depth24plus",
+    // },
   });
 
-  let modelViewProjectionMatrixBuffer: GPUBuffer;
-  let modelMatrixBuffer: GPUBuffer;
-  let voxelObjectBuffer: GPUBuffer;
+  let modelViewProjectionMatrixBuffer = device.createBuffer({
+    size: 64,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  let modelMatrixBuffer = device.createBuffer({
+    size: 64,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  let voxelObjectBuffer = device.createBuffer({
+    size: 288,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
 
   const render = ({
     commandEncoder,
@@ -179,7 +221,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     timestampWrites,
     cameraPositionBuffer,
   }: RenderArgs) => {
-    const renderPassDescriptor: GPURenderPassDescriptor = {
+    const passEncoder = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
           view: outputTextures.finalTexture.createView(),
@@ -188,97 +230,77 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
           storeOp: "store",
         },
       ],
+      // depthStencilAttachment: {
+      //   view: depthTexture.createView(),
+      //   depthClearValue: 1.0,
+      //   depthLoadOp: "clear",
+      //   depthStoreOp: "store",
+      // },
       timestampWrites,
-    };
-
-    const m = voxelObjects[0].transform;
-
-    // const m = mat4.identity();
-    // mat4.translate(m, [debugValues.translateX * 100, 0, 0], m);
-    // mat4.uniformScale(m, debugValues.scale, m);
-
-    // const scale = voxelObjects[0].size;
-    // mat4.scale(modelMatrix, [debugValues.scale, 1, 1], modelMatrix);
-    // mat4.translate(modelMatrix, [debugValues.translateX, 0, 0], modelMatrix);
-
-    const vp = mat4.mul(
-      mat4.scale(camera.projectionMatrix, [-1, 1, 1]),
-      camera.viewMatrix,
-    );
-
-    const modelViewProjectionMatrix = mat4.mul(vp, m);
-
-    if (!modelViewProjectionMatrixBuffer) {
-      modelViewProjectionMatrixBuffer = device.createBuffer({
-        size: 64,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      });
-    }
-    device.queue.writeBuffer(
-      modelViewProjectionMatrixBuffer,
-      0,
-      new Float32Array(modelViewProjectionMatrix),
-    );
-
-    if (!modelMatrixBuffer) {
-      modelMatrixBuffer = device.createBuffer({
-        size: 64,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      });
-    }
-    device.queue.writeBuffer(modelMatrixBuffer, 0, new Float32Array(m));
-
-    if (!voxelObjectBuffer) {
-      voxelObjectBuffer = device.createBuffer({
-        size: 288,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      });
-    }
-    device.queue.writeBuffer(
-      voxelObjectBuffer,
-      0,
-      new Float32Array(voxelObjects[0].toArray()),
-    );
-
-    const bindGroup = device.createBindGroup({
-      layout: bindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: {
-            buffer: modelViewProjectionMatrixBuffer,
-          },
-        },
-        {
-          binding: 1,
-          resource: {
-            buffer: modelMatrixBuffer,
-          },
-        },
-        {
-          binding: 2,
-          resource: {
-            buffer: viewProjectionMatricesBuffer,
-          },
-        },
-        {
-          binding: 3,
-          resource: voxelTextureView,
-        },
-        {
-          binding: 4,
-          resource: {
-            buffer: voxelObjectBuffer,
-          },
-        },
-      ],
     });
-
-    const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
-    passEncoder.setVertexBuffer(0, verticesBuffer);
-    passEncoder.setBindGroup(0, bindGroup);
     passEncoder.setPipeline(pipeline);
-    passEncoder.draw(cubeVertexPositions.length / 4);
+
+    for (const voxelObject of voxelObjects) {
+      const m = voxelObject.transform;
+      const vp = mat4.mul(
+        mat4.scale(camera.projectionMatrix, [-1, 1, 1]),
+        camera.viewMatrix,
+      );
+      const mvp = mat4.mul(vp, m);
+      device.queue.writeBuffer(
+        modelViewProjectionMatrixBuffer,
+        0,
+        new Float32Array(mvp),
+      );
+      device.queue.writeBuffer(modelMatrixBuffer, 0, new Float32Array(m));
+      device.queue.writeBuffer(
+        voxelObjectBuffer,
+        0,
+        new Float32Array(voxelObject.toArray()),
+      );
+      device.queue.writeBuffer(
+        verticesBuffer,
+        0,
+        new Float32Array(getCuboidVertices(voxelObject.size)),
+      );
+      const bindGroup = device.createBindGroup({
+        layout: bindGroupLayout,
+        entries: [
+          {
+            binding: 0,
+            resource: {
+              buffer: modelViewProjectionMatrixBuffer,
+            },
+          },
+          {
+            binding: 1,
+            resource: {
+              buffer: modelMatrixBuffer,
+            },
+          },
+          {
+            binding: 2,
+            resource: {
+              buffer: viewProjectionMatricesBuffer,
+            },
+          },
+          {
+            binding: 3,
+            resource: voxelTextureView,
+          },
+          {
+            binding: 4,
+            resource: {
+              buffer: voxelObjectBuffer,
+            },
+          },
+        ],
+      });
+      passEncoder.setVertexBuffer(0, verticesBuffer);
+      passEncoder.setBindGroup(0, bindGroup);
+      passEncoder.draw(cubeVertexPositions.length / 4);
+    }
+
     passEncoder.end();
 
     return [commandEncoder.finish()];

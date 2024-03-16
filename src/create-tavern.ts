@@ -31,7 +31,7 @@ const NAME_ALLOWLIST = [
   // "BarTopS",
   // "BarTop1",
   // "Barrel",
-  // "Keg",
+  "Keg",
   // "Candle",
   // "Bed",
   // "Torch",

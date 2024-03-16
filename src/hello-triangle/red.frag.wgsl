@@ -26,21 +26,6 @@ fn main(
     var screenUV = ndc.xy * 0.5 + 0.5;
     var inverseViewProjection = viewProjections.inverseViewProjection;
     let rayDirection = calculateRayDirection(screenUV,inverseViewProjection);
-//    var voxelObject: VoxelObject;
-//
-//    voxelObject.transform = IDENTITY_MATRIX;
-//    voxelObject.inverseTransform = IDENTITY_MATRIX;
-//    voxelObject.previousTransform = IDENTITY_MATRIX;
-//    voxelObject.previousInverseTransform = IDENTITY_MATRIX;
-//    voxelObject.size = vec3<f32>(128,128,64);
-//    voxelObject.atlasLocation = vec3<f32>(1,0,0);
-//    let result = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);
-
-    let result = rayMarchAtMip(voxelObject, rayDirection, worldPos, 0);
-
-//  return clipPos / 1280.0;
-//return vec4(rayDirection, 1.0);
-//      return vec4(objectPos / voxelObject.size, 1);
-  return vec4(worldPos * 0.1 , 1.0);
-  return vec4(f32(result.stepsTaken) * 0.01);
+    let result = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);
+    return vec4(abs(result.normal), 1);
 }
