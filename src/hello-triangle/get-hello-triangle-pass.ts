@@ -136,13 +136,6 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     bindGroupLayouts: [bindGroupLayout],
   });
 
-  const cubeVertexPositions = getCuboidVertices(voxelObjects[0].size);
-
-  const verticesBuffer = device.createBuffer({
-    size: cubeVertexPositions.byteLength,
-    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-  });
-
   // const depthTexture = device.createTexture({
   //   size: resolution,
   //   format: "depth24plus",
@@ -199,19 +192,6 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     // },
   });
 
-  let modelViewProjectionMatrixBuffer = device.createBuffer({
-    size: 64,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-  });
-  let modelMatrixBuffer = device.createBuffer({
-    size: 64,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-  });
-  let voxelObjectBuffer = device.createBuffer({
-    size: 288,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-  });
-
   const render = ({
     commandEncoder,
     outputTextures,
@@ -240,29 +220,27 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     });
     passEncoder.setPipeline(pipeline);
 
-    for (const voxelObject of voxelObjects) {
-      const m = voxelObject.transform;
-      const vp = mat4.mul(
-        mat4.scale(camera.projectionMatrix, [-1, 1, 1]),
-        camera.viewMatrix,
-      );
-      const mvp = mat4.mul(vp, m);
-      device.queue.writeBuffer(
-        modelViewProjectionMatrixBuffer,
-        0,
-        new Float32Array(mvp),
-      );
-      device.queue.writeBuffer(modelMatrixBuffer, 0, new Float32Array(m));
-      device.queue.writeBuffer(
-        voxelObjectBuffer,
-        0,
-        new Float32Array(voxelObject.toArray()),
-      );
-      device.queue.writeBuffer(
-        verticesBuffer,
-        0,
-        new Float32Array(getCuboidVertices(voxelObject.size)),
-      );
+    const cubeVertexPositions = getCuboidVertices(voxelObjects[0].size);
+    const verticesBuffer = device.createBuffer({
+      size: 576 * voxelObjects.length,
+      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    });
+    const modelViewProjectionMatrixBuffer = device.createBuffer({
+      size: 256 * voxelObjects.length,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+    const modelMatrixBuffer = device.createBuffer({
+      size: 256 * voxelObjects.length,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+    const voxelObjectBuffer = device.createBuffer({
+      size: 512 * voxelObjects.length,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
+    let bindGroups = [];
+
+    for (let i = 0; i < voxelObjects.length; i++) {
       const bindGroup = device.createBindGroup({
         layout: bindGroupLayout,
         entries: [
@@ -270,12 +248,14 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
             binding: 0,
             resource: {
               buffer: modelViewProjectionMatrixBuffer,
+              offset: 256 * i,
             },
           },
           {
             binding: 1,
             resource: {
               buffer: modelMatrixBuffer,
+              offset: 256 * i,
             },
           },
           {
@@ -292,13 +272,57 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
             binding: 4,
             resource: {
               buffer: voxelObjectBuffer,
+              offset: 512 * i,
             },
           },
         ],
       });
-      passEncoder.setVertexBuffer(0, verticesBuffer);
+      bindGroups.push(bindGroup);
+
+      const voxelObject = voxelObjects[i];
+      const vp = mat4.mul(
+        mat4.scale(camera.projectionMatrix, [-1, 1, 1]),
+        camera.viewMatrix,
+      );
+      const mvp = new Float32Array(mat4.mul(vp, voxelObject.transform));
+      device.queue.writeBuffer(
+        modelViewProjectionMatrixBuffer,
+        256 * i,
+        mvp.buffer,
+        mvp.byteOffset,
+        mvp.byteLength,
+      );
+      const m = new Float32Array(voxelObject.transform);
+      device.queue.writeBuffer(
+        modelMatrixBuffer,
+        256 * i,
+        m.buffer,
+        m.byteOffset,
+        m.byteLength,
+      );
+      const object = new Float32Array(voxelObject.toArray());
+      device.queue.writeBuffer(
+        voxelObjectBuffer,
+        512 * i,
+        object.buffer,
+        object.byteOffset,
+        object.byteLength,
+      );
+      const vertices = new Float32Array(getCuboidVertices(voxelObject.size));
+      device.queue.writeBuffer(
+        verticesBuffer,
+        576 * i,
+        vertices.buffer,
+        vertices.byteOffset,
+        vertices.byteLength,
+      );
+    }
+
+    for (let i = 0; i < voxelObjects.length; i++) {
+      const bindGroup = bindGroups[i];
+      passEncoder.setVertexBuffer(0, verticesBuffer, 576 * i, 576);
       passEncoder.setBindGroup(0, bindGroup);
-      passEncoder.draw(cubeVertexPositions.length / 4);
+      passEncoder.draw(36);
     }
 
     passEncoder.end();
