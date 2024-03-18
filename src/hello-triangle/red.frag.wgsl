@@ -17,15 +17,27 @@ const IDENTITY_MATRIX = mat4x4<f32>(
   vec4<f32>(0.0, 0.0, 0.0, 1.0)
 );
 
+struct GBufferOutput {
+  @location(0) albedo : vec4f,
+  @location(1) normal : vec4f,
+}
+
 @fragment
 fn main(
    @location(0) objectPos : vec3f,
    @location(1) worldPos : vec3f,
     @location(2) @interpolate(linear) ndc : vec3f
-) -> @location(0) vec4f {
+) -> GBufferOutput
+ {
+    var output : GBufferOutput;
     var screenUV = ndc.xy * 0.5 + 0.5;
     var inverseViewProjection = viewProjections.inverseViewProjection;
     let rayDirection = calculateRayDirection(screenUV,inverseViewProjection);
     let result = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);
-    return vec4(abs(result.normal), 1);
+    if(!result.hit){
+      discard;
+    }
+    output.albedo = vec4(result.colour, 1);
+    output.normal = vec4(result.normal, 1);
+    return output;
 }

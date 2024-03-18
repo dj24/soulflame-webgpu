@@ -86,7 +86,7 @@ export const getTaaPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 5,
-          resource: outputTextures.depthAndClusterTexture.createView(),
+          resource: outputTextures.depthTexture.createView(),
         },
       ],
     });

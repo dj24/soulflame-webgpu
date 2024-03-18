@@ -264,7 +264,7 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
         },
         {
           binding: 3,
-          resource: outputTextures.depthAndClusterTexture.createView(),
+          resource: outputTextures.depthTexture.createView(),
         },
       ],
     });

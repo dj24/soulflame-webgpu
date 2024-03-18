@@ -23,7 +23,7 @@ export type OutputTextures = {
   albedoTexture?: GPUTexture;
   normalTexture?: GPUTexture;
   velocityTexture?: GPUTexture;
-  depthAndClusterTexture?: GPUTexture;
+  depthTexture?: GPUTexture;
   debugTexture?: GPUTexture;
   skyTexture?: GPUTexture;
 };
@@ -37,7 +37,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     binding: 4,
     visibility: GPUShaderStage.COMPUTE,
     storageTexture: {
-      format: "rgba8snorm",
+      format: "rgba16float",
       viewDimension: "2d",
     },
   };
@@ -59,7 +59,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       viewDimension: "2d",
     },
   };
-  const depthAndClusterEntry: GPUBindGroupLayoutEntry = {
+  const depthEntry: GPUBindGroupLayoutEntry = {
     binding: 6,
     visibility: GPUShaderStage.COMPUTE,
     storageTexture: {
@@ -112,7 +112,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       matricesBufferEntry,
       normalEntry,
       albedoEntry,
-      depthAndClusterEntry,
+      depthEntry,
       velocityEntry,
       {
         binding: 8,
@@ -190,7 +190,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 6,
-          resource: outputTextures.depthAndClusterTexture.createView(),
+          resource: outputTextures.depthTexture.createView(),
         },
         {
           binding: 7,

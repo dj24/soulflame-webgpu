@@ -233,7 +233,7 @@ ${shaderCode}`;
     const entries = [
       {
         binding: 0,
-        resource: outputTextures.depthAndClusterTexture.createView(),
+        resource: outputTextures.depthTexture.createView(),
       },
       {
         binding: 1,

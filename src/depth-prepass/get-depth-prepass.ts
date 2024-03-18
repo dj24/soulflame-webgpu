@@ -117,7 +117,7 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
         },
         {
           binding: 1,
-          resource: outputTextures.depthAndClusterTexture.createView(),
+          resource: outputTextures.depthTexture.createView(),
         },
         {
           binding: 2,

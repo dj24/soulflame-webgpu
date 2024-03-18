@@ -136,12 +136,6 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     bindGroupLayouts: [bindGroupLayout],
   });
 
-  // const depthTexture = device.createTexture({
-  //   size: resolution,
-  //   format: "depth24plus",
-  //   usage: GPUTextureUsage.RENDER_ATTACHMENT,
-  // });
-
   const pipeline = device.createRenderPipeline({
     layout: pipelineLayout,
     vertex: {
@@ -176,20 +170,21 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
       }),
       entryPoint: "main",
       targets: [
-        {
-          format: "rgba8unorm",
-        },
+        // albedo
+        { format: "rgba8unorm" },
+        // normal
+        { format: "rgba16float" },
       ],
     },
     primitive: {
       topology: "triangle-list",
       cullMode: "back",
     },
-    // depthStencil: {
-    //   depthWriteEnabled: true,
-    //   depthCompare: "less",
-    //   format: "depth24plus",
-    // },
+    depthStencil: {
+      depthWriteEnabled: true,
+      depthCompare: "less",
+      format: "depth32float",
+    },
   });
 
   const render = ({
@@ -204,18 +199,24 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     const passEncoder = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
-          view: outputTextures.finalTexture.createView(),
+          view: outputTextures.albedoTexture.createView(),
+          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+          loadOp: "clear",
+          storeOp: "store",
+        },
+        {
+          view: outputTextures.normalTexture.createView(),
           clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
           loadOp: "clear",
           storeOp: "store",
         },
       ],
-      // depthStencilAttachment: {
-      //   view: depthTexture.createView(),
-      //   depthClearValue: 1.0,
-      //   depthLoadOp: "clear",
-      //   depthStoreOp: "store",
-      // },
+      depthStencilAttachment: {
+        view: outputTextures.depthTexture.createView(),
+        depthClearValue: 1.0,
+        depthLoadOp: "clear",
+        depthStoreOp: "store",
+      },
       timestampWrites,
     });
     passEncoder.setPipeline(pipeline);
@@ -326,6 +327,20 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     }
 
     passEncoder.end();
+
+    commandEncoder.copyTextureToTexture(
+      {
+        texture: outputTextures.albedoTexture, // TODO: pass texture as well as view
+      },
+      {
+        texture: outputTextures.finalTexture,
+      },
+      {
+        width: outputTextures.finalTexture.width,
+        height: outputTextures.finalTexture.height,
+        depthOrArrayLayers: 1, // Copy one layer (z-axis slice)
+      },
+    );
 
     return [commandEncoder.finish()];
   };

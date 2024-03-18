@@ -102,7 +102,7 @@ export const getSkyPass = async (): Promise<RenderPass> => {
       entries: [
         {
           binding: 0,
-          resource: outputTextures.depthAndClusterTexture.createView(),
+          resource: outputTextures.depthTexture.createView(),
         },
         {
           binding: 1,
@@ -131,12 +131,8 @@ export const getSkyPass = async (): Promise<RenderPass> => {
     });
     computePass.setPipeline(computePipeline);
     computePass.setBindGroup(0, bindGroup);
-    const workgroupsX = Math.ceil(
-      outputTextures.depthAndClusterTexture.width / 8,
-    );
-    const workgroupsY = Math.ceil(
-      outputTextures.depthAndClusterTexture.height / 8,
-    );
+    const workgroupsX = Math.ceil(outputTextures.depthTexture.width / 8);
+    const workgroupsY = Math.ceil(outputTextures.depthTexture.height / 8);
     computePass.dispatchWorkgroups(workgroupsX, workgroupsY);
     computePass.end();
 

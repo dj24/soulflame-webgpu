@@ -185,9 +185,11 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     if (!normalTexture) {
       normalTexture = device.createTexture({
         size: [resolution[0], resolution[1], 1],
-        format: "rgba8snorm",
+        format: "rgba16float",
         usage:
-          GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.STORAGE_BINDING |
+          GPUTextureUsage.RENDER_ATTACHMENT,
       });
     }
     return normalTexture;
@@ -197,11 +199,9 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     if (!depthTexture) {
       depthTexture = device.createTexture({
         size: [resolution[0], resolution[1], 1],
-        format: "rgba32float",
+        format: "depth32float",
         usage:
-          GPUTextureUsage.TEXTURE_BINDING |
-          GPUTextureUsage.RENDER_ATTACHMENT |
-          GPUTextureUsage.STORAGE_BINDING,
+          GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
       });
     }
     return depthTexture;
@@ -485,7 +485,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
           finalTexture: outputTexture,
           albedoTexture,
           normalTexture,
-          depthAndClusterTexture: depthTexture,
+          depthTexture,
           skyTexture,
           velocityTexture,
         },
@@ -547,15 +547,15 @@ const start = async () => {
   await createTavern(device, volumeAtlas);
 
   const computePassPromises: Promise<RenderPass>[] = [
+    getHelloTrianglePass(),
     // getDepthPrepass(),
     // getGBufferPass(),
     // getDiffusePass(),
     // getReflectionsPass(),
-    // getShadowsPass(),
-    // getSkyPass(),
     // getVolumetricFog(),
     // getTaaPass(),
-    getHelloTrianglePass(),
+    getShadowsPass(),
+    getSkyPass(),
     // getMotionBlurPass(),
     // getBoxOutlinePass(),
     // getWaterPass(),
