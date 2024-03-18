@@ -20,7 +20,31 @@ const IDENTITY_MATRIX = mat4x4<f32>(
 struct GBufferOutput {
   @location(0) albedo : vec4f,
   @location(1) normal : vec4f,
+  @location(2) worldPosition : vec4f,
+  @location(3) velocity : vec4f
 }
+
+fn getVelocity(rayMarchResult: RayMarchResult, viewProjections: ViewProjectionMatrices) -> vec3<f32> {
+  let vp = viewProjections.viewProjection;
+    let previousVp = viewProjections.previousViewProjection;
+    let modelMatrix = rayMarchResult.modelMatrix;
+    let previousModelMatrix = rayMarchResult.previousModelMatrix;
+
+    // Get current object space position of the current pixel
+    let objectPos = rayMarchResult.objectPos.xyz;
+    let objectClipSpace = vp * modelMatrix * vec4(objectPos.xyz, 1.0);
+    let objectNDC = objectClipSpace.xyz / objectClipSpace.w;
+
+    // Get previous position of the current object space position
+    let previousObjectClipSpace = previousVp * previousModelMatrix * vec4(objectPos.xyz, 1.0);
+    let previousObjectNDC = previousObjectClipSpace.xyz / previousObjectClipSpace.w;
+
+    // Get velocity based on the difference between the current and previous positions
+    var velocity = objectNDC - previousObjectNDC;
+    velocity.y = -velocity.y;
+  return velocity;
+}
+
 
 @fragment
 fn main(
@@ -39,5 +63,7 @@ fn main(
     }
     output.albedo = vec4(result.colour, 1);
     output.normal = vec4(result.normal, 1);
+    output.worldPosition = vec4(result.worldPos, 1);
+    output.velocity = vec4(getVelocity(result, viewProjections), 1);
     return output;
 }

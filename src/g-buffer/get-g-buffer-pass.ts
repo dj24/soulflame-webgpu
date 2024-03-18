@@ -24,7 +24,7 @@ export type OutputTextures = {
   normalTexture?: GPUTexture;
   velocityTexture?: GPUTexture;
   depthTexture?: GPUTexture;
-  debugTexture?: GPUTexture;
+  worldPositionTexture?: GPUTexture;
   skyTexture?: GPUTexture;
 };
 

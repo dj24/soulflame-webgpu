@@ -80,7 +80,7 @@ fn main(
   let resolution = vec2<f32>(textureDimensions(depthTex));
   let uv = vec2<f32>(outputPixel) / resolution;
   var normalSample = textureLoad(normalTex, samplePixel, 0).rgb;
-  let worldPos = textureLoad(depthTex, samplePixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
+  let worldPos = textureLoad(worldPosTex, samplePixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
 
 
   let randomCo = vec2<f32>(samplePixel);

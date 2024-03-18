@@ -174,6 +174,10 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
         { format: "rgba8unorm" },
         // normal
         { format: "rgba16float" },
+        // world position
+        { format: "rgba32float" },
+        // velocity
+        { format: "rgba16float" },
       ],
     },
     primitive: {
@@ -210,6 +214,18 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
           loadOp: "clear",
           storeOp: "store",
         },
+        {
+          view: outputTextures.worldPositionTexture.createView(),
+          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+          loadOp: "clear",
+          storeOp: "store",
+        },
+        {
+          view: outputTextures.velocityTexture.createView(),
+          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+          loadOp: "clear",
+          storeOp: "store",
+        },
       ],
       depthStencilAttachment: {
         view: outputTextures.depthTexture.createView(),
@@ -221,7 +237,6 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     });
     passEncoder.setPipeline(pipeline);
 
-    const cubeVertexPositions = getCuboidVertices(voxelObjects[0].size);
     const verticesBuffer = device.createBuffer({
       size: 576 * voxelObjects.length,
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,

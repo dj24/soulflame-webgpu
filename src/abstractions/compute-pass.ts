@@ -52,6 +52,7 @@ struct Time {
 @group(0) @binding(13) var nearestSampler : sampler;
 @group(0) @binding(14) var velocityAndWaterTex : texture_2d<f32>;
 @group(0) @binding(15) var<storage> bvhNodes: array<BVHNode>;
+@group(0) @binding(16) var worldPosTex : texture_2d<f32>;
 
 const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
 ${matrices}
@@ -196,6 +197,10 @@ ${shaderCode}`;
         resource: {
           buffer: bvhBuffer,
         },
+      },
+      {
+        binding: 16,
+        resource: outputTextures.worldPositionTexture.createView(),
       },
     ];
 

@@ -368,6 +368,6 @@ fn fullTrace(
   textureStore(albedoTex, pixel, vec4(albedo, 1));
 //  textureStore(albedoTex, pixel, vec4(0,0,1, 1));
   textureStore(normalTex, pixel, vec4(normal,1));
-  textureStore(depthWrite, pixel, vec4(worldPos, depth));
+  textureStore(depthWrite, pixel, depth);
   textureStore(velocityTex, pixel, vec4(velocity ,0));
 }

@@ -94,6 +94,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let depthTexture: GPUTexture;
   let velocityTexture: GPUTexture;
   let blueNoiseTexture: GPUTexture;
+  let worldPositionTexture: GPUTexture;
 
   let timeBuffer: GPUBuffer;
   let resolutionBuffer: GPUBuffer;
@@ -152,6 +153,9 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     }
     if (outputTexture) {
       outputTexture = null;
+    }
+    if (worldPositionTexture) {
+      worldPositionTexture = null;
     }
     const { clientWidth, clientHeight } = canvas.parentElement;
     let pixelRatio = 1.0;
@@ -226,12 +230,26 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     if (!velocityTexture) {
       velocityTexture = device.createTexture({
         size: [resolution[0], resolution[1], 1],
-        format: "rgba32float",
+        format: "rgba16float",
         usage:
           GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
       });
     }
     return velocityTexture;
+  };
+
+  const createWorldPositionTexture = () => {
+    if (!worldPositionTexture) {
+      worldPositionTexture = device.createTexture({
+        size: [resolution[0], resolution[1], 1],
+        format: "rgba32float",
+        usage:
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.STORAGE_BINDING |
+          GPUTextureUsage.RENDER_ATTACHMENT,
+      });
+    }
+    return worldPositionTexture;
   };
 
   const getTimeBuffer = () => {
@@ -448,6 +466,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     createDepthTexture();
     createVelocityTexture();
     createOutputTexture();
+    createWorldPositionTexture();
 
     let commandBuffers: GPUCommandBuffer[] = [];
 
@@ -488,6 +507,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
           depthTexture,
           skyTexture,
           velocityTexture,
+          worldPositionTexture,
         },
         cameraPositionBuffer,
         voxelTextureView,
@@ -556,7 +576,7 @@ const start = async () => {
     // getTaaPass(),
     getShadowsPass(),
     getSkyPass(),
-    // getMotionBlurPass(),
+    getMotionBlurPass(),
     // getBoxOutlinePass(),
     // getWaterPass(),
 

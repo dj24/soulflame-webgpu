@@ -131,6 +131,14 @@ const bvhBufferEntry: GPUBindGroupLayoutEntry = {
   },
 };
 
+const worldPosEntry: GPUBindGroupLayoutEntry = {
+  binding: 16,
+  visibility: GPUShaderStage.COMPUTE,
+  texture: {
+    sampleType: "unfilterable-float",
+  },
+};
+
 export const baseBindGroupLayoutEntries = [
   depthEntry,
   inputTextureEntry,
@@ -147,6 +155,7 @@ export const baseBindGroupLayoutEntries = [
   nearestSamplerEntry,
   velocityAndWaterEntry,
   bvhBufferEntry,
+  worldPosEntry,
 ];
 
 const NUM_THREADS_X = 8;
@@ -209,6 +218,7 @@ struct Time {
 @group(0) @binding(13) var nearestSampler : sampler;
 @group(0) @binding(14) var velocityAndWaterTex : texture_2d<f32>;
 @group(0) @binding(15) var<storage> bvhNodes: array<BVHNode>;
+@group(0) @binding(16) var worldPosTex : texture_2d<f32>;
 
 const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
 const DOWNSCALE = ${downscale};
@@ -375,6 +385,10 @@ ${shaderCode}`;
         resource: {
           buffer: bvhBuffer,
         },
+      },
+      {
+        binding: 16,
+        resource: outputTextures.worldPositionTexture.createView(),
       },
     ];
 
