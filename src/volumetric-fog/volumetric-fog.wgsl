@@ -11,7 +11,7 @@ const DEPTH_INFLUENCE: f32 = 0.5;
 fn calculateDensity(worldPos: vec3<f32>, cameraPosition: vec3<f32>) -> f32 {
   let height = worldPos.y;
   let heightFactor = exp(-(height / FOG_HEIGHT_END));
-  var noiseFactor = (perlinNoise3(worldPos * NOISE_SCALE + vec3(f32(time.x) * WIND_SPEED, 0,0)) + 1) * 0.5;
+  var noiseFactor = (perlinNoise3(worldPos * NOISE_SCALE + vec3(f32(time.frame) * WIND_SPEED, 0,0)) + 1) * 0.5;
   noiseFactor = mix(1.0, noiseFactor, NOISE_INFLUENCE);
   let depth = length(worldPos - cameraPosition);
   var depthFactor = 1.0 - exp(-depth / FOG_DISTANCE);
@@ -31,28 +31,7 @@ fn computeScattering(lightDotView: f32) -> f32
 }
 
 fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>) -> bool {
-  for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
-      let voxelObject = voxelObjects[i];
-      if(any(voxelObject.size == vec3(0.0))){
-        continue;
-      }
-      var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(worldPos, 1.0)).xyz;
-      let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(shadowRayDirection, 0.0)).xyz;
-      let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
-      let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size);
-      if(!intersect.isHit && !isInBounds) {
-        continue;
-      }
-      // Advance ray origin to the point of intersection
-      if(!isInBounds){
-        objectRayOrigin = objectRayOrigin + objectRayDirection * intersect.tNear + EPSILON;
-      }
-      let output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
-      if(output.hit){
-        return true;
-      }
-  }
-  return false;
+  return rayMarchBVH(worldPos, shadowRayDirection).hit;
 }
 
 fn worldToScreen(worldPos: vec3<f32>) -> vec2<f32> {
@@ -80,10 +59,10 @@ fn main(
     let resolution = textureDimensions(depthTex);
     var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(resolution);
 
-    let depthSample = textureLoad(depthTex, pixel, 0);
+    let depthSample = textureLoad(depthTex, pixel, 0).r;
     var rayOrigin = cameraPosition;
-    let worldPos = depthSample.rgb;
-    let depth = depthSample.a;
+    let worldPos = textureLoad(worldPosTex, pixel, 0).rgb;
+    let depth = NEAR_PLANE * FAR_PLANE / (FAR_PLANE - depthSample * (FAR_PLANE - NEAR_PLANE));
     let rayVector = worldPos - rayOrigin;
     let rayDirection = rayVector / length(rayVector);
     let stepLength = clamp(depth / FOG_STEPS, 0.0, MAX_STEP_DISTANCE);
@@ -91,8 +70,8 @@ fn main(
     let step = rayDirection * stepLength;
 
     let scatterAmount = 0.05;
-    var shadowRayDirection = -sunDirection + randomInHemisphere(randomCo, -sunDirection) * scatterAmount;
-//    var shadowRayDirection = -sunDirection;
+//    var shadowRayDirection = -sunDirection + randomInHemisphere(randomCo, -sunDirection) * scatterAmount;
+    var shadowRayDirection = -sunDirection;
     var lightColour = SUN_COLOR;
 
 //    if(randomCo.x < 0.5){

@@ -18,7 +18,6 @@ fn main(
   for (var i = 0; i < samples; i++) {
     let clampedVelocity = sign(scaledVelocity) * max(abs(scaledVelocity), vec2(0.0001));
     var offset = clampedVelocity * (f32(i) / f32(samples - 1) - 0.5);
-//    var offset = scaledVelocity * f32(i);
     let offsetUv = uv + offset;
     let textureSample = textureSampleLevel(inputTex, nearestSampler, offsetUv, 0.0);
     result += textureSample;

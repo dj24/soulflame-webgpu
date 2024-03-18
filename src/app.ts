@@ -33,6 +33,7 @@ import { BVH } from "./bvh";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
 import { getWaterPass } from "./water-pass/get-water-pass";
 import { getHelloTrianglePass } from "./hello-triangle/get-hello-triangle-pass";
+import { getTaaPass } from "./taa-pass/get-taa-pass";
 
 export type RenderArgs = {
   enabled?: boolean;
@@ -73,7 +74,7 @@ const startingCameraFieldOfView = 90 * (Math.PI / 180);
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
   // position: vec3.create(-25, 10, -70),
-  position: vec3.create(-30, 30, -70),
+  position: vec3.create(-30, 10, -70),
   direction: vec3.create(),
 });
 
@@ -232,7 +233,9 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         size: [resolution[0], resolution[1], 1],
         format: "rgba16float",
         usage:
-          GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.STORAGE_BINDING |
+          GPUTextureUsage.RENDER_ATTACHMENT,
       });
     }
     return velocityTexture;
@@ -547,6 +550,7 @@ const start = async () => {
     try {
       device = await adapter.requestDevice({
         requiredFeatures: ["timestamp-query"],
+        requiredLimits: { maxColorAttachmentBytesPerSample: 64 },
       });
     } catch (e) {
       device = await adapter.requestDevice();
@@ -568,15 +572,14 @@ const start = async () => {
 
   const computePassPromises: Promise<RenderPass>[] = [
     getHelloTrianglePass(),
-    // getDepthPrepass(),
+    getShadowsPass(),
+    getSkyPass(),
+    getMotionBlurPass(),
     // getGBufferPass(),
     // getDiffusePass(),
     // getReflectionsPass(),
     // getVolumetricFog(),
     // getTaaPass(),
-    getShadowsPass(),
-    getSkyPass(),
-    getMotionBlurPass(),
     // getBoxOutlinePass(),
     // getWaterPass(),
 

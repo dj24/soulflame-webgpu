@@ -1,6 +1,7 @@
 const EPSILON = 0.0001;
 const MAX_RAY_STEPS = 256;
 const FAR_PLANE = 10000.0;
+const NEAR_PLANE = 0.5;
 
 
 // Function to transform a normal vector from object to world space

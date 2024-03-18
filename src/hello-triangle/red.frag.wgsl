@@ -8,7 +8,7 @@ struct ViewProjectionMatrices {
 
 @group(0) @binding(2) var<uniform> viewProjections : ViewProjectionMatrices;
 @group(0) @binding(3) var voxels : texture_3d<f32>;
-@group(0) @binding(4) var<uniform> voxelObject : VoxelObject;
+@group(0) @binding(4) var<storage> voxelObject : VoxelObject;
 
 const IDENTITY_MATRIX = mat4x4<f32>(
   vec4<f32>(1.0, 0.0, 0.0, 0.0),

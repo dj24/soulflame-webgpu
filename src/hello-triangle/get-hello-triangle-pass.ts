@@ -126,7 +126,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
         binding: 4,
         visibility: GPUShaderStage.FRAGMENT,
         buffer: {
-          type: "uniform",
+          type: "read-only-storage",
         },
       },
     ],
@@ -251,7 +251,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     });
     const voxelObjectBuffer = device.createBuffer({
       size: 512 * voxelObjects.length,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
 
     let bindGroups = [];

@@ -30,7 +30,9 @@ fn sample_sky(rayDirection: vec3<f32>) -> vec3<f32> {
 
 const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const START_DISTANCE: f32 = 0.0;
-const FOG_DENSITY: f32 = 0.005;
+const FOG_DENSITY: f32 = 0.01;
+const NEAR: f32 = 0.5;
+const FAR: f32 = 10000.0;
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
@@ -43,9 +45,11 @@ fn main(
     let pixel = GlobalInvocationID.xy;
 //    let sky = sample_sky(rayDirection);
     let sky = SKY_COLOUR;
-    let depthSample = textureLoad(depth, pixel, 0).a;
+    let depthSample = textureLoad(depth, pixel, 0).r;
+    // Adjust the depth to a distance value
+    let dist = NEAR * FAR / (FAR - depthSample * (FAR - NEAR));
     let inputSample = textureLoad(inputTex, pixel, 0).rgb;
-    let depthFactor = clamp(exp(-(depthSample - START_DISTANCE) * FOG_DENSITY), 0.0, 1.0);
+    let depthFactor = clamp(exp(-(dist - START_DISTANCE) * FOG_DENSITY), 0.0, 1.0);
     textureStore(outputTex, pixel, vec4(mix(sky,inputSample, depthFactor), 1));
 //    textureStore(outputTex, pixel, vec4(mix(vec3(uv.y, 0,0),inputSample, depthFactor), 1));
 }

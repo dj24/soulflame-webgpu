@@ -32,16 +32,17 @@ const NAME_ALLOWLIST = [
   "BarTop1",
   "Barrel",
   "Keg",
-  // "Candle",
+  "Candle",
   "Bed",
-  // "Torch",
-  // "TorchHolder",
+  "Torch",
+  "TorchHolder",
   "FireLogs",
-  // "Tankard",
-  // "Bookshelf",
-  // "Books4",
-  // "Door",
-  // "BigDoor",
+  "Tankard",
+  "Bookshelf",
+  "Books4",
+  "Door",
+  "BigDoor",
+  "Tavern",
 ];
 
 type ProcessTavernObject = { name: string; texture: GPUTexture };
@@ -63,9 +64,9 @@ const processTavernObject = async (
   let texture = createTextureFromVoxels(commandEncoder, device, voxels);
   console.timeEnd(`Create texture from voxels for ${name}`);
 
-  console.time(`Remove internal voxels from ${name}`);
-  texture = removeInternalVoxels(commandEncoder, device, texture);
-  console.timeEnd(`Remove internal voxels from ${name}`);
+  // console.time(`Remove internal voxels from ${name}`);
+  // texture = removeInternalVoxels(commandEncoder, device, texture);
+  // console.timeEnd(`Remove internal voxels from ${name}`);
 
   // console.time(`Generate octree mips for ${name}`);
   // generateOctreeMips(commandEncoder, device, texture);
@@ -90,17 +91,11 @@ export const createTavern = async (
 
   console.time("Load all volumes");
   {
-    console.time("Process all volumes");
     let textures = await Promise.all(
       uniqueChildNamesArray.map((name) =>
         processTavernObject(commandEncoder, name, device),
       ),
     );
-
-    console.timeEnd("Process all volumes");
-
-    // TODO: promise all or web worker here
-    console.time("Add all volumes to atlas");
     for (const { name, texture } of textures) {
       console.time(`Add volume for ${name}`);
       volumeAtlas.addVolume(commandEncoder, texture, name);
@@ -108,10 +103,8 @@ export const createTavern = async (
       commandEncoder = device.createCommandEncoder();
       console.timeEnd(`Add volume for ${name}`);
     }
-
-    await device.queue.onSubmittedWorkDone();
-    console.timeEnd("Add all volumes to atlas");
   }
+
   console.timeEnd("Load all volumes");
 
   const volumes = volumeAtlas.getVolumes();
