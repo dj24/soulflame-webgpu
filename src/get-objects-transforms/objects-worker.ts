@@ -1,8 +1,6 @@
 import { mat4, vec3, Vec3 } from "wgpu-matrix";
 import { VoxelObject } from "../voxel-object";
 import { Camera } from "../camera";
-import treeHouseVolume from "../voxel-models/tavern.vxm";
-import dragonVolume from "../voxel-models/dragon.vxm";
 import { debugValues } from "../app";
 
 const ctx: Worker = self as any;
@@ -33,26 +31,26 @@ const getOuterBox = (rotateY: number) => {
 };
 
 const getInnerBox = (x: number, z: number = 0) => {
-  let m = mat4.identity();
-  let scaleFactor = 0.1;
-  mat4.translate(m, [x, 0, z], m);
-  mat4.scale(m, [scaleFactor, scaleFactor, scaleFactor], m);
-  mat4.rotateY(m, Math.PI, m);
-  mat4.translate(m, vec3.divScalar(treeHouseVolume.size, 2), m);
-  mat4.translate(m, vec3.divScalar(treeHouseVolume.size, -2), m);
-  return new VoxelObject(m, treeHouseVolume.size, [0, 0, 0]);
+  // let m = mat4.identity();
+  // let scaleFactor = 0.1;
+  // mat4.translate(m, [x, 0, z], m);
+  // mat4.scale(m, [scaleFactor, scaleFactor, scaleFactor], m);
+  // mat4.rotateY(m, Math.PI, m);
+  // mat4.translate(m, vec3.divScalar(treeHouseVolume.size, 2), m);
+  // mat4.translate(m, vec3.divScalar(treeHouseVolume.size, -2), m);
+  // return new VoxelObject(m, treeHouseVolume.size, [0, 0, 0]);
 };
 
 const getDragon = (x: number, z: number = 0) => {
-  let m = mat4.identity();
-  let scaleFactor = 0.1;
-  let atlasLocation = [64, 0, 0];
-  mat4.translate(m, [x, 0, z], m);
-  mat4.scale(m, [scaleFactor, scaleFactor, scaleFactor], m);
-  mat4.rotateY(m, Math.PI, m);
-  mat4.translate(m, vec3.divScalar(dragonVolume.size, 2), m);
-  mat4.translate(m, vec3.divScalar(dragonVolume.size, -2), m);
-  return new VoxelObject(m, dragonVolume.size, atlasLocation);
+  // let m = mat4.identity();
+  // let scaleFactor = 0.1;
+  // let atlasLocation = [64, 0, 0];
+  // mat4.translate(m, [x, 0, z], m);
+  // mat4.scale(m, [scaleFactor, scaleFactor, scaleFactor], m);
+  // mat4.rotateY(m, Math.PI, m);
+  // mat4.translate(m, vec3.divScalar(dragonVolume.size, 2), m);
+  // mat4.translate(m, vec3.divScalar(dragonVolume.size, -2), m);
+  // return new VoxelObject(m, dragonVolume.size, atlasLocation);
 };
 
 const updateInnerBox = (
@@ -94,20 +92,20 @@ const getObjectTransforms = ({
   translateX,
   rotateY,
 }: GetObjectsArgs) => {
-  updateInnerBox(foo, rotateY, translateX, scale * 0.5);
-  // updateInnerBox(teaPot2, rotateY, translateX, scale);
-  let voxelObjects = [foo, ...teaPots];
-  let activeVoxelObjects = voxelObjects;
-  activeVoxelObjects = activeVoxelObjects.slice(0, voxelObjects.length);
-  const differenceInObjectCount = maxObjectCount - voxelObjects.length;
-  const padding = new Array(differenceInObjectCount).fill(paddingElement);
-  voxelObjects = [...activeVoxelObjects, ...padding];
-  return voxelObjects;
+  // updateInnerBox(foo, rotateY, translateX, scale * 0.5);
+  // // updateInnerBox(teaPot2, rotateY, translateX, scale);
+  // let voxelObjects = [foo, ...teaPots];
+  // let activeVoxelObjects = voxelObjects;
+  // activeVoxelObjects = activeVoxelObjects.slice(0, voxelObjects.length);
+  // const differenceInObjectCount = maxObjectCount - voxelObjects.length;
+  // const padding = new Array(differenceInObjectCount).fill(paddingElement);
+  // voxelObjects = [...activeVoxelObjects, ...padding];
+  // return voxelObjects;
 };
 
 ctx.onmessage = (event: MessageEvent<GetObjectsArgs>) => {
-  const result = getObjectTransforms(event.data).flatMap((voxelObject) =>
-    voxelObject.toArray(),
-  );
-  ctx.postMessage(result);
+  // const result = getObjectTransforms(event.data).flatMap((voxelObject) =>
+  //   voxelObject.toArray(),
+  // );
+  // ctx.postMessage(result);
 };

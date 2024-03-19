@@ -6,7 +6,6 @@ import boxIntersection from "../shader/box-intersection.wgsl";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import bvh from "../shader/bvh.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
-import treeHouse from "../voxel-models/tavern.vxm";
 
 import {
   camera,
@@ -16,7 +15,6 @@ import {
   RenderPass,
   RenderArgs,
 } from "../app";
-import cornellBox from "../voxel-models/cornell.vxm";
 
 export type OutputTextures = {
   finalTexture: GPUTexture;
