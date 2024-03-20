@@ -1,5 +1,6 @@
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SHADOW_ACNE_OFFSET: f32 = 0.0005;
+const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 
 fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>) -> bool {
   return rayMarchBVH(worldPos, shadowRayDirection).hit;
@@ -98,7 +99,7 @@ fn main(
     }
     count += 1.0;
   }
-
+  total += SKY_COLOUR * 0.2;
   let shadowAmount = total / count;
   textureStore(outputTex, outputPixel, vec4(shadowAmount, 1.0));
 }
