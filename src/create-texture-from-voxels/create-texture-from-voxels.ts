@@ -37,6 +37,8 @@ export const createTextureFromVoxels = (
     dimension: "3d",
   });
 
+  console.log({ voxels });
+
   const voxelsBuffer = device.createBuffer({
     size: voxels.XYZI.length * 4 * 4,
     usage:

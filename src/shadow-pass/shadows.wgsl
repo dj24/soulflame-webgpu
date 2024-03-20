@@ -3,28 +3,6 @@ const SHADOW_ACNE_OFFSET: f32 = 0.0005;
 
 fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>) -> bool {
   return rayMarchBVH(worldPos, shadowRayDirection).hit;
-//  for(var i = 0; i < VOXEL_OBJECT_COUNT; i++){
-//      let voxelObject = voxelObjects[i];
-//      if(any(voxelObject.size == vec3(0.0))){
-//        continue;
-//      }
-//      var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(worldPos, 1.0)).xyz;
-//      let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(shadowRayDirection, 0.0)).xyz;
-//      let intersect = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5);
-//      let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size);
-//      if(!intersect.isHit && !isInBounds) {
-//        continue;
-//      }
-//      // Advance ray origin to the point of intersection
-//      if(!isInBounds){
-//        objectRayOrigin = objectRayOrigin + objectRayDirection * intersect.tNear + EPSILON;
-//      }
-//      let output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
-//      if(output.hit){
-//        return true;
-//      }
-//  }
-//  return false;
 }
 
 
@@ -71,7 +49,6 @@ fn main(
 ) {
   let samplePixel = GlobalInvocationID.xy * DOWNSCALE;
   let outputPixel = GlobalInvocationID.xy;
-
   var blueNoisePixel = outputPixel % BLUE_NOISE_SIZE;
   if(time.frame % 2 == 0){
     blueNoisePixel.x = BLUE_NOISE_SIZE - blueNoisePixel.x;
@@ -81,11 +58,8 @@ fn main(
   let uv = vec2<f32>(outputPixel) / resolution;
   var normalSample = textureLoad(normalTex, samplePixel, 0).rgb;
   let worldPos = textureLoad(worldPosTex, samplePixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
-
-
   let randomCo = vec2<f32>(samplePixel);
-
-  let scatterAmount = 0.04;
+  let scatterAmount = 0.01;
   var total = vec3(0.0);
   var count = 0.0;
 
@@ -135,28 +109,29 @@ fn composite(
 ) {
   let texSize = vec2<f32>(textureDimensions(outputTex));
   let pixel = GlobalInvocationID.xy;
-  let uv = vec2<f32>(pixel) / texSize;
+  let uv = (vec2<f32>(pixel) - vec2(0.5)) / texSize;
 //  let shadowAmount = 1.0 - textureSampleLevel(intermediaryTexture, linearSampler, uv, 0.0);
   let inputSample = textureLoad(inputTex, pixel, 0);
-  let depthRef = textureLoad(depthTex, pixel, 0).a;
-  let normalRef = textureLoad(normalTex, pixel, 0).rgb;
-  var total = vec3(0.0);
-  var count = 0.0;
-
-  for(var i = 2; i < 3; i+= 1) {
-    for(var j = 2; j < 3; j += 1) {
-      let offset = vec2(f32(i), f32(j)) / texSize;
-      let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, uv + offset, 0.0).rgb;
-//      let depthSample = textureLoad(depthTex, vec2<i32>(pixel) + vec2(i, j), 0).a;
-//      let normalSample = textureLoad(normalTex, vec2<i32>(pixel) + vec2(i, j), 0).rgb;
-      // bilateral blur
-      let gaussianWeight = exp(-(f32(i * i) + f32(j * j)) * 0.01);
-//      let normalDifference = dot(normalSample, normalRef);
-//      let normalWeight = 1.0 - exp(-normalDifference * normalDifference * 10.0);
-      total += shadowSample;
-      count += 1.0;
-    }
-  }
-  total /= count;
-  textureStore(outputTex, pixel, inputSample * vec4(total,1));
+//  let depthRef = textureLoad(depthTex, pixel, 0).a;
+//  let normalRef = textureLoad(normalTex, pixel, 0).rgb;
+//  var total = vec3(0.0);
+//  var count = 0.0;
+//
+//  for(var i = 2; i < 3; i+= 1) {
+//    for(var j = 2; j < 3; j += 1) {
+//      let offset = vec2(f32(i), f32(j)) / texSize;
+//      let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, uv + offset, 0.0).rgb;
+////      let depthSample = textureLoad(depthTex, vec2<i32>(pixel) + vec2(i, j), 0).a;
+////      let normalSample = textureLoad(normalTex, vec2<i32>(pixel) + vec2(i, j), 0).rgb;
+//      // bilateral blur
+//      let gaussianWeight = exp(-(f32(i * i) + f32(j * j)) * 0.01);
+////      let normalDifference = dot(normalSample, normalRef);
+////      let normalWeight = 1.0 - exp(-normalDifference * normalDifference * 10.0);
+//      total += shadowSample;
+//      count += 1.0;
+//    }
+//  }
+//  total /= count;
+//  textureStore(outputTex, pixel, inputSample * vec4(total,1));
+  textureStore(outputTex, pixel, textureLoad(intermediaryTexture, pixel, 0) * inputSample);
 }

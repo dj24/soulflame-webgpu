@@ -31,6 +31,7 @@ import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
 import { getWaterPass } from "./water-pass/get-water-pass";
 import { getHelloTrianglePass } from "./hello-triangle/get-hello-triangle-pass";
 import { getTaaPass } from "./taa-pass/get-taa-pass";
+import { getReflectionsPass } from "./reflections-pass/get-reflections-pass";
 
 export type RenderArgs = {
   enabled?: boolean;
@@ -569,12 +570,13 @@ const start = async () => {
 
   const computePassPromises: Promise<RenderPass>[] = [
     getHelloTrianglePass(),
-    getShadowsPass(),
+    getReflectionsPass(),
+    // getShadowsPass(),
     getSkyPass(),
-    getMotionBlurPass(),
+    // getMotionBlurPass(),
     // getGBufferPass(),
     // getDiffusePass(),
-    // getReflectionsPass(),
+
     // getVolumetricFog(),
     // getTaaPass(),
     // getBoxOutlinePass(),
