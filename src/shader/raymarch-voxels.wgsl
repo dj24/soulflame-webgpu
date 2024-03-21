@@ -108,6 +108,9 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
     let mipSample3 = textureLoad(voxels, mip3SamplePosition, 3);
     let mipSample4 = textureLoad(voxels, mip3SamplePosition, 4);
 
+    output.colour = objectPos / vec3<f32>(voxelObject.size);
+//output.colour = vec3(f32(i) / f32(MAX_RAY_STEPS));
+
     if(mipSample0.a > 0.0 && isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
 //    if(true){
         output.objectPos = objectPos;

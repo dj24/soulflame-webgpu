@@ -108,12 +108,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     },
     primitive: {
       topology: "triangle-list",
-      cullMode: "back", // TODO: reverse faces and cull front so we can see the inside of the light volume
-    },
-    depthStencil: {
-      depthWriteEnabled: true,
-      depthCompare: "less",
-      format: "depth32float",
+      cullMode: "front", // TODO: reverse faces and cull front so we can see the inside of the light volume
     },
   });
 
@@ -155,12 +150,6 @@ export const getLightsPass = async (): Promise<RenderPass> => {
           storeOp: "store",
         },
       ],
-      depthStencilAttachment: {
-        view: outputTextures.depthTexture.createView(),
-        depthClearValue: 1.0,
-        depthLoadOp: "load",
-        depthStoreOp: "store",
-      },
       timestampWrites,
     });
     passEncoder.setPipeline(pipeline);

@@ -5,7 +5,6 @@
 
 const LIGHT_CENTER = vec3(-15, 3.5, -45);
 const LIGHT_RADIUS = 4.0;
-const LIGHT_INTENSITY = 1.0;
 const LIGHT_COLOR = vec3(1.0, 0.8, 0.5);
 
 @fragment
@@ -17,10 +16,10 @@ fn main(
   let albedo = textureSample(albedoTex, nearestSampler, screenUV).rgb;
   let distanceToLight = length(worldPos - LIGHT_CENTER);
   if(distanceToLight > LIGHT_RADIUS) {
-    return vec4(0.0, 0.0, 0.0, 1.0); //
-//    discard;
+//    return vec4(0.0, 0.0, 0.0, 1.0);
+    discard;
   }
   let falloff = LIGHT_RADIUS / (distanceToLight * distanceToLight);
-  let lightColor = LIGHT_COLOR * falloff * LIGHT_INTENSITY;
+  let lightColor = LIGHT_COLOR * falloff;
   return vec4(lightColor * albedo, 1.0);
 }

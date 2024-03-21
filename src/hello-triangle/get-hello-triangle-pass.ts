@@ -54,6 +54,14 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
           type: "read-only-storage",
         },
       },
+      // Camera position
+      {
+        binding: 5,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: {
+          type: "uniform",
+        },
+      },
     ],
   });
 
@@ -107,7 +115,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     },
     primitive: {
       topology: "triangle-list",
-      cullMode: "back",
+      cullMode: "front",
     },
     depthStencil: {
       depthWriteEnabled: true,
@@ -125,6 +133,12 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     timestampWrites,
     cameraPositionBuffer,
   }: RenderArgs) => {
+    const sortedVoxelObjectsFrontToBack = voxelObjects.sort((a, b) => {
+      const aDist = vec3.distance(a.worldSpaceCenter, camera.position);
+      const bDist = vec3.distance(b.worldSpaceCenter, camera.position);
+      return aDist - bDist;
+    });
+
     const passEncoder = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
@@ -163,25 +177,25 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     passEncoder.setPipeline(pipeline);
 
     const verticesBuffer = device.createBuffer({
-      size: 576 * voxelObjects.length,
+      size: 576 * sortedVoxelObjectsFrontToBack.length,
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
     });
     const modelViewProjectionMatrixBuffer = device.createBuffer({
-      size: 256 * voxelObjects.length,
+      size: 256 * sortedVoxelObjectsFrontToBack.length,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
     const modelMatrixBuffer = device.createBuffer({
-      size: 256 * voxelObjects.length,
+      size: 256 * sortedVoxelObjectsFrontToBack.length,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
     const voxelObjectBuffer = device.createBuffer({
-      size: 512 * voxelObjects.length,
+      size: 512 * sortedVoxelObjectsFrontToBack.length,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
 
     let bindGroups = [];
 
-    for (let i = 0; i < voxelObjects.length; i++) {
+    for (let i = 0; i < sortedVoxelObjectsFrontToBack.length; i++) {
       const bindGroup = device.createBindGroup({
         layout: bindGroupLayout,
         entries: [
@@ -216,11 +230,17 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
               offset: 512 * i,
             },
           },
+          {
+            binding: 5,
+            resource: {
+              buffer: cameraPositionBuffer,
+            },
+          },
         ],
       });
       bindGroups.push(bindGroup);
 
-      const voxelObject = voxelObjects[i];
+      const voxelObject = sortedVoxelObjectsFrontToBack[i];
       const vp = mat4.mul(
         mat4.scale(camera.projectionMatrix, [-1, 1, 1]),
         camera.viewMatrix,
@@ -259,7 +279,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
       );
     }
 
-    for (let i = 0; i < voxelObjects.length; i++) {
+    for (let i = 0; i < sortedVoxelObjectsFrontToBack.length; i++) {
       const bindGroup = bindGroups[i];
       passEncoder.setVertexBuffer(0, verticesBuffer, 576 * i, 576);
       passEncoder.setBindGroup(0, bindGroup);
@@ -270,7 +290,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
 
     commandEncoder.copyTextureToTexture(
       {
-        texture: outputTextures.albedoTexture, // TODO: pass texture as well as view
+        texture: outputTextures.albedoTexture,
       },
       {
         texture: outputTextures.finalTexture,

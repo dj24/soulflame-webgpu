@@ -9,6 +9,7 @@ struct ViewProjectionMatrices {
 @group(0) @binding(2) var<uniform> viewProjections : ViewProjectionMatrices;
 @group(0) @binding(3) var voxels : texture_3d<f32>;
 @group(0) @binding(4) var<storage> voxelObject : VoxelObject;
+@group(0) @binding(5) var<uniform> cameraPosition : vec3<f32>;
 
 const IDENTITY_MATRIX = mat4x4<f32>(
   vec4<f32>(1.0, 0.0, 0.0, 0.0),
@@ -46,10 +47,11 @@ fn getVelocity(rayMarchResult: RayMarchResult, viewProjections: ViewProjectionMa
 }
 
 
+// TODO: output depth
 @fragment
 fn main(
    @location(0) objectPos : vec3f,
-   @location(1) worldPos : vec3f,
+//   @location(1) worldPos : vec3f,
     @location(2) @interpolate(linear) ndc : vec3f
 ) -> GBufferOutput
  {
@@ -57,9 +59,13 @@ fn main(
     var screenUV = ndc.xy * 0.5 + 0.5;
     var inverseViewProjection = viewProjections.inverseViewProjection;
     let rayDirection = calculateRayDirection(screenUV,inverseViewProjection);
-    let result = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);
+    var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(cameraPosition, 1.0)).xyz;
+    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+    let distanceToOBB = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size).tNear;
+    objectRayOrigin = objectRayOrigin + objectRayDirection * distanceToOBB - 0.001;
+    let result = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
     if(!result.hit){
-      discard;
+//      discard;
     }
     output.albedo = vec4(result.colour, 1);
     output.normal = vec4(result.normal, 1);

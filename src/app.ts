@@ -572,9 +572,9 @@ const start = async () => {
   const computePassPromises: Promise<RenderPass>[] = [
     getHelloTrianglePass(),
     // getReflectionsPass(),
-    getShadowsPass(),
-    getLightsPass(),
-    getSkyPass(),
+    // getShadowsPass(),
+    // getLightsPass(),
+    // getSkyPass(),
     // getMotionBlurPass(),
     // getGBufferPass(),
     // getDiffusePass(),
