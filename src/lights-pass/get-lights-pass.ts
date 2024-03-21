@@ -16,7 +16,7 @@ import { getCuboidVertices } from "../primitive-meshes/cuboid";
 import { getSphereVertices } from "../primitive-meshes/sphere";
 
 const light = {
-  position: [-30, 8, -50],
+  position: [-15, 3.5, -45],
   size: 2,
   color: [1, 1, 1],
   intensity: 1,
@@ -33,11 +33,36 @@ export const getLightsPass = async (): Promise<RenderPass> => {
         },
       },
       {
+        binding: 1,
+        visibility: GPUShaderStage.FRAGMENT,
+        sampler: {
+          type: "non-filtering",
+        },
+      },
+      // World positions texture
+      {
+        binding: 2,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: {
+          sampleType: "unfilterable-float",
+          viewDimension: "2d",
+        },
+      },
+      {
         binding: 3,
         visibility: GPUShaderStage.FRAGMENT,
         texture: {
           sampleType: "float",
           viewDimension: "3d",
+        },
+      },
+      // Albedo texture
+      {
+        binding: 4,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: {
+          sampleType: "float",
+          viewDimension: "2d",
         },
       },
     ],
@@ -83,7 +108,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     },
     primitive: {
       topology: "triangle-list",
-      cullMode: "back",
+      cullMode: "back", // TODO: reverse faces and cull front so we can see the inside of the light volume
     },
     depthStencil: {
       depthWriteEnabled: true,
@@ -105,6 +130,12 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     vertices.byteOffset,
     vertices.byteLength,
   );
+
+  const nearestSampler = device.createSampler({
+    magFilter: "nearest",
+    minFilter: "nearest",
+    mipmapFilter: "nearest",
+  });
 
   const render = ({
     commandEncoder,
@@ -153,8 +184,20 @@ export const getLightsPass = async (): Promise<RenderPass> => {
             },
           },
           {
+            binding: 1,
+            resource: nearestSampler,
+          },
+          {
+            binding: 2,
+            resource: outputTextures.worldPositionTexture.createView(),
+          },
+          {
             binding: 3,
             resource: voxelTextureView,
+          },
+          {
+            binding: 4,
+            resource: outputTextures.albedoTexture.createView(),
           },
         ],
       });
