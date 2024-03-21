@@ -95,7 +95,8 @@ fn main(
       total += vec3(0.0);
     } else{
       let rayDirection = normalize(worldPos - cameraPosition);
-      total += blinnPhong(normalSample, shadowRayDirection, rayDirection, 0.5, 80.0, selectedLight.colour);
+      total += selectedLight.colour;
+//      total += blinnPhong(normalSample, shadowRayDirection, rayDirection, 0.5, 80.0, selectedLight.colour);
     }
     count += 1.0;
   }

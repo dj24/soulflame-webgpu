@@ -32,6 +32,7 @@ import { getWaterPass } from "./water-pass/get-water-pass";
 import { getHelloTrianglePass } from "./hello-triangle/get-hello-triangle-pass";
 import { getTaaPass } from "./taa-pass/get-taa-pass";
 import { getReflectionsPass } from "./reflections-pass/get-reflections-pass";
+import { getLightsPass } from "./lights-pass/get-lights-pass";
 
 export type RenderArgs = {
   enabled?: boolean;
@@ -572,6 +573,7 @@ const start = async () => {
     getHelloTrianglePass(),
     // getReflectionsPass(),
     getShadowsPass(),
+    getLightsPass(),
     getSkyPass(),
     // getMotionBlurPass(),
     // getGBufferPass(),
