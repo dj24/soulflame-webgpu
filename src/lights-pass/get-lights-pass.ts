@@ -11,13 +11,13 @@ import lightsVert from "./lights.vert.wgsl";
 import { mat4 } from "wgpu-matrix";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import boxIntersection from "../shader/box-intersection.wgsl";
-import getRayDirection from "../shader/get-ray-direction.wgsl";
-import { getCuboidVertices } from "../primitive-meshes/cuboid";
+import randomCommon from "../random-common.wgsl";
+import bvh from "../shader/bvh.wgsl";
 import { getSphereVertices } from "../primitive-meshes/sphere";
 
 const light = {
-  position: [-15, 3.5, -45],
-  size: 2,
+  position: [-12, 3.5, -45],
+  size: 3,
   color: [1, 1, 1],
   intensity: 1,
 };
@@ -65,6 +65,31 @@ export const getLightsPass = async (): Promise<RenderPass> => {
           viewDimension: "2d",
         },
       },
+      // Transformation matrices
+      {
+        binding: 5,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: {
+          type: "read-only-storage",
+        },
+      },
+      // BVH buffer
+      {
+        binding: 6,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: {
+          type: "read-only-storage",
+        },
+      },
+      // Normal texture
+      {
+        binding: 7,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: {
+          sampleType: "float",
+          viewDimension: "2d",
+        },
+      },
     ],
   });
 
@@ -97,13 +122,30 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     fragment: {
       module: device.createShaderModule({
         code: `
+        ${randomCommon}
+        ${boxIntersection}
+        ${raymarchVoxels}
+        ${bvh}
         ${lightsFrag}
         `,
       }),
       entryPoint: "main",
       targets: [
         // albedo
-        { format: "rgba8unorm" },
+        {
+          format: "rgba8unorm",
+          blend: {
+            color: {
+              srcFactor: "src-alpha",
+              dstFactor: "dst-alpha",
+              operation: "add",
+            },
+            alpha: {
+              srcFactor: "one",
+              dstFactor: "one-minus-src-alpha",
+            },
+          },
+        },
       ],
     },
     primitive: {
@@ -140,6 +182,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     viewProjectionMatricesBuffer,
     timestampWrites,
     cameraPositionBuffer,
+    bvhBuffer,
   }: RenderArgs) => {
     const passEncoder = commandEncoder.beginRenderPass({
       colorAttachments: [
@@ -187,6 +230,22 @@ export const getLightsPass = async (): Promise<RenderPass> => {
           {
             binding: 4,
             resource: outputTextures.albedoTexture.createView(),
+          },
+          {
+            binding: 5,
+            resource: {
+              buffer: transformationMatrixBuffer,
+            },
+          },
+          {
+            binding: 6,
+            resource: {
+              buffer: bvhBuffer,
+            },
+          },
+          {
+            binding: 7,
+            resource: outputTextures.normalTexture.createView(),
           },
         ],
       });

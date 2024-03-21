@@ -61,19 +61,16 @@ fn main(
     let rayDirection = calculateRayDirection(screenUV,inverseViewProjection);
 
 
-    let orientationMatrix = get3x3From4x4(voxelObject.inverseTransform);
-    let distanceToOBB = intersectOBB(cameraPosition, rayDirection, voxelObject.size, orientationMatrix).tNear;
+    var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(cameraPosition, 1.0)).xyz;
+    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+    let tNear = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5).tNear + EPSILON;;
+    let worldPos = transformPosition(voxelObject.transform, objectRayOrigin + objectRayDirection * tNear);
 
-//    var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(cameraPosition, 1.0)).xyz;
-//    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-//    let distanceToOBB = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size).tNear;
-//    objectRayOrigin = objectRayOrigin + objectRayDirection * distanceToOBB;
-//    let result = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
-
-    let result = rayMarchAtMip(voxelObject, rayDirection, cameraPosition + rayDirection * distanceToOBB, 0);
+    let result = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);
     if(!result.hit){
-//      discard;
+      discard;
     }
+//    output.albedo = vec4(abs(result.worldPos) % 1.0, 1);
     output.albedo = vec4(result.colour, 1);
     output.normal = vec4(result.normal, 1);
     output.worldPosition = vec4(result.worldPos, 1);
