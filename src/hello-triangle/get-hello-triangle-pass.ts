@@ -14,6 +14,7 @@ import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import boxIntersection from "../shader/box-intersection.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
 import { getCuboidVertices } from "../primitive-meshes/cuboid";
+import { VoxelObject } from "../voxel-object";
 
 export const getHelloTrianglePass = async (): Promise<RenderPass> => {
   const bindGroupLayout = device.createBindGroupLayout({
@@ -123,6 +124,14 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
       format: "depth32float",
     },
   });
+
+  const getClosestCornerToCamera = (voxelObject: VoxelObject) => {
+    return voxelObject.worldSpaceCorners.sort((a, b) => {
+      const aDist = vec3.distance(a, camera.position);
+      const bDist = vec3.distance(b, camera.position);
+      return aDist - bDist;
+    })[0];
+  };
 
   const render = ({
     commandEncoder,

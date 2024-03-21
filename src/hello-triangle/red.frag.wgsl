@@ -59,11 +59,18 @@ fn main(
     var screenUV = ndc.xy * 0.5 + 0.5;
     var inverseViewProjection = viewProjections.inverseViewProjection;
     let rayDirection = calculateRayDirection(screenUV,inverseViewProjection);
-    var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(cameraPosition, 1.0)).xyz;
-    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-    let distanceToOBB = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size).tNear;
-    objectRayOrigin = objectRayOrigin + objectRayDirection * distanceToOBB - 0.001;
-    let result = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
+
+
+    let orientationMatrix = get3x3From4x4(voxelObject.inverseTransform);
+    let distanceToOBB = intersectOBB(cameraPosition, rayDirection, voxelObject.size, orientationMatrix).tNear;
+
+//    var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(cameraPosition, 1.0)).xyz;
+//    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+//    let distanceToOBB = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size).tNear;
+//    objectRayOrigin = objectRayOrigin + objectRayDirection * distanceToOBB;
+//    let result = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
+
+    let result = rayMarchAtMip(voxelObject, rayDirection, cameraPosition + rayDirection * distanceToOBB, 0);
     if(!result.hit){
 //      discard;
     }
