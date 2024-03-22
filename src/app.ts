@@ -205,7 +205,9 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         size: [resolution[0], resolution[1], 1],
         format: "depth32float",
         usage:
-          GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.RENDER_ATTACHMENT |
+          GPUTextureUsage.COPY_SRC,
       });
     }
     return depthTexture;

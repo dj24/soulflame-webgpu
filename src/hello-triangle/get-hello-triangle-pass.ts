@@ -125,14 +125,6 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     },
   });
 
-  const getClosestCornerToCamera = (voxelObject: VoxelObject) => {
-    return voxelObject.worldSpaceCorners.sort((a, b) => {
-      const aDist = vec3.distance(a, camera.position);
-      const bDist = vec3.distance(b, camera.position);
-      return aDist - bDist;
-    })[0];
-  };
-
   const render = ({
     commandEncoder,
     outputTextures,
@@ -149,42 +141,39 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     // });
     const sortedVoxelObjectsFrontToBack = voxelObjects;
 
-    const passEncoder = commandEncoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view: outputTextures.albedoTexture.createView(),
-          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-          loadOp: "clear",
-          storeOp: "store",
-        },
-        {
-          view: outputTextures.normalTexture.createView(),
-          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-          loadOp: "clear",
-          storeOp: "store",
-        },
-        {
-          view: outputTextures.worldPositionTexture.createView(),
-          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-          loadOp: "clear",
-          storeOp: "store",
-        },
-        {
-          view: outputTextures.velocityTexture.createView(),
-          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-          loadOp: "clear",
-          storeOp: "store",
-        },
-      ],
-      depthStencilAttachment: {
-        view: outputTextures.depthTexture.createView(),
-        depthClearValue: 1.0,
-        depthLoadOp: "clear",
-        depthStoreOp: "store",
+    const colorAttachments: GPURenderPassColorAttachment[] = [
+      {
+        view: outputTextures.albedoTexture.createView(),
+        clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+        loadOp: "clear",
+        storeOp: "store",
       },
-      timestampWrites,
-    });
-    passEncoder.setPipeline(pipeline);
+      {
+        view: outputTextures.normalTexture.createView(),
+        clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+        loadOp: "clear",
+        storeOp: "store",
+      },
+      {
+        view: outputTextures.worldPositionTexture.createView(),
+        clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+        loadOp: "clear",
+        storeOp: "store",
+      },
+      {
+        view: outputTextures.velocityTexture.createView(),
+        clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+        loadOp: "clear",
+        storeOp: "store",
+      },
+    ];
+
+    const depthStencilAttachment: GPURenderPassDepthStencilAttachment = {
+      view: outputTextures.depthTexture.createView(),
+      depthClearValue: 1.0,
+      depthLoadOp: "clear",
+      depthStoreOp: "store",
+    };
 
     const verticesBuffer = device.createBuffer({
       size: 576 * sortedVoxelObjectsFrontToBack.length,
@@ -288,6 +277,12 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
         vertices.byteLength,
       );
     }
+
+    const passEncoder = commandEncoder.beginRenderPass({
+      colorAttachments,
+      depthStencilAttachment,
+    });
+    passEncoder.setPipeline(pipeline);
 
     for (let i = 0; i < sortedVoxelObjectsFrontToBack.length; i++) {
       const bindGroup = bindGroups[i];

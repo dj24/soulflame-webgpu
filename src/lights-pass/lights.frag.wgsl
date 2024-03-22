@@ -26,11 +26,12 @@ fn main(
     discard;
   }
   let attenuation = pow(LIGHT_RADIUS - normalisedDistance, 2) * LIGHT_INTENSITY;
-  let shadowRayDirection = normalize(jitteredLightCenter - worldPos);
-  let rayMarchResult = rayMarchBVH(worldPos, shadowRayDirection);
-  let rayMarchedDistance = distance(worldPos, rayMarchResult.worldPos);
-  if(rayMarchedDistance <= distanceToLight) {
-    discard;
-  }
+  // TODO: fix bvh before enabling this again
+//  let shadowRayDirection = normalize(jitteredLightCenter - worldPos);
+//  let rayMarchResult = rayMarchBVH(worldPos, shadowRayDirection);
+//  let rayMarchedDistance = distance(worldPos, rayMarchResult.worldPos);
+//  if(rayMarchedDistance <= distanceToLight) {
+//    discard;
+//  }
   return vec4(LIGHT_COLOR * albedo, attenuation);
 }
