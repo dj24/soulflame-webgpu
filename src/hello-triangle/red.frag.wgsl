@@ -72,7 +72,7 @@ fn main(
 
     var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(cameraPosition, 1.0)).xyz;
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-    let tNear = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5).tNear + EPSILON;;
+    let tNear = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5).tNear - EPSILON;
     let worldPos = transformPosition(voxelObject.transform, objectRayOrigin + objectRayDirection * tNear);
 
     let result = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);
@@ -91,6 +91,6 @@ fn main(
     let far = 10000.0;
     let linearDepth = normaliseValue(near, far, raymarchedDistance);
     output.depth = linearDepth;
-//    output.albedo = vec4(linearDepth * 100.0);
+//    output.albedo = vec4(output.normal);
     return output;
 }

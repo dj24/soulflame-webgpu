@@ -11,16 +11,61 @@ import lightsVert from "./lights.vert.wgsl";
 import { mat4 } from "wgpu-matrix";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import boxIntersection from "../shader/box-intersection.wgsl";
+import getRayDirection from "../shader/get-ray-direction.wgsl";
 import randomCommon from "../random-common.wgsl";
 import bvh from "../shader/bvh.wgsl";
 import { getSphereVertices } from "../primitive-meshes/sphere";
 
-const light = {
-  position: [-12, 3.5, -45],
-  size: 3,
-  color: [1, 1, 1],
-  intensity: 1,
+type Light = {
+  position: [number, number, number];
+  size: number;
+  color: [number, number, number];
 };
+
+const lights: Light[] = [
+  {
+    color: [0.0, 1.0, 0.0],
+    position: [-12, 4.5, -45],
+    size: 3,
+  },
+  {
+    color: [1, 0, 0.0],
+    position: [-10, 6.5, -45],
+    size: 3,
+  },
+  {
+    color: [0, 0, 1],
+    position: [-24, 4.5, -45],
+    size: 3,
+  },
+  {
+    color: [0, 1, 0],
+    position: [-28, 5.5, -42],
+    size: 2,
+  },
+  {
+    color: [1.0, 0.0, 0.0],
+    position: [-32, 4.5, -43],
+    size: 2.5,
+  },
+];
+
+const lightToArrayBuffer = (light: Light) => {
+  const arrayBuffer = new ArrayBuffer(48);
+  const lightDataView = new DataView(arrayBuffer);
+  lightDataView.setFloat32(0, light.position[0], true);
+  lightDataView.setFloat32(4, light.position[1], true);
+  lightDataView.setFloat32(8, light.position[2], true);
+  lightDataView.setFloat32(16, light.color[0], true);
+  lightDataView.setFloat32(20, light.color[1], true);
+  lightDataView.setFloat32(24, light.color[2], true);
+  lightDataView.setFloat32(32, light.size, true);
+  return arrayBuffer;
+};
+
+const lightStride = 48;
+const vertexStride = 16;
+const verticesPerLight = getSphereVertices(1).length;
 
 export const getLightsPass = async (): Promise<RenderPass> => {
   const bindGroupLayout = device.createBindGroupLayout({
@@ -90,6 +135,22 @@ export const getLightsPass = async (): Promise<RenderPass> => {
           viewDimension: "2d",
         },
       },
+      // Light buffer
+      {
+        binding: 8,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: {
+          type: "uniform",
+        },
+      },
+      // View projection matrices
+      {
+        binding: 9,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: {
+          type: "uniform",
+        },
+      },
     ],
   });
 
@@ -107,7 +168,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
       entryPoint: "main",
       buffers: [
         {
-          arrayStride: 16,
+          arrayStride: vertexStride,
           attributes: [
             {
               // position
@@ -122,6 +183,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     fragment: {
       module: device.createShaderModule({
         code: `
+        ${getRayDirection}
         ${randomCommon}
         ${boxIntersection}
         ${raymarchVoxels}
@@ -154,24 +216,25 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     },
   });
 
-  // const vertices = getCuboidVertices(light.size);
-  const vertices = getSphereVertices(light.size);
-  const verticesBuffer = device.createBuffer({
-    size: vertices.byteLength,
-    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-  });
-  device.queue.writeBuffer(
-    verticesBuffer,
-    0,
-    vertices.buffer,
-    vertices.byteOffset,
-    vertices.byteLength,
-  );
-
   const nearestSampler = device.createSampler({
     magFilter: "nearest",
     minFilter: "nearest",
     mipmapFilter: "nearest",
+  });
+
+  const verticesBuffer = device.createBuffer({
+    size: vertexStride * verticesPerLight * lights.length,
+    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+  });
+
+  const lightBuffer = device.createBuffer({
+    size: 256 * lights.length,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+
+  const modelViewProjectionMatrixBuffer = device.createBuffer({
+    size: 256 * lights.length,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
   const render = ({
@@ -181,7 +244,6 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     voxelTextureView,
     viewProjectionMatricesBuffer,
     timestampWrites,
-    cameraPositionBuffer,
     bvhBuffer,
   }: RenderArgs) => {
     const passEncoder = commandEncoder.beginRenderPass({
@@ -197,14 +259,23 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     });
     passEncoder.setPipeline(pipeline);
 
-    const modelViewProjectionMatrixBuffer = device.createBuffer({
-      size: 256,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
-
     let bindGroups = [];
 
-    for (let i = 0; i < 1; i++) {
+    for (let i = 0; i < lights.length; i++) {
+      const light = lights[i];
+      const vertices = getSphereVertices(light.size);
+      const bufferOffset = i * 256;
+      device.queue.writeBuffer(
+        verticesBuffer,
+        i * vertexStride * verticesPerLight,
+        vertices.buffer,
+        vertices.byteOffset,
+      );
+      device.queue.writeBuffer(
+        lightBuffer,
+        bufferOffset,
+        lightToArrayBuffer(light),
+      );
       const bindGroup = device.createBindGroup({
         layout: bindGroupLayout,
         entries: [
@@ -212,7 +283,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
             binding: 0,
             resource: {
               buffer: modelViewProjectionMatrixBuffer,
-              offset: 256 * i,
+              offset: bufferOffset,
             },
           },
           {
@@ -247,6 +318,19 @@ export const getLightsPass = async (): Promise<RenderPass> => {
             binding: 7,
             resource: outputTextures.normalTexture.createView(),
           },
+          {
+            binding: 8,
+            resource: {
+              buffer: lightBuffer,
+              offset: bufferOffset,
+            },
+          },
+          {
+            binding: 9,
+            resource: {
+              buffer: viewProjectionMatricesBuffer,
+            },
+          },
         ],
       });
       bindGroups.push(bindGroup);
@@ -261,17 +345,25 @@ export const getLightsPass = async (): Promise<RenderPass> => {
       const mvp = new Float32Array(mat4.mul(vp, m));
       device.queue.writeBuffer(
         modelViewProjectionMatrixBuffer,
-        256 * i,
+        bufferOffset,
         mvp.buffer,
         mvp.byteOffset,
         mvp.byteLength,
       );
     }
 
-    const bindGroup = bindGroups[0];
-    passEncoder.setVertexBuffer(0, verticesBuffer, 0, vertices.byteLength);
-    passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.draw(vertices.length / 4);
+    for (let i = 0; i < lights.length; i++) {
+      const bindGroup = bindGroups[i];
+      passEncoder.setVertexBuffer(
+        0,
+        verticesBuffer,
+        vertexStride * verticesPerLight * i,
+        vertexStride * verticesPerLight,
+      );
+      passEncoder.setBindGroup(0, bindGroup);
+      passEncoder.draw(verticesPerLight);
+    }
+
     passEncoder.end();
 
     return [commandEncoder.finish()];

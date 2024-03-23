@@ -281,6 +281,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     const passEncoder = commandEncoder.beginRenderPass({
       colorAttachments,
       depthStencilAttachment,
+      timestampWrites,
     });
     passEncoder.setPipeline(pipeline);
 

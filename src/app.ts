@@ -73,8 +73,8 @@ const startingCameraFieldOfView = 90 * (Math.PI / 180);
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
   // position: vec3.create(-25, 10, -70),
-  position: vec3.create(-30, 10, -70),
-  direction: vec3.create(),
+  position: vec3.create(-40, 6, -49),
+  direction: vec3.create(0.6, 0, -0.3),
 });
 
 const debugUI = new DebugUI();

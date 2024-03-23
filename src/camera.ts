@@ -19,7 +19,9 @@ export class Camera extends MoveableObject {
   }) {
     super({
       position: options.position,
-      rotation: quat.identity(),
+      rotation: quat.fromMat(
+        mat4.lookAt(vec3.create(), options.direction, vec3.create(0, 1, 0)),
+      ),
     });
     this.fieldOfView = options.fieldOfView;
   }
