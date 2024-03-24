@@ -2,6 +2,7 @@ import { debugValues, device, RenderArgs, RenderPass } from "../app";
 import boxIntersection from "../shader/box-intersection.wgsl";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import bvh from "../shader/bvh.wgsl";
+import bvhCoarse from "../shader/bvh-coarse.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
 import randomCommon from "../random-common.wgsl";
 import matrices from "../shader/matrices.wgsl";
@@ -139,6 +140,14 @@ const worldPosEntry: GPUBindGroupLayoutEntry = {
   },
 };
 
+const albedoEntry: GPUBindGroupLayoutEntry = {
+  binding: 17,
+  visibility: GPUShaderStage.COMPUTE,
+  texture: {
+    sampleType: "float",
+  },
+};
+
 export const baseBindGroupLayoutEntries = [
   depthEntry,
   inputTextureEntry,
@@ -156,6 +165,7 @@ export const baseBindGroupLayoutEntries = [
   velocityAndWaterEntry,
   bvhBufferEntry,
   worldPosEntry,
+  albedoEntry,
 ];
 
 const NUM_THREADS_X = 8;
@@ -219,8 +229,8 @@ struct Time {
 @group(0) @binding(14) var velocityAndWaterTex : texture_2d<f32>;
 @group(0) @binding(15) var<storage> bvhNodes: array<BVHNode>;
 @group(0) @binding(16) var worldPosTex : texture_2d<f32>;
+@group(0) @binding(17) var albedoTex : texture_2d<f32>;
 
-const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
 const DOWNSCALE = ${downscale};
 ${matrices}
 ${randomCommon}
@@ -228,6 +238,7 @@ ${getRayDirection}
 ${boxIntersection}
 ${raymarchVoxels}
 ${bvh}
+${bvhCoarse}
 ${shaderCode}`;
 
   const effectPipeline = device.createComputePipeline({
@@ -389,6 +400,10 @@ ${shaderCode}`;
       {
         binding: 16,
         resource: outputTextures.worldPositionTexture.createView(),
+      },
+      {
+        binding: 17,
+        resource: outputTextures.albedoTexture.createView(),
       },
     ];
 

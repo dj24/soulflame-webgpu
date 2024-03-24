@@ -69,7 +69,7 @@ fn getMipLevelFromVoxelSize(voxelSize: vec3<f32>) -> u32 {
 fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, objectRayOrigin: vec3<f32>, mipLevel: u32) -> RayMarchResult {
   var output = RayMarchResult();
   let rayDirSign = sign(objectRayDirection);
-
+  let atlasLocation = vec3<u32>(voxelObject.atlasLocation);
   var voxelSize = vec3<f32>(2.0);
   var shiftedRayOrigin = objectRayOrigin - objectRayDirection * EPSILON;
   var objectPos = shiftedRayOrigin;
@@ -87,7 +87,6 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
   {
     output.stepsTaken = i;
 
-    let atlasLocation = vec3<u32>(voxelObject.atlasLocation);
     let samplePosition = vec3<u32>(currentIndex) + atlasLocation;
 
     let mip0Index = currentIndex;
@@ -154,55 +153,6 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
     }
   }
   return output;
-}
-
-fn rayMarchCoarse(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, objectRayOrigin: vec3<f32>) -> RayMarchResult {
-  var output = RayMarchResult();
-    var voxelSize = vec3<f32>(1.0);
-    var shiftedRayOrigin = objectRayOrigin - objectRayDirection * EPSILON;
-    var objectPos = shiftedRayOrigin;
-    var currentIndex = vec3<i32>(floor(objectPos));
-    var objectNormal = 1.0;
-
-    // RAYMARCH
-    for(var i = 0; i < MAX_RAY_STEPS; i++)
-    {
-      output.stepsTaken = i;
-
-      let atlasLocation = vec3<u32>(voxelObject.atlasLocation);
-      let samplePosition = vec3<u32>(currentIndex) + atlasLocation;
-      let mip0Index = currentIndex;
-      let mip0SamplePosition = vec3<u32>(mip0Index) + atlasLocation;
-      let mipSample0 = textureLoad(voxels, mip0SamplePosition, 0);
-
-      if(mipSample0.a > 0.0 && isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
-          output.objectPos = objectPos;
-          output.worldPos = (voxelObject.transform *  vec4(output.objectPos, 1.0)).xyz;
-          output.normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(objectNormal));
-          output.colour = mipSample0.rgb;
-          output.hit = true;
-          output.modelMatrix = voxelObject.transform;
-          output.previousModelMatrix = voxelObject.previousTransform;
-          output.inverseModelMatrix = voxelObject.inverseTransform;
-          output.previousInverseModelMatrix = voxelObject.previousInverseTransform;
-          return output;
-      }
-
-      var tDelta = voxelSize / abs(objectRayDirection);
-      objectPos += objectRayDirection * min(tDelta.x, min(tDelta.y, tDelta.z));
-      currentIndex = vec3<i32>(floor(objectPos / voxelSize) * voxelSize);
-
-      if(!isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
-          break;
-      }
-    }
-    return output;
-}
-
-fn rayMarchTransformedCoarse(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) -> RayMarchResult {
-    var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
-    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-    return rayMarchCoarse(voxelObject, objectRayDirection, objectRayOrigin);
 }
 
 fn rayMarchTransformed(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>, mipLevel: u32) -> RayMarchResult {

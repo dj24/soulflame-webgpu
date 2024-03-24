@@ -1,9 +1,10 @@
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
-const SHADOW_ACNE_OFFSET: f32 = 0.0005;
+const SHADOW_ACNE_OFFSET: f32 = 0.005;
 const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 
 fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>) -> bool {
-  return rayMarchBVH(worldPos, shadowRayDirection).hit;
+    return rayMarchBVHCoarse(worldPos, shadowRayDirection);
+//  return rayMarchBVH(worldPos, shadowRayDirection).hit;
 }
 
 
@@ -44,6 +45,8 @@ fn remapToSampleIndex(blueNoiseValue: f32, numSamples: u32) -> u32 {
     return u32(blueNoiseValue * f32(numSamples));
 }
 
+const SCATTER_AMOUNT: f32 = 0.5;
+
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
@@ -58,9 +61,8 @@ fn main(
   let resolution = vec2<f32>(textureDimensions(depthTex));
   let uv = vec2<f32>(outputPixel) / resolution;
   var normalSample = textureLoad(normalTex, samplePixel, 0).rgb;
-  let worldPos = textureLoad(worldPosTex, samplePixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
+  var worldPos = textureLoad(worldPosTex, samplePixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
   let randomCo = vec2<f32>(samplePixel);
-  let scatterAmount = 0.01;
   var total = vec3(0.0);
   var count = 0.0;
 
@@ -89,7 +91,8 @@ fn main(
     // TODO: store with reservoir sampling, and best sample
     var selectedLight = lights[randomSampleIndex];
 
-    var shadowRayDirection = selectedLight.direction + randomInHemisphere(r, selectedLight.direction) * scatterAmount;
+    var shadowRayDirection = selectedLight.direction + randomInHemisphere(r, selectedLight.direction) * SCATTER_AMOUNT;
+//    var shadowRayDirection = selectedLight.direction;
 
     if(shadowRay(worldPos, shadowRayDirection)){
       total += vec3(0.0);
@@ -100,7 +103,7 @@ fn main(
     }
     count += 1.0;
   }
-  total += SKY_COLOUR * 0.2;
+  total += SKY_COLOUR * 0.1;
   let shadowAmount = total / count;
   textureStore(outputTex, outputPixel, vec4(shadowAmount, 1.0));
 }
@@ -113,7 +116,7 @@ fn composite(
   let pixel = GlobalInvocationID.xy;
   let uv = (vec2<f32>(pixel) - vec2(0.5)) / texSize;
 //  let shadowAmount = 1.0 - textureSampleLevel(intermediaryTexture, linearSampler, uv, 0.0);
-  let inputSample = textureLoad(inputTex, pixel, 0);
+  let inputSample = textureLoad(albedoTex, pixel, 0);
 //  let depthRef = textureLoad(depthTex, pixel, 0).a;
 //  let normalRef = textureLoad(normalTex, pixel, 0).rgb;
 //  var total = vec3(0.0);

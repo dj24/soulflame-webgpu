@@ -15,6 +15,7 @@ import getRayDirection from "../shader/get-ray-direction.wgsl";
 import wireframeFrag from "./wireframe.frag.wgsl";
 import randomCommon from "../random-common.wgsl";
 import bvh from "../shader/bvh.wgsl";
+import bvhCoarse from "../shader/bvh-coarse.wgsl";
 import { getSphereVertices } from "../primitive-meshes/sphere";
 import { getCuboidVertices } from "../primitive-meshes/cuboid";
 
@@ -190,6 +191,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
         ${boxIntersection}
         ${raymarchVoxels}
         ${bvh}
+        ${bvhCoarse}
         ${lightsFrag}
         `,
       }),
@@ -308,22 +310,30 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     mipmapFilter: "nearest",
   });
 
-  const baseLightOffset = [-40, 4.5, -45];
+  const baseLightOffset = [-33.5, 4.5, -45] as [number, number, number];
 
-  let lights: Light[] = Array.from({ length: 6 }, (_, i) => i).map((i) => {
+  let lights: Light[] = Array.from({ length: 1 }, (_, i) => i).map((i) => {
     return {
       position: [
-        baseLightOffset[0] + i * 5,
+        baseLightOffset[0] + i * 10,
         baseLightOffset[1],
         baseLightOffset[2],
       ],
-      size: 2.8,
-      color: vec3.normalize(
-        vec3.create(Math.random(), Math.random(), Math.random()),
-      ),
-      // color: [1, 0.8, 0.4],
+      size: 2.75,
+      // color: vec3.normalize(
+      //   vec3.create(Math.random(), Math.random(), Math.random()),
+      // ),
+      color: [1, 0.8, 0.4],
     };
   });
+
+  // lights = [
+  //   {
+  //     position: baseLightOffset,
+  //     size: 3.5,
+  //     color: [1, 0.8, 0.4],
+  //   },
+  // ];
 
   const verticesBuffer = device.createBuffer({
     size: vertexStride * verticesPerLight * lights.length,
@@ -356,16 +366,16 @@ export const getLightsPass = async (): Promise<RenderPass> => {
   }: RenderArgs) => {
     let bindGroups = [];
 
-    lights.forEach((light) => {
-      light.position[1] =
-        baseLightOffset[1] +
-        Math.sin(
-          performance.now() * 0.001 +
-            light.position[0] * 0.1 +
-            light.position[2] * 0.1,
-        ) *
-          2.5;
-    });
+    // lights.forEach((light) => {
+    //   light.position[1] =
+    //     baseLightOffset[1] +
+    //     Math.sin(
+    //       performance.now() * 0.001 +
+    //         light.position[0] * 0.1 +
+    //         light.position[2] * 0.1,
+    //     ) *
+    //       2.5;
+    // });
 
     for (let i = 0; i < lights.length; i++) {
       const light = lights[i];
