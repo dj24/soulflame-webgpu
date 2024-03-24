@@ -44,6 +44,17 @@ fn randomInUnitDisk(seed : vec2<f32>) -> vec2<f32> {
     return vec2<f32>(cos(theta), sin(theta)) * r;
 }
 
+fn randomInPlanarUnitDisk(seed : vec2<f32>, normal: vec3<f32>) -> vec3<f32> {
+    let disk = randomInUnitDisk(seed);
+    var diskNormal = cross(normal, vec3<f32>(0.0, 1.0, 0.0));
+    if (length(diskNormal) < 0.01) {
+        diskNormal = cross(normal, vec3<f32>(1.0, 0.0, 0.0));
+    }
+    diskNormal = normalize(diskNormal);
+    let diskTangent = cross(diskNormal, normal);
+    return disk.x * diskTangent + disk.y * diskNormal;
+}
+
 fn reflect(v : vec3<f32>, n : vec3<f32>) -> vec3<f32> {
     return v - 2.0 * dot(v, n) * n;
 }

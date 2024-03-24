@@ -109,6 +109,8 @@ export const createTavern = async (
 
   const volumes = volumeAtlas.getVolumes();
 
+  let torchPositions = [];
+
   for (const child of childObjects) {
     const volume = volumes[child.name];
     if (!volume) {
@@ -116,6 +118,9 @@ export const createTavern = async (
       return;
     }
     const m = mat4.identity();
+    if (child.name === "Candle") {
+      torchPositions.push(child.position);
+    }
     mat4.translate(m, child.position, m);
     mat4.scale(m, child.scale, m);
     mat4.multiply(m, mat4.fromQuat(child.rotation), m);
@@ -123,6 +128,6 @@ export const createTavern = async (
       new VoxelObject(m, volume.size, volume.location, child.name),
     );
   }
-  console.log({ volumes });
+  console.log({ volumes, torchPositions });
   console.debug(`Tavern created with ${voxelObjects.length} items`);
 };

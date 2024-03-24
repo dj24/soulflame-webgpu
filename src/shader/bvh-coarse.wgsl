@@ -20,9 +20,9 @@ fn rayMarchCoarse(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, objec
 
       objectPos += objectRayDirection * tIncrement;
       currentIndex = vec3<i32>(round(objectPos));
-      if(!isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
-          break;
-      }
+//      if(!isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
+//          break;
+//      }
     }
     return false;
 }

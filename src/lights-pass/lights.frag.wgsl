@@ -34,6 +34,8 @@ fn blinnPhong(normal: vec3<f32>, lightDirection: vec3<f32>, viewDirection: vec3<
 
 const JITTERED_LIGHT_CENTER_RADIUS = 0.0;
 const SHADOW_ACNE_OFFSET: f32 = 0.005;
+const SCATTER_AMOUNT: f32 = 0.2;
+const POSITION_SCATTER_AMOUNT: f32 = 0.2;
 
 @fragment
 fn main(
@@ -42,29 +44,29 @@ fn main(
   let lightPosition = light.position.xyz;
   let lightRadius = light.radius;
   let lightColor = light.color.rgb;
-
   var screenUV = ndc.xy * 0.5 + 0.5;
+  // TODO: use bluenoise instead uv
+  let r = screenUV;
   let rayDirection = calculateRayDirection(screenUV,viewProjections.inverseViewProjection);
   let albedo = textureSample(albedoTex, nearestSampler, screenUV).rgb;
   let normal = textureSample(normalTex, nearestSampler, screenUV).xyz;
-  let worldPos = textureSample(worldPosTex, nearestSampler, screenUV).xyz + normal * SHADOW_ACNE_OFFSET;
+  var worldPos = textureSample(worldPosTex, nearestSampler, screenUV).xyz + normal * SHADOW_ACNE_OFFSET;
+  worldPos += randomInPlanarUnitDisk(r, normal) * POSITION_SCATTER_AMOUNT;
   let jitteredLightCenter = lightPosition + randomInUnitSphere(screenUV) * JITTERED_LIGHT_CENTER_RADIUS;
-  let distanceToLight = distance(worldPos, jitteredLightCenter);
-  let normalisedDistance = distanceToLight / lightRadius;
-//  if(normalisedDistance > lightRadius) {
+
+  var distanceToLight = distance(worldPos, jitteredLightCenter);
+  var attenuation = (lightRadius * 2.0) / (distanceToLight * distanceToLight);
+
+  // TODO: fix bvh before enabling this again
+  var shadowRayDirection = normalize(jitteredLightCenter - worldPos);
+  shadowRayDirection += randomInHemisphere(r, shadowRayDirection) * SCATTER_AMOUNT;
+  // TODO: enable max distance param
+//  let isHit = rayMarchBVHCoarse(worldPos, shadowRayDirection);
+//  if(isHit) {
 //    return vec4(0.0);
 //  }
-  var attenuation = lightRadius - normalisedDistance;
-  // TODO: fix bvh before enabling this again
-  let shadowRayDirection = normalize(jitteredLightCenter - worldPos);
-  // TODO: enable max distance param
-  let isHit = rayMarchBVHCoarse(worldPos, shadowRayDirection);
-  if(isHit) {
-    attenuation = 0.1;
-//    return vec4(0.0);
-  }
   let lightDirection = normalize(jitteredLightCenter - worldPos);
-  let shaded = blinnPhong(normal, lightDirection, -rayDirection, 0.5, 0.0, lightColor);
+  let shaded = blinnPhong(normal, lightDirection, -rayDirection, 0.0, 0.0, lightColor);
   let albedoWithSpecular = albedo * shaded;
 
 //  return vec4(abs(worldPos) %1.0, attenuation);

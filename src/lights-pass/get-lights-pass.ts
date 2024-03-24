@@ -19,7 +19,7 @@ import bvhCoarse from "../shader/bvh-coarse.wgsl";
 import { getSphereVertices } from "../primitive-meshes/sphere";
 import { getCuboidVertices } from "../primitive-meshes/cuboid";
 
-type Light = {
+export type Light = {
   position: [number, number, number];
   size: number;
   color: [number, number, number] | Vec3;
@@ -310,51 +310,6 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     mipmapFilter: "nearest",
   });
 
-  const baseLightOffset = [-33.5, 4.5, -45] as [number, number, number];
-
-  let lights: Light[] = Array.from({ length: 1 }, (_, i) => i).map((i) => {
-    return {
-      position: [
-        baseLightOffset[0] + i * 10,
-        baseLightOffset[1],
-        baseLightOffset[2],
-      ],
-      size: 2.75,
-      // color: vec3.normalize(
-      //   vec3.create(Math.random(), Math.random(), Math.random()),
-      // ),
-      color: [1, 0.8, 0.4],
-    };
-  });
-
-  // lights = [
-  //   {
-  //     position: baseLightOffset,
-  //     size: 3.5,
-  //     color: [1, 0.8, 0.4],
-  //   },
-  // ];
-
-  const verticesBuffer = device.createBuffer({
-    size: vertexStride * verticesPerLight * lights.length,
-    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-  });
-
-  const lightVerticesBuffer = device.createBuffer({
-    size: vertexStride * verticesPerCuboid * lights.length,
-    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-  });
-
-  const lightBuffer = device.createBuffer({
-    size: 256 * lights.length,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-  });
-
-  const modelViewProjectionMatrixBuffer = device.createBuffer({
-    size: 256 * lights.length,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-  });
-
   const render = ({
     commandEncoder,
     outputTextures,
@@ -363,19 +318,29 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     viewProjectionMatricesBuffer,
     timestampWrites,
     bvhBuffer,
+    lights,
   }: RenderArgs) => {
     let bindGroups = [];
 
-    // lights.forEach((light) => {
-    //   light.position[1] =
-    //     baseLightOffset[1] +
-    //     Math.sin(
-    //       performance.now() * 0.001 +
-    //         light.position[0] * 0.1 +
-    //         light.position[2] * 0.1,
-    //     ) *
-    //       2.5;
-    // });
+    const verticesBuffer = device.createBuffer({
+      size: vertexStride * verticesPerLight * lights.length,
+      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    });
+
+    const lightVerticesBuffer = device.createBuffer({
+      size: vertexStride * verticesPerCuboid * lights.length,
+      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    });
+
+    const lightBuffer = device.createBuffer({
+      size: 256 * lights.length,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
+    const modelViewProjectionMatrixBuffer = device.createBuffer({
+      size: 256 * lights.length,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
 
     for (let i = 0; i < lights.length; i++) {
       const light = lights[i];
@@ -488,7 +453,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
         {
           view: outputTextures.finalTexture.createView(),
           clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-          loadOp: "clear",
+          loadOp: "load",
           storeOp: "store",
         },
       ],
