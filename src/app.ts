@@ -376,7 +376,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     // Multiply the existing direction vector by the rotation matrix
     const newDirection = vec3.transformMat4(
-      vec3.create(0, 0, -1),
+      vec3.create(0, -1, -1),
       rotationMatrix,
     );
 

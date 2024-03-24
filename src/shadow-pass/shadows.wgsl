@@ -1,7 +1,8 @@
 
 
 fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>) -> bool {
-    return rayMarchBVHCoarse(worldPos, shadowRayDirection);
+//    return rayMarchBVHCoarse(worldPos, shadowRayDirection);
+  return rayMarchBVHFirstHit(worldPos, shadowRayDirection, 100000.0);
 //  return rayMarchBVH(worldPos, shadowRayDirection).hit;
 }
 
@@ -22,8 +23,8 @@ const BLUE_NOISE_SIZE = 512;
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const SHADOW_ACNE_OFFSET: f32 = 0.005;
-const SCATTER_AMOUNT: f32 = 0.2;
-const POSITION_SCATTER_AMOUNT: f32 = 0.2;
+const SCATTER_AMOUNT: f32 = 0.5;
+const POSITION_SCATTER_AMOUNT: f32 = 0.5;
 
 fn blinnPhong(normal: vec3<f32>, lightDirection: vec3<f32>, viewDirection: vec3<f32>, specularStrength: f32, shininess: f32, lightColour: vec3<f32>) -> vec3<f32> {
   let halfDirection = normalize(lightDirection + viewDirection);

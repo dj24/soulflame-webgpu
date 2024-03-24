@@ -61,7 +61,7 @@ fn main(
   var shadowRayDirection = normalize(jitteredLightCenter - worldPos);
   shadowRayDirection += randomInHemisphere(r, shadowRayDirection) * SCATTER_AMOUNT;
   // TODO: enable max distance param
-//  let isHit = rayMarchBVHCoarse(worldPos, shadowRayDirection);
+//  let isHit = rayMarchBVHFirstHit(worldPos, shadowRayDirection, distanceToLight);
 //  if(isHit) {
 //    return vec4(0.0);
 //  }
@@ -72,5 +72,5 @@ fn main(
 //  return vec4(abs(worldPos) %1.0, attenuation);
 
   // TODO: output hdr and tonemap
-  return vec4(albedoWithSpecular * lightColor, attenuation);
+  return vec4(lightColor * albedoWithSpecular, attenuation);
 }
