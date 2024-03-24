@@ -8,47 +8,21 @@ import {
 } from "../app";
 import lightsFrag from "./lights.frag.wgsl";
 import lightsVert from "./lights.vert.wgsl";
-import { mat4 } from "wgpu-matrix";
+import { mat4, Vec3, vec3 } from "wgpu-matrix";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import boxIntersection from "../shader/box-intersection.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
+import wireframeFrag from "./wireframe.frag.wgsl";
 import randomCommon from "../random-common.wgsl";
 import bvh from "../shader/bvh.wgsl";
 import { getSphereVertices } from "../primitive-meshes/sphere";
+import { getCuboidVertices } from "../primitive-meshes/cuboid";
 
 type Light = {
   position: [number, number, number];
   size: number;
-  color: [number, number, number];
+  color: [number, number, number] | Vec3;
 };
-
-const lights: Light[] = [
-  {
-    color: [0.0, 1.0, 0.0],
-    position: [-12, 4.5, -45],
-    size: 3,
-  },
-  {
-    color: [1, 0, 0.0],
-    position: [-10, 6.5, -45],
-    size: 3,
-  },
-  {
-    color: [0, 0, 1],
-    position: [-24, 4.5, -45],
-    size: 3,
-  },
-  {
-    color: [0, 1, 0],
-    position: [-28, 5.5, -42],
-    size: 2,
-  },
-  {
-    color: [1.0, 0.0, 0.0],
-    position: [-32, 4.5, -43],
-    size: 2.5,
-  },
-];
 
 const lightToArrayBuffer = (light: Light) => {
   const arrayBuffer = new ArrayBuffer(48);
@@ -63,9 +37,37 @@ const lightToArrayBuffer = (light: Light) => {
   return arrayBuffer;
 };
 
+const drawLightSpheres = ({
+  passEncoder,
+  pipeline,
+  verticesBuffer,
+  bindGroups,
+  lights,
+}: {
+  passEncoder: GPURenderPassEncoder;
+  pipeline: GPURenderPipeline;
+  verticesBuffer: GPUBuffer;
+  bindGroups: GPUBindGroup[];
+  lights: Light[];
+}) => {
+  passEncoder.setPipeline(pipeline);
+  for (let i = 0; i < lights.length; i++) {
+    const bindGroup = bindGroups[i];
+    passEncoder.setVertexBuffer(
+      0,
+      verticesBuffer,
+      vertexStride * verticesPerLight * i,
+      vertexStride * verticesPerLight,
+    );
+    passEncoder.setBindGroup(0, bindGroup);
+    passEncoder.draw(verticesPerLight);
+  }
+};
+
 const lightStride = 48;
 const vertexStride = 16;
 const verticesPerLight = getSphereVertices(1).length;
+const verticesPerCuboid = getCuboidVertices([1, 1, 1]).length;
 
 export const getLightsPass = async (): Promise<RenderPass> => {
   const bindGroupLayout = device.createBindGroupLayout({
@@ -212,7 +214,91 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     },
     primitive: {
       topology: "triangle-list",
-      cullMode: "front", // TODO: reverse faces and cull front so we can see the inside of the light volume
+      cullMode: "front",
+    },
+  });
+
+  const wireFramePipeline = device.createRenderPipeline({
+    layout: pipelineLayout,
+    vertex: {
+      module: device.createShaderModule({
+        code: `
+        ${lightsVert}`,
+      }),
+      entryPoint: "main",
+      buffers: [
+        {
+          arrayStride: vertexStride,
+          attributes: [
+            {
+              // position
+              shaderLocation: 0,
+              offset: 0,
+              format: "float32x4",
+            },
+          ],
+        },
+      ],
+    },
+    fragment: {
+      module: device.createShaderModule({
+        code: `
+        ${wireframeFrag}
+        `,
+      }),
+      entryPoint: "main",
+      targets: [
+        // albedo
+        {
+          format: "rgba8unorm",
+        },
+      ],
+    },
+    primitive: {
+      topology: "line-list",
+      cullMode: "back",
+    },
+  });
+
+  const lightCubePipeline = device.createRenderPipeline({
+    layout: pipelineLayout,
+    vertex: {
+      module: device.createShaderModule({
+        code: `
+        ${lightsVert}`,
+      }),
+      entryPoint: "main",
+      buffers: [
+        {
+          arrayStride: vertexStride,
+          attributes: [
+            {
+              // position
+              shaderLocation: 0,
+              offset: 0,
+              format: "float32x4",
+            },
+          ],
+        },
+      ],
+    },
+    fragment: {
+      module: device.createShaderModule({
+        code: `
+        ${wireframeFrag}
+        `,
+      }),
+      entryPoint: "main",
+      targets: [
+        // albedo
+        {
+          format: "rgba8unorm",
+        },
+      ],
+    },
+    primitive: {
+      topology: "triangle-list",
+      cullMode: "front",
     },
   });
 
@@ -222,8 +308,30 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     mipmapFilter: "nearest",
   });
 
+  const baseLightOffset = [-40, 4.5, -45];
+
+  let lights: Light[] = Array.from({ length: 6 }, (_, i) => i).map((i) => {
+    return {
+      position: [
+        baseLightOffset[0] + i * 5,
+        baseLightOffset[1],
+        baseLightOffset[2],
+      ],
+      size: 2.8,
+      color: vec3.normalize(
+        vec3.create(Math.random(), Math.random(), Math.random()),
+      ),
+      // color: [1, 0.8, 0.4],
+    };
+  });
+
   const verticesBuffer = device.createBuffer({
     size: vertexStride * verticesPerLight * lights.length,
+    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+  });
+
+  const lightVerticesBuffer = device.createBuffer({
+    size: vertexStride * verticesPerCuboid * lights.length,
     usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
   });
 
@@ -246,30 +354,43 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     timestampWrites,
     bvhBuffer,
   }: RenderArgs) => {
-    const passEncoder = commandEncoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view: outputTextures.finalTexture.createView(),
-          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-          loadOp: "load",
-          storeOp: "store",
-        },
-      ],
-      timestampWrites,
-    });
-    passEncoder.setPipeline(pipeline);
-
     let bindGroups = [];
+
+    lights.forEach((light) => {
+      light.position[1] =
+        baseLightOffset[1] +
+        Math.sin(
+          performance.now() * 0.001 +
+            light.position[0] * 0.1 +
+            light.position[2] * 0.1,
+        ) *
+          2.5;
+    });
 
     for (let i = 0; i < lights.length; i++) {
       const light = lights[i];
       const vertices = getSphereVertices(light.size);
+      const cubeSize = 0.125;
+      const cubeVertices = getCuboidVertices([
+        cubeSize,
+        cubeSize,
+        cubeSize,
+      ]).map((v) => {
+        return v - cubeSize / 2;
+      });
+
       const bufferOffset = i * 256;
       device.queue.writeBuffer(
         verticesBuffer,
         i * vertexStride * verticesPerLight,
         vertices.buffer,
         vertices.byteOffset,
+      );
+      device.queue.writeBuffer(
+        lightVerticesBuffer,
+        i * vertexStride * verticesPerCuboid,
+        cubeVertices.buffer,
+        cubeVertices.byteOffset,
       );
       device.queue.writeBuffer(
         lightBuffer,
@@ -352,17 +473,46 @@ export const getLightsPass = async (): Promise<RenderPass> => {
       );
     }
 
+    const passEncoder = commandEncoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: outputTextures.finalTexture.createView(),
+          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+          loadOp: "clear",
+          storeOp: "store",
+        },
+      ],
+      timestampWrites,
+    });
+
+    drawLightSpheres({
+      passEncoder,
+      pipeline,
+      verticesBuffer,
+      bindGroups,
+      lights,
+    });
+
+    passEncoder.setPipeline(lightCubePipeline);
     for (let i = 0; i < lights.length; i++) {
       const bindGroup = bindGroups[i];
+      passEncoder.setBindGroup(0, bindGroup);
       passEncoder.setVertexBuffer(
         0,
-        verticesBuffer,
-        vertexStride * verticesPerLight * i,
-        vertexStride * verticesPerLight,
+        lightVerticesBuffer,
+        vertexStride * verticesPerCuboid * i,
+        vertexStride * verticesPerCuboid,
       );
-      passEncoder.setBindGroup(0, bindGroup);
-      passEncoder.draw(verticesPerLight);
+      passEncoder.draw(verticesPerCuboid);
     }
+
+    // drawLightSpheres({
+    //   passEncoder,
+    //   pipeline: wireFramePipeline,
+    //   verticesBuffer,
+    //   bindGroups,
+    //   lights,
+    // });
 
     passEncoder.end();
 

@@ -3,7 +3,7 @@
  * @param radius - radius of the sphere
  * @param bands - number of bands
  */
-export const getSphereVertices = (radius: number, bands = 16): Float32Array => {
+export const getSphereVertices = (radius: number, bands = 12): Float32Array => {
   const vertices: number[] = [];
 
   for (let i = 0; i < bands; i++) {

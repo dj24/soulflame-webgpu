@@ -500,6 +500,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
           endOfPassWriteIndex: index * 2 + 1,
         };
       }
+
       render({
         commandEncoder,
         resolutionBuffer,
@@ -572,13 +573,13 @@ const start = async () => {
   await createTavern(device, volumeAtlas);
 
   const computePassPromises: Promise<RenderPass>[] = [
-    getHelloTrianglePass(),
+    // getHelloTrianglePass(),
     // getReflectionsPass(),
-    getShadowsPass(),
-    getLightsPass(),
+    // getShadowsPass(),
+    // getLightsPass(),
     // getSkyPass(),
     // getMotionBlurPass(),
-    // getGBufferPass(),
+    getGBufferPass(),
     // getDiffusePass(),
     // getVolumetricFog(),
     // getTaaPass(),

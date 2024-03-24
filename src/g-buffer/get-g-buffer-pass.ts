@@ -53,7 +53,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     binding: 7,
     visibility: GPUShaderStage.COMPUTE,
     storageTexture: {
-      format: "rgba32float",
+      format: "rgba16float",
       viewDimension: "2d",
     },
   };
@@ -110,7 +110,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       matricesBufferEntry,
       normalEntry,
       albedoEntry,
-      depthEntry,
+      // depthEntry,
       velocityEntry,
       {
         binding: 8,
@@ -186,10 +186,10 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           binding: 5,
           resource: outputTextures.albedoTexture.createView(),
         },
-        {
-          binding: 6,
-          resource: outputTextures.depthTexture.createView(),
-        },
+        // {
+        //   binding: 6,
+        //   resource: outputTextures.depthTexture.createView(),
+        // },
         {
           binding: 7,
           resource: outputTextures.velocityTexture.createView(),

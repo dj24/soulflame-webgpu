@@ -32,6 +32,7 @@ fn blinnPhong(normal: vec3<f32>, lightDirection: vec3<f32>, viewDirection: vec3<
   return (diffuse + specular * specularStrength) * lightColour;
 }
 
+const JITTERED_LIGHT_CENTER_RADIUS = 0.5;
 
 @fragment
 fn main(
@@ -46,22 +47,22 @@ fn main(
   let albedo = textureSample(albedoTex, nearestSampler, screenUV).rgb;
   let normal = textureSample(normalTex, nearestSampler, screenUV).xyz;
   let worldPos = textureSample(worldPosTex, nearestSampler, screenUV).xyz + normal * 0.001;
-  let jitteredLightCenter = lightPosition + randomInUnitSphere(screenUV) * 0.05;
+  let jitteredLightCenter = lightPosition + randomInUnitSphere(screenUV) * JITTERED_LIGHT_CENTER_RADIUS;
   let distanceToLight = distance(worldPos, jitteredLightCenter);
   let normalisedDistance = distanceToLight / lightRadius;
   if(normalisedDistance > lightRadius) {
-    discard;
+    return vec4(0.0);
   }
-  let attenuation = pow(lightRadius - normalisedDistance, 2);
+  let attenuation = lightRadius - normalisedDistance;
   // TODO: fix bvh before enabling this again
-//  let shadowRayDirection = normalize(jitteredLightCenter - worldPos);
-//  let rayMarchResult = rayMarchBVH(worldPos, shadowRayDirection);
-//  let rayMarchedDistance = distance(worldPos, rayMarchResult.worldPos);
-//  if(rayMarchedDistance <= distanceToLight) {
-//    discard;
-//  }
+  let shadowRayDirection = normalize(jitteredLightCenter - worldPos);
+  let rayMarchResult = rayMarchBVHCoarse(worldPos, shadowRayDirection);
+  let rayMarchedDistance = distance(worldPos, rayMarchResult.worldPos);
+  if(rayMarchedDistance <= distanceToLight) {
+    return vec4(0.0);
+  }
   let lightDirection = normalize(jitteredLightCenter - worldPos);
-  let shaded = blinnPhong(normal, lightDirection, -rayDirection, 0.5, 32.0, lightColor);
+  let shaded = blinnPhong(normal, lightDirection, -rayDirection, 0.5, 0.0, lightColor);
   let albedoWithSpecular = albedo * shaded;
 
   // TODO: output hdr and tonemap

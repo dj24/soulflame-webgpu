@@ -11,15 +11,13 @@ struct ViewProjectionMatrices {
 @group(0) @binding(2) var<uniform> cameraPosition : vec3<f32>;
 @group(0) @binding(3) var<storage> voxelObjects : array<VoxelObject>;
 // TODO: maybe make a G-Buffer bind group to resuse across shaders
-@group(0) @binding(4) var normalTex : texture_storage_2d<rgba8snorm, write>;
+@group(0) @binding(4) var normalTex : texture_storage_2d<rgba16float, write>;
 @group(0) @binding(5) var albedoTex : texture_storage_2d<rgba8unorm, write>;
 //@group(0) @binding(6) var depthRead : texture_2d<f32>;
-@group(0) @binding(6) var depthWrite : texture_storage_2d<rgba32float, write>;
-@group(0) @binding(7) var velocityTex : texture_storage_2d<rgba32float, write>;
+//@group(0) @binding(6) var depthWrite : texture_storage_2d<rgba32float, write>;
+@group(0) @binding(7) var velocityTex : texture_storage_2d<rgba16float, write>;
 @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;
 @group(0) @binding(9) var<uniform> sunDirection : vec3<f32>;
-
-const NEAR_PLANE = 1.0;
 
 
 fn plainIntersect(ro: vec3<f32>, rd: vec3<f32>, p: vec4<f32>) -> f32 {
@@ -150,7 +148,7 @@ fn adaptive(
 
     textureStore(albedoTex, pixel, vec4(1.0,0.0,0.0,1.0));
     textureStore(normalTex, pixel, vec4(0.0,0.0,0.0,1.0));
-    textureStore(depthWrite, pixel, vec4(0.0,0.0,0.0,FAR_PLANE));
+//    textureStore(depthWrite, pixel, vec4(0.0,0.0,0.0,FAR_PLANE));
     textureStore(velocityTex, pixel, vec4(0,0,0,0));
 
     var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
@@ -262,7 +260,7 @@ fn adaptive(
 //      textureStore(albedoTex, pixel, vec4((totalWorldPos / totalWeight) % 1, 1));
       textureStore(albedoTex, pixel, vec4(totalAlbedo / totalWeight, 1));
       textureStore(normalTex, pixel, vec4(totalNormal / totalWeight,1));
-      textureStore(depthWrite, pixel, vec4(totalWorldPos / totalWeight, totalDepth / totalWeight));
+//      textureStore(depthWrite, pixel, vec4(totalWorldPos / totalWeight, totalDepth / totalWeight));
       textureStore(velocityTex, pixel, vec4(totalVelocity / totalWeight,0));
     }
   }
@@ -316,7 +314,7 @@ fn main(
   textureStore(albedoTex, pixel, vec4(worldPos * 0.1, 1));
 //  textureStore(albedoTex, pixel, vec4(0,0,1, 1));
   textureStore(normalTex, pixel, vec4(normal,1));
-  textureStore(depthWrite, pixel, vec4(worldPos, depth));
+//  textureStore(depthWrite, pixel, vec4(worldPos, depth));
   textureStore(velocityTex, pixel, vec4(velocity ,0));
 }
 
@@ -368,6 +366,6 @@ fn fullTrace(
   textureStore(albedoTex, pixel, vec4(albedo, 1));
 //  textureStore(albedoTex, pixel, vec4(0,0,1, 1));
   textureStore(normalTex, pixel, vec4(normal,1));
-  textureStore(depthWrite, pixel, depth);
+//  textureStore(depthWrite, pixel, depth);
   textureStore(velocityTex, pixel, vec4(velocity ,0));
 }
