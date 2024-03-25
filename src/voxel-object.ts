@@ -1,4 +1,5 @@
 import { mat4, Mat4, vec3, Vec3 } from "wgpu-matrix";
+import { v4 as uuidv4 } from "uuid";
 
 const transformPointToNDC = (point: Vec3, viewProjection: Mat4) => {
   return vec3.transformMat4(point, viewProjection);
@@ -18,6 +19,7 @@ export const isVoxelObjectInFrustrum = (
 };
 
 export class VoxelObject {
+  id: string;
   name: string;
   transform: Mat4;
   inverseTransform: Mat4;
@@ -33,6 +35,7 @@ export class VoxelObject {
     atlasLocation: Vec3,
     name = "unnamed",
   ) {
+    this.id = uuidv4();
     this.name = name;
     this.transform = transform;
     this.size = size;

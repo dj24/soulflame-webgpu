@@ -1,5 +1,5 @@
 const EPSILON = 0.0001;
-const MAX_RAY_STEPS = 256;
+const MAX_RAY_STEPS = 1024;
 const FAR_PLANE = 10000.0;
 const NEAR_PLANE = 0.5;
 
@@ -194,5 +194,10 @@ fn getDistanceToNode(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, node: BVHNod
     return 0.0;
   }
   let boxSize = (node.AABBMax - node.AABBMin) / 2;
-  return boxIntersection(rayOrigin - node.AABBMin, rayDirection, boxSize).tNear - EPSILON;
+  let intersection = boxIntersection(rayOrigin - node.AABBMin, rayDirection, boxSize);
+  if(intersection.isHit){
+    return intersection.tNear - EPSILON;
+  }
+  return -1.0;
+
 }

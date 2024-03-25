@@ -122,6 +122,13 @@ export class BVH {
     this.buildBVH(voxelObjects, 0);
     const end = performance.now();
     frameTimeTracker.addSample("create bvh", end - start);
+
+    const leafNodes = this.nodes.filter((node) => node.objectCount === 1);
+
+    console.log({
+      leafCount: leafNodes.length,
+      voxelObjectCount: voxelObjects.length,
+    });
   }
 
   buildBVH(voxelObjects: VoxelObject[], startIndex: number) {
@@ -136,7 +143,8 @@ export class BVH {
 
     // Use voxel object index for leaf nodes
     if (voxelObjects.length === 1) {
-      leftChildIndex = this.allVoxelObjects.indexOf(left[0]);
+      leftChildIndex = this.allVoxelObjects.indexOf(voxelObjects[0]);
+      rightChildIndex = -1;
     }
 
     this.nodes[startIndex] = {
@@ -151,6 +159,10 @@ export class BVH {
       this.buildBVH(left, leftChildIndex);
     }
     if (right.length > 1) {
+      this.buildBVH(right, rightChildIndex);
+    }
+    if (voxelObjects.length === 2) {
+      this.buildBVH(left, leftChildIndex);
       this.buildBVH(right, rightChildIndex);
     }
   }
