@@ -154,6 +154,15 @@ export const getLightsPass = async (): Promise<RenderPass> => {
           type: "uniform",
         },
       },
+      // depth texture
+      {
+        binding: 10,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: {
+          sampleType: "unfilterable-float",
+          viewDimension: "2d",
+        },
+      },
     ],
   });
 
@@ -200,17 +209,17 @@ export const getLightsPass = async (): Promise<RenderPass> => {
         // albedo
         {
           format: "rgba8unorm",
-          blend: {
-            color: {
-              srcFactor: "src-alpha",
-              dstFactor: "dst-alpha",
-              operation: "add",
-            },
-            alpha: {
-              srcFactor: "one",
-              dstFactor: "one-minus-src-alpha",
-            },
-          },
+          // blend: {
+          //   color: {
+          //     srcFactor: "src-alpha",
+          //     dstFactor: "dst-alpha",
+          //     operation: "add",
+          //   },
+          //   alpha: {
+          //     srcFactor: "one",
+          //     dstFactor: "one-minus-src-alpha",
+          //   },
+          // },
         },
       ],
     },
@@ -426,6 +435,10 @@ export const getLightsPass = async (): Promise<RenderPass> => {
             resource: {
               buffer: viewProjectionMatricesBuffer,
             },
+          },
+          {
+            binding: 10,
+            resource: outputTextures.depthTexture.createView(),
           },
         ],
       });

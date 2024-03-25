@@ -42,7 +42,7 @@ const NAME_ALLOWLIST = [
   "Books4",
   "Door",
   // "BigDoor",
-  // "Tavern",
+  "Tavern",
 ];
 
 type ProcessTavernObject = { name: string; texture: GPUTexture };

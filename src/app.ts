@@ -142,11 +142,13 @@ const torchPosition: Light["position"][] = [
 // });
 let lights: Light[] = torchPosition.map((position) => {
   return {
-    position: [position[0], position[1] + 0.5, position[2]],
-    size: 3.5,
+    position: [position[0], position[1] + 1.0, position[2]],
+    size: 4,
     color: [1, 0.8, 0.4],
   };
 });
+
+lights = [lights[0]];
 
 const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let normalTexture: GPUTexture;
@@ -492,10 +494,10 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     // Candle flicker
     // lights.forEach((light, index) => {
-    //   const octave1 = Math.sin(now / 100 + index) * 0.1;
-    //   const octave2 = Math.sin(now / 50 + index) * 0.05;
-    //   const octave3 = Math.sin(now / 25 + index) * 0.025;
-    //   light.size = 2 + octave1 + octave2 + octave3;
+    //   const octave1 = Math.sin(now / 200 + index) * 0.2;
+    //   const octave2 = Math.sin(now / 100 + index) * 0.1;
+    //   const octave3 = Math.sin(now / 50) * 0.05;
+    //   light.size = 3 + octave1 + octave2 + octave3;
     // });
 
     const newElapsedTime = now - startTime;
@@ -644,13 +646,13 @@ const start = async () => {
   await createTavern(device, volumeAtlas);
 
   const computePassPromises: Promise<RenderPass>[] = [
-    // getHelloTrianglePass(),
+    getHelloTrianglePass(),
+    // getGBufferPass(),
     // getReflectionsPass(),
-    // getShadowsPass(),
-    // getLightsPass(),
+    getShadowsPass(),
+    getLightsPass(),
     // getSkyPass(),
     // getMotionBlurPass(),
-    getGBufferPass(),
     // getDiffusePass(),
     // getVolumetricFog(),
     // getTaaPass(),
