@@ -20,6 +20,14 @@ fn getMaxMipLevel(size: vec3<f32>) -> u32 {
   return u32(log2(max(size.x, max(size.y, size.z))));
 }
 
+struct BVHNode {
+  leftIndex: i32, // this is the index of the voxelObject for leaf nodes
+  rightIndex: i32,
+  objectCount: u32,
+  AABBMin: vec3<f32>,
+  AABBMax: vec3<f32>
+}
+
 
 struct VoxelObject {
   transform: mat4x4<f32>,
@@ -28,20 +36,6 @@ struct VoxelObject {
   previousInverseTransform: mat4x4<f32>,
   size : vec3<f32>,
   atlasLocation : vec3<f32>,
-}
-
-struct BVHNode {
-  leftIndex: i32,
-  rightIndex: i32,
-
-  leftObjectCount: u32,
-  rightObjectCount: u32,
-
-  leftMin: vec3<f32>,
-  leftMax: vec3<f32>,
-
-  rightMin: vec3<f32>,
-  rightMax: vec3<f32>,
 }
 
 struct RayMarchResult {
@@ -195,38 +189,10 @@ fn debugColourFromIndex(index: i32) -> vec3<f32> {
   return colours[index % 6];
 }
 
-fn getDistanceToLeftNode(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, node: BVHNode) -> f32 {
-  var leftDist = -1.0;
-  if(all(rayOrigin >= node.leftMin) && all(rayOrigin <= node.leftMax)){
-    leftDist = 0.0;
-  } else {
-    let leftBoxSize = (node.leftMax - node.leftMin) / 2;
-    leftDist = boxIntersection(rayOrigin - node.leftMin, rayDirection, leftBoxSize).tNear - EPSILON;
+fn getDistanceToNode(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, node: BVHNode) -> f32 {
+  if(all(rayOrigin >= node.AABBMin) && all(rayOrigin <= node.AABBMax)){
+    return 0.0;
   }
-  return leftDist;
-}
-
-fn getDistanceToRightNode(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, node: BVHNode) -> f32 {
-  var rightDist = -1.0;
-  if(all(rayOrigin >= node.rightMin) && all(rayOrigin <= node.rightMax)){
-    rightDist = 0.0;
-  } else {
-    var rightBoxSize = (node.rightMax - node.rightMin) / 2;
-    rightDist = boxIntersection(rayOrigin - node.rightMin, rayDirection, rightBoxSize).tNear;
-  }
-  return rightDist;
-}
-
-fn getVoxelObjectIndexFromFromRightNode(node: BVHNode) -> i32 {
-  if(node.rightObjectCount == 1){
-    return node.rightIndex;
-  }
-  return -1;
-}
-
-fn getVoxelObjectIndexFromFromLeftNode(node: BVHNode) -> i32 {
-  if(node.leftObjectCount == 1){
-    return node.leftIndex;
-  }
-  return -1;
+  let boxSize = (node.AABBMax - node.AABBMin) / 2;
+  return boxIntersection(rayOrigin - node.AABBMin, rayDirection, boxSize).tNear - EPSILON;
 }

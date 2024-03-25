@@ -143,7 +143,7 @@ const torchPosition: Light["position"][] = [
 let lights: Light[] = torchPosition.map((position) => {
   return {
     position: [position[0], position[1] + 0.5, position[2]],
-    size: 3,
+    size: 3.5,
     color: [1, 0.8, 0.4],
   };
 });
@@ -644,13 +644,13 @@ const start = async () => {
   await createTavern(device, volumeAtlas);
 
   const computePassPromises: Promise<RenderPass>[] = [
-    getHelloTrianglePass(),
+    // getHelloTrianglePass(),
     // getReflectionsPass(),
-    getShadowsPass(),
-    getLightsPass(),
+    // getShadowsPass(),
+    // getLightsPass(),
     // getSkyPass(),
     // getMotionBlurPass(),
-    // getGBufferPass(),
+    getGBufferPass(),
     // getDiffusePass(),
     // getVolumetricFog(),
     // getTaaPass(),
