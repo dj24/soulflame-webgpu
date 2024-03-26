@@ -209,17 +209,17 @@ export const getLightsPass = async (): Promise<RenderPass> => {
         // albedo
         {
           format: "rgba8unorm",
-          // blend: {
-          //   color: {
-          //     srcFactor: "src-alpha",
-          //     dstFactor: "dst-alpha",
-          //     operation: "add",
-          //   },
-          //   alpha: {
-          //     srcFactor: "one",
-          //     dstFactor: "one-minus-src-alpha",
-          //   },
-          // },
+          blend: {
+            color: {
+              srcFactor: "src-alpha",
+              dstFactor: "dst-alpha",
+              operation: "add",
+            },
+            alpha: {
+              srcFactor: "one",
+              dstFactor: "one-minus-src-alpha",
+            },
+          },
         },
       ],
     },

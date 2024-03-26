@@ -33,6 +33,9 @@ fn blinnPhong(normal: vec3<f32>, lightDirection: vec3<f32>, viewDirection: vec3<
   return (diffuse + specular * specularStrength) * lightColour;
 }
 
+fn getNdc(worldPos: vec3<f32>) -> vec3<f32> {
+  return (viewProjections.viewProjection * vec4(worldPos, 1.0)).xyz;
+}
 
 fn calculateScreenSpaceUV(worldPos: vec3<f32>, viewProjection: mat4x4<f32>) -> vec2<f32> {
   let clipPos = viewProjection * vec4(worldPos, 1.0);
@@ -49,63 +52,70 @@ fn getCameraPosition(invViewProjection: mat4x4<f32>) -> vec3<f32> {
 }
 
 fn ndcToScreenUV(ndc: vec2<f32>) -> vec2<f32> {
-  return ndc * 0.5 + 0.5;
+  return (ndc + 1.0) * 0.5;
 }
 
-const JITTERED_LIGHT_CENTER_RADIUS = 0.0;
-const SHADOW_ACNE_OFFSET: f32 = 0.05;
+
+const JITTERED_LIGHT_CENTER_RADIUS = 1.0;
+const SHADOW_ACNE_OFFSET: f32 = 0.0001;
 const SCATTER_AMOUNT: f32 = 0.2;
 const POSITION_SCATTER_AMOUNT: f32 = 0.2;
 
 @fragment
 fn main(
-    @location(0) @interpolate(linear) ndc : vec3f
+    @location(0) @interpolate(linear) lightVolumeNdc : vec3f
 ) -> @location(0) vec4f {
   let lightPosition = light.position.xyz;
   let lightRadius = light.radius * light.radius; // WHY?
   let lightColor = light.color.rgb;
-  var screenUV = ndc.xy * 0.5 + 0.5;
+  var screenUV = lightVolumeNdc.xy * 0.5 + 0.5;
   // TODO: use bluenoise instead uv
   let r = screenUV;
   let rayDirection = calculateRayDirection(screenUV,viewProjections.inverseViewProjection);
   let albedo = textureSampleLevel(albedoTex, nearestSampler, screenUV, 0.0).rgb;
   let normal = textureSampleLevel(normalTex, nearestSampler, screenUV, 0.0).xyz;
-  var worldPos = textureSampleLevel(worldPosTex, nearestSampler, screenUV, 0.0).xyz + normal * SHADOW_ACNE_OFFSET;
+  var worldPos = textureSampleLevel(worldPosTex, nearestSampler, screenUV, 0.0).xyz;
+ let ndc = getNdc(worldPos);
+  let depth = ndc.z;
+
 //  worldPos += randomInPlanarUnitDisk(r, normal) * POSITION_SCATTER_AMOUNT;
-  let jitteredLightCenter = lightPosition;
+  var jitteredLightCenter = lightPosition;
+  jitteredLightCenter += randomInUnitSphere(r) * JITTERED_LIGHT_CENTER_RADIUS;
 
   var distanceToLight = distance(worldPos, jitteredLightCenter);
   var attenuation = lightRadius / (distanceToLight * distanceToLight);
 
-  var shadowRayDirection = -normalize(jitteredLightCenter - worldPos);
+  var shadowRayDirection = normalize(worldPos - jitteredLightCenter);
 //  shadowRayDirection += randomInHemisphere(r, shadowRayDirection) * SCATTER_AMOUNT;
 
-  let rayStep = normalize(shadowRayDirection);
-  var screenRayStep = projectRayToScreenSpace(rayStep, viewProjections.viewProjection);
-  let lightPositionUV = calculateScreenSpaceUV(lightPosition, viewProjections.viewProjection);
-  var screenRayPosition = ndc.xy;
+  let rayStep = shadowRayDirection;
+//  var screenRayStep = projectRayToScreenSpace(rayStep, viewProjections.viewProjection);
+  let lightPositionUV = calculateScreenSpaceUV(jitteredLightCenter, viewProjections.viewProjection);
+  var screenRayPosition = lightVolumeNdc.xy;
+  var screenRayStep = normalize(lightPositionUV - screenUV) * abs(ndc.xy);
 
   if(lightPositionUV.x < 0.0 || lightPositionUV.x > 1.0 || lightPositionUV.y < 0.0 || lightPositionUV.y > 1.0) {
-    return vec4(0.0);
+//    return vec4(0.0);
   }
   // Screen space shadow ray
-  let cameraPosition = getCameraPosition(viewProjections.inverseViewProjection);
-  let distanceToCamera = distance(worldPos, cameraPosition);
-  for(var i = 0; i < 64; i++) {
-    screenRayPosition += screenRayStep * 0.0005;
-    if(screenRayPosition.x < -1.0 || screenRayPosition.x > 1.0 || screenRayPosition.y < -1.0 || screenRayPosition.y > 1.0) {
+
+  for(var i = 0; i < 32; i++) {
+    screenRayPosition += screenRayStep * 0.0001;
+    // check if ray has exceeded light positions
+    let uv = ndcToScreenUV(screenRayPosition);
+    if(uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+      break;
+    }
+
+    let worldPosSample = textureSampleLevel(worldPosTex, nearestSampler, uv,0.0).xyz;
+    if(distance(worldPosSample, jitteredLightCenter) > lightRadius) {
       return vec4(0.0);
     }
-    let uv = ndcToScreenUV(screenRayPosition);
-    let worldPosSample = textureSampleLevel(worldPosTex, nearestSampler, uv,0.0).xyz  + normal * SHADOW_ACNE_OFFSET;;
-//    if(distance(worldPosSample, jitteredLightCenter) > lightRadius) {
-//      return vec4(0.0);
-//    }
+    let ndcSample = getNdc(worldPosSample);
+    let biasedDepthSample = ndcSample.z + SHADOW_ACNE_OFFSET;
 
-    let distanceToCameraSample = distance(worldPosSample, cameraPosition);
     // closer than the current fragment, occluded
-    if(distanceToCameraSample < distanceToCamera - 0.0001) {
-//        return vec4(worldPosSample % 1.0, 1);
+    if(biasedDepthSample <= depth) {
       return vec4(0.0);
     }
   }
@@ -114,13 +124,10 @@ fn main(
   let shaded = blinnPhong(normal, lightDirection, -rayDirection, 0.0, 0.0, lightColor);
   let albedoWithSpecular = albedo * shaded;
 
-
-
-return vec4(distanceToCamera * 0.01);
+//return vec4(vec3(ndc.z * 0.1), 1.0);
 //return vec4(shadowRayDirection, 1.0);
-  return vec4(screenRayStep, 0, 1.0);
-//
-  return vec4(vec3(abs(worldPos) % 1.0), 1);
+//  return vec4(abs(sign(screenRayStep)), 0, 1.0);
+//  return vec4(vec3(abs(worldPos) % 1.0), 1);
 //  return vec4(vec3(distanceToCamera * 0.01), 1);
 
 
