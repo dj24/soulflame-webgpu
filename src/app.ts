@@ -89,7 +89,7 @@ let animationFrameId: ReturnType<typeof requestAnimationFrame>;
 
 const baseLightOffset = [-33.5, 4.5, -45] as [number, number, number];
 
-const torchPosition: Light["position"][] = [
+const torchPositions: Light["position"][] = [
   [-16.468910217285156, 2.6069962978363037, -44.74098205566406],
   [-12.986907958984375, 2.6069962978363037, -44.74098205566406],
   [-12.131904602050781, 3.019996166229248, -37.079986572265625],
@@ -126,29 +126,18 @@ const torchPosition: Light["position"][] = [
   [-26.703903198242188, 23.975996017456055, -9.089996337890625],
 ];
 
-// let lights: Light[] = Array.from({ length: 4 }, (_, i) => i).map((i) => {
-//   return {
-//     position: [
-//       baseLightOffset[0] + i * 10,
-//       baseLightOffset[1],
-//       baseLightOffset[2],
-//     ],
-//     size: 2.75,
-//     // color: vec3.normalize(
-//     //   vec3.create(Math.random(), Math.random(), Math.random()),
-//     // ),
-//     color: [1, 0.8, 0.4],
-//   };
-// });
-let lights: Light[] = torchPosition.map((position) => {
+let lights: Light[] = torchPositions.map((position, index) => {
   return {
     position: [position[0], position[1] + 1.0, position[2]],
-    size: 4,
+    size: 3,
+    // color: vec3.normalize(
+    //   vec3.create(Math.random(), Math.random(), Math.random()),
+    // ),
     color: [1, 0.8, 0.4],
   };
 });
 
-// lights = [lights[0]];
+lights = [lights[0], lights[1]];
 
 const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let normalTexture: GPUTexture;
@@ -499,6 +488,14 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     //   const octave3 = Math.sin(now / 50) * 0.05;
     //   light.size = 3 + octave1 + octave2 + octave3;
     // });
+    // Disco lights
+    // lights.forEach((light, index) => {
+    //   light.position = [
+    //     light.position[0],
+    //     torchPositions[index][1] + Math.sin(now / 500 + index) * 4,
+    //     light.position[2],
+    //   ];
+    // });
 
     const newElapsedTime = now - startTime;
     deltaTime = newElapsedTime - elapsedTime;
@@ -648,7 +645,7 @@ const start = async () => {
   const computePassPromises: Promise<RenderPass>[] = [
     getHelloTrianglePass(),
     // getGBufferPass(),
-    // getReflectionsPass(),
+    getReflectionsPass(),
     getShadowsPass(),
     getLightsPass(),
     // getSkyPass(),

@@ -2,7 +2,7 @@
 
 fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>) -> bool {
 //    return rayMarchBVHCoarse(worldPos, shadowRayDirection, 100000.0);
-  return rayMarchBVHFirstHit(worldPos, shadowRayDirection, 4.0);
+  return rayMarchBVHFirstHit(worldPos, shadowRayDirection, 10000.0);
 //  return rayMarchBVH(worldPos, shadowRayDirection).hit;
 }
 

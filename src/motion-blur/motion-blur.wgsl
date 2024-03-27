@@ -1,4 +1,4 @@
-const TARGET_DELTA_TIME: f32 = 16.66;
+const TARGET_DELTA_TIME: f32 = 8.33;
 const MAX_SAMPLES: i32 = 8;
 
 @compute @workgroup_size(8, 8, 1)

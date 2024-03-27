@@ -24,22 +24,12 @@ fn main(
     var r = textureLoad(blueNoiseTex, pixel % 512, 0).xy;
     var scatteredNormal = mix(normalDirection,randomInHemisphere(r, normalDirection),scatterAmount);
     var reflectionDirection = reflect(cameraRayDirection, scatteredNormal);
-    var rayMarchResult = rayMarchBVH(worldPos, reflectionDirection);
-    var reflectedColour = SKY_COLOUR;
-    if(rayMarchResult.hit){
-      reflectedColour = rayMarchResult.colour;
-//      if(isReflective(reflectedColour)) {
-//        reflectedColour = vec3(1,0,0);
-//        scatteredNormal = mix(rayMarchResult.normal,randomInHemisphere(r, rayMarchResult.normal),scatterAmount);
-//        reflectionDirection = reflect(reflectionDirection, rayMarchResult.normal);
-//        rayMarchResult = rayMarchBVH(rayMarchResult.worldPos + rayMarchResult.normal * SHADOW_ACNE_OFFSET, reflectionDirection);
-////        if(rayMarchResult.hit){
-////          reflectedColour = rayMarchResult.colour;
-////        }
-//      }
-    }
-    let ouputColour = mix(input.rgb, reflectedColour * input.rgb,  reflectionAmount(normalDirection, cameraRayDirection));
-    textureStore(outputTex, pixel, vec4(ouputColour, 1.0));
+
+    let reflectedColour = vec3(1.,0,0);
+
+//    let outputColor = mix(input.rgb, reflectedColour * input.rgb,  reflectionAmount(normalDirection, cameraRayDirection));
+    let outputColor = reflectedColour;
+    textureStore(outputTex, pixel, vec4(outputColor, 1.0));
   }
   else {
     textureStore(outputTex, pixel, vec4(0.0));

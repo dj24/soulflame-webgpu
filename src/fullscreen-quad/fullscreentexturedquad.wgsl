@@ -50,5 +50,6 @@ fn get_debug_colour(index : i32) -> vec4<f32> {
 @fragment
 fn fragment_main(@location(0) fragUV : vec2<f32>) -> @location(0) vec4<f32> {
     let pixel = fragUV * vec2<f32>(textureDimensions(myTexture));
-    return textureLoad(myTexture, vec2<u32>(pixel),0);
+    var colour = textureLoad(myTexture, vec2<u32>(pixel),0);
+    return colour;
 }

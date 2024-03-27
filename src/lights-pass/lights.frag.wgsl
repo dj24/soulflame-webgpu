@@ -56,7 +56,7 @@ fn ndcToScreenUV(ndc: vec2<f32>) -> vec2<f32> {
 }
 
 
-const JITTERED_LIGHT_CENTER_RADIUS = 1.0;
+const JITTERED_LIGHT_CENTER_RADIUS = 0.5;
 const SHADOW_ACNE_OFFSET: f32 = 0.0001;
 const SCATTER_AMOUNT: f32 = 0.2;
 const POSITION_SCATTER_AMOUNT: f32 = 0.2;
@@ -78,6 +78,7 @@ fn main(
  let ndc = getNdc(worldPos);
   let depth = ndc.z;
 
+
 //  worldPos += randomInPlanarUnitDisk(r, normal) * POSITION_SCATTER_AMOUNT;
   var jitteredLightCenter = lightPosition;
   jitteredLightCenter += randomInUnitSphere(r) * JITTERED_LIGHT_CENTER_RADIUS;
@@ -89,35 +90,43 @@ fn main(
 //  shadowRayDirection += randomInHemisphere(r, shadowRayDirection) * SCATTER_AMOUNT;
 
   let rayStep = shadowRayDirection;
-//  var screenRayStep = projectRayToScreenSpace(rayStep, viewProjections.viewProjection);
+
   let lightPositionUV = calculateScreenSpaceUV(jitteredLightCenter, viewProjections.viewProjection);
+//  let lightPositionNdc = getNdc(jitteredLightCenter);
+//  let worldPosAtLight = textureSampleLevel(worldPosTex, nearestSampler, lightPositionUV, 0.0).xyz;
+//  let isLightOccluded = lightPositionNdc.z < getNdc(worldPosAtLight).z;
+//
+//  if(isLightOccluded) {
+//    return vec4(0.0);
+//  }
+
   var screenRayPosition = lightVolumeNdc.xy;
   var screenRayStep = normalize(lightPositionUV - screenUV) * abs(ndc.xy);
-
-  if(lightPositionUV.x < 0.0 || lightPositionUV.x > 1.0 || lightPositionUV.y < 0.0 || lightPositionUV.y > 1.0) {
-//    return vec4(0.0);
-  }
+  let step = length(screenRayStep) / 16.0;
   // Screen space shadow ray
+//  for(var i = 0; i < 16; i++) {
+//    screenRayPosition += screenRayStep * step;
+//    // check if ray has exceeded light positions
+//    let uv = ndcToScreenUV(screenRayPosition);
+//    if(uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+//      break;
+//    }
+//
+//    let worldPosSample = textureSampleLevel(worldPosTex, nearestSampler, uv,0.0).xyz;
+//    if(distance(worldPosSample, jitteredLightCenter) > lightRadius) {
+////      return vec4(0.0);
+//    }
+//    let ndcSample = getNdc(worldPosSample);
+//    let biasedDepthSample = ndcSample.z + SHADOW_ACNE_OFFSET;
+//
+//    // closer than the current fragment, occluded
+//    if(biasedDepthSample <= depth) {
+//      return vec4(0.0);
+//    }
+//  }
 
-  for(var i = 0; i < 32; i++) {
-    screenRayPosition += screenRayStep * 0.0001;
-    // check if ray has exceeded light positions
-    let uv = ndcToScreenUV(screenRayPosition);
-    if(uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
-      break;
-    }
-
-    let worldPosSample = textureSampleLevel(worldPosTex, nearestSampler, uv,0.0).xyz;
-    if(distance(worldPosSample, jitteredLightCenter) > lightRadius) {
-      return vec4(0.0);
-    }
-    let ndcSample = getNdc(worldPosSample);
-    let biasedDepthSample = ndcSample.z + SHADOW_ACNE_OFFSET;
-
-    // closer than the current fragment, occluded
-    if(biasedDepthSample <= depth) {
-      return vec4(0.0);
-    }
+  if(rayMarchBVHFirstHit(worldPos - shadowRayDirection * 0.1, -shadowRayDirection, lightRadius)){
+    return vec4(0.0);
   }
 
   let lightDirection = normalize(jitteredLightCenter - worldPos);

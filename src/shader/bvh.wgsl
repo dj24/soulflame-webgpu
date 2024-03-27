@@ -93,8 +93,12 @@ fn rayMarchBVHFirstHit(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, maxDistanc
           // Raymarch the voxel object if it's a leaf node
           let voxelObject = voxelObjects[node.leftIndex]; // left index represents the voxel object index for leaf nodes
           let AABBDist = getDistanceToNode(rayOrigin, rayDirection, node);
+          if(AABBDist > maxDistance){
+            nodeIndex = stack_pop(&stack);
+            continue;
+          }
           let raymarchResult = rayMarchTransformed(voxelObject, rayDirection, rayOrigin + rayDirection * AABBDist, 0);
-          if(raymarchResult.hit){
+          if(raymarchResult.hit && distance(raymarchResult.worldPos, rayOrigin) < maxDistance){
             return true;
           }
           // Pop the stack and continue
