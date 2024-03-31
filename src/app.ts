@@ -12,7 +12,6 @@ import { mat4, vec2, vec3 } from "wgpu-matrix";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { DebugValuesStore } from "./debug-values-store";
 import { createTextureFromImage, createTextureFromImages } from "webgpu-utils";
-import { create3dTexture } from "./create-3d-texture/create-3d-texture";
 import { getVolumeAtlas, VolumeAtlas } from "./volume-atlas";
 import { getFrameTimeTracker } from "./frametime-tracker";
 import { generateOctreeMips } from "./create-3d-texture/generate-octree-mips";

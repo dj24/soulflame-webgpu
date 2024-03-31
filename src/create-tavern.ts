@@ -1,11 +1,11 @@
 import { VolumeAtlas } from "./volume-atlas";
-import { create3dTexture } from "./create-3d-texture/create-3d-texture";
 import { generateOctreeMips } from "./create-3d-texture/generate-octree-mips";
 import { mat4 } from "wgpu-matrix";
 import { VoxelObject } from "./voxel-object";
 import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels";
 import { convertVxm } from "./convert-vxm";
 import { createTextureFromVoxels } from "./create-texture-from-voxels/create-texture-from-voxels";
+import { createBrickMap } from "./create-brickmap/create-brickmap";
 
 export let voxelObjects: VoxelObject[] = [];
 
@@ -45,7 +45,11 @@ const NAME_ALLOWLIST = [
   "Tavern",
 ];
 
-type ProcessTavernObject = { name: string; texture: GPUTexture };
+type ProcessTavernObject = {
+  name: string;
+  texture: GPUTexture;
+  brickMap: GPUBuffer;
+};
 
 const processTavernObject = async (
   commandEncoder: GPUCommandEncoder,
@@ -61,7 +65,7 @@ const processTavernObject = async (
   const voxels = convertVxm(arrayBuffer);
 
   console.time(`Create texture from voxels for ${name}`);
-  let texture = createTextureFromVoxels(commandEncoder, device, voxels);
+  let texture = await createTextureFromVoxels(device, voxels);
   console.timeEnd(`Create texture from voxels for ${name}`);
 
   // console.time(`Remove internal voxels from ${name}`);
@@ -72,7 +76,11 @@ const processTavernObject = async (
   // generateOctreeMips(commandEncoder, device, texture);
   // console.timeEnd(`Generate octree mips for ${name}`);
 
-  return { name, texture };
+  console.time(`Create brick map for ${name}`);
+  const brickMap = await createBrickMap(device, voxels);
+  console.timeEnd(`Create brick map for ${name}`);
+
+  return { name, texture, brickMap };
 };
 
 export const createTavern = async (
