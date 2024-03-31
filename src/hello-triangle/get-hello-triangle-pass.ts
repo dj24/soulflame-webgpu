@@ -129,7 +129,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     commandEncoder,
     outputTextures,
     transformationMatrixBuffer,
-    voxelTextureView,
+    volumeAtlas,
     viewProjectionMatricesBuffer,
     timestampWrites,
     cameraPositionBuffer,
@@ -220,7 +220,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
           },
           {
             binding: 3,
-            resource: voxelTextureView,
+            resource: volumeAtlas.getAtlasTextureView(),
           },
           {
             binding: 4,

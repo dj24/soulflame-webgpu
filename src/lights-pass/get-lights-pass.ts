@@ -323,7 +323,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     commandEncoder,
     outputTextures,
     transformationMatrixBuffer,
-    voxelTextureView,
+    volumeAtlas,
     viewProjectionMatricesBuffer,
     timestampWrites,
     bvhBuffer,
@@ -401,7 +401,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
           },
           {
             binding: 3,
-            resource: voxelTextureView,
+            resource: volumeAtlas.getAtlasTextureView(),
           },
           {
             binding: 4,

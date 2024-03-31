@@ -239,7 +239,7 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
   const render = ({
     commandEncoder,
     outputTextures,
-    voxelTextureView,
+    volumeAtlas,
     resolutionBuffer,
     cameraPositionBuffer,
     transformationMatrixBuffer,
@@ -284,7 +284,7 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
       entries: [
         {
           binding: 1,
-          resource: voxelTextureView,
+          resource: volumeAtlas.getAtlasTextureView(),
         },
         {
           binding: 3,

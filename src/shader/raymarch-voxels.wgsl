@@ -170,7 +170,7 @@ fn getDistanceToNode(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, node: BVHNod
   let boxSize = (node.AABBMax - node.AABBMin) / 2;
   let intersection = boxIntersection(rayOrigin - node.AABBMin, rayDirection, boxSize);
   if(intersection.isHit){
-    return intersection.tNear - EPSILON;
+    return intersection.tNear;
   }
   return -1.0;
 

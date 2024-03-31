@@ -90,6 +90,14 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     },
   };
 
+  const brickMapBufferEntry: GPUBindGroupLayoutEntry = {
+    binding: 11,
+    visibility: GPUShaderStage.COMPUTE,
+    buffer: {
+      type: "read-only-storage",
+    },
+  };
+
   const uniformsBindGroupLayout = device.createBindGroupLayout({
     entries: [
       {
@@ -121,6 +129,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       },
       sunDirectionEntry,
       bvhBufferEntry,
+      brickMapBufferEntry,
     ],
   });
 
@@ -150,7 +159,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     commandEncoder,
     outputTextures,
     cameraPositionBuffer,
-    voxelTextureView,
+    volumeAtlas,
     transformationMatrixBuffer,
     viewProjectionMatricesBuffer,
     timestampWrites,
@@ -164,7 +173,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       entries: [
         {
           binding: 0,
-          resource: voxelTextureView,
+          resource: volumeAtlas.getAtlasTextureView(),
         },
         {
           binding: 2,
@@ -210,6 +219,12 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           binding: 10,
           resource: {
             buffer: bvhBuffer,
+          },
+        },
+        {
+          binding: 11,
+          resource: {
+            buffer: volumeAtlas.getBrickMapBuffer(),
           },
         },
       ],

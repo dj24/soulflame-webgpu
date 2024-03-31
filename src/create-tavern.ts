@@ -48,7 +48,6 @@ const NAME_ALLOWLIST = [
 type ProcessTavernObject = {
   name: string;
   texture: GPUTexture;
-  brickMap: GPUBuffer;
 };
 
 const processTavernObject = async (
@@ -76,11 +75,11 @@ const processTavernObject = async (
   // generateOctreeMips(commandEncoder, device, texture);
   // console.timeEnd(`Generate octree mips for ${name}`);
 
-  console.time(`Create brick map for ${name}`);
-  const brickMap = await createBrickMap(device, voxels);
-  console.timeEnd(`Create brick map for ${name}`);
+  // console.time(`Create brick map for ${name}`);
+  // const brickMap = await createBrickMap(device, voxels);
+  // console.timeEnd(`Create brick map for ${name}`);
 
-  return { name, texture, brickMap };
+  return { name, texture };
 };
 
 export const createTavern = async (
@@ -104,9 +103,9 @@ export const createTavern = async (
         processTavernObject(commandEncoder, name, device),
       ),
     );
-    for (const { name, texture, brickMap } of textures) {
+    for (const { name, texture } of textures) {
       console.time(`Add volume for ${name}`);
-      volumeAtlas.addVolume(commandEncoder, texture, brickMap, name);
+      volumeAtlas.addVolume(commandEncoder, texture, name);
       device.queue.submit([commandEncoder.finish()]);
       commandEncoder = device.createCommandEncoder();
       console.timeEnd(`Add volume for ${name}`);

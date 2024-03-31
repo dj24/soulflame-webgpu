@@ -62,7 +62,7 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
     resolutionBuffer,
     outputTextures,
     cameraPositionBuffer,
-    voxelTextureView,
+    volumeAtlas,
     transformationMatrixBuffer,
   }: RenderArgs) => {
     const computePass = commandEncoder.beginComputePass();
@@ -91,7 +91,7 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
         },
         {
           binding: 4,
-          resource: voxelTextureView,
+          resource: volumeAtlas.getAtlasTextureView(),
         },
       ],
     });

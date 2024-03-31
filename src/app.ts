@@ -38,7 +38,6 @@ export type RenderArgs = {
   resolutionBuffer: GPUBuffer;
   outputTextures: OutputTextures;
   cameraPositionBuffer: GPUBuffer;
-  voxelTextureView: GPUTextureView;
   transformationMatrixBuffer: GPUBuffer;
   timeBuffer: GPUBuffer;
   viewProjectionMatricesBuffer?: GPUBuffer;
@@ -47,6 +46,7 @@ export type RenderArgs = {
   blueNoiseTexture?: GPUTexture;
   bvhBuffer: GPUBuffer;
   lights: Light[];
+  volumeAtlas: VolumeAtlas;
 };
 
 export type RenderPass = {
@@ -583,7 +583,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
           worldPositionTexture,
         },
         cameraPositionBuffer,
-        voxelTextureView,
+        volumeAtlas,
         transformationMatrixBuffer,
         viewProjectionMatricesBuffer,
         timestampWrites,
@@ -637,8 +637,8 @@ const start = async () => {
   //   "cubemaps/town-square/posz.jpg",
   //   "cubemaps/town-square/negz.jpg",
   // ]);
-  volumeAtlas = await getVolumeAtlas(device);
 
+  volumeAtlas = await getVolumeAtlas(device);
   await createTavern(device, volumeAtlas);
 
   const computePassPromises: Promise<RenderPass>[] = [

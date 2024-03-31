@@ -91,7 +91,7 @@ ${shaderCode}`;
     outputTextures,
     timestampWrites,
     viewProjectionMatricesBuffer,
-    voxelTextureView,
+    volumeAtlas,
     cameraPositionBuffer,
     transformationMatrixBuffer,
     sunDirectionBuffer,
@@ -147,7 +147,7 @@ ${shaderCode}`;
       },
       {
         binding: 4,
-        resource: voxelTextureView,
+        resource: volumeAtlas.getAtlasTextureView(),
       },
       {
         binding: 5,

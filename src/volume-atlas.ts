@@ -27,11 +27,11 @@ export type VolumeAtlas = {
   addVolume: (
     commandEncoder: GPUCommandEncoder,
     texture: GPUTexture,
-    brickMap: GPUBuffer,
     label: string,
   ) => void;
   removeVolume: (label: string) => void;
   getAtlasTextureView: () => GPUTextureView;
+  getBrickMapBuffer: () => GPUBuffer;
 };
 
 const copyTextureWithMips = (
@@ -96,7 +96,7 @@ export const getVolumeAtlas = async (
 
   const brickMapWidth = DEFAULT_ATLAS_SIZE / BRICKMAP_SIZE;
 
-  let brickMapBuffer = createBrickMapFromTexture(device, atlasTexture);
+  let brickMapBuffer = await createBrickMapFromTexture(device, atlasTexture);
 
   device.queue.submit([commandEncoder.finish()]);
   await device.queue.onSubmittedWorkDone();
@@ -115,7 +115,6 @@ export const getVolumeAtlas = async (
   const addVolume = (
     commandEncoder: GPUCommandEncoder,
     texture: GPUTexture,
-    brickMap: GPUBuffer,
     label: string,
   ) => {
     if (dictionary[label]) {
@@ -293,6 +292,10 @@ export const getVolumeAtlas = async (
     return view;
   };
 
+  const getBrickMapBuffer = () => {
+    return brickMapBuffer;
+  };
+
   const getVolumes = (): VolumeAtlasDictionary => {
     return dictionary;
   };
@@ -303,5 +306,6 @@ export const getVolumeAtlas = async (
     getVolume,
     removeVolume,
     getAtlasTextureView,
+    getBrickMapBuffer,
   };
 };
