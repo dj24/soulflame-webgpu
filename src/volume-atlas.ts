@@ -1,5 +1,6 @@
 import { vec3, Vec3 } from "wgpu-matrix";
 import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels";
+import { createBrickMapFromTexture } from "./create-brickmap/create-brick-map-from-texture";
 
 const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
   format: "rgba8unorm",
@@ -26,6 +27,7 @@ export type VolumeAtlas = {
   addVolume: (
     commandEncoder: GPUCommandEncoder,
     texture: GPUTexture,
+    brickMap: GPUBuffer,
     label: string,
   ) => void;
   removeVolume: (label: string) => void;
@@ -62,6 +64,13 @@ const copyTextureWithMips = (
   }
 };
 
+const BRICKMAP_SIZE = 8;
+const DEFAULT_ATLAS_SIZE = 8;
+const BRICK_STRIDE_BYTES = 64;
+const ceilToNearestMultipleOf = (n: number, multiple: number) => {
+  return Math.ceil(n / multiple) * multiple;
+};
+
 /**
  * Factory function for creating and managing a volume atlas
  * The atlas is a 3d texture that contains multiple voxel models, packing them along the x-axis
@@ -72,18 +81,23 @@ const copyTextureWithMips = (
 export const getVolumeAtlas = async (
   device: GPUDevice,
 ): Promise<VolumeAtlas> => {
-  let atlasTexture: GPUTexture = null;
   let dictionary: VolumeAtlasDictionary = {};
-
   const commandEncoder = device.createCommandEncoder();
-  if (!atlasTexture) {
-    atlasTexture = device.createTexture({
-      size: { width: 8, height: 8, depthOrArrayLayers: 8 },
-      ...descriptorPartial,
-      label: `Volume atlas containing `,
-      mipLevelCount: 1,
-    });
-  }
+  let atlasTexture = device.createTexture({
+    size: {
+      width: DEFAULT_ATLAS_SIZE,
+      height: DEFAULT_ATLAS_SIZE,
+      depthOrArrayLayers: DEFAULT_ATLAS_SIZE,
+    },
+    ...descriptorPartial,
+    label: `Volume atlas containing `,
+    mipLevelCount: 1,
+  });
+
+  const brickMapWidth = DEFAULT_ATLAS_SIZE / BRICKMAP_SIZE;
+
+  let brickMapBuffer = createBrickMapFromTexture(device, atlasTexture);
+
   device.queue.submit([commandEncoder.finish()]);
   await device.queue.onSubmittedWorkDone();
 
@@ -91,21 +105,17 @@ export const getVolumeAtlas = async (
     return dictionary[label];
   };
 
-  const ceilToNearestMultipleOf = (n: number, multiple: number) => {
-    return Math.ceil(n / multiple) * multiple;
-  };
-
-  const BRICKMAP_SIZE = 8;
-
   /**
    * Add a volume to the atlas. Requires `commandEncoder.finish()` to be called to execute the copy
    * @param commandEncoder - command encoder to use for copying the texture
    * @param texture - 3d texture to copy into the atlas
+   * @param brickMap - brick map buffer for the volume
    * @param label - label to use for the volume in the dictionary
    */
   const addVolume = (
     commandEncoder: GPUCommandEncoder,
     texture: GPUTexture,
+    brickMap: GPUBuffer,
     label: string,
   ) => {
     if (dictionary[label]) {
@@ -143,6 +153,7 @@ export const getVolumeAtlas = async (
     console.debug(
       `Expanding atlas texture to [${newWidth}, ${newHeight}, ${newDepth}], mip levels: ${newMipLevelCount}`,
     );
+
     const newAtlasTexture = device.createTexture({
       size: {
         width: newWidth,
@@ -187,6 +198,7 @@ export const getVolumeAtlas = async (
       location: [atlasLocationX, 0, 0],
       size: [width, height, depthOrArrayLayers],
     };
+    createBrickMapFromTexture(device, atlasTexture);
   };
 
   /**
@@ -264,6 +276,7 @@ export const getVolumeAtlas = async (
       sizeOfRemoval[2],
     );
     computePass.end();
+
     device.queue.submit([commandEncoder.finish()]);
     await device.queue.onSubmittedWorkDone();
   };
