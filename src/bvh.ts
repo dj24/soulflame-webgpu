@@ -53,61 +53,46 @@ const splitObjectsByMortonCode = (voxelObjects: VoxelObject[]) => {
   return { left, right };
 };
 
-const splitObjectsBySurfaceAreaHeuristic = (voxelObjects: VoxelObject[]) => {
-  let left: VoxelObject[] = [];
-  let right: VoxelObject[] = [];
-  let bestSplitAxis = 0; // Initialize best split axis
-  let bestSplitPosition = 0; // Initialize best split position
-  let bestSplitCost = Infinity; // Initialize best split cost
-
-  // Calculate the surface area of the parent AABB
-  const parentAABB = getAABB(voxelObjects);
-  const parentSurfaceArea = calculateSurfaceArea(
-    parentAABB.min,
-    parentAABB.max,
-  );
-
-  // Iterate over each axis (X, Y, Z)
-  for (let axis = 0; axis < 3; axis++) {
-    // Sort the objects along the current axis
-    const sortedAlongAxis = voxelObjects.sort((a, b) => {
-      return a.worldSpaceCenter[axis] - b.worldSpaceCenter[axis];
-    });
-
-    // Iterate over potential split positions
-    for (let i = 1; i < sortedAlongAxis.length; i++) {
-      // Split the objects into left and right sets
-      const leftSet = sortedAlongAxis.slice(0, i);
-      const rightSet = sortedAlongAxis.slice(i);
-
-      // Calculate the surface area of the AABBs for the left and right sets
-      const leftAABB = getAABB(leftSet);
-      const rightAABB = getAABB(rightSet);
-
-      // Calculate the surface areas of the left and right AABBs
-      const leftSurfaceArea = calculateSurfaceArea(leftAABB.min, leftAABB.max);
-      const rightSurfaceArea = calculateSurfaceArea(
-        rightAABB.min,
-        rightAABB.max,
-      );
-
-      // Calculate the SAH cost for this split
-      const splitCost =
-        (leftSurfaceArea / parentSurfaceArea) * leftSet.length +
-        (rightSurfaceArea / parentSurfaceArea) * rightSet.length;
-
-      // Update the best split if this split has lower cost
-      if (splitCost < bestSplitCost) {
-        bestSplitAxis = axis;
-        bestSplitPosition =
-          sortedAlongAxis[i - 1].worldSpaceCenter[axis] +
-          sortedAlongAxis[i].worldSpaceCenter[axis] / 2;
-        bestSplitCost = splitCost;
-        left = leftSet;
-        right = rightSet;
-      }
+const getVoxelObjectMinAndMax = (voxelObject: VoxelObject) => {
+  let min = [Infinity, Infinity, Infinity];
+  let max = [-Infinity, -Infinity, -Infinity];
+  for (const corner of voxelObject.worldSpaceCorners) {
+    for (let i = 0; i < 3; i++) {
+      min[i] = Math.min(min[i], corner[i]);
+      max[i] = Math.max(max[i], corner[i]);
     }
   }
+  return { min, max };
+};
+
+const splitObjectsBySurfaceArea = (voxelObjects: VoxelObject[]) => {
+  voxelObjects.sort((a, b) => {
+    const aMinMax = getVoxelObjectMinAndMax(a);
+    const bMinMax = getVoxelObjectMinAndMax(b);
+    return (
+      calculateSurfaceArea(aMinMax.min, aMinMax.max) -
+      calculateSurfaceArea(bMinMax.min, bMinMax.max)
+    );
+  });
+
+  const medianIndex = Math.floor(voxelObjects.length / 2);
+  const left = voxelObjects.slice(0, medianIndex);
+  const right = voxelObjects.slice(medianIndex);
+
+  return { left, right };
+};
+
+const splitObjectsBySize = (voxelObjects: VoxelObject[]) => {
+  voxelObjects.sort((a, b) => {
+    const aSize = a.size[0] * a.size[1] * a.size[2];
+    const bSize = b.size[0] * b.size[1] * b.size[2];
+    return aSize - bSize;
+  });
+
+  const medianIndex = Math.floor(voxelObjects.length / 2);
+  const left = voxelObjects.slice(0, medianIndex);
+  const right = voxelObjects.slice(medianIndex);
+
   return { left, right };
 };
 
@@ -136,7 +121,7 @@ export class BVH {
       return;
     }
 
-    const { left, right } = splitObjectsByMortonCode(voxelObjects);
+    const { left, right } = splitObjectsBySize(voxelObjects);
     const AABB = getAABB(voxelObjects);
     let leftChildIndex = 2 * startIndex + 1;
     let rightChildIndex = 2 * startIndex + 2;

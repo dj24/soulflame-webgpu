@@ -1,5 +1,5 @@
 const EPSILON = 0.0001;
-const MAX_RAY_STEPS = 1024;
+const MAX_RAY_STEPS = 256;
 const FAR_PLANE = 10000.0;
 const NEAR_PLANE = 0.5;
 
@@ -64,14 +64,15 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
   var output = RayMarchResult();
   let rayDirSign = sign(objectRayDirection);
   let atlasLocation = vec3<u32>(voxelObject.atlasLocation);
-  var voxelSize = vec3<f32>(2.0);
-  var shiftedRayOrigin = objectRayOrigin - objectRayDirection * EPSILON;
+  var voxelSize = vec3<f32>(1.0);
+  var scaledEpislon = EPSILON * length(voxelObject.size);
+  var shiftedRayOrigin = objectRayOrigin - objectRayDirection * scaledEpislon;
   var objectPos = shiftedRayOrigin;
   var currentIndex = vec3<i32>(floor(objectPos));
   var scaledRayOrigin =  objectRayOrigin/ voxelSize;
   var scaledObjectPos = floor(objectPos / voxelSize);
   var scaledOriginDifference = scaledObjectPos - scaledRayOrigin;
-  var tMax = voxelSize * (rayDirSign * scaledOriginDifference + (rayDirSign * 0.5) + 0.5) / abs(objectRayDirection);
+  var tMax = vec3(0.0);
   let mask = vec3<f32>(tMax.xyz <= min(tMax.yzx, tMax.zxy));
   var objectNormal = mask * -rayDirSign;
   var tCurrent = min(tMax.x, min(tMax.y, tMax.z));
@@ -82,26 +83,11 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
     output.stepsTaken = i;
 
     let samplePosition = vec3<u32>(currentIndex) + atlasLocation;
-
     let mip0Index = currentIndex;
-    let mip1Index = currentIndex / 2;
-    let mip2Index = currentIndex / 4;
-    let mip3Index = currentIndex / 8;
-    let mip4Index = currentIndex / 16;
-
     let mip0SamplePosition = vec3<u32>(mip0Index) + atlasLocation;
-    let mip1SamplePosition = vec3<u32>(mip1Index) + atlasLocation;
-    let mip2SamplePosition = vec3<u32>(mip2Index) + atlasLocation;
-    let mip3SamplePosition = vec3<u32>(mip3Index) + atlasLocation;
-    let mip4SamplePosition = vec3<u32>(mip4Index) + atlasLocation;
-
     let mipSample0 = textureLoad(voxels, mip0SamplePosition, 0);
-    let mipSample1 = textureLoad(voxels, mip1SamplePosition, 1);
-    let mipSample2 = textureLoad(voxels, mip2SamplePosition, 2);
-    let mipSample3 = textureLoad(voxels, mip3SamplePosition, 3);
-    let mipSample4 = textureLoad(voxels, mip3SamplePosition, 4);
-
-    output.colour = objectPos / vec3<f32>(voxelObject.size);
+//    output.colour = abs(objectRayDirection);
+//    output.colour = objectPos / vec3<f32>(voxelObject.size);
 //output.colour = vec3(f32(i) / f32(MAX_RAY_STEPS));
 
     if(mipSample0.a > 0.0 && isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
@@ -118,18 +104,6 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
         return output;
     }
     voxelSize = vec3<f32>(1.0);
-//    if (mipSample1.a == 0.0){
-//      voxelSize = vec3<f32>(2.0);
-//    }
-//    if (mipSample2.a == 0.0){
-//      voxelSize = vec3<f32>(4.0);
-//    }
-//    if (mipSample3.a == 0.0){
-//      voxelSize = vec3<f32>(8.0);
-//    }
-//    if (mipSample4.a == 0.0){
-//      voxelSize = vec3<f32>(16.0);
-//    }
 
     var scaledRayOrigin = shiftedRayOrigin / voxelSize;
     var scaledObjectPos = floor(objectPos / voxelSize);

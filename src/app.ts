@@ -73,8 +73,8 @@ const startingCameraFieldOfView = 90 * (Math.PI / 180);
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
   // position: vec3.create(-25, 10, -70),
-  position: vec3.create(-40, 6, -43),
-  direction: vec3.create(0.5, 0, 0.0),
+  position: vec3.create(-42, 6, -45),
+  direction: vec3.create(0.0, 0, -0.5),
 });
 
 const debugUI = new DebugUI();
@@ -643,11 +643,11 @@ const start = async () => {
   await createTavern(device, volumeAtlas);
 
   const computePassPromises: Promise<RenderPass>[] = [
-    getHelloTrianglePass(),
-    // getGBufferPass(),
-    getReflectionsPass(),
-    getShadowsPass(),
-    getLightsPass(),
+    // getHelloTrianglePass(),
+    getGBufferPass(),
+    // getReflectionsPass(),
+    // getShadowsPass(),
+    // getLightsPass(),
     // getSkyPass(),
     // getMotionBlurPass(),
     // getDiffusePass(),

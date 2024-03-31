@@ -78,7 +78,7 @@ export const getVolumeAtlas = async (
   const commandEncoder = device.createCommandEncoder();
   if (!atlasTexture) {
     atlasTexture = device.createTexture({
-      size: { width: 1, height: 1, depthOrArrayLayers: 1 },
+      size: { width: 8, height: 8, depthOrArrayLayers: 8 },
       ...descriptorPartial,
       label: `Volume atlas containing `,
       mipLevelCount: 1,
@@ -90,6 +90,12 @@ export const getVolumeAtlas = async (
   const getVolume = (label: string) => {
     return dictionary[label];
   };
+
+  const ceilToNearestMultipleOf = (n: number, multiple: number) => {
+    return Math.ceil(n / multiple) * multiple;
+  };
+
+  const BRICKMAP_SIZE = 8;
 
   /**
    * Add a volume to the atlas. Requires `commandEncoder.finish()` to be called to execute the copy
@@ -108,24 +114,27 @@ export const getVolumeAtlas = async (
       );
     }
     const { width, height, depthOrArrayLayers } = texture;
+    const roundedWidth = ceilToNearestMultipleOf(width, BRICKMAP_SIZE);
+    const roundedHeight = ceilToNearestMultipleOf(height, BRICKMAP_SIZE);
+    const roundedDepth = ceilToNearestMultipleOf(
+      depthOrArrayLayers,
+      BRICKMAP_SIZE,
+    );
     console.debug(`Adding ${label} to atlas`, {
       width,
       height,
       depthOrArrayLayers,
     });
 
-    const newWidth = atlasTexture.width + width;
+    const newWidth = atlasTexture.width + roundedWidth;
     if (newWidth > device.limits.maxTextureDimension3D) {
       throw new Error(
         `Error adding volume to atlas: adding volume would exceed device max texture dimension of ${device.limits.maxTextureDimension3D}`,
       );
     }
 
-    const newHeight = Math.max(atlasTexture.height, height);
-    const newDepth = Math.max(
-      atlasTexture.depthOrArrayLayers,
-      depthOrArrayLayers,
-    );
+    const newHeight = Math.max(atlasTexture.height, roundedHeight);
+    const newDepth = Math.max(atlasTexture.depthOrArrayLayers, roundedDepth);
 
     const newMipLevelCount = Math.max(
       texture.mipLevelCount,
@@ -144,6 +153,7 @@ export const getVolumeAtlas = async (
       ...descriptorPartial,
       label: `${atlasTexture.label}, ${texture.label || "unnamed volume"}`,
     });
+    const atlasLocationX = atlasTexture.width;
     // Copy the old atlas texture into the new larger one
     commandEncoder.copyTextureToTexture(
       {
@@ -164,7 +174,7 @@ export const getVolumeAtlas = async (
       },
       {
         texture: newAtlasTexture,
-        origin: { x: newAtlasTexture.width - width, y: 0, z: 0 }, // Specify the destination origin (z-axis slice)
+        origin: { x: atlasLocationX, y: 0, z: 0 }, // Specify the destination origin (z-axis slice)
       },
       {
         width,
@@ -174,7 +184,7 @@ export const getVolumeAtlas = async (
     );
     atlasTexture = newAtlasTexture;
     dictionary[label] = {
-      location: [newAtlasTexture.width - width, 0, 0],
+      location: [atlasLocationX, 0, 0],
       size: [width, height, depthOrArrayLayers],
     };
   };

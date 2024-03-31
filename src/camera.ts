@@ -81,15 +81,8 @@ export class Camera extends MoveableObject {
 }
 
 export const moveCamera = () => {
-  const rotationSpeed = 0.0001;
-  // TODO: abstract this
-  // camera.rotateY(-mouseControls.velocity[0] * rotationSpeed);
-  // camera.rotateX(mouseControls.velocity[1] * rotationSpeed);
-  // console.log(mouseControls.velocity);
-  // if (!document.hasFocus()) {
-  //   return;
-  // }
-  const speed = 0.05 * deltaTime;
+  const rotationSpeed = 0.005 * deltaTime;
+  const speed = 0.04 * deltaTime;
   let direction = vec3.zero();
   // TODO: Why is it backwards?
   if (keyboardControls.pressed.a) {
@@ -105,10 +98,10 @@ export const moveCamera = () => {
     direction = vec3.subtract(direction, camera.direction);
   }
   if (keyboardControls.pressed.e) {
-    camera.targetRotation = quat.rotateY(camera.targetRotation, 0.05);
+    camera.targetRotation = quat.rotateY(camera.targetRotation, rotationSpeed);
   }
   if (keyboardControls.pressed.q) {
-    camera.targetRotation = quat.rotateY(camera.targetRotation, -0.05);
+    camera.targetRotation = quat.rotateY(camera.targetRotation, -rotationSpeed);
   }
   if (keyboardControls.pressed[" "]) {
     direction = vec3.add(direction, camera.up);
