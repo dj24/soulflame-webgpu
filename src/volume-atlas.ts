@@ -94,12 +94,10 @@ export const getVolumeAtlas = async (
     mipLevelCount: 1,
   });
 
-  const brickMapWidth = DEFAULT_ATLAS_SIZE / BRICKMAP_SIZE;
-
-  let brickMapBuffer = await createBrickMapFromTexture(device, atlasTexture);
-
   device.queue.submit([commandEncoder.finish()]);
   await device.queue.onSubmittedWorkDone();
+
+  let brickMapBuffer = await createBrickMapFromTexture(device, atlasTexture);
 
   const getVolume = (label: string) => {
     return dictionary[label];

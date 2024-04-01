@@ -18,10 +18,11 @@ export const createBrickMapFromTexture = async (
   device: GPUDevice,
   volumeTexture: GPUTexture,
 ): Promise<GPUBuffer> => {
-  const totalBricks =
-    Math.ceil(volumeTexture.width / BRICK_SIZE) *
-    Math.ceil(volumeTexture.height / BRICK_SIZE) *
-    Math.ceil(volumeTexture.depthOrArrayLayers / BRICK_SIZE);
+  const bricksX = Math.ceil(volumeTexture.width / BRICK_SIZE);
+  const bricksY = Math.ceil(volumeTexture.height / BRICK_SIZE);
+  const bricksZ = Math.ceil(volumeTexture.depthOrArrayLayers / BRICK_SIZE);
+
+  const totalBricks = bricksX * bricksY * bricksZ;
 
   const brickmapBuffer = device.createBuffer({
     size: totalBricks * BRICK_STRIDE_BYTES,
@@ -81,13 +82,14 @@ export const createBrickMapFromTexture = async (
 
   const commandEncoder = device.createCommandEncoder();
   const passEncoder = commandEncoder.beginComputePass();
+
+  const workGroupsX = volumeTexture.width / 4;
+  const workGroupsY = volumeTexture.height / 4;
+  const workGroupsZ = volumeTexture.depthOrArrayLayers / 4;
+
   passEncoder.setPipeline(computePipeline);
   passEncoder.setBindGroup(0, bindGroup);
-  passEncoder.dispatchWorkgroups(
-    volumeTexture.width / 8,
-    volumeTexture.height / 8,
-    volumeTexture.depthOrArrayLayers / 8,
-  );
+  passEncoder.dispatchWorkgroups(workGroupsX, workGroupsY, workGroupsZ);
   passEncoder.end();
   device.queue.submit([commandEncoder.finish()]);
   await device.queue.onSubmittedWorkDone();

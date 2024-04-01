@@ -60,6 +60,27 @@ fn getMipLevelFromVoxelSize(voxelSize: vec3<f32>) -> u32 {
   return u32(log2(max(voxelSize.x, max(voxelSize.y, voxelSize.z))));
 }
 
+fn convert1DTo3D(size: vec3<u32>, index: u32) -> vec3<u32> {
+  return vec3(
+    index % size.x,
+    index / size.y,
+    index / (size.x * size.y)
+  );
+}
+
+fn convert3DTo1D(size: vec3<u32>, position: vec3<u32>) -> u32 {
+  return position.x + position.y * size.x + position.z * (size.x * size.y);
+}
+
+fn doesBrickContainVoxels(brick: Brick) -> bool {
+  return any(vec4(
+    any(brick.voxelSlices[0] > vec4(0)),
+    any(brick.voxelSlices[1] > vec4(0)),
+    any(brick.voxelSlices[2] > vec4(0)),
+    any(brick.voxelSlices[3] > vec4(0)),
+  ));
+}
+
 fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, objectRayOrigin: vec3<f32>, mipLevel: u32) -> RayMarchResult {
   var output = RayMarchResult();
   let rayDirSign = sign(objectRayDirection);
@@ -86,11 +107,12 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
     let mip0Index = currentIndex;
     let mip0SamplePosition = vec3<u32>(mip0Index) + atlasLocation;
     let mipSample0 = textureLoad(voxels, mip0SamplePosition, 0);
+    let brickSample = brickBuffer[convert3DTo1D(textureDimensions(voxels), mip0SamplePosition)];
 //    output.colour = abs(objectRayDirection);
 //    output.colour = objectPos / vec3<f32>(voxelObject.size);
 //output.colour = vec3(f32(i) / f32(MAX_RAY_STEPS));
-
-    if(mipSample0.a > 0.0 && isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
+    if(doesBrickContainVoxels(brickSample)){
+//    if(mipSample0.a > 0.0 && isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
 //    if(true){
         output.objectPos = objectPos;
         output.worldPos = (voxelObject.transform *  vec4(output.objectPos, 1.0)).xyz;

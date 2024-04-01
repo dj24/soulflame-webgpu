@@ -1,7 +1,4 @@
 import gBufferRaymarch from "./g-buffer-raymarch.wgsl";
-import gBufferRaster from "./g-buffer-raster.wgsl";
-import clearPixelBuffer from "./clear-pixel-buffer.wgsl";
-import pixelBufferElement from "./pixel-buffer-element.wgsl";
 import boxIntersection from "../shader/box-intersection.wgsl";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import bvh from "../shader/bvh.wgsl";
@@ -143,9 +140,13 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           struct IndirectArgs {
             count: atomic<u32>
           };
+          struct Brick {
+            voxelSlices: array<vec4<u32>, 4>
+          }
           @group(0) @binding(10) var<storage> bvhNodes: array<BVHNode>;
-          @group(0) @binding(11) var<storage, read_write> groupsToFullyTrace: array<vec2<u32>>;
-          @group(0) @binding(12) var<storage, read_write> indirectArgs: IndirectArgs;
+          @group(0) @binding(11) var<storage> brickBuffer: array<Brick>;
+          @group(0) @binding(12) var<storage, read_write> groupsToFullyTrace: array<vec2<u32>>;
+          @group(0) @binding(13) var<storage, read_write> indirectArgs: IndirectArgs;
           ${getRayDirection}
           ${boxIntersection}
           ${raymarchVoxels}

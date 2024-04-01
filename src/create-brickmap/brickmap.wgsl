@@ -14,7 +14,7 @@ struct Brick {
 // Size in each dimension, 8x8x8
 const BRICK_SIZE = 8;
 
-
+// TODO: fix this to use brick dimentions instead (BRICK SIZE IS INCORRECT)
 fn getBrickIndex(x: u32, y: u32, z: u32) -> u32 {
   return x + y * BRICK_SIZE + z * BRICK_SIZE * BRICK_SIZE;
 }
@@ -40,7 +40,7 @@ fn getBrickIndex(x: u32, y: u32, z: u32) -> u32 {
     brickMapBuffer[brickIndex] = newBrick;
  }
 
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(4,4,4)
 fn texture(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
