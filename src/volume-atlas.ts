@@ -110,7 +110,7 @@ export const getVolumeAtlas = async (
    * @param brickMap - brick map buffer for the volume
    * @param label - label to use for the volume in the dictionary
    */
-  const addVolume = (
+  const addVolume = async (
     commandEncoder: GPUCommandEncoder,
     texture: GPUTexture,
     label: string,
@@ -195,7 +195,11 @@ export const getVolumeAtlas = async (
       location: [atlasLocationX, 0, 0],
       size: [width, height, depthOrArrayLayers],
     };
-    createBrickMapFromTexture(device, atlasTexture);
+
+    device.queue.submit([commandEncoder.finish()]);
+    await device.queue.onSubmittedWorkDone();
+
+    brickMapBuffer = await createBrickMapFromTexture(device, atlasTexture);
   };
 
   /**

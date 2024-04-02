@@ -73,12 +73,24 @@ fn convert3DTo1D(size: vec3<u32>, position: vec3<u32>) -> u32 {
 }
 
 fn doesBrickContainVoxels(brick: Brick) -> bool {
-  return any(vec4(
-    any(brick.voxelSlices[0] > vec4(0)),
-    any(brick.voxelSlices[1] > vec4(0)),
-    any(brick.voxelSlices[2] > vec4(0)),
-    any(brick.voxelSlices[3] > vec4(0)),
-  ));
+  for(var i = 0; i < 16; i++){
+    if(brick.voxels[i] > 0){
+      return true;
+    }
+  }
+  return false;
+}
+
+fn getBit(value: u32, bitIndex: u32) -> bool {
+  return (value & (1u << bitIndex)) != 0;
+}
+
+// gets bit in 512bit bitmask in a brick
+// bitIndex is the index of the bit in the bitmask, 0-511
+fn getBitInBrick(brick: Brick, bitIndex: u32) -> bool {
+  let maskIndex = bitIndex / 32;
+  let bitIndexInMask = bitIndex % 32;
+  return getBit(brick.voxels[maskIndex], bitIndexInMask);
 }
 
 fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, objectRayOrigin: vec3<f32>, mipLevel: u32) -> RayMarchResult {
@@ -107,12 +119,28 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
     let mip0Index = currentIndex;
     let mip0SamplePosition = vec3<u32>(mip0Index) + atlasLocation;
     let mipSample0 = textureLoad(voxels, mip0SamplePosition, 0);
-    let brickSample = brickBuffer[convert3DTo1D(textureDimensions(voxels), mip0SamplePosition)];
+    let brickSamplePosition = vec3<u32>(currentIndex) / 8;
+    let brickSample = brickBuffer[convert3DTo1D(textureDimensions(voxels) / 8, brickSamplePosition)];
+    let positionInBrick = vec3<u32>(currentIndex) % 8;
+    let indexInBrick = convert3DTo1D(vec3<u32>(8), positionInBrick);
+    let isVoxelFilledInBrick = getBitInBrick(brickSample, indexInBrick);
 //    output.colour = abs(objectRayDirection);
 //    output.colour = objectPos / vec3<f32>(voxelObject.size);
 //output.colour = vec3(f32(i) / f32(MAX_RAY_STEPS));
-    if(doesBrickContainVoxels(brickSample)){
-//    if(mipSample0.a > 0.0 && isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
+//    if(doesBrickContainVoxels(brickSample)){
+    if(isVoxelFilledInBrick){
+        output.objectPos = objectPos;
+        output.worldPos = (voxelObject.transform *  vec4(output.objectPos, 1.0)).xyz;
+        output.normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(objectNormal));
+        output.colour = vec3<f32>(brickSamplePosition) / vec3<f32>(textureDimensions(voxels) / 8);
+        output.hit = true;
+        output.modelMatrix = voxelObject.transform;
+        output.previousModelMatrix = voxelObject.previousTransform;
+        output.inverseModelMatrix = voxelObject.inverseTransform;
+        output.previousInverseModelMatrix = voxelObject.previousInverseTransform;
+        return output;
+    }
+    if(mipSample0.a > 0.0 && isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
 //    if(true){
         output.objectPos = objectPos;
         output.worldPos = (voxelObject.transform *  vec4(output.objectPos, 1.0)).xyz;

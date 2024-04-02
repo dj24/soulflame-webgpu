@@ -83,13 +83,22 @@ export const createBrickMapFromTexture = async (
   const commandEncoder = device.createCommandEncoder();
   const passEncoder = commandEncoder.beginComputePass();
 
-  const workGroupsX = volumeTexture.width / 4;
-  const workGroupsY = volumeTexture.height / 4;
-  const workGroupsZ = volumeTexture.depthOrArrayLayers / 4;
+  const workGroupsX = Math.ceil(bricksX / 4);
+  const workGroupsY = Math.ceil(bricksY / 4);
+  const workGroupsZ = Math.ceil(bricksZ / 4);
+
+  console.log({
+    bricksX,
+    bricksY,
+    bricksZ,
+    workGroupsX,
+    workGroupsY,
+    workGroupsZ,
+  });
 
   passEncoder.setPipeline(computePipeline);
   passEncoder.setBindGroup(0, bindGroup);
-  passEncoder.dispatchWorkgroups(workGroupsX, workGroupsY, workGroupsZ);
+  passEncoder.dispatchWorkgroups(bricksX, bricksY, bricksZ);
   passEncoder.end();
   device.queue.submit([commandEncoder.finish()]);
   await device.queue.onSubmittedWorkDone();

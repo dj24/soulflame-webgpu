@@ -43,9 +43,9 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
 
 
         if(raymarchResult.hit && raymarchDist < closestRaymarchDist - EPSILON){
-//          closestIntersection = raymarchResult;
-          let brickMapIndex = getBrickMapIndex(raymarchResult.objectPos);
-          closestIntersection.colour = getDebugColour(brickMapIndex);
+          closestIntersection = raymarchResult;
+//          let brickMapIndex = getBrickMapIndex(raymarchResult.objectPos);
+//          closestIntersection.colour = getDebugColour(brickMapIndex);
           closestRaymarchDist = raymarchDist;
         }
         // Pop the stack and continue

@@ -141,7 +141,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
             count: atomic<u32>
           };
           struct Brick {
-            voxelSlices: array<vec4<u32>, 4>
+            voxels: array<u32, 16>
           }
           @group(0) @binding(10) var<storage> bvhNodes: array<BVHNode>;
           @group(0) @binding(11) var<storage> brickBuffer: array<Brick>;

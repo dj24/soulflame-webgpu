@@ -1,9 +1,8 @@
 /* 8x8x8 bits
   vec4 for packing, 64 bytes in total
-  each vec4 represents 8x8x2 bits
 */
 struct Brick {
-  voxelSlices: array<vec4<u32>, 4>
+  voxels: array<u32, 16>
 }
 
 @group(0) @binding(0) var<storage, read_write> voxelBuffer: array<vec4<u32>>;
@@ -14,11 +13,48 @@ struct Brick {
 // Size in each dimension, 8x8x8
 const BRICK_SIZE = 8;
 
-// TODO: fix this to use brick dimentions instead (BRICK SIZE IS INCORRECT)
-fn getBrickIndex(x: u32, y: u32, z: u32) -> u32 {
-  return x + y * BRICK_SIZE + z * BRICK_SIZE * BRICK_SIZE;
+fn convert1DTo3D(size: vec3<u32>, index: u32) -> vec3<u32> {
+  return vec3(
+    index % size.x,
+    index / size.y,
+    index / (size.x * size.y)
+  );
 }
 
+fn convert3DTo1D(size: vec3<u32>, position: vec3<u32>) -> u32 {
+  return position.x + position.y * size.x + position.z * (size.x * size.y);
+}
+
+// sets bit in a 32-bit integer
+fn setBit(value: ptr<function, u32>, bit: bool){
+  if(bit) {
+    *value = *value | 1;
+  } else {
+    *value = *value & 0xFFFFFFFE;
+  }
+}
+
+
+
+// sets bit in 512bit bitmask in a brick
+// bitIndex is the index of the bit in the bitmask, 0-511
+fn setBitInBrick(brick: ptr<function, Brick>, bitIndex: u32, bit: bool) {
+  let maskIndex = bitIndex / 32;
+  let bitIndexInMask = bitIndex % 32;
+  setBit(&brick.voxels[maskIndex], bit);
+}
+
+fn getBit(value: u32, bitIndex: u32) -> bool {
+  return (value & (1u << bitIndex)) != 0;
+}
+
+// gets bit in 512bit bitmask in a brick
+// bitIndex is the index of the bit in the bitmask, 0-511
+fn getBitInBrick(brick: Brick, bitIndex: u32) -> bool {
+  let maskIndex = bitIndex / 32;
+  let bitIndexInMask = bitIndex % 32;
+  return getBit(brick.voxels[maskIndex], bitIndexInMask);
+}
 
 @compute @workgroup_size(64, 1, 1)
  fn main(
@@ -27,34 +63,54 @@ fn getBrickIndex(x: u32, y: u32, z: u32) -> u32 {
     let index = GlobalInvocationID.x;
     let voxel = voxelBuffer[index];
     let position = voxel.xyz;
-    let brickIndex = getBrickIndex(position.x / BRICK_SIZE, position.y / BRICK_SIZE, position.z / BRICK_SIZE);
-    let brick = brickMapBuffer[brickIndex];
+    let brickIndex = convert3DTo1D(textureDimensions(voxels).xyz / BRICK_SIZE, position / BRICK_SIZE);    let brick = brickMapBuffer[brickIndex];
 
     // TODO: set bits in brick
     var newBrick = Brick();
-    var fullBrickBitMask = vec4<u32>(255);
-    newBrick.voxelSlices[0] = vec4<u32>(pack4xU8(fullBrickBitMask));
-    newBrick.voxelSlices[1] = vec4<u32>(pack4xU8(fullBrickBitMask));
-    newBrick.voxelSlices[2] = vec4<u32>(pack4xU8(fullBrickBitMask));
-    newBrick.voxelSlices[3] = vec4<u32>(pack4xU8(fullBrickBitMask));
+    var filled4Bytes = pack4xU8(vec4<u32>(255));
+    var fullBrickBitMask = array<u32, 16>(
+      filled4Bytes,
+      filled4Bytes,
+      filled4Bytes,
+      filled4Bytes,
+      filled4Bytes,
+      filled4Bytes,
+      filled4Bytes,
+      filled4Bytes,
+      filled4Bytes,
+      filled4Bytes,
+      filled4Bytes,
+      filled4Bytes,
+      filled4Bytes,
+      filled4Bytes,
+      filled4Bytes,
+      filled4Bytes,
+    );
+    newBrick.voxels = fullBrickBitMask;
     brickMapBuffer[brickIndex] = newBrick;
  }
 
-@compute @workgroup_size(4,4,4)
+@compute @workgroup_size(1,1,1)
 fn texture(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
-  let position = GlobalInvocationID;
-  let voxel = textureLoad(voxels, vec3<i32>(position), 0);
-  let brickIndex = getBrickIndex(position.x / BRICK_SIZE, position.y / BRICK_SIZE, position.z / BRICK_SIZE);
-  let brick = brickMapBuffer[brickIndex];
-  if(voxel.a > 0.0) {
-    var newBrick = Brick();
-    var fullBrickBitMask = vec4<u32>(255);
-    newBrick.voxelSlices[0] = vec4<u32>(pack4xU8(fullBrickBitMask));
-    newBrick.voxelSlices[1] = vec4<u32>(pack4xU8(fullBrickBitMask));
-    newBrick.voxelSlices[2] = vec4<u32>(pack4xU8(fullBrickBitMask));
-    newBrick.voxelSlices[3] = vec4<u32>(pack4xU8(fullBrickBitMask));
-    brickMapBuffer[brickIndex] = newBrick;
+  let brickPosition = GlobalInvocationID;
+  let brickIndex = convert3DTo1D(textureDimensions(voxels).xyz / BRICK_SIZE, brickPosition);
+  var newBrick = Brick();
+
+  for(var x = 0u; x < BRICK_SIZE; x = x + 1u) {
+    for(var y = 0u; y < BRICK_SIZE; y = y + 1u) {
+      for(var z = 0u; z < BRICK_SIZE; z = z + 1u) {
+        let positionInBrick = vec3<u32>(x, y, z);
+        let position = brickPosition * BRICK_SIZE + positionInBrick;
+        let isVoxelFilled = textureLoad(voxels, position, 0).a > 0.0;
+        if(isVoxelFilled) {
+          let bitIndex = convert3DTo1D(vec3<u32>(BRICK_SIZE), positionInBrick);
+          setBitInBrick(&newBrick, bitIndex, true);
+        }
+      }
+    }
   }
+  brickMapBuffer[brickIndex] = newBrick;
+
 }

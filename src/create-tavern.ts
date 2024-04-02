@@ -105,8 +105,7 @@ export const createTavern = async (
     );
     for (const { name, texture } of textures) {
       console.time(`Add volume for ${name}`);
-      volumeAtlas.addVolume(commandEncoder, texture, name);
-      device.queue.submit([commandEncoder.finish()]);
+      await volumeAtlas.addVolume(commandEncoder, texture, name);
       commandEncoder = device.createCommandEncoder();
       console.timeEnd(`Add volume for ${name}`);
     }
