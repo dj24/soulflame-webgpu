@@ -10,9 +10,9 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
   closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
 
   // If the ray doesn't hit the root node, return the default intersection
-//  if(getDistanceToNode(rayOrigin, rayDirection, bvhNodes[0]) <= 1.0){
-//    return closestIntersection;
-//  }
+  if(getDistanceToNode(rayOrigin, rayDirection, bvhNodes[0]) <= 0.0){
+    return closestIntersection;
+  }
 
   // Create a stack to store the nodes to visit
   var stack = stack_new();
@@ -33,13 +33,13 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
         // Raymarch the voxel object if it's a leaf node
         let voxelObject = voxelObjects[node.leftIndex]; // left index represents the voxel object index for leaf nodes
         let AABBDist = getDistanceToNode(rayOrigin, rayDirection, node);
-        if(AABBDist > closestRaymarchDist){
+        if(AABBDist >= closestRaymarchDist){
           nodeIndex = stack_pop(&stack);
           continue;
         }
         let raymarchResult = rayMarchTransformed(voxelObject, rayDirection, rayOrigin + rayDirection * AABBDist, 0);
         let raymarchDist = distance(raymarchResult.worldPos, rayOrigin);
-//        closestIntersection.colour = vec3(f32(raymarchResult.stepsTaken) * 0.02,0,0);
+
 
 
         if(raymarchResult.hit && raymarchDist < closestRaymarchDist - EPSILON){
@@ -49,6 +49,7 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
           closestRaymarchDist = raymarchDist;
         }
         // Pop the stack and continue
+//        closestIntersection.colour = vec3(f32(raymarchResult.stepsTaken) * 0.05);
         nodeIndex = stack_pop(&stack);
     }
     else{

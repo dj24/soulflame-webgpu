@@ -174,9 +174,9 @@ fn adaptive(
     var mipLevel = maxMipLevel;
 
     let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
-//    if(bvhResult.hit){
+    if(bvhResult.hit){
       closestIntersection = bvhResult;
-//    }
+    }
 
     let normal = closestIntersection.normal;
     let depth = distance(cameraPosition, closestIntersection.worldPos);
@@ -267,14 +267,20 @@ fn adaptive(
 }
 
 
-@compute @workgroup_size(8, 8, 1)
+
+const GROUPS_X = 8;
+const GROUPS_Y = 8;
+
+@compute @workgroup_size(GROUPS_X, GROUPS_Y, 1)
 fn main(
+  @builtin(local_invocation_index) LocalInvocationIndex : u32,
+  @builtin(workgroup_id) WorkgroupID : vec3<u32>,
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
 ) {
   let resolution = textureDimensions(albedoTex);
-  let pixel = GlobalInvocationID.xy;
+  let pixel = WorkgroupID.xy * vec2(GROUPS_X, GROUPS_Y) + vec2(LocalInvocationIndex % GROUPS_X, LocalInvocationIndex / GROUPS_X);
+//  let pixel = GlobalInvocationID.xy;
   var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
-//  uv.y = 1.0 - uv.y;
   let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
   var rayOrigin = cameraPosition;
   var closestIntersection = RayMarchResult();
@@ -298,9 +304,9 @@ fn main(
   var mipLevel = maxMipLevel;
 
   let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
-//  if(bvhResult.hit){
+  if(bvhResult.hit){
     closestIntersection = bvhResult;
-//  }
+  }
 
   let normal = closestIntersection.normal;
   let depth = distance(cameraPosition, closestIntersection.worldPos);
@@ -308,13 +314,10 @@ fn main(
   let velocity = getVelocity(closestIntersection, viewProjections);
   let worldPos = closestIntersection.worldPos;
 
-
   let objectPos = (voxelObjects[0].inverseTransform * vec4(worldPos, 1.0)).xyz;
-//  textureStore(albedoTex, pixel, vec4(rayDirection, 1));
+
   textureStore(albedoTex, pixel, vec4(albedo, 1));
-//  textureStore(albedoTex, pixel, vec4(0,0,1, 1));
   textureStore(normalTex, pixel, vec4(normal,1));
-//  textureStore(depthWrite, pixel, vec4(worldPos, depth));
   textureStore(velocityTex, pixel, vec4(velocity ,0));
 }
 

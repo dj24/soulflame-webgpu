@@ -26,11 +26,12 @@ fn convert3DTo1D(size: vec3<u32>, position: vec3<u32>) -> u32 {
 }
 
 // sets bit in a 32-bit integer
-fn setBit(value: ptr<function, u32>, bit: bool){
+fn setBit(value: ptr<function, u32>, bitIndex: u32, bit: bool){
+  let mask = 1u << bitIndex;
   if(bit) {
-    *value = *value | 1;
+    *value = *value | mask;
   } else {
-    *value = *value & 0xFFFFFFFE;
+    *value = *value & ~mask;
   }
 }
 
@@ -41,7 +42,7 @@ fn setBit(value: ptr<function, u32>, bit: bool){
 fn setBitInBrick(brick: ptr<function, Brick>, bitIndex: u32, bit: bool) {
   let maskIndex = bitIndex / 32;
   let bitIndexInMask = bitIndex % 32;
-  setBit(&brick.voxels[maskIndex], bit);
+  setBit(&brick.voxels[maskIndex], bitIndexInMask, bit);
 }
 
 fn getBit(value: u32, bitIndex: u32) -> bool {
@@ -98,43 +99,18 @@ fn texture(
   let brickIndex = convert3DTo1D(textureDimensions(voxels).xyz / BRICK_SIZE, brickPosition);
   var newBrick = Brick();
 
-  for(var x = 0u; x < BRICK_SIZE; x = x + 1u) {
-    for(var y = 0u; y < BRICK_SIZE; y = y + 1u) {
-      for(var z = 0u; z < BRICK_SIZE; z = z + 1u) {
+  for(var x = 0u; x < BRICK_SIZE; x++) {
+    for(var y = 0u; y < BRICK_SIZE; y++) {
+      for(var z = 0u; z < BRICK_SIZE; z++) {
         let positionInBrick = vec3<u32>(x, y, z);
         let position = brickPosition * BRICK_SIZE + positionInBrick;
         let isVoxelFilled = textureLoad(voxels, position, 0).a > 0.0;
         if(isVoxelFilled) {
           let bitIndex = convert3DTo1D(vec3<u32>(BRICK_SIZE), positionInBrick);
-//          setBitInBrick(&newBrick, bitIndex, true);
+          setBitInBrick(&newBrick, bitIndex, true);
         }
       }
     }
   }
-   var filled4Bytes = pack4xU8(vec4<u32>(255));
-  var fullBrickBitMask = array<u32, 16>(
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-  );
-//   newBrick.voxels = fullBrickBitMask;
-  setBitInBrick(&newBrick, 0, true);
-  setBitInBrick(&newBrick, 1, true);
-  setBitInBrick(&newBrick, 2, true);
-
   brickMapBuffer[brickIndex] = newBrick;
-
 }
