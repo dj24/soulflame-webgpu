@@ -106,11 +106,35 @@ fn texture(
         let isVoxelFilled = textureLoad(voxels, position, 0).a > 0.0;
         if(isVoxelFilled) {
           let bitIndex = convert3DTo1D(vec3<u32>(BRICK_SIZE), positionInBrick);
-          setBitInBrick(&newBrick, bitIndex, true);
+//          setBitInBrick(&newBrick, bitIndex, true);
         }
       }
     }
   }
+   var filled4Bytes = pack4xU8(vec4<u32>(255));
+  var fullBrickBitMask = array<u32, 16>(
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+  );
+//   newBrick.voxels = fullBrickBitMask;
+  setBitInBrick(&newBrick, 0, true);
+  setBitInBrick(&newBrick, 1, true);
+  setBitInBrick(&newBrick, 2, true);
+
   brickMapBuffer[brickIndex] = newBrick;
 
 }
