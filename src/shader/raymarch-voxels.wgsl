@@ -1,5 +1,5 @@
 const EPSILON = 0.0001;
-const MAX_RAY_STEPS = 16;
+const MAX_RAY_STEPS = 256;
 const FAR_PLANE = 10000.0;
 const NEAR_PLANE = 0.5;
 
@@ -150,7 +150,7 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
   var tCurrent = min(tMax.x, min(tMax.y, tMax.z));
 
   // RAYMARCH
-  for(var i = 0; i < MAX_RAY_STEPS; i++)
+  for(var i = 0; i < MAX_RAY_STEPS && !output.hit; i++)
   {
     var scaledRayOrigin = shiftedRayOrigin;
     var scaledObjectPos = floor(objectPos);
@@ -171,8 +171,6 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
         output.hit = true;
         output.worldPos = (voxelObject.transform *  vec4(output.objectPos, 1.0)).xyz;
         output.colour = vec3<f32>(brickSamplePosition) / vec3<f32>(textureDimensions(voxels) / 8);
-
-        return output;
     }
 
     output.stepsTaken = i;
