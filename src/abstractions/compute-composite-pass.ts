@@ -148,6 +148,14 @@ const albedoEntry: GPUBindGroupLayoutEntry = {
   },
 };
 
+const brickBufferEntry: GPUBindGroupLayoutEntry = {
+  binding: 18,
+  visibility: GPUShaderStage.COMPUTE,
+  buffer: {
+    type: "read-only-storage",
+  },
+};
+
 export const baseBindGroupLayoutEntries = [
   depthEntry,
   inputTextureEntry,
@@ -166,6 +174,7 @@ export const baseBindGroupLayoutEntries = [
   bvhBufferEntry,
   worldPosEntry,
   albedoEntry,
+  brickBufferEntry,
 ];
 
 const NUM_THREADS_X = 8;
@@ -230,6 +239,7 @@ struct Time {
 @group(0) @binding(15) var<storage> bvhNodes: array<BVHNode>;
 @group(0) @binding(16) var worldPosTex : texture_2d<f32>;
 @group(0) @binding(17) var albedoTex : texture_2d<f32>;
+@group(0) @binding(18) var<storage> brickBuffer: array<Brick>;
 
 const DOWNSCALE = ${downscale};
 ${matrices}
@@ -404,6 +414,12 @@ ${shaderCode}`;
       {
         binding: 17,
         resource: outputTextures.albedoTexture.createView(),
+      },
+      {
+        binding: 18,
+        resource: {
+          buffer: volumeAtlas.getBrickMapBuffer(),
+        },
       },
     ];
 

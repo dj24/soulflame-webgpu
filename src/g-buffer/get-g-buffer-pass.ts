@@ -140,9 +140,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           struct IndirectArgs {
             count: atomic<u32>
           };
-          struct Brick {
-            voxels: array<u32, 16>
-          }
           @group(0) @binding(10) var<storage> bvhNodes: array<BVHNode>;
           @group(0) @binding(11) var<storage> brickBuffer: array<Brick>;
           @group(0) @binding(12) var<storage, read_write> groupsToFullyTrace: array<vec2<u32>>;

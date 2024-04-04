@@ -174,9 +174,9 @@ fn adaptive(
     var mipLevel = maxMipLevel;
 
     let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
-    if(bvhResult.hit){
+//    if(bvhResult.hit){
       closestIntersection = bvhResult;
-    }
+//    }
 
     let normal = closestIntersection.normal;
     let depth = distance(cameraPosition, closestIntersection.worldPos);
@@ -267,7 +267,6 @@ fn adaptive(
 }
 
 
-
 const GROUPS_X = 8;
 const GROUPS_Y = 8;
 
@@ -278,8 +277,8 @@ fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
 ) {
   let resolution = textureDimensions(albedoTex);
-  let pixel = WorkgroupID.xy * vec2(GROUPS_X, GROUPS_Y) + vec2(LocalInvocationIndex % GROUPS_X, LocalInvocationIndex / GROUPS_X);
-//  let pixel = GlobalInvocationID.xy;
+//  let pixel = WorkgroupID.xy * vec2(GROUPS_X, GROUPS_Y) + vec2(LocalInvocationIndex % GROUPS_X, LocalInvocationIndex / GROUPS_X);
+  let pixel = GlobalInvocationID.xy;
   var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
   let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
   var rayOrigin = cameraPosition;
@@ -287,26 +286,14 @@ fn main(
   closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
   closestIntersection.colour = rayDirection;
 
-  // Floor plane for debugging
-  let planeY = 0.0;
-  let planeIntersect = planeIntersection(rayOrigin, rayDirection, vec3(0,1,0), planeY);
-  if(planeIntersect.isHit){
-    closestIntersection.worldPos = rayOrigin + rayDirection * planeIntersect.tNear;
-    closestIntersection.worldPos.y = planeY;
-    closestIntersection.hit = planeIntersect.isHit;
-    closestIntersection.normal = planeIntersect.normal;
-    closestIntersection.colour = vec3(0.15,0.3,0.1);
-    // TODO: hit water here
-  }
-
   let maxMipLevel = u32(0);
   let minMipLevel = u32(0);
   var mipLevel = maxMipLevel;
 
   let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
-  if(bvhResult.hit){
+//  if(bvhResult.hit){
     closestIntersection = bvhResult;
-  }
+//  }
 
   let normal = closestIntersection.normal;
   let depth = distance(cameraPosition, closestIntersection.worldPos);
@@ -329,7 +316,6 @@ fn fullTrace(
    let resolution = textureDimensions(albedoTex);
   let pixelOffset = LocalInvocationID.xy;
   let groupOrigin = groupsToFullyTrace[WorkgroupID.x];
-//  let groupOrigin = vec2(500 + (WorkgroupID.x % 50) * SPATIAL_KERNEL_SIZE, 500 + (WorkgroupID.x / 50) * SPATIAL_KERNEL_SIZE);
   let pixel = groupOrigin + pixelOffset;
 
   var uv = vec2<f32>(pixel) / vec2<f32>(resolution);

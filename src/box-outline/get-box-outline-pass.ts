@@ -103,12 +103,13 @@ export const getBoxOutlinePass = async (): Promise<RenderPass> => {
     });
 
     const modelViewProjectionMatrixBuffer = device.createBuffer({
-      size: 256 * lights.length,
+      size: 256 * voxelObjects.length,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
     for (let i = 0; i < voxelObjects.length; i++) {
       const vertices = getCuboidVertices(voxelObjects[i].size);
+      // const vertices = getCuboidByCorners(voxelObjects[i].worldSpaceCorners);
       const bufferOffset = i * 256;
       device.queue.writeBuffer(
         verticesBuffer,
@@ -130,9 +131,7 @@ export const getBoxOutlinePass = async (): Promise<RenderPass> => {
       });
       bindGroups.push(bindGroup);
 
-      const m = mat4.identity();
-      mat4.translate(m, voxelObjects[i].worldSpaceCenter, m);
-      // mat4.uniformScale(m, voxelObjects[i].size, m);
+      const m = voxelObjects[i].transform;
       const vp = mat4.mul(
         mat4.scale(camera.projectionMatrix, [-1, 1, 1]),
         camera.viewMatrix,
@@ -177,5 +176,5 @@ export const getBoxOutlinePass = async (): Promise<RenderPass> => {
     return [commandEncoder.finish()];
   };
 
-  return { render };
+  return { render, label: "outlines" };
 };

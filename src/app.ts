@@ -136,7 +136,7 @@ let lights: Light[] = torchPositions.map((position, index) => {
   };
 });
 
-lights = [lights[0], lights[1]];
+// lights = [lights[2], lights[6]];
 
 const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let normalTexture: GPUTexture;

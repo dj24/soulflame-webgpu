@@ -28,60 +28,6 @@ const getAABB = (voxelObjects: VoxelObject[]) => {
   return { min, max };
 };
 
-const getMortonCode = (voxelObject: VoxelObject) => {
-  const center = voxelObject.worldSpaceCenter;
-  const x = center[0];
-  const y = center[1];
-  const z = center[2];
-  return (x & 0x1ff) | ((y & 0x1ff) << 10) | ((z & 0x1ff) << 20);
-};
-
-const calculateSurfaceArea = (min: Vec3, max: Vec3) => {
-  const width = max[0] - min[0];
-  const height = max[1] - min[1];
-  const depth = max[2] - min[2];
-  return 2 * (width * height + width * depth + height * depth);
-};
-
-const splitObjectsByMortonCode = (voxelObjects: VoxelObject[]) => {
-  voxelObjects.sort((a, b) => getMortonCode(a) - getMortonCode(b));
-
-  const medianIndex = Math.floor(voxelObjects.length / 2);
-  const left = voxelObjects.slice(0, medianIndex);
-  const right = voxelObjects.slice(medianIndex);
-
-  return { left, right };
-};
-
-const getVoxelObjectMinAndMax = (voxelObject: VoxelObject) => {
-  let min = [Infinity, Infinity, Infinity];
-  let max = [-Infinity, -Infinity, -Infinity];
-  for (const corner of voxelObject.worldSpaceCorners) {
-    for (let i = 0; i < 3; i++) {
-      min[i] = Math.min(min[i], corner[i]);
-      max[i] = Math.max(max[i], corner[i]);
-    }
-  }
-  return { min, max };
-};
-
-const splitObjectsBySurfaceArea = (voxelObjects: VoxelObject[]) => {
-  voxelObjects.sort((a, b) => {
-    const aMinMax = getVoxelObjectMinAndMax(a);
-    const bMinMax = getVoxelObjectMinAndMax(b);
-    return (
-      calculateSurfaceArea(aMinMax.min, aMinMax.max) -
-      calculateSurfaceArea(bMinMax.min, bMinMax.max)
-    );
-  });
-
-  const medianIndex = Math.floor(voxelObjects.length / 2);
-  const left = voxelObjects.slice(0, medianIndex);
-  const right = voxelObjects.slice(medianIndex);
-
-  return { left, right };
-};
-
 const splitObjectsBySize = (voxelObjects: VoxelObject[]) => {
   voxelObjects.sort((a, b) => {
     const aSize = a.size[0] * a.size[1] * a.size[2];
@@ -96,6 +42,7 @@ const splitObjectsBySize = (voxelObjects: VoxelObject[]) => {
   return { left, right };
 };
 
+// TODO: use compute shader to build BVH
 export class BVH {
   nodes: BVHNode[];
   allVoxelObjects: VoxelObject[];

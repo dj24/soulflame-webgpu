@@ -10,9 +10,9 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
   closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
 
   // If the ray doesn't hit the root node, return the default intersection
-  if(getDistanceToNode(rayOrigin, rayDirection, bvhNodes[0]) <= 0.0){
-    return closestIntersection;
-  }
+//  if(getDistanceToNode(rayOrigin, rayDirection, bvhNodes[0]) <= 0.0){
+//    return closestIntersection;
+//  }
 
   // Create a stack to store the nodes to visit
   var stack = stack_new();
@@ -23,7 +23,7 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
   var iterations = 0;
   var nodeIndex = 0;
 
-  while (stack.head > 0u && iterations < 64) {
+  while (stack.head > 0u && iterations < 256) {
     let node = bvhNodes[nodeIndex];
     if(node.objectCount == 0){
       nodeIndex = stack_pop(&stack);

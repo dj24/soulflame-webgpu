@@ -163,6 +163,14 @@ export const getLightsPass = async (): Promise<RenderPass> => {
           viewDimension: "2d",
         },
       },
+      // brick map
+      {
+        binding: 11,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: {
+          type: "read-only-storage",
+        },
+      },
     ],
   });
 
@@ -195,6 +203,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     fragment: {
       module: device.createShaderModule({
         code: `
+        @group(0) @binding(11) var<storage> brickBuffer: array<Brick>;
         ${getRayDirection}
         ${randomCommon}
         ${boxIntersection}
@@ -440,6 +449,12 @@ export const getLightsPass = async (): Promise<RenderPass> => {
             binding: 10,
             resource: outputTextures.depthTexture.createView(),
           },
+          {
+            binding: 11,
+            resource: {
+              buffer: volumeAtlas.getBrickMapBuffer(),
+            },
+          },
         ],
       });
       bindGroups.push(bindGroup);
@@ -494,13 +509,13 @@ export const getLightsPass = async (): Promise<RenderPass> => {
       passEncoder.draw(verticesPerCuboid);
     }
 
-    // drawLightSpheres({
-    //   passEncoder,
-    //   pipeline: wireFramePipeline,
-    //   verticesBuffer,
-    //   bindGroups,
-    //   lights,
-    // });
+    drawLightSpheres({
+      passEncoder,
+      pipeline: wireFramePipeline,
+      verticesBuffer,
+      bindGroups,
+      lights,
+    });
 
     passEncoder.end();
 
