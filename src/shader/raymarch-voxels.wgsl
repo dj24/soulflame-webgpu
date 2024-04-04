@@ -124,9 +124,9 @@ fn rayMarchBrick(brick: Brick, objectRayDirection: vec3<f32>, objectRayOrigin: v
 
     let bitIndex = convert3DTo1D(vec3(8), vec3<u32>(currentIndex));
 
-//    if(bitIndex < 0 || bitIndex > 511){
-//      continue;
-//    }
+    if(!isInBounds(currentIndex, vec3(8))){
+      break;
+    }
 
     if(getBitInBrick(brick, bitIndex)){
       output.hit = true;
@@ -178,13 +178,14 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
 //        output.hit = true;
 //        output.worldPos = (voxelObject.transform *  vec4(output.objectPos, 1.0)).xyz;
 //        output.colour = vec3<f32>(brickSamplePosition) / vec3<f32>(textureDimensions(voxels) / 8);
-
+//
         let brickPosition = vec3<f32>(currentIndex);
-        let brickSurfacePosition = objectRayOrigin - brickPosition * 8.0;
+        let brickSurfacePosition = objectPos * 8.0 - brickPosition * 8.0;
         let brickRayResult = rayMarchBrick(brickSample, objectRayDirection, brickSurfacePosition);
         if(brickRayResult.hit){
           output.hit = true;
           output.objectPos = vec3<f32>(brickRayResult.position) * 8.0;
+          output.worldPos = (voxelObject.transform *  vec4(output.objectPos, 1.0)).xyz;
           output.colour = vec3<f32>(brickRayResult.position) /  8.0;
         }
     }
