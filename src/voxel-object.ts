@@ -33,14 +33,14 @@ export class VoxelObject {
 
   get worldSpaceCorners() {
     const objectSpaceCorners = [
-      [0, 0, 0],
-      [0, 0, this.size[2]],
-      [0, this.size[1], 0],
-      [0, this.size[1], this.size[2]],
-      [this.size[0], 0, 0],
-      [this.size[0], 0, this.size[2]],
-      [this.size[0], this.size[1], 0],
-      [this.size[0], this.size[1], this.size[2]],
+      vec3.create(0, 0, 0),
+      vec3.create(0, 0, this.size[2]),
+      vec3.create(0, this.size[1], 0),
+      vec3.create(0, this.size[1], this.size[2]),
+      vec3.create(this.size[0], 0, 0),
+      vec3.create(this.size[0], 0, this.size[2]),
+      vec3.create(this.size[0], this.size[1], 0),
+      vec3.create(this.size[0], this.size[1], this.size[2]),
     ];
     return objectSpaceCorners.map((corner) => {
       return vec3.transformMat4(corner, this.transform);

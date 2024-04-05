@@ -23,7 +23,7 @@ import { getVolumetricFog } from "./volumetric-fog/get-volumetric-fog";
 import { createTavern, voxelObjects } from "./create-tavern";
 import { GetObjectsArgs } from "./get-objects-transforms/objects-worker";
 import { getBoxOutlinePass } from "./box-outline/get-box-outline-pass";
-import { BVH } from "./bvh";
+import { createBVH } from "./bvh";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
 import { getWaterPass } from "./water-pass/get-water-pass";
 import { getHelloTrianglePass } from "./hello-triangle/get-hello-triangle-pass";
@@ -181,12 +181,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     });
   }
 
-  const sceneBVH = new BVH(voxelObjects);
-  console.log(sceneBVH);
-
-  const nodeCount = sceneBVH.nodes.length;
-
-  let BVHBuffer = sceneBVH.toGPUBuffer(device, nodeCount);
+  let BVHBuffer = createBVH(device, voxelObjects);
 
   const init = () => {
     if (depthTexture) {

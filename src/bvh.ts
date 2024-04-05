@@ -1,4 +1,4 @@
-import { Vec3 } from "wgpu-matrix";
+import { vec3, Vec3 } from "wgpu-matrix";
 import { VoxelObject } from "./voxel-object";
 import { frameTimeTracker } from "./app";
 
@@ -14,109 +14,189 @@ const ceilToNearestMultipleOf = (n: number, multiple: number) => {
   return Math.ceil(n / multiple) * multiple;
 };
 
-const getAABB = (voxelObjects: VoxelObject[]) => {
-  let min = [Infinity, Infinity, Infinity];
-  let max = [-Infinity, -Infinity, -Infinity];
-  for (const voxelObject of voxelObjects) {
-    for (const corner of voxelObject.worldSpaceCorners) {
-      for (let i = 0; i < 3; i++) {
-        min[i] = Math.min(min[i], corner[i]);
-        max[i] = Math.max(max[i], corner[i]);
-      }
-    }
+type AABB = { min: Vec3; max: Vec3 };
+
+const getAABB = (voxelObjects: AABB[]) => {
+  let min = vec3.create(Infinity, Infinity, Infinity);
+  let max = vec3.create(-Infinity, -Infinity, -Infinity);
+  for (const AABB of voxelObjects) {
+    min = vec3.min(AABB.min, min);
+    max = vec3.max(AABB.max, max);
   }
   return { min, max };
 };
 
-const splitObjectsBySize = (voxelObjects: VoxelObject[]) => {
-  voxelObjects.sort((a, b) => {
-    const aSize = a.size[0] * a.size[1] * a.size[2];
-    const bSize = b.size[0] * b.size[1] * b.size[2];
-    return aSize - bSize;
-  });
-
-  const medianIndex = Math.floor(voxelObjects.length / 2);
-  const left = voxelObjects.slice(0, medianIndex);
-  const right = voxelObjects.slice(medianIndex);
-
-  return { left, right };
+const getNodeSAHCost = (voxelObjects: AABB[]) => {
+  console.time(`getAABB ${voxelObjects.length} objects`);
+  const aaBB = getAABB(voxelObjects);
+  console.timeEnd(`getAABB ${voxelObjects.length} objects`);
+  const area =
+    (aaBB.max[0] - aaBB.min[0]) *
+    (aaBB.max[1] - aaBB.min[1]) *
+    (aaBB.max[2] - aaBB.min[2]);
+  return voxelObjects.length * area;
 };
 
-let timeSpentSplitting = 0;
-let splitCalls = 0;
-const splitObjectsBySAH = (voxelObjects: VoxelObject[]) => {
+const splitObjectsBySAH = (voxelObjects: AABB[]) => {
   let minCost = Infinity;
   let minIndex = -1;
-
-  const start = performance.now();
+  console.time(`split ${voxelObjects.length} objects`);
   for (let i = 1; i < voxelObjects.length; i++) {
     const left = voxelObjects.slice(0, i);
     const right = voxelObjects.slice(i);
-    const leftAABB = getAABB(left);
-    const rightAABB = getAABB(right);
-    const leftArea =
-      (leftAABB.max[0] - leftAABB.min[0]) *
-      (leftAABB.max[1] - leftAABB.min[1]) *
-      (leftAABB.max[2] - leftAABB.min[2]);
-    const rightArea =
-      (rightAABB.max[0] - rightAABB.min[0]) *
-      (rightAABB.max[1] - rightAABB.min[1]) *
-      (rightAABB.max[2] - rightAABB.min[2]);
-    const cost = left.length * leftArea + right.length * rightArea;
-
+    const cost = getNodeSAHCost(left) + getNodeSAHCost(right);
     if (cost < minCost) {
       minCost = cost;
       minIndex = i;
     }
   }
-
   const left = voxelObjects.slice(0, minIndex);
   const right = voxelObjects.slice(minIndex);
-
-  const end = performance.now();
-  timeSpentSplitting += end - start;
-  splitCalls++;
+  console.timeEnd(`split ${voxelObjects.length} objects`);
   return { left, right };
 };
 
-// TODO: use compute shader to build BVH
-export class BVH {
-  nodes: BVHNode[];
-  allVoxelObjects: VoxelObject[];
+const splitObjectsBySAHCompute = async (
+  device: GPUDevice,
+  voxelObjects: VoxelObject[],
+) => {
+  const commandEncoder = device.createCommandEncoder();
+  const voxelObjectsBuffer = device.createBuffer({
+    size: voxelObjects.length * 512,
+    usage:
+      GPUBufferUsage.COPY_DST |
+      GPUBufferUsage.COPY_SRC |
+      GPUBufferUsage.STORAGE,
+  });
+  // Stores the index of the voxel object to split on
+  const outputBuffer = device.createBuffer({
+    size: 4,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
 
-  constructor(voxelObjects: VoxelObject[]) {
-    const start = performance.now();
-    this.allVoxelObjects = voxelObjects;
-    this.nodes = [];
-    this.buildBVH(voxelObjects, 0);
-    const end = performance.now();
-    frameTimeTracker.addSample("create bvh", end - start);
-  }
+  const bindGroupLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "storage",
+        },
+      },
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "storage",
+        },
+      },
+    ],
+  });
 
-  buildBVH(voxelObjects: VoxelObject[], startIndex: number) {
+  const computePipeline = device.createComputePipeline({
+    layout: device.createPipelineLayout({
+      bindGroupLayouts: [bindGroupLayout],
+    }),
+    compute: {
+      module: device.createShaderModule({
+        code: `
+        struct AABB {
+          vec3 min;
+          vec3 max;
+        };
+        @group(0) @binding(1) var<storage> cornersBuffer: array<AABB>;
+        @group(0) @binding(2) var<storage, read_write> splitIndex: <atomic<u32>>;
+        
+        @compute @workgroup_size(64, 1, 1)
+         fn main(
+           @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
+         ) {
+            
+         }
+        `,
+      }),
+      entryPoint: "main",
+    },
+  });
+
+  const bindGroup = device.createBindGroup({
+    layout: bindGroupLayout,
+    entries: [
+      {
+        binding: 1,
+        resource: {
+          buffer: voxelObjectsBuffer,
+        },
+      },
+      {
+        binding: 2,
+        resource: {
+          buffer: outputBuffer,
+        },
+      },
+    ],
+  });
+
+  const passEncoder = commandEncoder.beginComputePass();
+
+  const workGroupSizeX = 64;
+  const possibleSplitCount = voxelObjects.length;
+};
+
+export const createBVH = (
+  device: GPUDevice,
+  voxelObjects: VoxelObject[],
+): GPUBuffer => {
+  let nodes: BVHNode[] = [];
+  const voxelObjectAABBs: AABB[] = voxelObjects.map(({ worldSpaceCorners }) => {
+    let min = vec3.create(Infinity, Infinity, Infinity);
+    let max = vec3.create(-Infinity, -Infinity, -Infinity);
+    for (const voxelObject of voxelObjects) {
+      for (const corner of worldSpaceCorners) {
+        min = vec3.min(min, corner);
+        max = vec3.max(max, corner);
+      }
+    }
+    return { min, max };
+  });
+  let childIndex = 0;
+  const build = (voxelObjects: AABB[], startIndex: number) => {
+    console.time(`build ${voxelObjects.length} objects at ${startIndex}`);
     if (voxelObjects.length === 0) {
       return;
     }
-
+    console.time(`getAABB ${voxelObjects.length} objects`);
     const AABB = getAABB(voxelObjects);
+    console.timeEnd(`getAABB ${voxelObjects.length} objects`);
 
-    // Use voxel object index for leaf nodes
-    if (voxelObjects.length === 1) {
-      this.nodes[startIndex] = {
-        leftChildIndex: this.allVoxelObjects.indexOf(voxelObjects[0]),
+    const isLeaf = voxelObjects.length === 1;
+    if (isLeaf) {
+      nodes[startIndex] = {
+        leftChildIndex: voxelObjectAABBs.indexOf(voxelObjects[0]),
         rightChildIndex: -1,
         objectCount: voxelObjects.length,
         AABBMax: AABB.max,
         AABBMin: AABB.min,
       };
+      console.timeEnd(`build ${voxelObjects.length} objects at ${startIndex}`);
       return;
     }
 
-    const { left, right } = splitObjectsBySAH(voxelObjects);
-    let leftChildIndex = 2 * startIndex + 1;
-    let rightChildIndex = 2 * startIndex + 2;
+    let leftChildIndex = -1;
+    let rightChildIndex = -1;
 
-    this.nodes[startIndex] = {
+    const { left, right } = splitObjectsBySAH(voxelObjects);
+
+    if (left.length > 0) {
+      leftChildIndex = ++childIndex;
+      build(left, leftChildIndex);
+    }
+    if (right.length > 0) {
+      rightChildIndex = ++childIndex;
+      build(right, rightChildIndex);
+    }
+
+    nodes[startIndex] = {
       leftChildIndex,
       rightChildIndex,
       objectCount: voxelObjects.length,
@@ -124,25 +204,17 @@ export class BVH {
       AABBMin: AABB.min,
     };
 
-    if (left.length > 0) {
-      this.buildBVH(left, leftChildIndex);
-    }
-    if (right.length > 0) {
-      this.buildBVH(right, rightChildIndex);
-    }
-  }
+    console.timeEnd(`build ${voxelObjects.length} objects at ${startIndex}`);
+  };
 
-  // TODO: implement this
-  compressBVH() {}
-
-  toGPUBuffer(device: GPUDevice, length: number) {
+  const toGPUBuffer = (device: GPUDevice, length: number) => {
     const stride = ceilToNearestMultipleOf(44, 16);
     const buffer = device.createBuffer({
       size: length * stride,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       mappedAtCreation: false,
     });
-    this.nodes.forEach((node, i) => {
+    nodes.forEach((node, i) => {
       const bufferOffset = i * stride;
       const arrayBuffer = new ArrayBuffer(stride);
       const bufferView = new DataView(arrayBuffer);
@@ -173,5 +245,14 @@ export class BVH {
       );
     });
     return buffer;
-  }
-}
+  };
+
+  const start = performance.now();
+  build(voxelObjectAABBs, 0);
+  const end = performance.now();
+  frameTimeTracker.addSample("create bvh", end - start);
+
+  console.log({ nodes });
+
+  return toGPUBuffer(device, nodes.length);
+};
