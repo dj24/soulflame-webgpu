@@ -41,7 +41,7 @@ const NAME_ALLOWLIST = [
   "Tankard",
   // "Bookshelf",
   // "Books4",
-  // "Door",
+  // "Door",w
   // "BigDoor",
   // "Tavern",
 ];

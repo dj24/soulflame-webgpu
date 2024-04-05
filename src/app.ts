@@ -22,7 +22,6 @@ import { getSkyPass } from "./sky-and-fog/get-sky-pass";
 import { getVolumetricFog } from "./volumetric-fog/get-volumetric-fog";
 import { createTavern, voxelObjects } from "./create-tavern";
 import { GetObjectsArgs } from "./get-objects-transforms/objects-worker";
-import { isVoxelObjectInFrustrum, VoxelObject } from "./voxel-object";
 import { getBoxOutlinePass } from "./box-outline/get-box-outline-pass";
 import { BVH } from "./bvh";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";

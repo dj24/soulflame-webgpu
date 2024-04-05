@@ -174,29 +174,29 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
     let brickSample = brickBuffer[convert3DTo1D(brickMapSize, brickSamplePosition)];
 
 
-//    if(doesBrickContainVoxels(brickSample)){
-////        output.objectPos = objectPos * BRICK_SIZE;
-////        output.hit = true;
-////        output.worldPos = (voxelObject.transform *  vec4(output.objectPos, 1.0)).xyz;
-////        output.colour = abs(output.worldPos) %1.0;
-////
-//        let brickPosition = vec3<f32>(currentIndex);
-//        let brickSurfacePosition = objectPos * BRICK_SIZE - brickPosition * BRICK_SIZE;
-//        let brickRayResult = rayMarchBrick(brickSample, objectRayDirection, brickSurfacePosition);
-//        if(brickRayResult.hit){
-//          output.hit = true;
-//          output.objectPos =  vec3<f32>(brickRayResult.position) + vec3<f32>(brickSamplePosition);
-//          output.worldPos = (voxelObject.transform *  vec4(output.objectPos, 1.0)).xyz;
-//          output.normal = transformNormal(voxelObject.inverseTransform, brickRayResult.normal);
-//          output.modelMatrix = voxelObject.transform;
-//          output.inverseModelMatrix = voxelObject.inverseTransform;
-//          output.previousModelMatrix = voxelObject.previousTransform;
-//          output.previousInverseModelMatrix = voxelObject.previousInverseTransform;
-////          output.colour = vec3(1.0);
-////          output.colour = output.objectPos % 1.0;
-//          output.colour = vec3<f32>(abs(output.worldPos) % 1.0);
-//        }
-//    }
+    if(doesBrickContainVoxels(brickSample)){
+//        output.objectPos = objectPos * BRICK_SIZE;
+//        output.hit = true;
+//        output.worldPos = (voxelObject.transform *  vec4(output.objectPos, 1.0)).xyz;
+//        output.colour = abs(output.worldPos) %1.0;
+//
+        let brickPosition = vec3<f32>(currentIndex);
+        let brickSurfacePosition = objectPos * BRICK_SIZE - brickPosition * BRICK_SIZE;
+        let brickRayResult = rayMarchBrick(brickSample, objectRayDirection, brickSurfacePosition);
+        if(brickRayResult.hit){
+          output.hit = true;
+          output.objectPos =  vec3<f32>(brickRayResult.position) + vec3<f32>(brickSamplePosition);
+          output.worldPos = (voxelObject.transform *  vec4(output.objectPos, 1.0)).xyz;
+          output.normal = transformNormal(voxelObject.inverseTransform, brickRayResult.normal);
+          output.modelMatrix = voxelObject.transform;
+          output.inverseModelMatrix = voxelObject.inverseTransform;
+          output.previousModelMatrix = voxelObject.previousTransform;
+          output.previousInverseModelMatrix = voxelObject.previousInverseTransform;
+//          output.colour = vec3(1.0);
+//          output.colour = output.objectPos % 1.0;
+          output.colour = vec3<f32>(abs(output.worldPos) % 1.0);
+        }
+    }
 
     output.stepsTaken = i;
   }
