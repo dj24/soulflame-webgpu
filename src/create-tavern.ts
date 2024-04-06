@@ -39,9 +39,9 @@ const NAME_ALLOWLIST = [
   "TorchHolder",
   "FireLogs",
   "Tankard",
-  // "Bookshelf",
-  // "Books4",
-  // "Door",w
+  "Bookshelf",
+  "Books4",
+  // "Door",
   // "BigDoor",
   // "Tavern",
 ];

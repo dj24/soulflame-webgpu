@@ -1,6 +1,8 @@
 import { device, RenderArgs, RenderPass } from "../app";
-import sky from "./sky.wgsl";
+// import sky from "./sky.wgsl";
+import sky from "./sky-clouds.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
+import { createTextureFromImage } from "webgpu-utils";
 
 export const getSkyPass = async (): Promise<RenderPass> => {
   const depthEntry: GPUBindGroupLayoutEntry = {
@@ -42,6 +44,44 @@ export const getSkyPass = async (): Promise<RenderPass> => {
     },
   };
 
+  const timeBufferEntry: GPUBindGroupLayoutEntry = {
+    binding: 5,
+    visibility: GPUShaderStage.COMPUTE,
+    buffer: {
+      type: "uniform",
+    },
+  };
+
+  const blueNoiseTextureEntry: GPUBindGroupLayoutEntry = {
+    binding: 6,
+    visibility: GPUShaderStage.COMPUTE,
+    texture: {
+      sampleType: "float",
+    },
+  };
+
+  const pebbleTextureEntry: GPUBindGroupLayoutEntry = {
+    binding: 7,
+    visibility: GPUShaderStage.COMPUTE,
+    texture: {
+      sampleType: "float",
+    },
+  };
+
+  const linearSamplerEntry: GPUBindGroupLayoutEntry = {
+    binding: 8,
+    visibility: GPUShaderStage.COMPUTE,
+    sampler: {},
+  };
+
+  const cameraPositionEntry: GPUBindGroupLayoutEntry = {
+    binding: 9,
+    visibility: GPUShaderStage.COMPUTE,
+    buffer: {
+      type: "uniform",
+    },
+  };
+
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
       depthEntry,
@@ -49,6 +89,11 @@ export const getSkyPass = async (): Promise<RenderPass> => {
       outputTextureEntry,
       matricesEntry,
       sunDirectionEntry,
+      timeBufferEntry,
+      blueNoiseTextureEntry,
+      pebbleTextureEntry,
+      linearSamplerEntry,
+      cameraPositionEntry,
     ],
   });
 
@@ -66,11 +111,32 @@ export const getSkyPass = async (): Promise<RenderPass> => {
 
   let copyOutputTexture: GPUTexture;
 
+  const linearSampler = device.createSampler({
+    minFilter: "linear",
+    magFilter: "linear",
+    addressModeU: "repeat",
+    addressModeV: "repeat",
+  });
+
+  const pebbleTexture = await createTextureFromImage(device, "pebbles.png", {
+    usage: GPUTextureUsage.COPY_SRC,
+  });
+
+  const rgbaNoiseTexture = await createTextureFromImage(
+    device,
+    "rgba-noise.png",
+    {
+      usage: GPUTextureUsage.COPY_SRC,
+    },
+  );
+
   const render = ({
     outputTextures,
     timestampWrites,
     viewProjectionMatricesBuffer,
     sunDirectionBuffer,
+    timeBuffer,
+    cameraPositionBuffer,
   }: RenderArgs) => {
     if (!copyOutputTexture) {
       copyOutputTexture = device.createTexture({
@@ -124,6 +190,30 @@ export const getSkyPass = async (): Promise<RenderPass> => {
             buffer: sunDirectionBuffer,
           },
         },
+        {
+          binding: 5,
+          resource: {
+            buffer: timeBuffer,
+          },
+        },
+        {
+          binding: 6,
+          resource: rgbaNoiseTexture.createView(),
+        },
+        {
+          binding: 7,
+          resource: pebbleTexture.createView(),
+        },
+        {
+          binding: 8,
+          resource: linearSampler,
+        },
+        {
+          binding: 9,
+          resource: {
+            buffer: cameraPositionBuffer,
+          },
+        },
       ],
     });
     const computePass = commandEncoder.beginComputePass({
@@ -131,8 +221,10 @@ export const getSkyPass = async (): Promise<RenderPass> => {
     });
     computePass.setPipeline(computePipeline);
     computePass.setBindGroup(0, bindGroup);
-    const workgroupsX = Math.ceil(outputTextures.depthTexture.width / 8);
-    const workgroupsY = Math.ceil(outputTextures.depthTexture.height / 8);
+    const downscaledWidth = Math.ceil(outputTextures.depthTexture.width / 2);
+    const downscaledHeight = Math.ceil(outputTextures.depthTexture.height / 2);
+    const workgroupsX = Math.ceil(downscaledWidth / 8);
+    const workgroupsY = Math.ceil(downscaledHeight / 8);
     computePass.dispatchWorkgroups(workgroupsX, workgroupsY);
     computePass.end();
 

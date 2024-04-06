@@ -37,14 +37,33 @@ const getNodeSAHCost = (voxelObjects: AABB[]) => {
   return voxelObjects.length * area;
 };
 
+const SAH_WEIGHT = 1;
+const BALANCE_WEIGHT = 1000;
+
 const splitObjectsBySAH = (voxelObjects: AABB[]) => {
   let minCost = Infinity;
   let minIndex = -1;
+  const middleIndex = Math.floor(voxelObjects.length / 2);
   console.time(`split ${voxelObjects.length} objects`);
   for (let i = 1; i < voxelObjects.length; i++) {
     const left = voxelObjects.slice(0, i);
     const right = voxelObjects.slice(i);
-    const cost = getNodeSAHCost(left) + getNodeSAHCost(right);
+
+    const sahCost = getNodeSAHCost(left) + getNodeSAHCost(right);
+    const balanceFactor = Math.abs(i - middleIndex);
+
+    const weightedBalanceFactor = balanceFactor * BALANCE_WEIGHT;
+    const weightedSAHCost = sahCost * SAH_WEIGHT;
+
+    console.debug({
+      sahCost,
+      balanceFactor,
+      weightedBalanceFactor,
+      weightedSAHCost,
+    });
+
+    const cost = weightedBalanceFactor + weightedSAHCost;
+
     if (cost < minCost) {
       minCost = cost;
       minIndex = i;
@@ -148,27 +167,18 @@ export const createBVH = (
   voxelObjects: VoxelObject[],
 ): GPUBuffer => {
   let nodes: BVHNode[] = [];
-  const voxelObjectAABBs: AABB[] = voxelObjects.map(({ worldSpaceCorners }) => {
-    let min = vec3.create(Infinity, Infinity, Infinity);
-    let max = vec3.create(-Infinity, -Infinity, -Infinity);
-    for (const voxelObject of voxelObjects) {
-      for (const corner of worldSpaceCorners) {
-        min = vec3.min(min, corner);
-        max = vec3.max(max, corner);
-      }
-    }
-    return { min, max };
-  });
+  const voxelObjectAABBs: AABB[] = voxelObjects
+    .map(({ brickAABBs }) => {
+      return brickAABBs;
+    })
+    .flat();
   let childIndex = 0;
   const build = (voxelObjects: AABB[], startIndex: number) => {
     console.time(`build ${voxelObjects.length} objects at ${startIndex}`);
     if (voxelObjects.length === 0) {
       return;
     }
-    console.time(`getAABB ${voxelObjects.length} objects`);
     const AABB = getAABB(voxelObjects);
-    console.timeEnd(`getAABB ${voxelObjects.length} objects`);
-
     const isLeaf = voxelObjects.length === 1;
     if (isLeaf) {
       nodes[startIndex] = {

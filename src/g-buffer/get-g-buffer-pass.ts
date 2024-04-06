@@ -255,5 +255,5 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     return [commandEncoder.finish()];
   };
 
-  return { render, label: "g-buffer" };
+  return { render, label: "raymarched g-buffer" };
 };

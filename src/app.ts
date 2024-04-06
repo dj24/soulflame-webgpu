@@ -137,6 +137,8 @@ let lights: Light[] = torchPositions.map((position, index) => {
 
 // lights = [lights[2], lights[6]];
 
+const MAX_32_BIT_INT = 2 ** 32 - 1;
+
 const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let normalTexture: GPUTexture;
   let albedoTexture: GPUTexture;
@@ -302,15 +304,23 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   };
 
   const getTimeBuffer = () => {
-    if (timeBuffer) {
-      writeToUniformBuffer(timeBuffer, [frameCount, 0]);
-    } else {
-      timeBuffer = createUniformBuffer([frameCount, 0]);
+    if (!timeBuffer) {
+      timeBuffer = createUniformBuffer([frameCount, 0, 0]);
     }
     device.queue.writeBuffer(
       timeBuffer,
       4, // offset
       new Float32Array([deltaTime]),
+    );
+    device.queue.writeBuffer(
+      timeBuffer,
+      0, // offset
+      new Uint32Array([frameCount]),
+    );
+    device.queue.writeBuffer(
+      timeBuffer,
+      8, // offset
+      new Float32Array([elapsedTime / 1000]),
     );
   };
 
@@ -359,9 +369,8 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     mat4.rotateY(rotationMatrix, debugValues.sunRotateY, rotationMatrix);
 
     // Multiply the existing direction vector by the rotation matrix
-    const newDirection = vec3.transformMat4(
-      vec3.create(0, -1, -1),
-      rotationMatrix,
+    const newDirection = vec3.normalize(
+      vec3.transformMat4(vec3.create(0, 1, -1), rotationMatrix),
     );
 
     if (sunDirectionBuffer) {
@@ -636,17 +645,17 @@ const start = async () => {
   await createTavern(device, volumeAtlas);
 
   const computePassPromises: Promise<RenderPass>[] = [
-    // getHelloTrianglePass(),
-    getGBufferPass(),
+    getHelloTrianglePass(),
+    // getGBufferPass(),
     // getReflectionsPass(),
     // getShadowsPass(),
     // getLightsPass(),
-    // getSkyPass(),
+    getSkyPass(),
     // getMotionBlurPass(),
     // getDiffusePass(),
     // getVolumetricFog(),
     // getTaaPass(),
-    getBoxOutlinePass(),
+    // getBoxOutlinePass(),
     // getWaterPass(),
 
     fullscreenQuad(device),
