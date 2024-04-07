@@ -82,6 +82,33 @@ export const getSkyPass = async (): Promise<RenderPass> => {
     },
   };
 
+  const skyCubeTextureEntry: GPUBindGroupLayoutEntry = {
+    binding: 1,
+    visibility: GPUShaderStage.COMPUTE,
+    texture: {
+      sampleType: "float",
+      viewDimension: "cube",
+    },
+  };
+
+  const writeSkyCubeTextureEntry: GPUBindGroupLayoutEntry = {
+    binding: 2,
+    visibility: GPUShaderStage.COMPUTE,
+    storageTexture: {
+      format: "rgba8unorm",
+      viewDimension: "2d-array",
+    },
+  };
+
+  const lastSkyTextureEntry: GPUBindGroupLayoutEntry = {
+    binding: 3,
+    visibility: GPUShaderStage.COMPUTE,
+    texture: {
+      sampleType: "float",
+      viewDimension: "2d-array",
+    },
+  };
+
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
       depthEntry,
@@ -97,15 +124,35 @@ export const getSkyPass = async (): Promise<RenderPass> => {
     ],
   });
 
+  const readSkyBindGroupLayout = device.createBindGroupLayout({
+    entries: [skyCubeTextureEntry],
+  });
+
+  const writeSkyBindGroupLayout = device.createBindGroupLayout({
+    entries: [writeSkyCubeTextureEntry, lastSkyTextureEntry],
+  });
+
   const computePipeline = device.createComputePipeline({
     layout: device.createPipelineLayout({
-      bindGroupLayouts: [bindGroupLayout],
+      bindGroupLayouts: [bindGroupLayout, readSkyBindGroupLayout],
     }),
     compute: {
       module: device.createShaderModule({
         code: `${getRayDirection}${sky}`,
       }),
       entryPoint: "main",
+    },
+  });
+
+  const updateSkyboxPipeline = device.createComputePipeline({
+    layout: device.createPipelineLayout({
+      bindGroupLayouts: [bindGroupLayout, writeSkyBindGroupLayout],
+    }),
+    compute: {
+      module: device.createShaderModule({
+        code: `${getRayDirection}${sky}`,
+      }),
+      entryPoint: "writeToCube",
     },
   });
 
@@ -129,6 +176,12 @@ export const getSkyPass = async (): Promise<RenderPass> => {
       usage: GPUTextureUsage.COPY_SRC,
     },
   );
+
+  const lastSkyTexture = device.createTexture({
+    size: [512, 512, 6],
+    format: "rgba8unorm",
+    usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+  });
 
   const render = ({
     outputTextures,
@@ -216,17 +269,70 @@ export const getSkyPass = async (): Promise<RenderPass> => {
         },
       ],
     });
+
     const computePass = commandEncoder.beginComputePass({
       timestampWrites,
     });
+    computePass.setPipeline(updateSkyboxPipeline);
+    computePass.setBindGroup(0, bindGroup);
+    computePass.setBindGroup(
+      1,
+      device.createBindGroup({
+        layout: writeSkyBindGroupLayout,
+        entries: [
+          {
+            binding: 2,
+            resource: outputTextures.skyTexture.createView({
+              dimension: "2d-array",
+            }),
+          },
+          {
+            binding: 3,
+            resource: lastSkyTexture.createView({
+              dimension: "2d-array",
+            }),
+          },
+        ],
+      }),
+    );
+    computePass.dispatchWorkgroups(512 / 8, 512 / 8, 6);
+
     computePass.setPipeline(computePipeline);
     computePass.setBindGroup(0, bindGroup);
-    const downscaledWidth = Math.ceil(outputTextures.depthTexture.width / 2);
-    const downscaledHeight = Math.ceil(outputTextures.depthTexture.height / 2);
+    computePass.setBindGroup(
+      1,
+      device.createBindGroup({
+        layout: readSkyBindGroupLayout,
+        entries: [
+          {
+            binding: 1,
+            resource: outputTextures.skyTexture.createView({
+              dimension: "cube",
+            }),
+          },
+        ],
+      }),
+    );
+    const downscaledWidth = outputTextures.depthTexture.width;
+    const downscaledHeight = outputTextures.depthTexture.height;
     const workgroupsX = Math.ceil(downscaledWidth / 8);
     const workgroupsY = Math.ceil(downscaledHeight / 8);
     computePass.dispatchWorkgroups(workgroupsX, workgroupsY);
     computePass.end();
+
+    commandEncoder.copyTextureToTexture(
+      {
+        texture: outputTextures.skyTexture,
+      },
+      {
+        texture: lastSkyTexture,
+      },
+      {
+        width: outputTextures.skyTexture.width,
+        height: outputTextures.skyTexture.height,
+        depthOrArrayLayers: outputTextures.skyTexture.depthOrArrayLayers,
+      },
+    );
 
     return [commandEncoder.finish()];
   };

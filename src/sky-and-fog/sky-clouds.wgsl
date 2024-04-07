@@ -9,8 +9,8 @@ struct Time {
 
 // Cloud parameters
 const EARTH_RADIUS = 6300e3;
-const CLOUD_START = 400.0;
-const CLOUD_HEIGHT = 1000.0;
+const CLOUD_START = 800.0;
+const CLOUD_HEIGHT = 900.0;
 const SUN_POWER = vec3(1.0,0.9,0.6) * 750.;
 const LOW_SCATTER = vec3(1.0, 0.7, 0.5);
 
@@ -24,6 +24,9 @@ const LOW_SCATTER = vec3(1.0, 0.7, 0.5);
 @group(0) @binding(7) var pebbleTex : texture_2d<f32>;
 @group(0) @binding(8) var linearSampler : sampler;
 @group(0) @binding(9) var<uniform> cameraPosition : vec3<f32>;
+@group(1) @binding(1) var skyCube : texture_cube<f32>;
+@group(1) @binding(2) var skyCubeWrite : texture_storage_2d_array<rgba8unorm, write>;
+@group(1) @binding(3) var lastSkyCube : texture_2d_array<f32>;
 
 
 // Noise generation functions (by iq)
@@ -160,7 +163,7 @@ fn numericalMieFit( costh: f32) -> f32
 
 fn lightRay(p: vec3<f32>, phaseFunction: f32, dC: f32, mu: f32, sun_direction: vec3<f32>, cloudHeight: f32) -> f32
 {
-    let nbSampleLight = 20;
+    let nbSampleLight = 4;
 	  let zMaxl         = 300.;
     let stepL         = zMaxl/f32(nbSampleLight);
     var pCopy = p;
@@ -190,7 +193,7 @@ fn skyRay(org: vec3<f32>, dir: vec3<f32>,sun_direction: vec3<f32>) -> vec3<f32>
   let ATM_START = EARTH_RADIUS+CLOUD_START;
 	let ATM_END = ATM_START+CLOUD_HEIGHT;
 
-  let nbSample = 32;
+  let nbSample = 16;
   var color = vec3(0.0);
   let distToAtmStart = intersectSphere(org, dir, vec3(0.0, -EARTH_RADIUS, 0.0), ATM_START);
   let distToAtmEnd = intersectSphere(org, dir, vec3(0.0, -EARTH_RADIUS, 0.0), ATM_END);
@@ -289,30 +292,90 @@ fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
     let resolution = textureDimensions(depth);
-    let pixel = GlobalInvocationID.xy * 2;
+    let pixel = GlobalInvocationID.xy;
     var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
     let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
     let rayOrigin = cameraPosition;
-    let sky = sample_sky(rayDirection, rayOrigin);
+    //let sky = sample_sky(rayDirection, rayOrigin);
+    let sky = textureSampleLevel(skyCube, linearSampler, rayDirection, 0.0).rgb;
 
     let mu = dot(sunDirection, rayDirection);
 
     var color = sky;
     let fogDistance = intersectSphere(rayOrigin, rayDirection, vec3(0.0, -EARTH_RADIUS, 0.0), EARTH_RADIUS+160.0);
     let fogPhase = 0.5*HenyeyGreenstein(mu, 0.7)+0.5*HenyeyGreenstein(mu, -0.6);
-    color = mix(fogPhase*0.1*LOW_SCATTER*SUN_POWER+10.0*vec3(0.55, 0.8, 1.0), color, exp(-0.0003*fogDistance));
-    color = tonemapACES(color * 0.1);
+    //color = mix(fogPhase*0.1*LOW_SCATTER*SUN_POWER+10.0*vec3(0.55, 0.8, 1.0), color, exp(-0.0003*fogDistance));
+    //color = tonemapACES(color * 0.1);
 
-
-    for(var x = 0u; x < 2u; x++){
-      for(var y = 0u; y < 2u; y++){
+    for(var x = 0u; x < 1u; x++){
+      for(var y = 0u; y < 1u; y++){
          let offsetPixel = pixel + vec2(x, y);
          let depthSample = textureLoad(depth, offsetPixel, 0).r;
          let inputSample = textureLoad(inputTex, offsetPixel, 0).rgb;
          let dist = NEAR * FAR / (FAR - depthSample * (FAR - NEAR));
          let depthFactor = clamp(exp(-(dist - START_DISTANCE) * FOG_DENSITY), 0.0, 1.0);
-          let output = vec4(mix(color,inputSample, depthFactor), 1);
-          textureStore(outputTex, offsetPixel, output);
+         let output = vec4(mix(color,inputSample, depthFactor), 1);
+         textureStore(outputTex, offsetPixel, output);
       }
     }
+}
+
+fn getDebugColor(index: u32) -> vec4<f32> {
+  let colors = array<vec4<f32>, 8>(
+    vec4<f32>(1.0, 0.0, 0.0, 1.0),
+    vec4<f32>(0.0, 1.0, 0.0, 1.0),
+    vec4<f32>(0.0, 0.0, 1.0, 1.0),
+    vec4<f32>(1.0, 1.0, 0.0, 1.0),
+    vec4<f32>(1.0, 0.0, 1.0, 1.0),
+    vec4<f32>(0.0, 1.0, 1.0, 1.0),
+    vec4<f32>(1.0, 1.0, 1.0, 1.0),
+    vec4<f32>(0.5, 0.5, 0.5, 1.0)
+  );
+  return colors[index % 8];
+}
+
+fn getCubeRayDirection(uv: vec2<f32>, faceIndex: u32) -> vec3<f32>
+{
+  let uMapped = uv.x * 2.0 - 1.0;
+  let vMapped = uv.y * 2.0 - 1.0;
+
+  switch(faceIndex)
+  {
+    case 0{return vec3<f32>(1.0, -vMapped, -uMapped);}
+    case 1{return vec3<f32>(-1.0, -vMapped, uMapped);}
+    case 2{return vec3<f32>(uMapped, 1.0, vMapped);}
+    case 3{return vec3<f32>(uMapped, -1.0, -vMapped);}
+    case 4{return vec3<f32>(uMapped, -vMapped, 1.0);}
+    case 5{return vec3<f32>(-uMapped, -vMapped, -1.0);}
+    default{return vec3<f32>(0.0);}
+  }
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn writeToCube(
+  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
+) {
+  let cubeFaceIndex = GlobalInvocationID.z;
+  if(cubeFaceIndex == 3){
+    // Down
+    return;
+  }
+  let pixel = GlobalInvocationID.xy;
+  var rayDirection = getCubeRayDirection(vec2<f32>(pixel) / vec2<f32>(textureDimensions(skyCubeWrite).xy), cubeFaceIndex);
+  if(rayDirection.y < 0.0){
+    return;
+  }
+  rayDirection = normalize(rayDirection);
+  let sky = sample_sky(rayDirection, cameraPosition);
+  let mu = dot(sunDirection, rayDirection);
+  let fogDistance = intersectSphere(cameraPosition, rayDirection, vec3(0.0, -EARTH_RADIUS, 0.0), EARTH_RADIUS+160.0);
+  let fogPhase = 0.5*HenyeyGreenstein(mu, 0.7)+0.5*HenyeyGreenstein(mu, -0.6);
+  var colour = sky;
+  colour = mix(fogPhase*0.1*LOW_SCATTER*SUN_POWER+10.0*vec3(0.55, 0.8, 1.0), colour, exp(-0.0003*fogDistance));
+  colour = tonemapACES(colour * 0.1);
+
+  let previousColour = textureLoad(lastSkyCube, pixel, cubeFaceIndex, 0).rgb;
+  colour = mix(previousColour, colour, 0.1);
+
+  textureStore(skyCubeWrite, pixel, cubeFaceIndex, vec4(colour,1));
 }
