@@ -9,10 +9,11 @@ struct Time {
 
 // Cloud parameters
 const EARTH_RADIUS = 6300e3;
-const CLOUD_START = 800.0;
+const CLOUD_START = 700.0;
 const CLOUD_HEIGHT = 900.0;
 const SUN_POWER = vec3(1.0,0.9,0.6) * 750.;
 const LOW_SCATTER = vec3(1.0, 0.7, 0.5);
+const MAX_DISTANCE = 8000.0;
 
 @group(0) @binding(0) var depth : texture_2d<f32>;
 @group(0) @binding(1) var inputTex : texture_2d<f32>;
@@ -121,6 +122,7 @@ fn clouds(p: vec3<f32>) -> vec2<f32>
     let cloudHeight = clamp((atmoHeight-CLOUD_START)/(CLOUD_HEIGHT), 0.0, 1.0);
     pCopy.z += time.elapsed*10.3;
     let largeWeather = clamp((samplePebbles(-0.00005*pCopy.zx) - 0.18)*5.0, 0.0, 2.0);
+    //let largeWeather = 1.0;
     pCopy.x += time.elapsed*8.3;
     var weather = largeWeather*max(0.0,samplePebbles(0.0002*pCopy.zx) - 0.28)/0.72;
     weather *= smoothstep(0.0, 0.5, cloudHeight) * smoothstep(1.0, 0.5, cloudHeight);
@@ -163,11 +165,11 @@ fn numericalMieFit( costh: f32) -> f32
 
 fn lightRay(p: vec3<f32>, phaseFunction: f32, dC: f32, mu: f32, sun_direction: vec3<f32>, cloudHeight: f32) -> f32
 {
-    let nbSampleLight = 4;
-	  let zMaxl         = 300.;
+    let nbSampleLight = 8;
+	  let zMaxl         = 200.;
     let stepL         = zMaxl/f32(nbSampleLight);
     var pCopy = p;
-    var cloudHeightCopy = cloudHeight;
+    var cloudHeightCopy = 0.0;
 
     var lighRayDen = 0.0;
     pCopy += sun_direction*stepL*hash(dot(pCopy, vec3(12.256, 2.646, 6.356)) + time.elapsed);
@@ -190,6 +192,7 @@ fn Schlick (f0: f32, VoH: f32 ) -> f32
 
 fn skyRay(org: vec3<f32>, dir: vec3<f32>,sun_direction: vec3<f32>) -> vec3<f32>
 {
+
   let ATM_START = EARTH_RADIUS+CLOUD_START;
 	let ATM_END = ATM_START+CLOUD_HEIGHT;
 
@@ -198,6 +201,7 @@ fn skyRay(org: vec3<f32>, dir: vec3<f32>,sun_direction: vec3<f32>) -> vec3<f32>
   let distToAtmStart = intersectSphere(org, dir, vec3(0.0, -EARTH_RADIUS, 0.0), ATM_START);
   let distToAtmEnd = intersectSphere(org, dir, vec3(0.0, -EARTH_RADIUS, 0.0), ATM_END);
   var p = org + distToAtmStart * dir;
+
   let stepS = (distToAtmEnd-distToAtmStart) / f32(nbSample);
   var T = 1.;
   let mu = dot(sun_direction, dir);
@@ -206,6 +210,9 @@ fn skyRay(org: vec3<f32>, dir: vec3<f32>,sun_direction: vec3<f32>) -> vec3<f32>
   if(dir.y > 0.01){
     for(var i=0; i<nbSample; i++)
     {
+      if(distance(p, org) > MAX_DISTANCE){
+        break;
+      }
       let cloudResult = clouds(p);
       let cloudHeight = cloudResult.y;
       let density = cloudResult.x;
@@ -226,7 +233,8 @@ fn skyRay(org: vec3<f32>, dir: vec3<f32>,sun_direction: vec3<f32>) -> vec3<f32>
   }
 
   let pC = org + intersectSphere(org, dir, vec3(0.0, -EARTH_RADIUS, 0.0), ATM_END+1000.0)*dir;
-  color += T*vec3(3.0)*max(0.0, fbm(vec3(1.0, 1.0, 1.8)*pC*0.002) - 0.4);
+  // high clouds
+  //color += T*vec3(3.0)*max(0.0, fbm(vec3(1.0, 1.0, 1.8)*pC*0.002) - 0.4);
 
 	var background = 6.0*mix(vec3(0.2, 0.52, 1.0), vec3(0.8, 0.95, 1.0), pow(0.5+0.5*mu, 15.0))+mix(vec3(3.5), vec3(0.0), min(1.0, 2.3*dir.y));
   background += T*vec3(1e4*smoothstep(0.9998, 1.0, mu));
@@ -296,28 +304,18 @@ fn main(
     var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
     let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
     let rayOrigin = cameraPosition;
-    //let sky = sample_sky(rayDirection, rayOrigin);
     let sky = textureSampleLevel(skyCube, linearSampler, rayDirection, 0.0).rgb;
 
-    let mu = dot(sunDirection, rayDirection);
-
     var color = sky;
-    let fogDistance = intersectSphere(rayOrigin, rayDirection, vec3(0.0, -EARTH_RADIUS, 0.0), EARTH_RADIUS+160.0);
-    let fogPhase = 0.5*HenyeyGreenstein(mu, 0.7)+0.5*HenyeyGreenstein(mu, -0.6);
-    //color = mix(fogPhase*0.1*LOW_SCATTER*SUN_POWER+10.0*vec3(0.55, 0.8, 1.0), color, exp(-0.0003*fogDistance));
-    //color = tonemapACES(color * 0.1);
 
-    for(var x = 0u; x < 1u; x++){
-      for(var y = 0u; y < 1u; y++){
-         let offsetPixel = pixel + vec2(x, y);
-         let depthSample = textureLoad(depth, offsetPixel, 0).r;
-         let inputSample = textureLoad(inputTex, offsetPixel, 0).rgb;
-         let dist = NEAR * FAR / (FAR - depthSample * (FAR - NEAR));
-         let depthFactor = clamp(exp(-(dist - START_DISTANCE) * FOG_DENSITY), 0.0, 1.0);
-         let output = vec4(mix(color,inputSample, depthFactor), 1);
-         textureStore(outputTex, offsetPixel, output);
-      }
-    }
+   let depthSample = textureLoad(depth, pixel, 0).r;
+   let inputSample = textureLoad(inputTex, pixel, 0).rgb;
+   let dist = NEAR * FAR / (FAR - depthSample * (FAR - NEAR));
+   let depthFactor = clamp(exp(-(dist - START_DISTANCE) * FOG_DENSITY), 0.0, 1.0);
+   let output = vec4(mix(color,inputSample, depthFactor), 1);
+   textureStore(outputTex, pixel, output);
+
+
 }
 
 fn getDebugColor(index: u32) -> vec4<f32> {
@@ -351,19 +349,68 @@ fn getCubeRayDirection(uv: vec2<f32>, faceIndex: u32) -> vec3<f32>
   }
 }
 
+fn getFramePixelOffset() -> vec2<u32>
+{
+  let frameIndex = time.frame % 4;
+  let x = frameIndex % 2;
+  let y = frameIndex / 2;
+  return vec2<u32>(x, y);
+}
+
+const offsets = array<vec2<i32>,8>(
+  vec2(-1,-1), vec2(-1, 1),
+	vec2(1, -1), vec2(1, 1),
+	vec2(1, 0), vec2(0, -1),
+	vec2(0, 1), vec2(-1, 0)
+);
+
+fn RGBToYCoCg( RGB: vec3<f32> ) -> vec3<f32>
+{
+	let Y = dot(RGB, vec3(  1, 2,  1 )) * 0.25;
+	let Co= dot(RGB, vec3(  2, 0, -2 )) * 0.25 + ( 0.5 * 256.0/255.0 );
+	let Cg= dot(RGB, vec3( -1, 2, -1 )) * 0.25 + ( 0.5 * 256.0/255.0 );
+	return vec3(Y, Co, Cg);
+}
+
+fn YCoCgToRGB( YCoCg: vec3<f32> ) -> vec3<f32>
+{
+	let Y= YCoCg.x;
+	let Co= YCoCg.y - ( 0.5 * 256.0 / 255.0 );
+	let Cg= YCoCg.z - ( 0.5 * 256.0 / 255.0 );
+	let R= Y + Co-Cg;
+	let G= Y + Cg;
+	let B= Y - Co-Cg;
+	return vec3(R,G,B);
+}
+
+fn gaussianBlurHistorySample( pixel: vec2<u32>, cubeFaceIndex: u32 ) -> vec3<f32>
+{
+  var color = vec3<f32>(0.0);
+  for(var i = 0; i < 9; i++)
+  {
+    color += RGBToYCoCg(textureLoad(lastSkyCube, vec2<i32>(pixel)+offsets[i], cubeFaceIndex, 0).xyz);
+  }
+  return color / 9.0;
+}
+
 @compute @workgroup_size(8, 8, 1)
 fn writeToCube(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
   let cubeFaceIndex = GlobalInvocationID.z;
+  var pixel = GlobalInvocationID.xy;
+  pixel *= 2;
+  pixel += getFramePixelOffset();
+
   if(cubeFaceIndex == 3){
     // Down
-    return;
+    //return;
   }
-  let pixel = GlobalInvocationID.xy;
+
   var rayDirection = getCubeRayDirection(vec2<f32>(pixel) / vec2<f32>(textureDimensions(skyCubeWrite).xy), cubeFaceIndex);
   if(rayDirection.y < 0.0){
-    return;
+    //textureStore(skyCubeWrite, pixel, cubeFaceIndex, vec4(LOW_SCATTER,1));
+    //return;
   }
   rayDirection = normalize(rayDirection);
   let sky = sample_sky(rayDirection, cameraPosition);
@@ -374,8 +421,31 @@ fn writeToCube(
   colour = mix(fogPhase*0.1*LOW_SCATTER*SUN_POWER+10.0*vec3(0.55, 0.8, 1.0), colour, exp(-0.0003*fogDistance));
   colour = tonemapACES(colour * 0.1);
 
-  let previousColour = textureLoad(lastSkyCube, pixel, cubeFaceIndex, 0).rgb;
-  colour = mix(previousColour, colour, 0.1);
+
+  let newSample = RGBToYCoCg(colour);
+  //var history = RGBToYCoCg(textureLoad(lastSkyCube, pixel, cubeFaceIndex, 0).rgb);
+  var history = gaussianBlurHistorySample(pixel, cubeFaceIndex);
+
+  var colorAvg = newSample;
+  var colorVar = newSample*newSample;
+
+  // Marco Salvi's Implementation (by Chris Wyman)
+  for(var i = 0; i < 8; i++)
+  {
+    let fetch = RGBToYCoCg(textureLoad(lastSkyCube, vec2<i32>(pixel)+offsets[i], cubeFaceIndex, 0).xyz);
+    colorAvg += fetch;
+    colorVar += fetch*fetch;
+  }
+  colorAvg /= 9.0;
+  colorVar /= 9.0;
+  let gColorBoxSigma = 0.75;
+  let sigma = sqrt(max(vec3(0.0), colorVar - colorAvg*colorAvg));
+  let colorMin = colorAvg - gColorBoxSigma * sigma;
+  let colorMax = colorAvg + gColorBoxSigma * sigma;
+
+  history = clamp(history, colorMin, colorMax);
+
+  colour = YCoCgToRGB(mix(newSample, history, 0.9));
 
   textureStore(skyCubeWrite, pixel, cubeFaceIndex, vec4(colour,1));
 }

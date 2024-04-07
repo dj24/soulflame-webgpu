@@ -178,7 +178,7 @@ export const getSkyPass = async (): Promise<RenderPass> => {
   );
 
   const lastSkyTexture = device.createTexture({
-    size: [512, 512, 6],
+    size: [768, 768, 6],
     format: "rgba8unorm",
     usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
   });
@@ -295,7 +295,11 @@ export const getSkyPass = async (): Promise<RenderPass> => {
         ],
       }),
     );
-    computePass.dispatchWorkgroups(512 / 8, 512 / 8, 6);
+    computePass.dispatchWorkgroups(
+      outputTextures.skyTexture.width / 16,
+      outputTextures.skyTexture.height / 16,
+      6,
+    );
 
     computePass.setPipeline(computePipeline);
     computePass.setBindGroup(0, bindGroup);

@@ -370,7 +370,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     // Multiply the existing direction vector by the rotation matrix
     const newDirection = vec3.normalize(
-      vec3.transformMat4(vec3.create(0, 1, -1), rotationMatrix),
+      vec3.transformMat4(vec3.create(0, 0.5, -1), rotationMatrix),
     );
 
     if (sunDirectionBuffer) {
@@ -632,23 +632,32 @@ const start = async () => {
   }
 
   console.debug(device.limits);
-  skyTexture = await createTextureFromImages(
-    device,
-    [
-      "cubemaps/town-square/posx.jpg",
-      "cubemaps/town-square/negx.jpg",
-      "cubemaps/town-square/posy.jpg",
-      "cubemaps/town-square/negy.jpg",
-      "cubemaps/town-square/posz.jpg",
-      "cubemaps/town-square/negz.jpg",
-    ],
-    {
-      usage:
-        GPUTextureUsage.STORAGE_BINDING |
-        GPUTextureUsage.TEXTURE_BINDING |
-        GPUTextureUsage.COPY_SRC,
-    },
-  );
+  // skyTexture = await createTextureFromImages(
+  //   device,
+  //   [
+  //     "cubemaps/town-square/posx.jpg",
+  //     "cubemaps/town-square/negx.jpg",
+  //     "cubemaps/town-square/posy.jpg",
+  //     "cubemaps/town-square/negy.jpg",
+  //     "cubemaps/town-square/posz.jpg",
+  //     "cubemaps/town-square/negz.jpg",
+  //   ],
+  //   {
+  //     usage:
+  //       GPUTextureUsage.STORAGE_BINDING |
+  //       GPUTextureUsage.TEXTURE_BINDING |
+  //       GPUTextureUsage.COPY_SRC,
+  //   },
+  // );
+  skyTexture = device.createTexture({
+    dimension: "2d",
+    size: [768, 768, 6],
+    format: "rgba8unorm",
+    usage:
+      GPUTextureUsage.COPY_SRC |
+      GPUTextureUsage.TEXTURE_BINDING |
+      GPUTextureUsage.STORAGE_BINDING,
+  });
 
   volumeAtlas = await getVolumeAtlas(device);
   await createTavern(device, volumeAtlas);
