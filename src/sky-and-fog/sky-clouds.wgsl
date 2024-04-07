@@ -9,11 +9,11 @@ struct Time {
 
 // Cloud parameters
 const EARTH_RADIUS = 6300e3;
-const CLOUD_START = 700.0;
-const CLOUD_HEIGHT = 900.0;
-const SUN_POWER = vec3(1.0,0.9,0.6) * 750.;
+const CLOUD_START = 600.0;
+const CLOUD_HEIGHT = 800.0;
+const SUN_POWER = vec3(1.0,0.9,0.6) * 500.;
 const LOW_SCATTER = vec3(1.0, 0.7, 0.5);
-const MAX_DISTANCE = 8000.0;
+const MAX_DISTANCE = 10000.0;
 
 @group(0) @binding(0) var depth : texture_2d<f32>;
 @group(0) @binding(1) var inputTex : texture_2d<f32>;
@@ -120,22 +120,22 @@ fn clouds(p: vec3<f32>) -> vec2<f32>
     var pCopy = p;
     let atmoHeight = length(p - vec3(0.0, -EARTH_RADIUS, 0.0)) - EARTH_RADIUS;
     let cloudHeight = clamp((atmoHeight-CLOUD_START)/(CLOUD_HEIGHT), 0.0, 1.0);
-    pCopy.z += time.elapsed*10.3;
+    pCopy.z += time.elapsed*40;
     let largeWeather = clamp((samplePebbles(-0.00005*pCopy.zx) - 0.18)*5.0, 0.0, 2.0);
     //let largeWeather = 1.0;
-    pCopy.x += time.elapsed*8.3;
+    pCopy.x += time.elapsed*32;
     var weather = largeWeather*max(0.0,samplePebbles(0.0002*pCopy.zx) - 0.28)/0.72;
     weather *= smoothstep(0.0, 0.5, cloudHeight) * smoothstep(1.0, 0.5, cloudHeight);
     let cloudShape = pow(weather, 0.3+1.5*smoothstep(0.2, 0.5, cloudHeight));
     if(cloudShape <= 0.0){
         return vec2(0.0, cloudHeight);
     }
-    pCopy.x += time.elapsed*12.3;
+    pCopy.x += time.elapsed*48;
 	  var den= max(0.0, cloudShape - 0.7*fbm(p*.01));
     if(den <= 0.0){
         return vec2(0.0, cloudHeight);
     }
-    pCopy.y += time.elapsed*15.2;
+    pCopy.y += time.elapsed*60;
     den= max(0.0, den - 0.2*fbm(p*0.05));
     return vec2(largeWeather*0.2*min(1.0, 5.0*den), cloudHeight);
 }
@@ -165,14 +165,14 @@ fn numericalMieFit( costh: f32) -> f32
 
 fn lightRay(p: vec3<f32>, phaseFunction: f32, dC: f32, mu: f32, sun_direction: vec3<f32>, cloudHeight: f32) -> f32
 {
-    let nbSampleLight = 8;
+    let nbSampleLight = 6;
 	  let zMaxl         = 200.;
     let stepL         = zMaxl/f32(nbSampleLight);
     var pCopy = p;
     var cloudHeightCopy = 0.0;
 
     var lighRayDen = 0.0;
-    pCopy += sun_direction*stepL*hash(dot(pCopy, vec3(12.256, 2.646, 6.356)) + time.elapsed);
+    pCopy += sun_direction*stepL*hash(dot(pCopy, vec3(12.256, 2.646, 6.356)) + time.elapsed * 4);
     for(var j=0; j<nbSampleLight; j++)
     {
         let cloudsResult = clouds( pCopy + sun_direction*f32(j)*stepL);
@@ -196,7 +196,7 @@ fn skyRay(org: vec3<f32>, dir: vec3<f32>,sun_direction: vec3<f32>) -> vec3<f32>
   let ATM_START = EARTH_RADIUS+CLOUD_START;
 	let ATM_END = ATM_START+CLOUD_HEIGHT;
 
-  let nbSample = 16;
+  let nbSample = 8;
   var color = vec3(0.0);
   let distToAtmStart = intersectSphere(org, dir, vec3(0.0, -EARTH_RADIUS, 0.0), ATM_START);
   let distToAtmEnd = intersectSphere(org, dir, vec3(0.0, -EARTH_RADIUS, 0.0), ATM_END);
@@ -206,7 +206,7 @@ fn skyRay(org: vec3<f32>, dir: vec3<f32>,sun_direction: vec3<f32>) -> vec3<f32>
   var T = 1.;
   let mu = dot(sun_direction, dir);
   let phaseFunction = numericalMieFit(mu);
-  p += dir*stepS*hash(dot(dir, vec3(12.256, 2.646, 6.356)) + time.elapsed);
+  p += dir*stepS*hash(dot(dir, vec3(12.256, 2.646, 6.356)) + time.elapsed * 4);
   if(dir.y > 0.01){
     for(var i=0; i<nbSample; i++)
     {
@@ -383,14 +383,39 @@ fn YCoCgToRGB( YCoCg: vec3<f32> ) -> vec3<f32>
 	return vec3(R,G,B);
 }
 
+const gaussianWeights = array<f32, 25>(
+  0.003765, 0.015019, 0.023792, 0.015019, 0.003765,
+  0.015019, 0.059912, 0.094907, 0.059912, 0.015019,
+  0.023792, 0.094907, 0.150342, 0.094907, 0.023792,
+  0.015019, 0.059912, 0.094907, 0.059912, 0.015019,
+  0.003765, 0.015019, 0.023792, 0.015019, 0.003765
+);
+
+
+const gaussianOffsets = array<vec2<i32>, 25>(
+  vec2(-2, -2), vec2(-1, -2), vec2(0, -2), vec2(1, -2), vec2(2, -2),
+  vec2(-2, -1), vec2(-1, -1), vec2(0, -1), vec2(1, -1), vec2(2, -1),
+  vec2(-2, 0), vec2(-1, 0), vec2(0, 0), vec2(1, 0), vec2(2, 0),
+  vec2(-2, 1), vec2(-1, 1), vec2(0, 1), vec2(1, 1), vec2(2, 1),
+  vec2(-2, 2), vec2(-1, 2), vec2(0, 2), vec2(1, 2), vec2(2, 2)
+);
+
 fn gaussianBlurHistorySample( pixel: vec2<u32>, cubeFaceIndex: u32 ) -> vec3<f32>
 {
+  let textureSize = textureDimensions(lastSkyCube).xy;
   var color = vec3<f32>(0.0);
-  for(var i = 0; i < 9; i++)
+  var weights = 0.0;
+  for(var i = 0; i < 25; i++)
   {
-    color += RGBToYCoCg(textureLoad(lastSkyCube, vec2<i32>(pixel)+offsets[i], cubeFaceIndex, 0).xyz);
+    let samplePixel = vec2<i32>(pixel) + gaussianOffsets[i];
+    if(any(samplePixel < vec2(0)) || any(samplePixel >= vec2<i32>(textureSize))){
+      continue;
+    }
+    color += RGBToYCoCg(textureLoad(lastSkyCube, samplePixel, cubeFaceIndex, 0).rgb) * gaussianWeights[i];
+    weights += gaussianWeights[i];
   }
-  return color / 9.0;
+
+  return color / weights;
 }
 
 @compute @workgroup_size(8, 8, 1)
@@ -430,9 +455,14 @@ fn writeToCube(
   var colorVar = newSample*newSample;
 
   // Marco Salvi's Implementation (by Chris Wyman)
+  let textureSize = textureDimensions(skyCubeWrite).xy;
   for(var i = 0; i < 8; i++)
   {
-    let fetch = RGBToYCoCg(textureLoad(lastSkyCube, vec2<i32>(pixel)+offsets[i], cubeFaceIndex, 0).xyz);
+    let samplePixel = vec2<i32>(pixel) + offsets[i];
+    if(any(samplePixel < vec2(0)) || any(samplePixel >= vec2<i32>(textureSize))){
+      continue;
+    }
+    let fetch = RGBToYCoCg(textureLoad(lastSkyCube, samplePixel, cubeFaceIndex, 0).xyz);
     colorAvg += fetch;
     colorVar += fetch*fetch;
   }

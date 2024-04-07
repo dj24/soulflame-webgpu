@@ -16,20 +16,24 @@ const ceilToNearestMultipleOf = (n: number, multiple: number) => {
 
 type AABB = { min: Vec3; max: Vec3 };
 
-const getAABB = (voxelObjects: AABB[]) => {
+type VoxelBrick = {
+  AABB: AABB;
+  objectIndex: number;
+  brickIndex: number;
+};
+
+const getAABB = (voxelObjects: VoxelBrick[]) => {
   let min = vec3.create(Infinity, Infinity, Infinity);
   let max = vec3.create(-Infinity, -Infinity, -Infinity);
-  for (const AABB of voxelObjects) {
+  for (const { AABB } of voxelObjects) {
     min = vec3.min(AABB.min, min);
     max = vec3.max(AABB.max, max);
   }
   return { min, max };
 };
 
-const getNodeSAHCost = (voxelObjects: AABB[]) => {
-  console.time(`getAABB ${voxelObjects.length} objects`);
+const getNodeSAHCost = (voxelObjects: VoxelBrick[]) => {
   const aaBB = getAABB(voxelObjects);
-  console.timeEnd(`getAABB ${voxelObjects.length} objects`);
   const area =
     (aaBB.max[0] - aaBB.min[0]) *
     (aaBB.max[1] - aaBB.min[1]) *
@@ -40,7 +44,7 @@ const getNodeSAHCost = (voxelObjects: AABB[]) => {
 const SAH_WEIGHT = 1;
 const BALANCE_WEIGHT = 1000;
 
-const splitObjectsBySAH = (voxelObjects: AABB[]) => {
+const splitObjectsBySAH = (voxelObjects: VoxelBrick[]) => {
   let minCost = Infinity;
   let minIndex = -1;
   const middleIndex = Math.floor(voxelObjects.length / 2);
@@ -74,6 +78,10 @@ const splitObjectsBySAH = (voxelObjects: AABB[]) => {
   console.timeEnd(`split ${voxelObjects.length} objects`);
   return { left, right };
 };
+
+// fn convert3DTo1D(size: vec3<u32>, position: vec3<u32>) -> u32 {
+//   return position.x + position.y * size.x + position.z * (size.x * size.y);
+// }
 
 const splitObjectsBySAHCompute = async (
   device: GPUDevice,
@@ -161,41 +169,46 @@ const splitObjectsBySAHCompute = async (
   const workGroupSizeX = 64;
   const possibleSplitCount = voxelObjects.length;
 };
-
 export const createBVH = (
   device: GPUDevice,
   voxelObjects: VoxelObject[],
 ): GPUBuffer => {
   let nodes: BVHNode[] = [];
-  const voxelObjectAABBs: AABB[] = voxelObjects
-    .map(({ brickAABBs }) => {
-      return brickAABBs;
+
+  const allBricks: VoxelBrick[] = voxelObjects
+    .map((voxelObject, objectIndex) => {
+      return voxelObject.brickAABBs.map((AABB, brickIndex) => {
+        return { AABB, objectIndex, brickIndex };
+      });
     })
     .flat();
+
+  console.log({ voxelObjects, allBricks });
+
   let childIndex = 0;
-  const build = (voxelObjects: AABB[], startIndex: number) => {
-    console.time(`build ${voxelObjects.length} objects at ${startIndex}`);
+  const build = (bricks: VoxelBrick[], startIndex: number) => {
+    console.time(`build ${bricks.length} objects at ${startIndex}`);
     if (voxelObjects.length === 0) {
       return;
     }
-    const AABB = getAABB(voxelObjects);
-    const isLeaf = voxelObjects.length === 1;
+    const AABB = getAABB(bricks);
+    const isLeaf = bricks.length === 1;
     if (isLeaf) {
       nodes[startIndex] = {
-        leftChildIndex: voxelObjectAABBs.indexOf(voxelObjects[0]),
-        rightChildIndex: -1,
-        objectCount: voxelObjects.length,
+        leftChildIndex: bricks[0].objectIndex,
+        rightChildIndex: bricks[0].brickIndex,
+        objectCount: bricks.length,
         AABBMax: AABB.max,
         AABBMin: AABB.min,
       };
-      console.timeEnd(`build ${voxelObjects.length} objects at ${startIndex}`);
+      console.timeEnd(`build ${bricks.length} objects at ${startIndex}`);
       return;
     }
 
     let leftChildIndex = -1;
     let rightChildIndex = -1;
 
-    const { left, right } = splitObjectsBySAH(voxelObjects);
+    const { left, right } = splitObjectsBySAH(bricks);
 
     if (left.length > 0) {
       leftChildIndex = ++childIndex;
@@ -214,7 +227,7 @@ export const createBVH = (
       AABBMin: AABB.min,
     };
 
-    console.timeEnd(`build ${voxelObjects.length} objects at ${startIndex}`);
+    console.timeEnd(`build ${bricks.length} objects at ${startIndex}`);
   };
 
   const toGPUBuffer = (device: GPUDevice, length: number) => {
@@ -258,7 +271,7 @@ export const createBVH = (
   };
 
   const start = performance.now();
-  build(voxelObjectAABBs, 0);
+  build(allBricks, 0);
   const end = performance.now();
   frameTimeTracker.addSample("create bvh", end - start);
 

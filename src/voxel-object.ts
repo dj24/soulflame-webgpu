@@ -33,8 +33,8 @@ export class VoxelObject {
     this.worldSpaceCenter = vec3.lerp(minBound, maxBound, 0.5);
   }
 
-  get worldSpaceCorners() {
-    const objectSpaceCorners = [
+  get objectSpaceCorners() {
+    return [
       vec3.create(0, 0, 0),
       vec3.create(0, 0, this.size[2]),
       vec3.create(0, this.size[1], 0),
@@ -44,7 +44,38 @@ export class VoxelObject {
       vec3.create(this.size[0], this.size[1], 0),
       vec3.create(this.size[0], this.size[1], this.size[2]),
     ];
-    return objectSpaceCorners.map((corner) => {
+  }
+
+  getObjectSpaceBrickCorners(brickIndex: Vec3) {
+    const brickSize = vec3.create(
+      BRICK_SIZE_VOXELS,
+      BRICK_SIZE_VOXELS,
+      BRICK_SIZE_VOXELS,
+    );
+    const brickOffset = vec3.multiply(brickIndex, brickSize);
+    return [
+      vec3.add(brickOffset, vec3.create(0, 0, 0)),
+      vec3.add(brickOffset, vec3.create(0, 0, brickSize[2])),
+      vec3.add(brickOffset, vec3.create(0, brickSize[1], 0)),
+      vec3.add(brickOffset, vec3.create(0, brickSize[1], brickSize[2])),
+      vec3.add(brickOffset, vec3.create(brickSize[0], 0, 0)),
+      vec3.add(brickOffset, vec3.create(brickSize[0], 0, brickSize[2])),
+      vec3.add(brickOffset, vec3.create(brickSize[0], brickSize[1], 0)),
+      vec3.add(
+        brickOffset,
+        vec3.create(brickSize[0], brickSize[1], brickSize[2]),
+      ),
+    ];
+  }
+
+  get worldSpaceCorners() {
+    return this.objectSpaceCorners.map((corner) => {
+      return vec3.transformMat4(corner, this.transform);
+    });
+  }
+
+  getBrickWorldSpaceCorners(brickIndex: Vec3) {
+    return this.getObjectSpaceBrickCorners(brickIndex).map((corner) => {
       return vec3.transformMat4(corner, this.transform);
     });
   }
@@ -59,39 +90,32 @@ export class VoxelObject {
     return { min, max };
   }
 
-  get worldSpaceBrickCorners() {
+  getBrickAABB(brickIndex: Vec3) {
+    const corners = this.getBrickWorldSpaceCorners(brickIndex);
+    let min = vec3.create(Infinity, Infinity, Infinity);
+    let max = vec3.create(-Infinity, -Infinity, -Infinity);
+    for (const corner of corners) {
+      min = vec3.min(min, corner);
+      max = vec3.max(max, corner);
+    }
+    return { min, max };
+  }
+
+  get brickAABBs() {
     const bricksX = Math.ceil(this.size[0] / BRICK_SIZE_VOXELS);
     const bricksY = Math.ceil(this.size[1] / BRICK_SIZE_VOXELS);
     const bricksZ = Math.ceil(this.size[2] / BRICK_SIZE_VOXELS);
 
-    let brickCorners = [];
+    let brickAABBs = [];
     for (let x = 0; x < bricksX; x++) {
       for (let y = 0; y < bricksY; y++) {
         for (let z = 0; z < bricksZ; z++) {
-          const min = vec3.create(
-            x * BRICK_SIZE_VOXELS,
-            y * BRICK_SIZE_VOXELS,
-            z * BRICK_SIZE_VOXELS,
-          );
-          const max = vec3.create(
-            (x + 1) * BRICK_SIZE_VOXELS,
-            (y + 1) * BRICK_SIZE_VOXELS,
-            (z + 1) * BRICK_SIZE_VOXELS,
-          );
-          brickCorners.push({
-            min: vec3.transformMat4(min, this.transform),
-            max: vec3.transformMat4(max, this.transform),
-          });
+          brickAABBs.push(this.getBrickAABB(vec3.create(x, y, z)));
         }
       }
     }
-    return brickCorners;
-  }
 
-  get brickAABBs() {
-    return this.worldSpaceBrickCorners.map(({ min, max }) => {
-      return { min, max };
-    });
+    return brickAABBs;
   }
 
   toArray() {

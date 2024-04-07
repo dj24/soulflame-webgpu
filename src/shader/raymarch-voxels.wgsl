@@ -21,12 +21,13 @@ fn getMaxMipLevel(size: vec3<f32>) -> u32 {
 }
 
 struct BVHNode {
-  leftIndex: i32, // this is the index of the voxelObject for leaf nodes
+  leftIndex: i32,
   rightIndex: i32,
   objectCount: u32,
   AABBMin: vec3<f32>,
   AABBMax: vec3<f32>
 }
+
 struct Brick {
   voxels: array<u32, 16>
 }
@@ -138,6 +139,12 @@ fn rayMarchBrick(brick: Brick, objectRayDirection: vec3<f32>, objectRayOrigin: v
   return output;
 }
 
+fn rayMarchBrickTransformed(brick: Brick, voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) -> BrickMarchResult {
+  var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
+  let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+  return rayMarchBrick(brick, objectRayDirection, objectRayOrigin);
+}
+
 fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, objectRayOrigin: vec3<f32>, mipLevel: u32) -> RayMarchResult {
   var output = RayMarchResult();
   let rayDirSign = sign(objectRayDirection);
@@ -209,7 +216,7 @@ fn rayMarchTransformed(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOri
       return  rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
 }
 
-const STACK_LEN: u32 = 64u;
+const STACK_LEN: u32 = 32u;
 struct Stack {
   arr: array<i32, STACK_LEN>,
 	head: u32,

@@ -632,23 +632,7 @@ const start = async () => {
   }
 
   console.debug(device.limits);
-  // skyTexture = await createTextureFromImages(
-  //   device,
-  //   [
-  //     "cubemaps/town-square/posx.jpg",
-  //     "cubemaps/town-square/negx.jpg",
-  //     "cubemaps/town-square/posy.jpg",
-  //     "cubemaps/town-square/negy.jpg",
-  //     "cubemaps/town-square/posz.jpg",
-  //     "cubemaps/town-square/negz.jpg",
-  //   ],
-  //   {
-  //     usage:
-  //       GPUTextureUsage.STORAGE_BINDING |
-  //       GPUTextureUsage.TEXTURE_BINDING |
-  //       GPUTextureUsage.COPY_SRC,
-  //   },
-  // );
+
   skyTexture = device.createTexture({
     dimension: "2d",
     size: [768, 768, 6],
@@ -663,8 +647,8 @@ const start = async () => {
   await createTavern(device, volumeAtlas);
 
   const computePassPromises: Promise<RenderPass>[] = [
-    getHelloTrianglePass(),
-    // getGBufferPass(),
+    // getHelloTrianglePass(),
+    getGBufferPass(),
     // getReflectionsPass(),
     // getShadowsPass(),
     // getLightsPass(),

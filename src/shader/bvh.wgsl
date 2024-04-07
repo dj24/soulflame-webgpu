@@ -1,7 +1,28 @@
 const BRICK_SIZE = 8;
+const MAX_STEPS = 256;
+
+
+struct BVHLeafNode {
+  voxelObjectIndex: i32, // this is the index of the voxelObject for leaf nodes
+  brickIndex: i32,
+  objectCount: u32,
+  AABBMin: vec3<f32>,
+  AABBMax: vec3<f32>
+}
+
+fn castNodeToLeafNode(node: BVHNode) -> BVHLeafNode {
+  return BVHLeafNode(node.leftIndex, node.rightIndex, node.objectCount, node.AABBMin, node.AABBMax);
+}
 
 fn getBrickMapIndex(objectPos: vec3<f32>) -> i32{
   return i32(objectPos.x / BRICK_SIZE) + i32(objectPos.y / BRICK_SIZE) * BRICK_SIZE + i32(objectPos.z / BRICK_SIZE) * BRICK_SIZE * BRICK_SIZE;
+}
+
+fn getBrickDebugColour(brickMapIndex: i32) -> vec3<f32>{
+  let x = f32(brickMapIndex % BRICK_SIZE) / f32(BRICK_SIZE);
+  let y = f32(brickMapIndex / BRICK_SIZE % BRICK_SIZE) / f32(BRICK_SIZE);
+  let z = f32(brickMapIndex / (BRICK_SIZE * BRICK_SIZE)) / f32(BRICK_SIZE);
+  return vec3<f32>(x, y, z);
 }
 
 // Stack-based BVH traversal
@@ -18,38 +39,44 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
   var iterations = 0;
   var nodeIndex = 0;
 
-  while (stack.head > 0u && iterations < 256) {
+  while (stack.head > 0u && iterations < MAX_STEPS) {
     let node = bvhNodes[nodeIndex];
     if(node.objectCount == 0){
       nodeIndex = stack_pop(&stack);
     }
     // valid leaf, raymarch it
     else if(node.objectCount == 1){
+        let leafNode = castNodeToLeafNode(node);
         // Raymarch the voxel object if it's a leaf node
-        let voxelObject = voxelObjects[node.leftIndex]; // left index represents the voxel object index for leaf nodes
-        let AABBDist = getDistanceToNode(rayOrigin, rayDirection, node);
+        let AABBDist = getDistanceToNode(rayOrigin, rayDirection, node) + EPSILON;
         if(AABBDist >= closestRaymarchDist){
           nodeIndex = stack_pop(&stack);
           continue;
         }
+        let voxelObject = voxelObjects[leafNode.voxelObjectIndex]; // left index represents the voxel object index for leaf nodes
         let worldPos = rayOrigin + rayDirection * AABBDist;
-        closestIntersection.colour = abs(worldPos) % 1.0;
-        closestRaymarchDist = AABBDist;
+//        closestIntersection.colour = abs(worldPos) % 1.0;
+//        closestIntersection.colour = getDebugColour(leafNode.brickIndex);
+//        closestRaymarchDist = AABBDist;
+//        closestIntersection.worldPos = worldPos;
 
+        let brick = brickBuffer[leafNode.brickIndex];
+        let rayMarchBrickResult = rayMarchBrickTransformed(brick, voxelObject, rayDirection, worldPos);
 
-
-//        let raymarchResult = rayMarchTransformed(voxelObject, rayDirection, rayOrigin + rayDirection * AABBDist, 0);
-//        let raymarchDist = distance(raymarchResult.worldPos, rayOrigin);
-//        closestRaymarchDist
-
-//
-//        if(raymarchResult.hit && raymarchDist < closestRaymarchDist - EPSILON){
-//          closestIntersection = raymarchResult;
-//          let brickMapIndex = getBrickMapIndex(raymarchResult.objectPos);
-//          closestIntersection.colour = getDebugColour(brickMapIndex);
-//          closestRaymarchDist = raymarchDist;
-//
+//        if(rayMarchBrickResult.hit){
+//          closestIntersection.colour = rayMarchBrickResult.normal;
 //        }
+
+        let raymarchResult = rayMarchTransformed(voxelObject, rayDirection, rayOrigin + rayDirection * AABBDist, 0);
+        let raymarchDist = distance(raymarchResult.worldPos, rayOrigin);
+//
+        if(raymarchResult.hit && raymarchDist < closestRaymarchDist - EPSILON){
+          closestIntersection = raymarchResult;
+          let brickMapIndex = getBrickMapIndex(raymarchResult.objectPos);
+          closestIntersection.colour = getDebugColour(brickMapIndex);
+          closestRaymarchDist = raymarchDist;
+
+        }
         nodeIndex = stack_pop(&stack);
     }
     else{
