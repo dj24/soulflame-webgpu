@@ -14,7 +14,7 @@ const BRICK_STRIDE_BYTES = 64;
  * @param voxels - The voxels to create the brickmap for.
  * @returns A promise that resolves to the brickmap buffer.
  */
-export const createBrickMap = async (
+export const createBrickMapBuffer = async (
   device: GPUDevice,
   voxels: TVoxels,
 ): Promise<GPUBuffer> => {

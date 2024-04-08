@@ -1,6 +1,10 @@
 import { mat4, Mat4, vec3, Vec3 } from "wgpu-matrix";
 import { v4 as uuidv4 } from "uuid";
 import { volumeAtlas } from "./app";
+import {
+  decodePositionString,
+  PositionString,
+} from "./create-brickmap/create-brick-map-from-voxels";
 
 const BRICK_SIZE_VOXELS = 8;
 
@@ -112,22 +116,13 @@ export class VoxelObject {
   }
 
   get brickAABBs() {
-    const bricksX = Math.ceil(this.size[0] / BRICK_SIZE_VOXELS);
-    const bricksY = Math.ceil(this.size[1] / BRICK_SIZE_VOXELS);
-    const bricksZ = Math.ceil(this.size[2] / BRICK_SIZE_VOXELS);
-
+    const brickMap = volumeAtlas.getVolumes()[this.name].brickMap;
     let brickAABBs: { min: Vec3; max: Vec3 }[] = [];
-    // const brickMapSize = vec3.create(bricksX, bricksY, bricksZ);
-    for (let x = 0; x < bricksX; x++) {
-      for (let y = 0; y < bricksY; y++) {
-        for (let z = 0; z < bricksZ; z++) {
-          // const index = convert3DTo1D(brickMapSize, vec3.create(x, y, z));
-          // brickAABBs[index] = this.getBrickAABB(vec3.create(x, y, z));
-          brickAABBs.push(this.getBrickAABB(vec3.create(x, y, z)));
-        }
-      }
-    }
-
+    Object.entries(brickMap).forEach(([key, value]) => {
+      const position = decodePositionString(key as PositionString);
+      brickAABBs.push(this.getBrickAABB(position));
+    });
+    console.log({ brickAABBs });
     return brickAABBs;
   }
 

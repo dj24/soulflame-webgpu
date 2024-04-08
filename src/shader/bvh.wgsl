@@ -64,7 +64,7 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
 
         if(doesBrickContainVoxels(brick)){
           closestIntersection.colour = objectPos / voxelObject.size;
-          //        closestIntersection.colour = getDebugColour(leafNode.brickIndex);
+          closestIntersection.colour = getDebugColour(leafNode.brickIndex);
           closestRaymarchDist = AABBDist;
           closestIntersection.worldPos = worldPos;
         }

@@ -1,6 +1,8 @@
 import { vec3, Vec3 } from "wgpu-matrix";
 import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels";
 import { createBrickMapFromTexture } from "./create-brickmap/create-brick-map-from-texture";
+import { BrickMap } from "./create-brickmap/create-brick-map-from-voxels";
+import { device } from "./app";
 
 const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
   format: "rgba8unorm",
@@ -16,6 +18,7 @@ type VolumeAtlasEntry = {
   location: Vec3;
   size: Vec3;
   brickMapOffset: number;
+  brickMap: BrickMap;
 };
 
 export type VolumeAtlasDictionary = {
@@ -28,6 +31,7 @@ export type VolumeAtlas = {
   addVolume: (
     commandEncoder: GPUCommandEncoder,
     texture: GPUTexture,
+    brickMap: BrickMap,
     label: string,
   ) => void;
   removeVolume: (label: string) => void;
@@ -109,11 +113,13 @@ export const getVolumeAtlas = async (
    * Add a volume to the atlas. Requires `commandEncoder.finish()` to be called to execute the copy
    * @param commandEncoder - command encoder to use for copying the texture
    * @param texture - 3d texture to copy into the atlas
+   * @param brickMap - brickmap for the texture in UInt32Array format
    * @param label - label to use for the volume in the dictionary
    */
   const addVolume = async (
     commandEncoder: GPUCommandEncoder,
     texture: GPUTexture,
+    brickMap: BrickMap,
     label: string,
   ) => {
     if (dictionary[label]) {
@@ -194,29 +200,55 @@ export const getVolumeAtlas = async (
     );
 
     const brickMapOffset = brickMapBuffer.size / 64;
-    console.log({ brickMapOffset });
 
     atlasTexture = newAtlasTexture;
     dictionary[label] = {
       location: [atlasLocationX, 0, 0],
       size: [width, height, depthOrArrayLayers],
       brickMapOffset,
+      brickMap,
     };
 
-    const brickMap = await createBrickMapFromTexture(device, texture);
+    // Get all the bricks in array form
+    const brickArray = Object.values(brickMap);
+
+    // Create a new buffer to hold all the bricks
+    const combinedBrickArray = new Uint32Array(
+      brickArray.reduce((acc, brick) => acc + brick.length, 0),
+    );
+
+    // Set the bricks in the combined array
+    brickArray.forEach((brick, i) => {
+      combinedBrickArray.set(brick, i);
+    });
+
+    // Create a new GPU buffer to hold the expanded brick map
     const newBrickMapBuffer = device.createBuffer({
-      size: brickMapBuffer.size + brickMap.size,
+      size: brickMapBuffer.size + combinedBrickArray.buffer.byteLength,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
+
+    // Copy the old brick map into the new buffer
     commandEncoder.copyBufferToBuffer(
-      brickMap,
-      0,
+      brickMapBuffer,
+      0, // source offset
       newBrickMapBuffer,
+      0, // destination offset
       brickMapBuffer.size,
-      brickMap.size,
     );
+
+    // Copy the newly added volumes brick map into the expanded buffer
+    device.queue.writeBuffer(
+      newBrickMapBuffer,
+      0, // offset
+      combinedBrickArray,
+      brickMapOffset, // data offset
+    );
+
+    // Reassign the brick map buffer to the new buffer
     brickMapBuffer = newBrickMapBuffer;
     device.queue.submit([commandEncoder.finish()]);
+
     await device.queue.onSubmittedWorkDone();
   };
 
