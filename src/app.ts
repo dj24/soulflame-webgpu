@@ -65,7 +65,7 @@ export let elapsedTime = startTime;
 export let deltaTime = 0;
 export let frameCount = 0;
 
-let volumeAtlas: VolumeAtlas;
+export let volumeAtlas: VolumeAtlas;
 
 const startingCameraFieldOfView = 90 * (Math.PI / 180);
 export let camera = new Camera({
@@ -454,24 +454,31 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     document.getElementById("objectcount").innerHTML =
       `Objects: ${voxelObjectsInFrustrum.length} / ${voxelObjects.length} in view`;
 
-    const voxelObjectsArray = voxelObjectsInFrustrum.flatMap((voxelObject) =>
-      voxelObject.toArray(),
+    const voxelObjectDataViews = voxelObjectsInFrustrum.map((voxelObject) =>
+      voxelObject.toDataView(),
     );
 
-    if (transformationMatrixBuffer) {
-      writeToFloatUniformBuffer(transformationMatrixBuffer, voxelObjectsArray);
-    } else {
-      transformationMatrixBuffer = createFloatUniformBuffer(
-        device,
-        voxelObjectsArray,
-        "voxel object",
-      );
+    const totalSize = voxelObjectDataViews.reduce(
+      (acc, dataView) => acc + dataView.byteLength,
+      0,
+    );
+
+    if (!transformationMatrixBuffer) {
       transformationMatrixBuffer = device.createBuffer({
-        size: new Float32Array(voxelObjectsArray).byteLength,
+        size: totalSize,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         mappedAtCreation: false,
       });
     }
+    voxelObjectDataViews.forEach((dataView, index) => {
+      device.queue.writeBuffer(
+        transformationMatrixBuffer,
+        0, // offset
+        dataView.buffer,
+        0, // data offset
+        dataView.byteLength,
+      );
+    });
   };
 
   setInterval(() => {
@@ -657,7 +664,7 @@ const start = async () => {
     // getDiffusePass(),
     // getVolumetricFog(),
     // getTaaPass(),
-    // getBoxOutlinePass(),
+    getBoxOutlinePass(),
     // getWaterPass(),
 
     fullscreenQuad(device),

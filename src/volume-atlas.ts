@@ -15,6 +15,7 @@ const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
 type VolumeAtlasEntry = {
   location: Vec3;
   size: Vec3;
+  brickMapOffset: number;
 };
 
 export type VolumeAtlasDictionary = {
@@ -32,6 +33,7 @@ export type VolumeAtlas = {
   removeVolume: (label: string) => void;
   getAtlasTextureView: () => GPUTextureView;
   getBrickMapBuffer: () => GPUBuffer;
+  dimensions: Vec3;
 };
 
 const copyTextureWithMips = (
@@ -107,7 +109,6 @@ export const getVolumeAtlas = async (
    * Add a volume to the atlas. Requires `commandEncoder.finish()` to be called to execute the copy
    * @param commandEncoder - command encoder to use for copying the texture
    * @param texture - 3d texture to copy into the atlas
-   * @param brickMap - brick map buffer for the volume
    * @param label - label to use for the volume in the dictionary
    */
   const addVolume = async (
@@ -120,6 +121,7 @@ export const getVolumeAtlas = async (
         `Error adding volume to atlas: volume with label ${label} already exists`,
       );
     }
+
     const { width, height, depthOrArrayLayers } = texture;
     const roundedWidth = ceilToNearestMultipleOf(width, BRICKMAP_SIZE);
     const roundedHeight = ceilToNearestMultipleOf(height, BRICKMAP_SIZE);
@@ -190,16 +192,31 @@ export const getVolumeAtlas = async (
         depthOrArrayLayers,
       },
     );
+
+    const brickMapOffset = brickMapBuffer.size;
+
     atlasTexture = newAtlasTexture;
     dictionary[label] = {
       location: [atlasLocationX, 0, 0],
       size: [width, height, depthOrArrayLayers],
+      brickMapOffset,
     };
 
+    const brickMap = await createBrickMapFromTexture(device, texture);
+    const newBrickMapBuffer = device.createBuffer({
+      size: brickMapOffset + brickMap.size,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    });
+    commandEncoder.copyBufferToBuffer(
+      brickMap,
+      0,
+      newBrickMapBuffer,
+      brickMapOffset,
+      brickMap.size,
+    );
+    brickMapBuffer = newBrickMapBuffer;
     device.queue.submit([commandEncoder.finish()]);
     await device.queue.onSubmittedWorkDone();
-
-    brickMapBuffer = await createBrickMapFromTexture(device, atlasTexture);
   };
 
   /**
@@ -309,5 +326,10 @@ export const getVolumeAtlas = async (
     removeVolume,
     getAtlasTextureView,
     getBrickMapBuffer,
+    dimensions: vec3.create(
+      atlasTexture.width,
+      atlasTexture.height,
+      atlasTexture.depthOrArrayLayers,
+    ),
   };
 };

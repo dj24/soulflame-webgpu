@@ -55,28 +55,38 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
         }
         let voxelObject = voxelObjects[leafNode.voxelObjectIndex]; // left index represents the voxel object index for leaf nodes
         let worldPos = rayOrigin + rayDirection * AABBDist;
-//        closestIntersection.colour = abs(worldPos) % 1.0;
-//        closestIntersection.colour = getDebugColour(leafNode.brickIndex);
-//        closestRaymarchDist = AABBDist;
-//        closestIntersection.worldPos = worldPos;
+        let objectPos = (voxelObject.inverseTransform * vec4(worldPos, 1.0)).xyz;
 
-        let brick = brickBuffer[leafNode.brickIndex];
-        let rayMarchBrickResult = rayMarchBrickTransformed(brick, voxelObject, rayDirection, worldPos);
+
+         let brick = brickBuffer[leafNode.brickIndex + i32(voxelObject.brickOffset)];
+        let brickRayOrigin = objectPos * 8;
+//        let rayMarchBrickResult = rayMarchBrickTransformed(brick, voxelObject, rayDirection, worldPos);
+
+        if(doesBrickContainVoxels(brick)){
+          closestIntersection.colour = objectPos / voxelObject.size;
+          //        closestIntersection.colour = getDebugColour(leafNode.brickIndex);
+          closestRaymarchDist = AABBDist;
+          closestIntersection.worldPos = worldPos;
+        }
+
+
+
+
 
 //        if(rayMarchBrickResult.hit){
 //          closestIntersection.colour = rayMarchBrickResult.normal;
 //        }
-
-        let raymarchResult = rayMarchTransformed(voxelObject, rayDirection, rayOrigin + rayDirection * AABBDist, 0);
-        let raymarchDist = distance(raymarchResult.worldPos, rayOrigin);
+////
+//        let raymarchResult = rayMarchTransformed(voxelObject, rayDirection, rayOrigin + rayDirection * AABBDist, 0);
+//        let raymarchDist = distance(raymarchResult.worldPos, rayOrigin);
+////
+//        if(raymarchResult.hit && raymarchDist < closestRaymarchDist - EPSILON){
+//          closestIntersection = raymarchResult;
+//          let brickMapIndex = getBrickMapIndex(raymarchResult.objectPos);
+//          closestIntersection.colour = getDebugColour(brickMapIndex);
+//          closestRaymarchDist = raymarchDist;
 //
-        if(raymarchResult.hit && raymarchDist < closestRaymarchDist - EPSILON){
-          closestIntersection = raymarchResult;
-          let brickMapIndex = getBrickMapIndex(raymarchResult.objectPos);
-          closestIntersection.colour = getDebugColour(brickMapIndex);
-          closestRaymarchDist = raymarchDist;
-
-        }
+//        }
         nodeIndex = stack_pop(&stack);
     }
     else{

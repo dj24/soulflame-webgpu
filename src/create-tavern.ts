@@ -25,7 +25,7 @@ type TSceneDefinition = {
 const NAME_ALLOWLIST = [
   "Dragon",
   // "Sponza",
-  "Table",
+  // "Table",
   // "Bench",
   // "Stool",
   // "BarTop",
@@ -132,7 +132,13 @@ export const createTavern = async (
     mat4.scale(m, child.scale, m);
     mat4.multiply(m, mat4.fromQuat(child.rotation), m);
     voxelObjects.push(
-      new VoxelObject(m, volume.size, volume.location, child.name),
+      new VoxelObject(
+        m,
+        volume.size,
+        volume.location,
+        volume.brickMapOffset,
+        child.name,
+      ),
     );
   }
   console.log({ volumes, torchPositions });

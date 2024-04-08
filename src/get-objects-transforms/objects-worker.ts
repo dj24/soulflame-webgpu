@@ -27,7 +27,7 @@ const getOuterBox = (rotateY: number) => {
   mat4.scale(m, [scale, scale, scale], m);
   mat4.rotateY(m, rotateY, m);
   mat4.translate(m, vec3.divScalar(cornellSize, -2), m);
-  return new VoxelObject(m, cornellSize, [0, 0, 0]);
+  return new VoxelObject(m, cornellSize, [0, 0, 0], 0);
 };
 
 const getInnerBox = (x: number, z: number = 0) => {
@@ -82,7 +82,12 @@ const teaPots = [1, 2, 3, 4, 5, 6, 7].map((i) =>
 
 const foo = getDragon(0, 0);
 
-const paddingElement = new VoxelObject(mat4.identity(), [0, 0, 0], [0, 0, 0]);
+const paddingElement = new VoxelObject(
+  mat4.identity(),
+  [0, 0, 0],
+  [0, 0, 0],
+  0,
+);
 
 // TODO: allow dynamic objects to be passed, probably via object atlas
 const getObjectTransforms = ({

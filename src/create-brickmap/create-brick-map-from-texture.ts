@@ -32,6 +32,8 @@ export const createBrickMapFromTexture = async (
       GPUBufferUsage.STORAGE,
   });
 
+  console.log({ SIZE: totalBricks * BRICK_STRIDE_BYTES });
+
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
       {
@@ -83,22 +85,9 @@ export const createBrickMapFromTexture = async (
   const commandEncoder = device.createCommandEncoder();
   const passEncoder = commandEncoder.beginComputePass();
 
-  const workGroupsX = Math.ceil(bricksX / 4);
-  const workGroupsY = Math.ceil(bricksY / 4);
-  const workGroupsZ = Math.ceil(bricksZ / 4);
-
-  console.log({
-    bricksX,
-    bricksY,
-    bricksZ,
-    workGroupsX,
-    workGroupsY,
-    workGroupsZ,
-  });
-
   passEncoder.setPipeline(computePipeline);
   passEncoder.setBindGroup(0, bindGroup);
-  passEncoder.dispatchWorkgroups(bricksX, bricksY, bricksZ);
+  passEncoder.dispatchWorkgroups(Math.ceil(totalBricks / 64));
   passEncoder.end();
   device.queue.submit([commandEncoder.finish()]);
   await device.queue.onSubmittedWorkDone();

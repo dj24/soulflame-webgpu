@@ -64,7 +64,8 @@ fn getBitInBrick(brick: Brick, bitIndex: u32) -> bool {
     let index = GlobalInvocationID.x;
     let voxel = voxelBuffer[index];
     let position = voxel.xyz;
-    let brickIndex = convert3DTo1D(textureDimensions(voxels).xyz / BRICK_SIZE, position / BRICK_SIZE);    let brick = brickMapBuffer[brickIndex];
+    let brickIndex = convert3DTo1D(textureDimensions(voxels).xyz / BRICK_SIZE, position / BRICK_SIZE);
+    let brick = brickMapBuffer[brickIndex];
 
     // TODO: set bits in brick
     var newBrick = Brick();
@@ -91,12 +92,12 @@ fn getBitInBrick(brick: Brick, bitIndex: u32) -> bool {
     brickMapBuffer[brickIndex] = newBrick;
  }
 
-@compute @workgroup_size(1,1,1)
+@compute @workgroup_size(64,1,1)
 fn texture(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
-  let brickPosition = GlobalInvocationID;
-  let brickIndex = convert3DTo1D(textureDimensions(voxels).xyz / BRICK_SIZE, brickPosition);
+  let brickIndex = GlobalInvocationID.x;
+  let brickPosition = convert1DTo3D(textureDimensions(voxels) / BRICK_SIZE, brickIndex);
   var newBrick = Brick();
 
   for(var x = 0u; x < BRICK_SIZE; x++) {
@@ -111,6 +112,9 @@ fn texture(
         }
       }
     }
+  }
+  if(brickPosition.x == 0) {
+    newBrick.voxels[0] = pack4xU8(vec4<u32>(255));
   }
   brickMapBuffer[brickIndex] = newBrick;
 }

@@ -222,7 +222,7 @@ export const createBVH = (
     nodes[startIndex] = {
       leftChildIndex,
       rightChildIndex,
-      objectCount: voxelObjects.length,
+      objectCount: bricks.length,
       AABBMax: AABB.max,
       AABBMin: AABB.min,
     };

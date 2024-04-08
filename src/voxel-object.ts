@@ -1,7 +1,14 @@
 import { mat4, Mat4, vec3, Vec3 } from "wgpu-matrix";
 import { v4 as uuidv4 } from "uuid";
+import { volumeAtlas } from "./app";
 
 const BRICK_SIZE_VOXELS = 8;
+
+const convert3DTo1D = (size: Vec3, position: Vec3) => {
+  return (
+    position[0] + position[1] * size[0] + position[2] * (size[0] * size[1])
+  );
+};
 
 export class VoxelObject {
   id: string;
@@ -12,12 +19,14 @@ export class VoxelObject {
   previousInverseTransform: Mat4;
   size: Vec3;
   atlasLocation: Vec3;
+  atlasBrickMapOffset: number;
   worldSpaceCenter: Vec3;
 
   constructor(
     transform: Mat4,
     size: Vec3,
     atlasLocation: Vec3,
+    brickMapOffset: number,
     name = "unnamed",
   ) {
     this.id = uuidv4();
@@ -28,6 +37,7 @@ export class VoxelObject {
     this.previousTransform = mat4.clone(this.transform);
     this.previousInverseTransform = mat4.clone(this.inverseTransform);
     this.atlasLocation = atlasLocation;
+    this.atlasBrickMapOffset = brickMapOffset;
     const minBound = vec3.transformMat4(vec3.create(), this.transform);
     const maxBound = vec3.transformMat4(this.size, this.transform);
     this.worldSpaceCenter = vec3.lerp(minBound, maxBound, 0.5);
@@ -106,11 +116,14 @@ export class VoxelObject {
     const bricksY = Math.ceil(this.size[1] / BRICK_SIZE_VOXELS);
     const bricksZ = Math.ceil(this.size[2] / BRICK_SIZE_VOXELS);
 
-    let brickAABBs = [];
+    let brickAABBs: { min: Vec3; max: Vec3 }[] = [];
+    const brickMapSize = vec3.create(bricksX, bricksY, bricksZ);
     for (let x = 0; x < bricksX; x++) {
       for (let y = 0; y < bricksY; y++) {
         for (let z = 0; z < bricksZ; z++) {
-          brickAABBs.push(this.getBrickAABB(vec3.create(x, y, z)));
+          const index = convert3DTo1D(brickMapSize, vec3.create(x, y, z));
+          brickAABBs[index] = this.getBrickAABB(vec3.create(x, y, z));
+          // brickAABBs.push(this.getBrickAABB(vec3.create(x, y, z)));
         }
       }
     }
@@ -129,5 +142,16 @@ export class VoxelObject {
       ...this.atlasLocation,
       0.0, //padding for 4 byte stride
     ];
+  }
+
+  toDataView() {
+    const floats = this.toArray();
+    const buffer = new ArrayBuffer(floats.length * 4 + 4);
+    const view = new DataView(buffer);
+    for (let i = 0; i < floats.length; i++) {
+      view.setFloat32(i * 4, floats[i], true);
+    }
+    view.setUint32(floats.length * 4, this.atlasBrickMapOffset, true);
+    return view;
   }
 }
