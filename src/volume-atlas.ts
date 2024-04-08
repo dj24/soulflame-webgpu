@@ -193,7 +193,8 @@ export const getVolumeAtlas = async (
       },
     );
 
-    const brickMapOffset = brickMapBuffer.size;
+    const brickMapOffset = brickMapBuffer.size / 64;
+    console.log({ brickMapOffset });
 
     atlasTexture = newAtlasTexture;
     dictionary[label] = {
@@ -204,14 +205,14 @@ export const getVolumeAtlas = async (
 
     const brickMap = await createBrickMapFromTexture(device, texture);
     const newBrickMapBuffer = device.createBuffer({
-      size: brickMapOffset + brickMap.size,
+      size: brickMapBuffer.size + brickMap.size,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
     commandEncoder.copyBufferToBuffer(
       brickMap,
       0,
       newBrickMapBuffer,
-      brickMapOffset,
+      brickMapBuffer.size,
       brickMap.size,
     );
     brickMapBuffer = newBrickMapBuffer;

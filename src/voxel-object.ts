@@ -117,13 +117,13 @@ export class VoxelObject {
     const bricksZ = Math.ceil(this.size[2] / BRICK_SIZE_VOXELS);
 
     let brickAABBs: { min: Vec3; max: Vec3 }[] = [];
-    const brickMapSize = vec3.create(bricksX, bricksY, bricksZ);
+    // const brickMapSize = vec3.create(bricksX, bricksY, bricksZ);
     for (let x = 0; x < bricksX; x++) {
       for (let y = 0; y < bricksY; y++) {
         for (let z = 0; z < bricksZ; z++) {
-          const index = convert3DTo1D(brickMapSize, vec3.create(x, y, z));
-          brickAABBs[index] = this.getBrickAABB(vec3.create(x, y, z));
-          // brickAABBs.push(this.getBrickAABB(vec3.create(x, y, z)));
+          // const index = convert3DTo1D(brickMapSize, vec3.create(x, y, z));
+          // brickAABBs[index] = this.getBrickAABB(vec3.create(x, y, z));
+          brickAABBs.push(this.getBrickAABB(vec3.create(x, y, z)));
         }
       }
     }
