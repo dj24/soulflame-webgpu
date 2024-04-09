@@ -108,7 +108,7 @@ struct BrickMarchResult {
 fn rayMarchBrick(brick: Brick, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) -> BrickMarchResult {
    var output = BrickMarchResult(false, vec3(0), 0.0);
    let rayDirSign = sign(rayDirection);
-   var startIndex = vec3<i32>(floor(rayOrigin)) + vec3<i32>(select(0, 1, rayDirection.x > 0.0), select(0, 1, rayDirection.y > 0.0), select(0, 1, rayDirection.z > 0.0));
+   var startIndex = vec3<i32>(floor(rayOrigin));
    var currentIndex = startIndex;
 
    // RAYMARCH
@@ -122,7 +122,7 @@ fn rayMarchBrick(brick: Brick, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) ->
         output.hit = true;
 //        output.normal = (rayOrigin) / 8.0;
         output.normal = vec3<f32>(currentIndex) / 8.0;
-//        output.normal = objectNormal;
+//        output.normal = vec3(rayDirection.y);
         output.t = tCurrent;
      }
      currentIndex += mask;

@@ -48,7 +48,7 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
     else if(node.objectCount == 1){
         let leafNode = castNodeToLeafNode(node);
         // Raymarch the voxel object if it's a leaf node
-        let AABBDist = getDistanceToNode(rayOrigin, rayDirection, node) -EPSILON;
+        let AABBDist = getDistanceToNode(rayOrigin, rayDirection, node) - EPSILON;
         if(AABBDist > closestRaymarchDist){
           nodeIndex = stack_pop(&stack);
           continue;
@@ -57,30 +57,24 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
         let worldPos = rayOrigin + rayDirection * AABBDist;
         let objectPos = (voxelObject.inverseTransform * vec4(worldPos, 1.0)).xyz;
 
-        let brickOrigin = floor(objectPos / BRICK_SIZE) * BRICK_SIZE;
-
         let brick = brickBuffer[leafNode.brickIndex + i32(voxelObject.brickOffset)];
 
         // Get the ray origin and direction in object space
         let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
 
-        // Get the ray origin in brick space
-        var brickRayOrigin = objectPos - brickOrigin;
-
-        let rayMarchBrickResult = rayMarchBrick(brick, objectRayDirection, brickRayOrigin);
+        let brickOrigin = floor(objectPos / BRICK_SIZE) * BRICK_SIZE;
+        let rayMarchBrickResult = rayMarchBrick(brick, objectRayDirection, objectPos -brickOrigin);
         let brickHitDistance = rayMarchBrickResult.t + AABBDist;
+
         if(rayMarchBrickResult.hit && brickHitDistance < closestRaymarchDist){
-          let worldPos = rayOrigin + rayDirection * brickHitDistance;
-//          closestIntersection.colour = abs(worldPos) % 1.0;
+//          let worldPos = rayOrigin + rayDirection * brickHitDistance;
 //          let normal = transformNormal(voxelObject.inverseTransform, rayMarchBrickResult.normal);
           closestIntersection.colour = rayMarchBrickResult.normal;
           closestIntersection.worldPos = worldPos;
           closestRaymarchDist = brickHitDistance;
         }
 
-
-
-//          closestIntersection.colour = abs(worldPos) % 1.0;
+//          closestIntersection.colour = (objectPos % 8.0) / 8.0;
 //          closestIntersection.colour = brickOrigin / voxelObject.size;
 //          closestIntersection.colour = getDebugColour(leafNode.brickIndex);
 //          closestIntersection.colour = select(vec3(0., 1, 0), vec3(1., 0, 0), leafNode.brickIndex > 24);
