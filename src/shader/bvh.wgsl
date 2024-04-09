@@ -62,12 +62,11 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
         let brickRayOrigin = objectPos * 8;
 //        let rayMarchBrickResult = rayMarchBrickTransformed(brick, voxelObject, rayDirection, worldPos);
 
-        if(doesBrickContainVoxels(brick)){
           closestIntersection.colour = objectPos / voxelObject.size;
-          closestIntersection.colour = getDebugColour(leafNode.brickIndex);
+//          closestIntersection.colour = getDebugColour(leafNode.brickIndex);
+//          closestIntersection.colour = select(vec3(0., 1, 0), vec3(1., 0, 0), leafNode.brickIndex > 24);
           closestRaymarchDist = AABBDist;
           closestIntersection.worldPos = worldPos;
-        }
 
 
 
@@ -120,7 +119,7 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
     }
 
     iterations += 1;
-    closestIntersection.colour += vec3<f32>(0.01);
+//    closestIntersection.colour += vec3<f32>(0.01);
   }
 
   return closestIntersection;

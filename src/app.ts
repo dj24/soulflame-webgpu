@@ -659,7 +659,7 @@ const start = async () => {
     // getReflectionsPass(),
     // getShadowsPass(),
     // getLightsPass(),
-    getSkyPass(),
+    // getSkyPass(),
     // getMotionBlurPass(),
     // getDiffusePass(),
     // getVolumetricFog(),
