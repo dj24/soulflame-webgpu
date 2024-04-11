@@ -119,6 +119,7 @@ fn rayMarchBrick(brick: Brick, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) ->
      let tCurrent = min(tMax.x, min(tMax.y, tMax.z));
      let bitIndex = convert3DTo1D(vec3(8), vec3<u32>(currentIndex));
      if(true){
+//     if(currentIndex.x == 0 && currentIndex.y < 6 && currentIndex.z < 6){
         output.hit = true;
 //        output.normal = (rayOrigin) / 8.0;
         output.normal = vec3<f32>(currentIndex) / 8.0;

@@ -51,16 +51,17 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
         let boxSize = (node.AABBMax - node.AABBMin) / 2;
         let intersection = boxIntersection(rayOrigin - node.AABBMin, rayDirection, boxSize);
         let AABBDist = intersection.tNear - EPSILON;
-        if(AABBDist > closestRaymarchDist){
+        let voxelObject = voxelObjects[leafNode.voxelObjectIndex]; // left index represents the voxel object index for leaf nodes
+        let brick = brickBuffer[leafNode.brickIndex + i32(voxelObject.brickOffset)];
+        if(AABBDist > closestRaymarchDist || !doesBrickContainVoxels(brick)){
           nodeIndex = stack_pop(&stack);
           continue;
         }
-        let voxelObject = voxelObjects[leafNode.voxelObjectIndex]; // left index represents the voxel object index for leaf nodes
         let worldPos = rayOrigin + rayDirection * AABBDist;
         let objectPos = (voxelObject.inverseTransform * vec4(worldPos, 1.0)).xyz;
         let objectRayOrigin = (voxelObject.inverseTransform * vec4(rayOrigin, 1.0)).xyz;
 
-        let brick = brickBuffer[leafNode.brickIndex + i32(voxelObject.brickOffset)];
+
         let brickPos = ((rayOrigin - node.AABBMin) + rayDirection * AABBDist) * 8.0;
 
         // Get the ray origin and direction in object space
