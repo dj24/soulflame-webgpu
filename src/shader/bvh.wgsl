@@ -49,28 +49,28 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
         let leafNode = castNodeToLeafNode(node);
         // Raymarch the voxel object if it's a leaf node
         let boxSize = (node.AABBMax - node.AABBMin) / 2;
-        let intersection = boxIntersection(rayOrigin - node.AABBMin, rayDirection, boxSize);
+        let brickOrigin = node.AABBMin;
+        let intersection = boxIntersection(rayOrigin - brickOrigin, rayDirection, boxSize);
         let AABBDist = intersection.tNear - EPSILON;
         let voxelObject = voxelObjects[leafNode.voxelObjectIndex]; // left index represents the voxel object index for leaf nodes
         let brick = brickBuffer[leafNode.brickIndex + i32(voxelObject.brickOffset)];
-        if(AABBDist > closestRaymarchDist || !doesBrickContainVoxels(brick)){
+        if(AABBDist > closestRaymarchDist){
           nodeIndex = stack_pop(&stack);
           continue;
         }
         let worldPos = rayOrigin + rayDirection * AABBDist;
         let objectPos = (voxelObject.inverseTransform * vec4(worldPos, 1.0)).xyz;
         let objectRayOrigin = (voxelObject.inverseTransform * vec4(rayOrigin, 1.0)).xyz;
-
-
-        let brickPos = ((rayOrigin - node.AABBMin) + rayDirection * AABBDist) * 8.0;
-
-        // Get the ray origin and direction in object space
+        let objectBrickOrigin = (voxelObject.inverseTransform * vec4(brickOrigin, 1.0)).xyz;
         let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
 
+        let brickPos = ((rayOrigin - brickOrigin) + rayDirection * AABBDist) * 8.0;
+
+        // Get the ray origin and direction in object space
         let result = rayMarchBrick(brick, rayDirection, brickPos);
 
-        if(result.hit){
-//            closestIntersection.colour = brickPos / 8.0;
+        if(result.hit && objectBrickOrigin.x % 2 == 0 && objectBrickOrigin.y % 2 == 0){
+//            closestIntersection.colour = objectBrickOrigin / voxelObject.size;
             closestIntersection.colour = result.normal;
             closestRaymarchDist = AABBDist;
             closestIntersection.worldPos = worldPos;

@@ -103,31 +103,55 @@ struct BrickMarchResult {
   t: f32
 }
 
+// plane degined by p (p.xyz must be normalized)
+fn plaIntersect( ro:vec3<f32>, rd: vec3<f32>, p:vec4<f32>) -> f32
+{
+    return -(dot(ro,p.xyz)+p.w)/dot(rd,p.xyz);
+}
+
 // TODO: start at surface of brick
 // ray march one brick, offseting the ray origin by the brick position
 fn rayMarchBrick(brick: Brick, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) -> BrickMarchResult {
-   var output = BrickMarchResult(false, vec3(0), 0.0);
-   let rayDirSign = sign(rayDirection);
-   var startIndex = vec3<i32>(floor(rayOrigin));
-   var currentIndex = startIndex;
+     var output = BrickMarchResult(false, vec3(0), 0.0);
+     let rayDirSign = sign(rayDirection);
+     var startIndex = vec3<i32>(floor(rayOrigin));
+     var currentIndex = startIndex;
 
-   // RAYMARCH
-   for(var i = 0; i < 24 && !output.hit; i++)
-   {
-     let tMax = vec3<f32>(currentIndex - startIndex) / rayDirection;
-     let mask = vec3<i32>(tMax.xyz <= min(tMax.yzx, tMax.zxy));
-     let tCurrent = min(tMax.x, min(tMax.y, tMax.z));
-     let bitIndex = convert3DTo1D(vec3(8), vec3<u32>(currentIndex));
-     if(true){
-//     if(currentIndex.x == 0 && currentIndex.y < 6 && currentIndex.z < 6){
-        output.hit = true;
-//        output.normal = (rayOrigin) / 8.0;
-        output.normal = vec3<f32>(currentIndex) / 8.0;
-//        output.normal = vec3(rayDirection.y);
-        output.t = tCurrent;
-     }
-     currentIndex += mask;
-   }
+    let intersectDist = plaIntersect(rayOrigin, rayDirection, vec4(0., 0., 1, 8.0));
+    let isIntersect = intersectDist > 0.0;
+
+    let isVoxel = currentIndex.y < 4;
+    if(isVoxel && isIntersect){
+      output.hit = true;
+//    output.normal = (rayOrigin) / 8.0;
+      output.normal = vec3<f32>(currentIndex) / 8.0;
+    }
+
+     var t = 0.0;
+     // RAYMARCH
+//     for(var i = 0; i < 24 && !output.hit; i++){
+//        if(true){
+//          output.hit = true;
+//          output.normal = (rayOrigin) / 8.0;
+////          output.normal = vec3<f32>(currentIndex) / 8.0;
+//        }
+//     }
+//   for(var i = 0; i < 24 && !output.hit; i++)
+//   {
+//     let tMax = vec3<f32>(currentIndex - startIndex) / rayDirection;
+//     let mask = vec3<i32>(tMax.xyz <= min(tMax.yzx, tMax.zxy));
+//     let tCurrent = min(tMax.x, min(tMax.y, tMax.z));
+//     let bitIndex = convert3DTo1D(vec3(8), vec3<u32>(currentIndex));
+////     if(true){
+//     if(currentIndex.y < 6){
+//        output.hit = true;
+////        output.normal = (rayOrigin) / 8.0;
+//        output.normal = vec3<f32>(currentIndex) / 8.0;
+////        output.normal = vec3(rayDirection.y);
+//        output.t = tCurrent;
+//     }
+//     currentIndex += mask;
+//   }
   return output;
 }
 
