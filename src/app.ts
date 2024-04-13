@@ -30,6 +30,7 @@ import { getHelloTrianglePass } from "./hello-triangle/get-hello-triangle-pass";
 import { getTaaPass } from "./taa-pass/get-taa-pass";
 import { getReflectionsPass } from "./reflections-pass/get-reflections-pass";
 import { getLightsPass, Light } from "./lights-pass/get-lights-pass";
+import { getVoxelLatticePass } from "./voxel-lattice/get-voxel-lattice-pass";
 
 export type RenderArgs = {
   enabled?: boolean;
@@ -655,7 +656,8 @@ const start = async () => {
 
   const computePassPromises: Promise<RenderPass>[] = [
     // getHelloTrianglePass(),
-    getGBufferPass(),
+    // getGBufferPass(),
+    getVoxelLatticePass(),
     // getReflectionsPass(),
     // getShadowsPass(),
     // getLightsPass(),
