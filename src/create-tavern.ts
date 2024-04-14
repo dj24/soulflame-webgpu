@@ -29,7 +29,7 @@ type TSceneDefinition = {
 };
 
 const NAME_ALLOWLIST = [
-  "Dragon",
+  // "Dragon",
   // "Sponza",
   // "Table",
   // "Bench",
@@ -38,7 +38,7 @@ const NAME_ALLOWLIST = [
   // "BarTopS",
   // "BarTop1",
   // "Barrel",
-  // "Keg",
+  "Keg",
   // "Candle",
   // "Bed",
   // "Torch",

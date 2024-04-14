@@ -6,8 +6,8 @@ import {
   RenderPass,
   resolution,
 } from "../app";
-import redFrag from "./red.frag.wgsl";
-import triangleVert from "./triangle.vert.wgsl";
+import redFrag from "./lattice.frag.wgsl";
+import triangleVert from "./lattice.vert.wgsl";
 import { mat4, Vec3, vec3 } from "wgpu-matrix";
 import { voxelObjects } from "../create-tavern";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
@@ -25,7 +25,7 @@ const STRIDE = 256;
  */
 const getLatticeVertices = (size: Vec3): Float32Array => {
   const [x, y, z] = size;
-  let vertices = [];
+
   const bottomLeftBack = [0, 0, z, 1];
   const bottomRightBack = [x, 0, z, 1];
   const topLeftBack = [0, y, z, 1];
@@ -93,7 +93,7 @@ export const getVoxelLatticePass = async (): Promise<RenderPass> => {
       },
       {
         binding: 4,
-        visibility: GPUShaderStage.FRAGMENT,
+        visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX,
         buffer: {
           type: "read-only-storage",
         },
@@ -228,13 +228,14 @@ export const getVoxelLatticePass = async (): Promise<RenderPass> => {
       depthStoreOp: "store",
     };
 
-    const totalVertices = sortedVoxelObjectsFrontToBack.reduce(
-      (acc, voxelObject) => acc + getLatticeVertices(voxelObject.size).length,
+    const totalVerticesBytes = sortedVoxelObjectsFrontToBack.reduce(
+      (acc, voxelObject) =>
+        acc + getLatticeVertices(voxelObject.size).byteLength,
       0,
     );
 
     const verticesBuffer = device.createBuffer({
-      size: 5472,
+      size: totalVerticesBytes,
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
     });
     const modelViewProjectionMatrixBuffer = device.createBuffer({
@@ -251,6 +252,15 @@ export const getVoxelLatticePass = async (): Promise<RenderPass> => {
     });
 
     let bindGroups = [];
+
+    const vertices = new Float32Array(getLatticeVertices(vec3.create(1, 1, 1)));
+    device.queue.writeBuffer(
+      verticesBuffer,
+      0,
+      vertices.buffer,
+      vertices.byteOffset,
+      vertices.byteLength,
+    );
 
     for (let i = 0; i < sortedVoxelObjectsFrontToBack.length; i++) {
       const bindGroup = device.createBindGroup({
@@ -332,14 +342,6 @@ export const getVoxelLatticePass = async (): Promise<RenderPass> => {
         object.byteOffset,
         object.byteLength,
       );
-      const vertices = new Float32Array(getLatticeVertices(voxelObject.size));
-      device.queue.writeBuffer(
-        verticesBuffer,
-        256 * i,
-        vertices.buffer,
-        vertices.byteOffset,
-        vertices.byteLength,
-      );
     }
 
     const passEncoder = commandEncoder.beginRenderPass({
@@ -351,7 +353,7 @@ export const getVoxelLatticePass = async (): Promise<RenderPass> => {
 
     for (let i = 0; i < sortedVoxelObjectsFrontToBack.length; i++) {
       const bindGroup = bindGroups[i];
-      passEncoder.setVertexBuffer(0, verticesBuffer, 576 * i, 576);
+      passEncoder.setVertexBuffer(0, verticesBuffer, 0);
       passEncoder.setBindGroup(0, bindGroup);
       // XY plane
       passEncoder.draw(4, sortedVoxelObjectsFrontToBack[i].size[2], 0, 0);

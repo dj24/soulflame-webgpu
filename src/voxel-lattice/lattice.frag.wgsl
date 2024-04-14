@@ -48,7 +48,7 @@ fn main(
    let far = 10000.0;
    let linearDepth = normaliseValue(near, far, distance(cameraPosition, worldPos));
    output.albedo = voxel;
-   output.albedo = vec4(objectNormal, 1.0);
+   output.albedo = vec4(abs(objectNormal), 1.0);
    output.normal = vec4(0.0, 0.0, 1.0, 1.0);
    output.worldPosition = vec4(worldPos, 1.0);
    output.depth = linearDepth;

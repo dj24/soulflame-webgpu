@@ -656,7 +656,7 @@ const start = async () => {
 
   const computePassPromises: Promise<RenderPass>[] = [
     // getHelloTrianglePass(),
-    // getGBufferPass(),
+    getGBufferPass(),
     getVoxelLatticePass(),
     // getReflectionsPass(),
     // getShadowsPass(),
