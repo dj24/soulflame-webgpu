@@ -12,35 +12,45 @@ struct ViewProjectionMatrices {
 @group(0) @binding(5) var<uniform> cameraPosition : vec3<f32>;
 @group(0) @binding(6) var depthStore : texture_storage_2d<r32float, write>;
 
-
-const IDENTITY_MATRIX = mat4x4<f32>(
-  vec4<f32>(1.0, 0.0, 0.0, 0.0),
-  vec4<f32>(0.0, 1.0, 0.0, 0.0),
-  vec4<f32>(0.0, 0.0, 1.0, 0.0),
-  vec4<f32>(0.0, 0.0, 0.0, 1.0)
-);
-
 struct GBufferOutput {
   @location(0) albedo : vec4f,
   @location(1) normal : vec4f,
   @location(2) worldPosition : vec4f,
   @location(3) velocity : vec4f,
-//  @location(4) depth : f32,
   @builtin(frag_depth) depth : f32,
 }
 
+fn normaliseValue(min: f32, max: f32, value: f32) -> f32 {
+  return (value - min) / (max - min);
+}
 
-// TODO: output depth
 @fragment
 fn main(
-
   @location(0) objectPos : vec3f,
-//   @location(1) worldPos : vec3f,
-    @location(2) @interpolate(linear) ndc : vec3f
+  @builtin(front_facing) frontFacing : bool,
+  @location(3) unsignedObjectNormal : vec3f
 ) -> GBufferOutput
  {
-    var output : GBufferOutput;
-   output.albedo = vec4(floor(objectPos) / voxelObject.size, 1);
-//    output.albedo = vec4(output.normal);
-    return output;
+   var output : GBufferOutput;
+   var objectNormal = unsignedObjectNormal;
+    if(!frontFacing) {
+      objectNormal = -objectNormal;
+    }
+
+   let voxelId = vec3<u32>(floor(objectPos + voxelObject.atlasLocation));
+   let voxel = textureLoad(voxels, voxelId, 0);
+   if(voxel.a == 0.0) {
+     discard;
+   }
+
+   let worldPos = (voxelObject.transform * vec4(objectPos,1)).xyz;
+   let near = 0.1;
+   let far = 10000.0;
+   let linearDepth = normaliseValue(near, far, distance(cameraPosition, worldPos));
+   output.albedo = voxel;
+   output.albedo = vec4(objectNormal, 1.0);
+   output.normal = vec4(0.0, 0.0, 1.0, 1.0);
+   output.worldPosition = vec4(worldPos, 1.0);
+   output.depth = linearDepth;
+   return output;
 }

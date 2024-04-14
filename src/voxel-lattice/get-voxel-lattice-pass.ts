@@ -17,26 +17,46 @@ import { VoxelObject } from "../voxel-object";
 
 const STRIDE = 256;
 
-// Gets a quad per each x-axis slice of the volume texture
+/** Gets each quad required for the lattice
+ * x, y, z plane faces
+ *
+ * @param size The size of the lattice
+ * @returns The vertices of the lattice
+ */
 const getLatticeVertices = (size: Vec3): Float32Array => {
   const [x, y, z] = size;
   let vertices = [];
-  for (let i = 0; i < z; i++) {
-    const bottomLeftBack = [0, 0, z, 1];
-    const bottomRightBack = [x, 0, z, 1];
-    const topLeftBack = [0, y, z, 1];
-    const topRightBack = [x, y, z, 1];
-    let backFace = [
-      bottomLeftBack,
-      bottomRightBack,
-      topLeftBack,
-      topLeftBack,
-      bottomRightBack,
-      topRightBack,
-    ].flat();
-    vertices.push(backFace);
-  }
-  return new Float32Array(vertices.flat());
+  const bottomLeftBack = [0, 0, z, 1];
+  const bottomRightBack = [x, 0, z, 1];
+  const topLeftBack = [0, y, z, 1];
+  const topRightBack = [x, y, z, 1];
+  const bottomLeftFront = [0, 0, 0, 1];
+  const bottomRightFront = [x, 0, 0, 1];
+  const topLeftFront = [0, y, 0, 1];
+  const topRightFront = [x, y, 0, 1];
+
+  let xyPlane = [
+    bottomLeftBack,
+    bottomRightBack,
+    topLeftBack,
+    topRightBack,
+  ].flat();
+
+  let xzPlane = [
+    bottomLeftBack,
+    bottomRightBack,
+    bottomLeftFront,
+    bottomRightFront,
+  ].flat();
+
+  let yzPlane = [
+    bottomLeftBack,
+    topLeftBack,
+    bottomLeftFront,
+    topLeftFront,
+  ].flat();
+
+  return new Float32Array([...xyPlane, ...xzPlane, ...yzPlane]);
 };
 
 export const getVoxelLatticePass = async (): Promise<RenderPass> => {
@@ -147,7 +167,7 @@ export const getVoxelLatticePass = async (): Promise<RenderPass> => {
       ],
     },
     primitive: {
-      topology: "triangle-list",
+      topology: "triangle-strip",
       cullMode: "none",
     },
     depthStencil: {
@@ -333,7 +353,12 @@ export const getVoxelLatticePass = async (): Promise<RenderPass> => {
       const bindGroup = bindGroups[i];
       passEncoder.setVertexBuffer(0, verticesBuffer, 576 * i, 576);
       passEncoder.setBindGroup(0, bindGroup);
-      passEncoder.draw(36);
+      // XY plane
+      passEncoder.draw(4, sortedVoxelObjectsFrontToBack[i].size[2], 0, 0);
+      // XZ plane
+      passEncoder.draw(4, sortedVoxelObjectsFrontToBack[i].size[1], 4, 0);
+      // YZ plane
+      passEncoder.draw(4, sortedVoxelObjectsFrontToBack[i].size[0], 8, 0);
     }
 
     passEncoder.end();
