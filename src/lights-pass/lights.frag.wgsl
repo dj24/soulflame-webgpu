@@ -66,9 +66,10 @@ fn main(
     @location(0) @interpolate(linear) lightVolumeNdc : vec3f
 ) -> @location(0) vec4f {
   let lightPosition = light.position.xyz;
-  let lightRadius = light.radius * light.radius; // WHY?
+  let lightRadius = light.radius; // WHY?
   let lightColor = light.color.rgb;
   var screenUV = lightVolumeNdc.xy * 0.5 + 0.5;
+
   // TODO: use bluenoise instead uv
   let r = screenUV;
   let rayDirection = calculateRayDirection(screenUV,viewProjections.inverseViewProjection);
@@ -77,7 +78,6 @@ fn main(
   var worldPos = textureSampleLevel(worldPosTex, nearestSampler, screenUV, 0.0).xyz;
  let ndc = getNdc(worldPos);
   let depth = ndc.z;
-
 
 //  worldPos += randomInPlanarUnitDisk(r, normal) * POSITION_SCATTER_AMOUNT;
   var jitteredLightCenter = lightPosition;
@@ -92,54 +92,20 @@ fn main(
   let rayStep = shadowRayDirection;
 
   let lightPositionUV = calculateScreenSpaceUV(jitteredLightCenter, viewProjections.viewProjection);
-//  let lightPositionNdc = getNdc(jitteredLightCenter);
-//  let worldPosAtLight = textureSampleLevel(worldPosTex, nearestSampler, lightPositionUV, 0.0).xyz;
-//  let isLightOccluded = lightPositionNdc.z < getNdc(worldPosAtLight).z;
-//
-//  if(isLightOccluded) {
-//    return vec4(0.0);
-//  }
+
 
   var screenRayPosition = lightVolumeNdc.xy;
   var screenRayStep = normalize(lightPositionUV - screenUV) * abs(ndc.xy);
   let step = length(screenRayStep) / 16.0;
-  // Screen space shadow ray
-//  for(var i = 0; i < 16; i++) {
-//    screenRayPosition += screenRayStep * step;
-//    // check if ray has exceeded light positions
-//    let uv = ndcToScreenUV(screenRayPosition);
-//    if(uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
-//      break;
-//    }
-//
-//    let worldPosSample = textureSampleLevel(worldPosTex, nearestSampler, uv,0.0).xyz;
-//    if(distance(worldPosSample, jitteredLightCenter) > lightRadius) {
-////      return vec4(0.0);
-//    }
-//    let ndcSample = getNdc(worldPosSample);
-//    let biasedDepthSample = ndcSample.z + SHADOW_ACNE_OFFSET;
-//
-//    // closer than the current fragment, occluded
-//    if(biasedDepthSample <= depth) {
-//      return vec4(0.0);
-//    }
+//  if(rayMarchBVHFirstHit(worldPos - shadowRayDirection * 0.1, -shadowRayDirection, lightRadius)){
+//    return vec4(0.0);
 //  }
-
-  if(rayMarchBVHFirstHit(worldPos - shadowRayDirection * 0.1, -shadowRayDirection, lightRadius)){
-    return vec4(0.0);
-  }
 
   let lightDirection = normalize(jitteredLightCenter - worldPos);
   let shaded = blinnPhong(normal, lightDirection, -rayDirection, 0.0, 0.0, lightColor);
   let albedoWithSpecular = albedo * shaded;
 
-//return vec4(vec3(ndc.z * 0.1), 1.0);
-//return vec4(shadowRayDirection, 1.0);
-//  return vec4(abs(sign(screenRayStep)), 0, 1.0);
-//  return vec4(vec3(abs(worldPos) % 1.0), 1);
-//  return vec4(vec3(distanceToCamera * 0.01), 1);
-
 
   // TODO: output hdr and tonemap
-  return vec4(lightColor * albedoWithSpecular, attenuation);
+  return vec4(albedoWithSpecular, attenuation);
 }

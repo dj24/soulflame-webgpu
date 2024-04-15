@@ -125,14 +125,24 @@ const torchPositions: Light["position"][] = [
   [-26.703903198242188, 23.975996017456055, -9.089996337890625],
 ];
 
-let lights: Light[] = torchPositions.map((position, index) => {
+// let lights: Light[] = torchPositions.map((position, index) => {
+//   return {
+//     position: [position[0], position[1] + 1.0, position[2]],
+//     size: 3,
+//     // color: vec3.normalize(
+//     //   vec3.create(Math.random(), Math.random(), Math.random()),
+//     // ),
+//     color: [1, 0.8, 0.4],
+//   };
+// });
+
+let lights: Light[] = Array.from({ length: 200 }).map(() => {
   return {
-    position: [position[0], position[1] + 1.0, position[2]],
-    size: 3,
-    // color: vec3.normalize(
-    //   vec3.create(Math.random(), Math.random(), Math.random()),
-    // ),
-    color: [1, 0.8, 0.4],
+    position: [Math.random() * -80, Math.random() * 50, Math.random() * -200],
+    size: 4,
+    color: vec3.normalize(
+      vec3.create(Math.random(), Math.random(), Math.random()),
+    ),
   };
 });
 
@@ -655,18 +665,19 @@ const start = async () => {
   await createTavern(device, volumeAtlas);
 
   const computePassPromises: Promise<RenderPass>[] = [
+    // fullscreenQuad(device),
     // getHelloTrianglePass(),
-    getGBufferPass(),
+    // getGBufferPass(),
     getVoxelLatticePass(),
     // getReflectionsPass(),
     // getShadowsPass(),
-    // getLightsPass(),
-    // getSkyPass(),
+    getLightsPass(),
+    getSkyPass(),
     // getMotionBlurPass(),
     // getDiffusePass(),
     // getVolumetricFog(),
     // getTaaPass(),
-    getBoxOutlinePass(),
+    // getBoxOutlinePass(),
     // getWaterPass(),
 
     fullscreenQuad(device),

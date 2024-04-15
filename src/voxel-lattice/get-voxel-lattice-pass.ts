@@ -14,6 +14,7 @@ import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import boxIntersection from "../shader/box-intersection.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
 import { VoxelObject } from "../voxel-object";
+import { blit } from "../blit";
 
 const STRIDE = 256;
 
@@ -116,12 +117,10 @@ export const getVoxelLatticePass = async (): Promise<RenderPass> => {
     ],
   });
 
-  const pipelineLayout = device.createPipelineLayout({
-    bindGroupLayouts: [bindGroupLayout],
-  });
-
   const pipeline = device.createRenderPipeline({
-    layout: pipelineLayout,
+    layout: device.createPipelineLayout({
+      bindGroupLayouts: [bindGroupLayout],
+    }),
     vertex: {
       module: device.createShaderModule({
         code: `
@@ -176,7 +175,8 @@ export const getVoxelLatticePass = async (): Promise<RenderPass> => {
     },
   });
 
-  // TDOO: draw indexed
+  const blitRender = blit(device);
+
   const render = ({
     commandEncoder,
     outputTextures,
@@ -377,6 +377,23 @@ export const getVoxelLatticePass = async (): Promise<RenderPass> => {
         depthOrArrayLayers: 1, // Copy one layer (z-axis slice)
       },
     );
+    // const solidColourTexture = device.createTexture({
+    //   size: { width: 1, height: 1 },
+    //   format: "rgba8unorm",
+    //   usage:
+    //     GPUTextureUsage.COPY_DST |
+    //     GPUTextureUsage.RENDER_ATTACHMENT |
+    //     GPUTextureUsage.TEXTURE_BINDING,
+    // });
+    //
+    // device.queue.writeTexture(
+    //   { texture: solidColourTexture },
+    //   new Uint8Array([1, 0, 0]),
+    //   {},
+    //   { width: 1, height: 1 },
+    // );
+    //
+    // blitRender(commandEncoder, solidColourTexture, outputTextures.finalTexture);
 
     return [commandEncoder.finish()];
   };
