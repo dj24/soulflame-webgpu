@@ -30,7 +30,7 @@ type TSceneDefinition = {
 
 const NAME_ALLOWLIST = [
   // "Dragon",
-  // "Sponza",
+  "Sponza",
   // "Table",
   // "Bench",
   // "Stool",
@@ -38,7 +38,7 @@ const NAME_ALLOWLIST = [
   // "BarTopS",
   // "BarTop1",
   // "Barrel",
-  "Keg",
+  // "Keg",
   // "Candle",
   // "Bed",
   // "Torch",

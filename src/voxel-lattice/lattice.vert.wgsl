@@ -36,13 +36,13 @@ fn main(
   if (vertexIndex < 4) {
     objectPos.x *= voxelObject.size.x;
     objectPos.y *= voxelObject.size.y;
-    objectPos.z += f32(instanceIndex) - 1;
+    objectPos.z += f32(instanceIndex);
     objectNormal = vec3f(0.0, 0.0, 1.0);
   } else if (vertexIndex < 8) {
     objectPos.x *= voxelObject.size.x;
     objectPos.z *= voxelObject.size.z;
     objectPos.y += f32(instanceIndex);
-    objectNormal = vec3f(0.0, -1.0, 0.0);
+    objectNormal = vec3f(0.0, 1.0, 0.0);
   } else {
     objectPos.y *= voxelObject.size.y;
     objectPos.z *= voxelObject.size.z;

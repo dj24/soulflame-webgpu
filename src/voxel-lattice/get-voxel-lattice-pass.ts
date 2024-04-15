@@ -26,14 +26,13 @@ const STRIDE = 256;
 const getLatticeVertices = (size: Vec3): Float32Array => {
   const [x, y, z] = size;
 
-  const bottomLeftBack = [0, 0, z, 1];
-  const bottomRightBack = [x, 0, z, 1];
-  const topLeftBack = [0, y, z, 1];
-  const topRightBack = [x, y, z, 1];
-  const bottomLeftFront = [0, 0, 0, 1];
-  const bottomRightFront = [x, 0, 0, 1];
-  const topLeftFront = [0, y, 0, 1];
-  const topRightFront = [x, y, 0, 1];
+  const bottomLeftBack = [0, 0, 0, 1];
+  const bottomRightBack = [x, 0, 0, 1];
+  const topLeftBack = [0, y, 0, 1];
+  const topRightBack = [x, y, 0, 1];
+  const bottomLeftFront = [0, 0, z, 1];
+  const bottomRightFront = [x, 0, z, 1];
+  const topLeftFront = [0, y, z, 1];
 
   let xyPlane = [
     bottomLeftBack,

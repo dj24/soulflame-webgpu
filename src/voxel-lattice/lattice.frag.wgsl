@@ -33,11 +33,24 @@ fn main(
  {
    var output : GBufferOutput;
    var objectNormal = unsignedObjectNormal;
+   var voxelId = vec3<u32>(floor(objectPos + voxelObject.atlasLocation));
     if(!frontFacing) {
       objectNormal = -objectNormal;
     }
+    else{
+//      voxelId -= vec3<u32>(objectNormal);
+    }
+    if(objectNormal.y == 1){
+      voxelId -= vec3(0,1,0);
+    }
+    if(objectNormal.x == -1){
+      voxelId -= vec3(1,0,0);
+    }
+    if(objectNormal.z == -1){
+      voxelId -= vec3(0,0,1);
+    }
 
-   let voxelId = vec3<u32>(floor(objectPos + voxelObject.atlasLocation));
+
    let voxel = textureLoad(voxels, voxelId, 0);
    if(voxel.a == 0.0) {
      discard;
@@ -48,7 +61,7 @@ fn main(
    let far = 10000.0;
    let linearDepth = normaliseValue(near, far, distance(cameraPosition, worldPos));
    output.albedo = voxel;
-   output.albedo = vec4(abs(objectNormal), voxel.a);
+//   output.albedo = vec4(abs(objectNormal), voxel.a);
    output.normal = vec4(0.0, 0.0, 1.0, 1.0);
    output.worldPosition = vec4(worldPos, 1.0);
    output.depth = linearDepth;
