@@ -36,7 +36,7 @@ fn main(
   if (vertexIndex < 4) {
     objectPos.x *= voxelObject.size.x;
     objectPos.y *= voxelObject.size.y;
-    objectPos.z += f32(instanceIndex);
+    objectPos.z += f32(instanceIndex) - 1;
     objectNormal = vec3f(0.0, 0.0, 1.0);
   } else if (vertexIndex < 8) {
     objectPos.x *= voxelObject.size.x;
@@ -57,5 +57,6 @@ fn main(
   output.ndc = clipPosition.xyz / clipPosition.w;
   output.ndc.y = -output.ndc.y;
   output.objectNormal = objectNormal;
+//  output.objectNormal = (vec4<f32>(objectNormal, 0.0) * voxelObject.inverseTransform).xyz;
   return output;
 }

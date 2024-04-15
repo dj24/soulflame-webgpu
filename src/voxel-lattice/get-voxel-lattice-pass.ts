@@ -356,11 +356,11 @@ export const getVoxelLatticePass = async (): Promise<RenderPass> => {
       passEncoder.setVertexBuffer(0, verticesBuffer, 0);
       passEncoder.setBindGroup(0, bindGroup);
       // XY plane
-      passEncoder.draw(4, sortedVoxelObjectsFrontToBack[i].size[2], 0, 0);
+      passEncoder.draw(4, sortedVoxelObjectsFrontToBack[i].size[2] + 1, 0, 0);
       // XZ plane
-      passEncoder.draw(4, sortedVoxelObjectsFrontToBack[i].size[1], 4, 0);
+      passEncoder.draw(4, sortedVoxelObjectsFrontToBack[i].size[1] + 1, 4, 0);
       // YZ plane
-      passEncoder.draw(4, sortedVoxelObjectsFrontToBack[i].size[0], 8, 0);
+      passEncoder.draw(4, sortedVoxelObjectsFrontToBack[i].size[0] + 1, 8, 0);
     }
 
     passEncoder.end();

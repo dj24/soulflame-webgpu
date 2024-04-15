@@ -7,6 +7,38 @@ import { mat4 } from "wgpu-matrix";
 
 const vertexStride = 16;
 
+const getConeVertices = (
+  radius: number,
+  height: number,
+  radialSegments: number,
+): Float32Array => {
+  const vertices = new Float32Array(radialSegments * 3 * 2);
+  for (let i = 0; i < radialSegments; i++) {
+    const theta = (i / radialSegments) * Math.PI * 2;
+    const x = Math.cos(theta) * radius;
+    const z = Math.sin(theta) * radius;
+    vertices.set([x, 0, z], i * 3 * 2);
+    vertices.set([0, height, 0], i * 3 * 2 + 3);
+  }
+  return vertices;
+};
+
+// Creates an arrow mesh for a gizmo, with the arrow pointing in the positive z direction
+// The arrow is 1 unit long
+// arrow tip is a cone with a 0.1 unit radius and 0.2 unit height
+const getArrowMesh = (): Float32Array => {
+  let vertices: number[] = [];
+
+  // arrow shaft
+  const cubeVertices = getCuboidVertices([0.5, 0.5, 10]);
+  vertices.push(...cubeVertices);
+
+  // arrow tip
+  // const coneVertices = getConeVertices(0.1, 0.2, 16);
+
+  return new Float32Array(vertices);
+};
+
 export const getBoxOutlinePass = async (): Promise<RenderPass> => {
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
@@ -25,6 +57,7 @@ export const getBoxOutlinePass = async (): Promise<RenderPass> => {
   });
 
   const verticesPerMesh = getCuboidVertices([1, 1, 1]).length;
+  // const verticesPerMesh = getArrowMesh().length;
 
   const pipeline = device.createRenderPipeline({
     layout: pipelineLayout,
@@ -81,6 +114,7 @@ export const getBoxOutlinePass = async (): Promise<RenderPass> => {
     },
     primitive: {
       topology: "line-list",
+      // topology: "triangle-list",
       cullMode: "back",
     },
   });
@@ -108,8 +142,8 @@ export const getBoxOutlinePass = async (): Promise<RenderPass> => {
     });
 
     for (let i = 0; i < voxelObjects.length; i++) {
+      // const vertices = getArrowMesh();
       const vertices = getCuboidVertices(voxelObjects[i].size);
-      // const vertices = getCuboidByCorners(voxelObjects[i].worldSpaceCorners);
       const bufferOffset = i * 256;
       device.queue.writeBuffer(
         verticesBuffer,
