@@ -100,50 +100,29 @@ fn getBitInBrick(brick: Brick, bitIndex: u32) -> bool {
 struct BrickMarchResult {
   hit: bool,
   normal: vec3<f32>,
-  t: f32
+  t: f32,
+  stepsTaken: i32
 }
 
-// plane degined by p (p.xyz must be normalized)
-fn plaIntersect( ro:vec3<f32>, rd: vec3<f32>, p:vec4<f32>) -> f32
-{
-    return -(dot(ro,p.xyz)+p.w)/dot(rd,p.xyz);
-}
 
-//vec4 PlaneMarch(vec3 p0, vec3 d) {
-//  float t = 0;
-//  while (t <= maxDistToCheck) {
-//    vec3 p = p0 + d * t;
-//    vec4 c = textureLod(voxels, p / voxelGridSize, 0);
-//    if (c.a > 0) {
-//      return c;
-//    }
-//
-//    vec3 deltas = (step(0, d) - fract(p)) / d;
-//    t += max(mincomp(deltas), epsilon);
-//  }
-//
-//  return vec4(0);
-//}
-
-// TODO: start at surface of brick
 // ray march one brick, offseting the ray origin by the brick position
 fn rayMarchBrick(brick: Brick, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) -> BrickMarchResult {
-   var output = BrickMarchResult(false, vec3(0), 0.0);
+   var output = BrickMarchResult(false, vec3(0), 0.0, 0);
    let rayDirSign = sign(rayDirection);
    var startIndex = vec3<i32>(floor(rayOrigin));
    var currentIndex = startIndex;
 
-   for(var i = 0; i < 24 && !output.hit; i++)
+   for(var i = 0; i < 24; i++)
    {
+    output.stepsTaken = i;
      let tMax = vec3<f32>(currentIndex - startIndex) / rayDirection;
      let mask = vec3<i32>(tMax.xyz <= min(tMax.yzx, tMax.zxy));
      let tCurrent = min(tMax.x, min(tMax.y, tMax.z));
-     let bitIndex = convert3DTo1D(vec3(8), vec3<u32>(currentIndex));
-     if(currentIndex.x < 5){
+     if(currentIndex.y < 4){
         output.hit = true;
-        output.normal = vec3<f32>(currentIndex) / 5.0;
-        output.normal = rayOrigin / 8.0;
+        output.normal = vec3<f32>(currentIndex) / 8.0;
         output.t = tCurrent;
+        return output;
      }
      currentIndex += mask;
    }

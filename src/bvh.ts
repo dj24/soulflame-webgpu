@@ -49,7 +49,6 @@ const splitObjectsBySAH = (voxelObjects: VoxelBrick[]) => {
   let minCost = Infinity;
   let minIndex = -1;
   const middleIndex = Math.floor(voxelObjects.length / 2);
-  console.time(`split ${voxelObjects.length} objects`);
   for (let i = 1; i < voxelObjects.length; i++) {
     const left = voxelObjects.slice(0, i);
     const right = voxelObjects.slice(i);
@@ -76,13 +75,8 @@ const splitObjectsBySAH = (voxelObjects: VoxelBrick[]) => {
   }
   const left = voxelObjects.slice(0, minIndex);
   const right = voxelObjects.slice(minIndex);
-  console.timeEnd(`split ${voxelObjects.length} objects`);
   return { left, right };
 };
-
-// fn convert3DTo1D(size: vec3<u32>, position: vec3<u32>) -> u32 {
-//   return position.x + position.y * size.x + position.z * (size.x * size.y);
-// }
 
 const splitObjectsBySAHCompute = async (
   device: GPUDevice,
@@ -198,7 +192,6 @@ export const createBVH = (
 
   let childIndex = 0;
   const build = (bricks: VoxelBrick[], startIndex: number) => {
-    console.time(`build ${bricks.length} objects at ${startIndex}`);
     if (voxelObjects.length === 0) {
       return;
     }
@@ -207,11 +200,10 @@ export const createBVH = (
       nodes[startIndex] = {
         leftChildIndex: bricks[0].objectIndex,
         rightChildIndex: bricks[0].brickIndex,
-        objectCount: bricks.length,
+        objectCount: 1,
         AABBMax: bricks[0].OBB.max,
         AABBMin: bricks[0].OBB.min,
       };
-      console.timeEnd(`build ${bricks.length} objects at ${startIndex}`);
       return;
     }
     const AABB = getAABB(bricks);
@@ -236,8 +228,6 @@ export const createBVH = (
       AABBMax: AABB.max,
       AABBMin: AABB.min,
     };
-
-    console.timeEnd(`build ${bricks.length} objects at ${startIndex}`);
   };
 
   const toGPUBuffer = (device: GPUDevice, length: number) => {

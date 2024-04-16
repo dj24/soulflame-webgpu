@@ -127,145 +127,6 @@ const KERNEL_CORNER_OFFSETS = array<vec2<u32>, SPATIAL_SAMPLE_COUNT>(
   vec2(4,4)
 );
 
-// TODO: incrementally sample more points if variance is high
-@compute @workgroup_size(8, 8, 1)
-fn adaptive(
-  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
-) {
-  let resolution = textureDimensions(albedoTex);
-  let originPixel = GlobalInvocationID.xy * (SPATIAL_KERNEL_SIZE);
-  var albedos = array<vec3<f32>, SPATIAL_SAMPLE_COUNT>();
-  var normals = array<vec3<f32>, SPATIAL_SAMPLE_COUNT>();
-  var depths = array<f32, SPATIAL_SAMPLE_COUNT>();
-  var worldPositions = array<vec3<f32>, SPATIAL_SAMPLE_COUNT>();
-  var velocities = array<vec3<f32>, SPATIAL_SAMPLE_COUNT>();
-
-  // first kernel
-  for(var i = 0u; i < SPATIAL_SAMPLE_COUNT; i++){
-    let pixelOffset = KERNEL_CORNER_OFFSETS[i];
-//    let pixelOffset = getSpatialPosition(i, 3) * 4;
-    let pixel = originPixel + pixelOffset;
-
-    textureStore(albedoTex, pixel, vec4(1.0,0.0,0.0,1.0));
-    textureStore(normalTex, pixel, vec4(0.0,0.0,0.0,1.0));
-//    textureStore(depthWrite, pixel, vec4(0.0,0.0,0.0,FAR_PLANE));
-    textureStore(velocityTex, pixel, vec4(0,0,0,0));
-
-    var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
-    let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
-    var rayOrigin = cameraPosition;
-    var closestIntersection = RayMarchResult();
-    closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
-
-    // Floor plane for debugging
-    let planeY = 0.0;
-    let planeIntersect = planeIntersection(rayOrigin, rayDirection, vec3(0,1,0), planeY);
-    if(planeIntersect.isHit){
-      closestIntersection.worldPos = rayOrigin + rayDirection * planeIntersect.tNear;
-      closestIntersection.worldPos.y = planeY;
-      closestIntersection.hit = planeIntersect.isHit;
-      closestIntersection.normal = planeIntersect.normal;
-      closestIntersection.colour = vec3(0.15,0.3,0.1);
-      // TODO: hit water here
-    }
-
-    let maxMipLevel = u32(0);
-    let minMipLevel = u32(0);
-    var mipLevel = maxMipLevel;
-
-    let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
-//    if(bvhResult.hit){
-      closestIntersection = bvhResult;
-//    }
-
-    let normal = closestIntersection.normal;
-    let depth = distance(cameraPosition, closestIntersection.worldPos);
-    let albedo = closestIntersection.colour;
-    let velocity = getVelocity(closestIntersection, viewProjections);
-
-    normals[i] = normal;
-    albedos[i] = albedo;
-    depths[i] = depth;
-    worldPositions[i] = closestIntersection.worldPos;
-    velocities[i] = velocity;
-  }
-
-  // Get averages
-  var normal = vec3<f32>(0.0,0.0,0.0);
-  var albedo = vec3<f32>(0.0,0.0,0.0);
-  var worldPos = vec3<f32>(0.0,0.0,0.0);
-  for(var i = 0; i < SPATIAL_SAMPLE_COUNT; i++){
-    normal += normals[i];
-    albedo += albedos[i];
-    worldPos += worldPositions[i];
-  }
-  normal /= f32(SPATIAL_SAMPLE_COUNT);
-  albedo /= f32(SPATIAL_SAMPLE_COUNT);
-  worldPos /= f32(SPATIAL_SAMPLE_COUNT);
-
-  var normalDiff = vec3<f32>(0.0,0.0,0.0);
-  var albedoDiff = vec3<f32>(0.0,0.0,0.0);
-  var worldPosDiff = vec3<f32>(0.0,0.0,0.0);
-  for (var i = 0; i < SPATIAL_SAMPLE_COUNT; i++){
-    normalDiff += abs(normals[i] - normal);
-    albedoDiff += abs(albedos[i] - albedo);
-    worldPosDiff += abs(worldPositions[i] - worldPos);
-  }
-
-  let depthWeight = 0.001;
-  let normalWeight = 1.0;
-  let albedoWeight = 1.0;
-
-
-  var totalDiff = length(normalDiff) + length(albedoDiff) + length(worldPosDiff) * depthWeight;
-  if(totalDiff > 0.05){
-//if(true){
-    // Difference is too high, sample more points
-    let bufferIndex = atomicAdd(&indirectArgs.count, 1);
-    groupsToFullyTrace[bufferIndex] = originPixel;
-    return;
-  }
-  // TODO: linear interpolation instead of average colour
-  for(var x = 0u; x < SPATIAL_KERNEL_SIZE; x++){
-    for(var y = 0u; y < SPATIAL_KERNEL_SIZE; y++){
-      var totalWeight = 0.0;
-      var totalNormal = vec3<f32>(0.0,0.0,0.0);
-      var totalAlbedo = vec3<f32>(0.0,0.0,0.0);
-      var totalDepth = 0.0;
-      var totalWorldPos = vec3<f32>(0.0,0.0,0.0);
-      var totalVelocity = vec3<f32>(0.0,0.0,0.0);
-      var weights = array<f32, SPATIAL_SAMPLE_COUNT>();
-      let pixel = originPixel + vec2<u32>(x,y);
-
-      var minWeight = 9999999999.0;
-      var maxWeight = 0.0;
-      for(var i = 0u; i < SPATIAL_SAMPLE_COUNT; i ++){
-        let d = distance(vec2(f32(x),f32(y)), vec2<f32>(KERNEL_CORNER_OFFSETS[i]));
-        let weight = 1.0 - d;
-        minWeight = min(minWeight, weight);
-        maxWeight = max(maxWeight, weight);
-        weights[i] = weight;
-      }
-
-      for(var i = 0u; i < SPATIAL_SAMPLE_COUNT; i ++){
-        let weight = customNormalize(weights[i], minWeight, maxWeight);
-        totalNormal += normals[i] * weight;
-        totalAlbedo += albedos[i] * weight;
-        totalDepth += depths[i] * weight;
-        totalWorldPos += worldPositions[i] * weight;
-        totalVelocity += velocities[i] * weight;
-        totalWeight += weight;
-      }
-
-//      textureStore(albedoTex, pixel, vec4((totalWorldPos / totalWeight) % 1, 1));
-      textureStore(albedoTex, pixel, vec4(totalAlbedo / totalWeight, 1));
-      textureStore(normalTex, pixel, vec4(totalNormal / totalWeight,1));
-//      textureStore(depthWrite, pixel, vec4(totalWorldPos / totalWeight, totalDepth / totalWeight));
-      textureStore(velocityTex, pixel, vec4(totalVelocity / totalWeight,0));
-    }
-  }
-}
-
 
 const GROUPS_X = 8;
 const GROUPS_Y = 8;
@@ -277,18 +138,11 @@ fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
 ) {
   let resolution = textureDimensions(albedoTex);
-//  let pixel = WorkgroupID.xy * vec2(GROUPS_X, GROUPS_Y) + vec2(LocalInvocationIndex % GROUPS_X, LocalInvocationIndex / GROUPS_X);
   let pixel = GlobalInvocationID.xy;
   var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
   let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
   var rayOrigin = cameraPosition;
   var closestIntersection = RayMarchResult();
-  closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
-  closestIntersection.colour = rayDirection;
-
-  let maxMipLevel = u32(0);
-  let minMipLevel = u32(0);
-  var mipLevel = maxMipLevel;
 
   let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
 //  if(bvhResult.hit){
@@ -301,60 +155,7 @@ fn main(
   let velocity = getVelocity(closestIntersection, viewProjections);
   let worldPos = closestIntersection.worldPos;
 
-  let objectPos = (voxelObjects[0].inverseTransform * vec4(worldPos, 1.0)).xyz;
-
   textureStore(albedoTex, pixel, vec4(albedo, 1));
   textureStore(normalTex, pixel, vec4(normal,1));
-  textureStore(velocityTex, pixel, vec4(velocity ,0));
-}
-
-@compute @workgroup_size(SPATIAL_KERNEL_SIZE, SPATIAL_KERNEL_SIZE, 1)
-fn fullTrace(
-  @builtin(local_invocation_id) LocalInvocationID : vec3<u32>,
-  @builtin(workgroup_id) WorkgroupID : vec3<u32>,
-) {
-   let resolution = textureDimensions(albedoTex);
-  let pixelOffset = LocalInvocationID.xy;
-  let groupOrigin = groupsToFullyTrace[WorkgroupID.x];
-  let pixel = groupOrigin + pixelOffset;
-
-  var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
-  let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
-  var rayOrigin = cameraPosition;
-  var closestIntersection = RayMarchResult();
-  closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
-  closestIntersection.colour = rayDirection;
-
-  // Floor plane for debugging
-  let planeY = 0.0;
-  let planeIntersect = planeIntersection(rayOrigin, rayDirection, vec3(0,1,0), planeY);
-  if(planeIntersect.isHit){
-    closestIntersection.worldPos = rayOrigin + rayDirection * planeIntersect.tNear;
-    closestIntersection.worldPos.y = planeY;
-    closestIntersection.hit = planeIntersect.isHit;
-    closestIntersection.normal = planeIntersect.normal;
-    closestIntersection.colour = vec3(0.15,0.3,0.1);
-    // TODO: hit water here
-  }
-
-  let maxMipLevel = u32(0);
-  let minMipLevel = u32(0);
-  var mipLevel = maxMipLevel;
-
-  let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
-  if(bvhResult.hit){
-    closestIntersection = bvhResult;
-  }
-
-  let normal = closestIntersection.normal;
-  let depth = distance(cameraPosition, closestIntersection.worldPos);
-  let albedo = closestIntersection.colour;
-  let velocity = getVelocity(closestIntersection, viewProjections);
-  let worldPos = closestIntersection.worldPos;
-
-  textureStore(albedoTex, pixel, vec4(albedo, 1));
-//  textureStore(albedoTex, pixel, vec4(0,0,1, 1));
-  textureStore(normalTex, pixel, vec4(normal,1));
-//  textureStore(depthWrite, pixel, depth);
   textureStore(velocityTex, pixel, vec4(velocity ,0));
 }

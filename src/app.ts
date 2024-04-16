@@ -667,8 +667,8 @@ const start = async () => {
   const computePassPromises: Promise<RenderPass>[] = [
     // fullscreenQuad(device),
     // getHelloTrianglePass(),
-    // getGBufferPass(),
-    getVoxelLatticePass(),
+    getGBufferPass(),
+    // getVoxelLatticePass(),
     // getReflectionsPass(),
     // getShadowsPass(),
     // getLightsPass(),
