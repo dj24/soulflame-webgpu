@@ -128,20 +128,10 @@ fn plaIntersect( ro:vec3<f32>, rd: vec3<f32>, p:vec4<f32>) -> f32
 // TODO: start at surface of brick
 // ray march one brick, offseting the ray origin by the brick position
 fn rayMarchBrick(brick: Brick, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) -> BrickMarchResult {
-     var output = BrickMarchResult(false, vec3(0), 0.0);
-     let rayDirSign = sign(rayDirection);
-     var startIndex = vec3<i32>(floor(rayOrigin));
-     var currentIndex = startIndex;
-
-    let intersectDist = plaIntersect(rayOrigin, rayDirection, vec4(0., 0., 1, 8.0));
-//    let isIntersect = intersectDist > 0.0;
-//
-//    let isVoxel = currentIndex.y < 4;
-//    if(isVoxel && isIntersect){
-//      output.hit = true;
-////    output.normal = (rayOrigin) / 8.0;
-//      output.normal = vec3<f32>(currentIndex) / 8.0;
-//    }
+   var output = BrickMarchResult(false, vec3(0), 0.0);
+   let rayDirSign = sign(rayDirection);
+   var startIndex = vec3<i32>(floor(rayOrigin));
+   var currentIndex = startIndex;
 
    for(var i = 0; i < 24 && !output.hit; i++)
    {
@@ -149,12 +139,10 @@ fn rayMarchBrick(brick: Brick, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) ->
      let mask = vec3<i32>(tMax.xyz <= min(tMax.yzx, tMax.zxy));
      let tCurrent = min(tMax.x, min(tMax.y, tMax.z));
      let bitIndex = convert3DTo1D(vec3(8), vec3<u32>(currentIndex));
-//     if(true){
-     if(currentIndex.y < 6){
+     if(currentIndex.x < 5){
         output.hit = true;
-//        output.normal = (rayOrigin) / 8.0;
-        output.normal = vec3<f32>(currentIndex) / 8.0;
-//        output.normal = vec3(rayDirection.y);
+        output.normal = vec3<f32>(currentIndex) / 5.0;
+        output.normal = rayOrigin / 8.0;
         output.t = tCurrent;
      }
      currentIndex += mask;

@@ -30,6 +30,7 @@ type TSceneDefinition = {
 
 const NAME_ALLOWLIST = [
   // "Dragon",
+  // "sponza-small",
   "Sponza",
   // "Table",
   // "Bench",

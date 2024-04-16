@@ -8,8 +8,6 @@ fn project(vp: mat4x4<f32>, p: vec3<f32>) -> vec3<f32> {
   return vec3<f32>(uv, clipSpaceVertex.z);
 }
 
-const FAR_PLANE = 9999.0;
-
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>

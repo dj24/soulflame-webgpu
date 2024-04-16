@@ -14,10 +14,11 @@ const ceilToNearestMultipleOf = (n: number, multiple: number) => {
   return Math.ceil(n / multiple) * multiple;
 };
 
-type AABB = { min: Vec3; max: Vec3 };
+export type BoundingBox = { min: Vec3; max: Vec3 };
 
 type VoxelBrick = {
-  AABB: AABB;
+  AABB: BoundingBox;
+  OBB: BoundingBox;
   objectIndex: number;
   brickIndex: number;
 };
@@ -169,16 +170,26 @@ const splitObjectsBySAHCompute = async (
   const workGroupSizeX = 64;
   const possibleSplitCount = voxelObjects.length;
 };
+
 export const createBVH = (
   device: GPUDevice,
   voxelObjects: VoxelObject[],
 ): GPUBuffer => {
   let nodes: BVHNode[] = [];
 
+  const brickOBBs = voxelObjects.map((voxelObject) => {
+    return voxelObject.brickOBBs;
+  });
+
   const allBricks: VoxelBrick[] = voxelObjects
     .map((voxelObject, objectIndex) => {
       return voxelObject.brickAABBs.map((AABB, brickIndex) => {
-        return { AABB, objectIndex, brickIndex };
+        return {
+          AABB,
+          objectIndex,
+          brickIndex,
+          OBB: brickOBBs[objectIndex][brickIndex],
+        };
       });
     })
     .flat();
@@ -191,20 +202,19 @@ export const createBVH = (
     if (voxelObjects.length === 0) {
       return;
     }
-    const AABB = getAABB(bricks);
     const isLeaf = bricks.length === 1;
     if (isLeaf) {
       nodes[startIndex] = {
         leftChildIndex: bricks[0].objectIndex,
         rightChildIndex: bricks[0].brickIndex,
         objectCount: bricks.length,
-        AABBMax: AABB.max,
-        AABBMin: AABB.min,
+        AABBMax: bricks[0].OBB.max,
+        AABBMin: bricks[0].OBB.min,
       };
       console.timeEnd(`build ${bricks.length} objects at ${startIndex}`);
       return;
     }
-
+    const AABB = getAABB(bricks);
     let leftChildIndex = -1;
     let rightChildIndex = -1;
 
