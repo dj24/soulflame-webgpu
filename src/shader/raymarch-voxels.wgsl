@@ -108,36 +108,53 @@ struct BrickMarchResult {
 // ray march one brick, offseting the ray origin by the brick position
 fn rayMarchBrick(brick: Brick, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) -> BrickMarchResult {
    var output = BrickMarchResult(false, vec3(0), 0.0, 0);
-   let rayDirSign = sign(rayDirection);
-   var startIndex = vec3<i32>(floor(rayOrigin));
-   var currentIndex = startIndex;
 
-   for(var i = 0; i < 24; i++)
+   let rayDirSign = sign(rayDirection);
+   var voxelSize = vec3<f32>(1.0);
+   var shiftedRayOrigin = rayOrigin - rayDirection * EPSILON;
+   var objectPos = shiftedRayOrigin;
+   var currentIndex = vec3<i32>(floor(objectPos));
+   var scaledRayOrigin =  rayOrigin / voxelSize;
+   var scaledObjectPos = floor(objectPos / voxelSize);
+   var scaledOriginDifference = scaledObjectPos - scaledRayOrigin;
+   var tMax = voxelSize * (rayDirSign * scaledOriginDifference + (rayDirSign * 0.5) + 0.5) / abs(rayDirection);
+   let mask = vec3<f32>(tMax.xyz <= min(tMax.yzx, tMax.zxy));
+   var objectNormal = mask * -rayDirSign;
+   var tCurrent = min(tMax.x, min(tMax.y, tMax.z));
+
+   // RAYMARCH
+   for(var i = 0; i < MAX_RAY_STEPS; i++)
    {
-    output.stepsTaken = i;
-     let tMax = vec3<f32>(currentIndex - startIndex) / rayDirection;
-     let mask = vec3<i32>(tMax.xyz <= min(tMax.yzx, tMax.zxy));
-     let tCurrent = min(tMax.x, min(tMax.y, tMax.z));
-     if(currentIndex.y < 4){
-        output.hit = true;
-        output.normal = vec3<f32>(currentIndex) / 8.0;
-        output.t = tCurrent;
-        return output;
+//     if(mipSample0.a > 0.0 && isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
+      if(true){
+         output.hit = true;
+         output.normal = objectNormal;
+         return output;
      }
-     currentIndex += mask;
+
+     var scaledRayOrigin = shiftedRayOrigin / voxelSize;
+     var scaledObjectPos = floor(objectPos / voxelSize);
+     var scaledOriginDifference = scaledObjectPos - scaledRayOrigin;
+     var tMax = voxelSize * (rayDirSign * scaledOriginDifference + (rayDirSign * 0.5) + 0.5) / abs(rayDirection);
+     let mask = vec3<f32>(tMax.xyz <= min(tMax.yzx, tMax.zxy));
+
+     tCurrent = min(tMax.x, min(tMax.y, tMax.z));
+     objectPos = rayOrigin + rayDirection * tCurrent;
+     currentIndex = vec3<i32>(floor(objectPos / voxelSize) * voxelSize);
+     objectNormal = mask * -rayDirSign;
    }
-  return output;
+   return output;
 }
 
 fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, objectRayOrigin: vec3<f32>, mipLevel: u32) -> RayMarchResult {
   var output = RayMarchResult();
   let rayDirSign = sign(objectRayDirection);
   let atlasLocation = vec3<u32>(voxelObject.atlasLocation);
-  var voxelSize = vec3<f32>(2.0);
+  var voxelSize = vec3<f32>(1.0);
   var shiftedRayOrigin = objectRayOrigin - objectRayDirection * EPSILON;
   var objectPos = shiftedRayOrigin;
   var currentIndex = vec3<i32>(floor(objectPos));
-  var scaledRayOrigin =  objectRayOrigin/ voxelSize;
+  var scaledRayOrigin =  objectRayOrigin / voxelSize;
   var scaledObjectPos = floor(objectPos / voxelSize);
   var scaledOriginDifference = scaledObjectPos - scaledRayOrigin;
   var tMax = voxelSize * (rayDirSign * scaledOriginDifference + (rayDirSign * 0.5) + 0.5) / abs(objectRayDirection);
@@ -151,10 +168,7 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
     output.stepsTaken = i;
 
     let samplePosition = vec3<u32>(currentIndex) + atlasLocation;
-    let mip0Index = currentIndex;
-    let mip0SamplePosition = vec3<u32>(mip0Index) + atlasLocation;
-    let mipSample0 = textureLoad(voxels, mip0SamplePosition, 0);
-
+    let mipSample0 = textureLoad(voxels, samplePosition, 0);
     output.colour = objectPos / vec3<f32>(voxelObject.size);
 
     if(mipSample0.a > 0.0 && isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
@@ -169,7 +183,6 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
         output.previousInverseModelMatrix = voxelObject.previousInverseTransform;
         return output;
     }
-    voxelSize = vec3<f32>(1.0);
 
     var scaledRayOrigin = shiftedRayOrigin / voxelSize;
     var scaledObjectPos = floor(objectPos / voxelSize);

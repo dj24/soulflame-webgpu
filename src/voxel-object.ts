@@ -119,31 +119,6 @@ export class VoxelObject {
     };
   }
 
-  getNormalizedBrickOBB(brickIndex: Vec3): BoundingBox {
-    const brickSize = vec3.create(
-      BRICK_SIZE_VOXELS,
-      BRICK_SIZE_VOXELS,
-      BRICK_SIZE_VOXELS,
-    );
-    const brickOBB = this.getBrickOBB(brickIndex);
-    const normalizedMin = vec3.divide(brickOBB.min, this.size);
-    const normalizedMax = vec3.divide(brickOBB.max, this.size);
-    return {
-      min: normalizedMin,
-      max: normalizedMax,
-    };
-  }
-
-  get normalizedBrickOBBs() {
-    const brickMap = volumeAtlas.getVolumes()[this.name].brickMap;
-    let brickOBBs: BoundingBox[] = [];
-    Object.entries(brickMap).forEach(([key, value]) => {
-      const position = decodePositionString(key as PositionString);
-      brickOBBs.push(this.getNormalizedBrickOBB(position));
-    });
-    return brickOBBs;
-  }
-
   getBrickAABB(brickIndex: Vec3): BoundingBox {
     return getBoundingBox(this.getBrickWorldSpaceCorners(brickIndex));
   }
@@ -151,7 +126,7 @@ export class VoxelObject {
   get brickOBBs() {
     const brickMap = volumeAtlas.getVolumes()[this.name].brickMap;
     let brickOBBs: BoundingBox[] = [];
-    Object.entries(brickMap).forEach(([key, value]) => {
+    Object.entries(brickMap).forEach(([key, value], index) => {
       const position = decodePositionString(key as PositionString);
       brickOBBs.push(this.getBrickOBB(position));
     });
