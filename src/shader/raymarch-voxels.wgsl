@@ -108,36 +108,57 @@ struct BrickMarchResult {
 // ray march one brick, offseting the ray origin by the brick position
 fn rayMarchBrick(brick: Brick, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) -> BrickMarchResult {
    var output = BrickMarchResult(false, vec3(0), 0.0, 0);
+//
+//   var t = 0.0;
+//   for(var i = 0; i < 24; i++)
+//   {
+//      let objectPos = rayOrigin + rayDirection * t;
+//      let currentIndex = vec3<i32>(floor(objectPos));
+//      let bitIndex = convert3DTo1D(vec3(8), vec3<u32>(currentIndex));
+////      if(getBitInBrick(brick, bitIndex)){
+//      if(textureLoad(voxels, currentIndex, 0).a > 0.0){
+//         output.hit = true;
+//         output.normal = vec3<f32>(currentIndex) / 8.0;
+//         output.t = t;
+//         return output;
+//      }
+//      t += 1.0 / 24.0;
+//   }
 
    let rayDirSign = sign(rayDirection);
    var voxelSize = vec3<f32>(1.0);
-   var shiftedRayOrigin = rayOrigin - rayDirection * EPSILON;
-   var objectPos = shiftedRayOrigin;
-   var currentIndex = vec3<i32>(floor(objectPos));
-   var scaledRayOrigin =  rayOrigin / voxelSize;
-   var scaledObjectPos = floor(objectPos / voxelSize);
-   var scaledOriginDifference = scaledObjectPos - scaledRayOrigin;
-   var tMax = voxelSize * (rayDirSign * scaledOriginDifference + (rayDirSign * 0.5) + 0.5) / abs(rayDirection);
+   var objectPos = rayOrigin;
+   var currentIndex = vec3<i32>(max(vec3(1.0),ceil(rayOrigin)));
+   var originDifference = floor(objectPos) - rayOrigin;
+   var tMax = voxelSize * (rayDirSign * originDifference + (rayDirSign * 0.5) + 0.5) / abs(rayDirection);
    let mask = vec3<f32>(tMax.xyz <= min(tMax.yzx, tMax.zxy));
    var objectNormal = mask * -rayDirSign;
    var tCurrent = min(tMax.x, min(tMax.y, tMax.z));
 
    // RAYMARCH
-   for(var i = 0; i < MAX_RAY_STEPS; i++)
+   for(var i = 0; i < 24; i++)
    {
-//     if(mipSample0.a > 0.0 && isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
-      if(true){
-         output.hit = true;
-         output.normal = objectNormal;
-         return output;
-     }
+//      let bitIndex = convert3DTo1D(vec3(8), vec3<u32>(currentIndex));
+//      if(getBitInBrick(brick, bitIndex)){
+//          output.hit = true;
+//          output.normal = vec3<f32>(currentIndex) / 8.0;
+//          return output;
+//      }
+//      if(currentIndex.y < 5){
+//         output.hit = true;
+//         output.normal = vec3<f32>(currentIndex) / 8.0;
+//         return output;
+//     }
+    if(textureLoad(voxels, currentIndex, 0).a > 0.0){
+       output.hit = true;
+       output.normal = vec3<f32>(currentIndex) / 8.0;
+       output.t = tCurrent;
+       return output;
+    }
 
-     var scaledRayOrigin = shiftedRayOrigin / voxelSize;
-     var scaledObjectPos = floor(objectPos / voxelSize);
-     var scaledOriginDifference = scaledObjectPos - scaledRayOrigin;
-     var tMax = voxelSize * (rayDirSign * scaledOriginDifference + (rayDirSign * 0.5) + 0.5) / abs(rayDirection);
+     var originDifference = floor(objectPos) - rayOrigin;
+     var tMax = (rayDirSign * originDifference + (rayDirSign * 0.5) + 0.5) / abs(rayDirection);
      let mask = vec3<f32>(tMax.xyz <= min(tMax.yzx, tMax.zxy));
-
      tCurrent = min(tMax.x, min(tMax.y, tMax.z));
      objectPos = rayOrigin + rayDirection * tCurrent;
      currentIndex = vec3<i32>(floor(objectPos / voxelSize) * voxelSize);

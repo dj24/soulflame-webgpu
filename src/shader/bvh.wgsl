@@ -66,20 +66,14 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
         let intersection = leafBoundsIntersection(rayOrigin, rayDirection, leafNode);
         let isBrickFilled = doesBrickContainVoxels(brickBuffer[leafNode.brickIndex]);
         if(intersection.isHit && intersection.tNear < closestRaymarchDist && isBrickFilled){
-
           let voxelObject = voxelObjects[leafNode.voxelObjectIndex];
-//          let rayMarchResult = rayMarchTransformed(voxelObject, rayDirection, rayOrigin + rayDirection * (intersection.tNear - EPSILON), 0);
-//          if(rayMarchResult.hit){
-//            closestIntersection = rayMarchResult;
-//            closestIntersection.colour = rayMarchResult.normal;
-//            closestRaymarchDist = intersection.tNear;
-//          }
-
           let objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
           let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-          let brickRayMarchResult = rayMarchBrick(brickBuffer[leafNode.brickIndex], objectRayDirection, objectRayOrigin);
+          let brick = brickBuffer[leafNode.brickIndex];
+          let brickMarchStartPos = objectRayOrigin + objectRayDirection * (intersection.tNear - EPSILON);
+          let brickRayMarchResult = rayMarchBrick(brick, objectRayDirection, brickMarchStartPos);
           if(brickRayMarchResult.hit){
-            closestIntersection.colour = brickRayMarchResult.normal;
+            closestIntersection.colour = brickRayMarchResult.normal * 0.1;
             closestRaymarchDist = intersection.tNear;
           }
         }
@@ -130,7 +124,7 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
     }
 
     iterations += 1;
-    closestIntersection.colour += vec3<f32>(0.0075);
+//    closestIntersection.colour += vec3<f32>(0.0075);
   }
 
   return closestIntersection;
