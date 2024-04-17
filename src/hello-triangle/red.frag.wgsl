@@ -72,7 +72,7 @@ fn main(
 
     var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(cameraPosition, 1.0)).xyz;
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-    let tNear = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5).tNear - EPSILON;
+    let tNear = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5).tNear - 0.001;
     let worldPos = transformPosition(voxelObject.transform, objectRayOrigin + objectRayDirection * tNear);
 
     let result = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);

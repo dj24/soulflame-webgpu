@@ -677,7 +677,7 @@ const start = async () => {
     // getDiffusePass(),
     // getVolumetricFog(),
     // getTaaPass(),
-    // getBoxOutlinePass(),
+    getBoxOutlinePass(),
     // getWaterPass(),
 
     fullscreenQuad(device),
