@@ -73,7 +73,7 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
           let brickMarchStartPos = objectRayOrigin + objectRayDirection * (intersection.tNear - EPSILON);
           let brickRayMarchResult = rayMarchBrick(brick, objectRayDirection, brickMarchStartPos);
           if(brickRayMarchResult.hit){
-            closestIntersection.colour = brickRayMarchResult.normal * 0.1;
+            closestIntersection.colour = brickRayMarchResult.normal;
             closestRaymarchDist = intersection.tNear;
           }
         }

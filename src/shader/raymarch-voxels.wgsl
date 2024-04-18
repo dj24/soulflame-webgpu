@@ -151,7 +151,9 @@ fn rayMarchBrick(brick: Brick, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) ->
 //     }
     if(textureLoad(voxels, currentIndex, 0).a > 0.0){
        output.hit = true;
-       output.normal = vec3<f32>(currentIndex) / 8.0;
+//       output.normal = vec3<f32>(currentIndex) / 8.0;
+      output.normal = abs(objectNormal);
+//      output.normal = rayDirection * abs(objectNormal);
        output.t = tCurrent;
        return output;
     }
