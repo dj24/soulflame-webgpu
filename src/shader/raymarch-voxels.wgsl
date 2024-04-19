@@ -52,7 +52,8 @@ struct RayMarchResult {
   inverseModelMatrix: mat4x4<f32>,
   previousInverseModelMatrix: mat4x4<f32>,
   stepsTaken: i32,
-  isWater: bool
+  isWater: bool,
+  t: f32
 }
 
 fn isInBounds(position: vec3<i32>, size: vec3<i32>) -> bool {
@@ -173,7 +174,7 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
   var output = RayMarchResult();
   let rayDirSign = sign(objectRayDirection);
   let atlasLocation = vec3<u32>(voxelObject.atlasLocation);
-  var voxelSize = vec3<f32>(1.0);
+  var voxelSize = vec3(f32(1 << mipLevel));
   var shiftedRayOrigin = objectRayOrigin - objectRayDirection * EPSILON;
   var objectPos = shiftedRayOrigin;
   var currentIndex = vec3<i32>(floor(objectPos));
@@ -191,7 +192,7 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
     output.stepsTaken = i;
 
     let samplePosition = vec3<u32>(currentIndex) + atlasLocation;
-    let mipSample0 = textureLoad(voxels, samplePosition, 0);
+    let mipSample0 = textureLoad(voxels, samplePosition / vec3((1u << mipLevel)), mipLevel);
     output.colour = objectPos / vec3<f32>(voxelObject.size);
 
     if(mipSample0.a > 0.0 && isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
@@ -204,6 +205,7 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
         output.previousModelMatrix = voxelObject.previousTransform;
         output.inverseModelMatrix = voxelObject.inverseTransform;
         output.previousInverseModelMatrix = voxelObject.previousInverseTransform;
+        output.t = tCurrent;
         return output;
     }
 
@@ -218,6 +220,7 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
     currentIndex = vec3<i32>(floor(objectPos / voxelSize) * voxelSize);
     objectNormal = mask * -rayDirSign;
 
+
     if(!isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
         break;
     }
@@ -228,7 +231,7 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
 fn rayMarchTransformed(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>, mipLevel: u32) -> RayMarchResult {
       var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
       let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-      return  rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
+      return  rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel);
 }
 
 const STACK_LEN: u32 = 32u;

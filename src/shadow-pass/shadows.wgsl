@@ -62,16 +62,16 @@ fn main(
   var normalSample = textureLoad(normalTex, samplePixel, 0).rgb;
   var r = textureSampleLevel(blueNoiseTex, nearestSampler, blueNoiseUv, 0).xy;
   var worldPos = textureLoad(worldPosTex, samplePixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
-  worldPos += randomInPlanarUnitDisk(r, normalSample) * POSITION_SCATTER_AMOUNT;
-  var shadowAmount = SKY_COLOUR * 0.25;
+//  worldPos += randomInPlanarUnitDisk(r, normalSample) * POSITION_SCATTER_AMOUNT;
+  var shadowAmount = vec3(0.0);
   let selectedLight = Light(
                       -sunDirection,
                       SUN_COLOR,
                     );
 
 
-    var shadowRayDirection = selectedLight.direction + randomInHemisphere(r, selectedLight.direction) * SCATTER_AMOUNT;
-//    var shadowRayDirection = selectedLight.direction;
+//    var shadowRayDirection = selectedLight.direction + randomInHemisphere(r, selectedLight.direction) * SCATTER_AMOUNT;
+    var shadowRayDirection = selectedLight.direction;
 
   if(!shadowRay(worldPos, shadowRayDirection)){
     shadowAmount += vec3(0.0);

@@ -38,36 +38,6 @@ export type VolumeAtlas = {
   dimensions: Vec3;
 };
 
-const copyTextureWithMips = (
-  commandEncoder: GPUCommandEncoder,
-  copySrc: GPUTexture,
-  copyDst: GPUTexture,
-) => {
-  const { width, height, depthOrArrayLayers } = copySrc;
-  for (let mipLevel = 0; mipLevel < copySrc.mipLevelCount; mipLevel++) {
-    const mipWidth = Math.max(1, width >> mipLevel);
-    const mipHeight = Math.max(1, height >> mipLevel);
-    const mipDepth = Math.max(1, depthOrArrayLayers >> mipLevel);
-    commandEncoder.copyTextureToTexture(
-      {
-        texture: copySrc,
-        mipLevel,
-        origin: { x: 0, y: 0, z: 0 }, // Specify the source origin
-      },
-      {
-        texture: copyDst,
-        mipLevel,
-        origin: { x: 0, y: 0, z: 0 }, // Specify the destination origin (z-axis slice)
-      },
-      {
-        width: mipWidth,
-        height: mipHeight,
-        depthOrArrayLayers: mipDepth,
-      },
-    );
-  }
-};
-
 const BRICKMAP_SIZE = 8;
 const DEFAULT_ATLAS_SIZE = 8;
 const BRICK_STRIDE_BYTES = 64;
@@ -167,6 +137,9 @@ export const getVolumeAtlas = async (
       ...descriptorPartial,
       label: `${atlasTexture.label}, ${texture.label || "unnamed volume"}`,
     });
+
+    console.log({ newMipLevelCount, atlasTexture });
+
     const atlasLocationX = atlasTexture.width;
     // Copy the old atlas texture into the new larger one
     commandEncoder.copyTextureToTexture(
@@ -182,20 +155,33 @@ export const getVolumeAtlas = async (
         depthOrArrayLayers: atlasTexture.depthOrArrayLayers,
       },
     );
-    commandEncoder.copyTextureToTexture(
-      {
-        texture,
-      },
-      {
-        texture: newAtlasTexture,
-        origin: { x: atlasLocationX, y: 0, z: 0 }, // Specify the destination origin (z-axis slice)
-      },
-      {
-        width,
-        height,
-        depthOrArrayLayers,
-      },
-    );
+
+    for (
+      let mipLevel = 0;
+      mipLevel < Math.min(texture.mipLevelCount, newAtlasTexture.mipLevelCount);
+      mipLevel++
+    ) {
+      const mipWidth = Math.max(1, texture.width >> mipLevel);
+      const mipHeight = Math.max(1, texture.height >> mipLevel);
+      const mipDepth = Math.max(1, texture.depthOrArrayLayers >> mipLevel);
+      commandEncoder.copyTextureToTexture(
+        {
+          texture: texture,
+          mipLevel,
+          origin: { x: 0, y: 0, z: 0 }, // Specify the source origin
+        },
+        {
+          texture: newAtlasTexture,
+          mipLevel,
+          origin: { x: atlasLocationX >> mipLevel, y: 0, z: 0 }, // Specify the destination origin (z-axis slice)
+        },
+        {
+          width: mipWidth,
+          height: mipHeight,
+          depthOrArrayLayers: mipDepth,
+        },
+      );
+    }
 
     const brickMapOffset = brickMapBuffer.size / BRICK_STRIDE_BYTES;
 

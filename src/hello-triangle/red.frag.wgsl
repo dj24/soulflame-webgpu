@@ -55,7 +55,6 @@ fn normaliseValue(min: f32, max: f32, value: f32) -> f32 {
 }
 
 
-// TODO: output depth
 @fragment
 fn main(
 
@@ -72,7 +71,7 @@ fn main(
 
     var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(cameraPosition, 1.0)).xyz;
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-    let tNear = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5).tNear - 0.001;
+    let tNear = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5).tNear - 0.00001;
     let worldPos = transformPosition(voxelObject.transform, objectRayOrigin + objectRayDirection * tNear);
 
     let result = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);

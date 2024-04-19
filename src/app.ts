@@ -653,7 +653,7 @@ const start = async () => {
 
   skyTexture = device.createTexture({
     dimension: "2d",
-    size: [768, 768, 6],
+    size: [512, 512, 6],
     format: "rgba8unorm",
     usage:
       GPUTextureUsage.COPY_SRC |
@@ -666,11 +666,11 @@ const start = async () => {
 
   const computePassPromises: Promise<RenderPass>[] = [
     // fullscreenQuad(device),
-    // getHelloTrianglePass(),
-    getGBufferPass(),
+    getHelloTrianglePass(),
+    // getGBufferPass(),
     // getVoxelLatticePass(),
     // getReflectionsPass(),
-    // getShadowsPass(),
+    getShadowsPass(),
     // getLightsPass(),
     getSkyPass(),
     // getMotionBlurPass(),

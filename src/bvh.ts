@@ -59,13 +59,6 @@ const splitObjectsBySAH = (voxelObjects: VoxelBrick[]) => {
     const weightedBalanceFactor = balanceFactor * BALANCE_WEIGHT;
     const weightedSAHCost = sahCost * SAH_WEIGHT;
 
-    console.debug({
-      sahCost,
-      balanceFactor,
-      weightedBalanceFactor,
-      weightedSAHCost,
-    });
-
     const cost = weightedBalanceFactor + weightedSAHCost;
 
     if (cost < minCost) {

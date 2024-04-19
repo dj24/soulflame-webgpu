@@ -29,7 +29,8 @@ type TSceneDefinition = {
 };
 
 const NAME_ALLOWLIST = [
-  "Dragon",
+  "monu10",
+  // "Dragon",
   // "sponza-small",
   // "Sponza",
   // "Table",
@@ -80,9 +81,9 @@ const processTavernObject = async (
   // texture = removeInternalVoxels(commandEncoder, device, texture);
   // console.timeEnd(`Remove internal voxels from ${name}`);
 
-  // console.time(`Generate octree mips for ${name}`);
-  // generateOctreeMips(commandEncoder, device, texture);
-  // console.timeEnd(`Generate octree mips for ${name}`);
+  console.time(`Generate octree mips for ${name}`);
+  generateOctreeMips(commandEncoder, device, texture);
+  console.timeEnd(`Generate octree mips for ${name}`);
 
   console.time(`Create brick map for ${name}`);
   // const brickMap = await createBrickMap(device, voxels);

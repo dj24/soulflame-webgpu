@@ -6,7 +6,10 @@ export const generateOctreeMips = (
   device: GPUDevice,
   volume: GPUTexture,
 ): void => {
-  const mipLevelCount = numMipLevels(volume, "3d");
+  const mipLevelCount = Math.min(
+    numMipLevels(volume, "3d"),
+    volume.mipLevelCount,
+  );
 
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
@@ -29,8 +32,8 @@ export const generateOctreeMips = (
     ],
   });
 
-  let commandBuffers: GPUCommandBuffer[] = [];
   for (let mipLevel = 1; mipLevel < mipLevelCount; mipLevel++) {
+    console.debug(`Generating mip level ${mipLevel}`);
     // Use the previous mip, so that we do not need to check every voxel for every level
     const inputTextureView = volume.createView({
       baseMipLevel: mipLevel - 1,
@@ -64,13 +67,10 @@ export const generateOctreeMips = (
           code: generateMips,
         }),
         entryPoint: "main",
-        // constants: {
-        //   octreeLevel: mipLevel,
-        // },
       },
     });
-
-    const commandEncoder = device.createCommandEncoder();
+    //
+    // const commandEncoder = device.createCommandEncoder();
     const computePass = commandEncoder.beginComputePass();
     computePass.setPipeline(octreePipeline);
     computePass.setBindGroup(0, bindGroup);

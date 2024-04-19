@@ -33,6 +33,7 @@ export const createTextureFromVoxels = async (
       GPUTextureUsage.STORAGE_BINDING |
       GPUTextureUsage.TEXTURE_BINDING,
     dimension: "3d",
+    mipLevelCount: 3,
   });
 
   const voxelsBuffer = device.createBuffer({
@@ -102,11 +103,15 @@ export const createTextureFromVoxels = async (
   });
 
   const bindGroup = device.createBindGroup({
+    label: "create-texture-from-voxels",
     layout: bindGroupLayout,
     entries: [
       {
         binding: 0,
-        resource: texture.createView(),
+        resource: texture.createView({
+          baseMipLevel: 0,
+          mipLevelCount: 1,
+        }),
       },
       {
         binding: 1,
