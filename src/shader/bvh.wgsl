@@ -130,6 +130,84 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
   return closestIntersection;
 }
 
-fn rayMarchBVHFirstHit(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, distance: f32) -> bool {
-  return rayMarchBVH(rayOrigin, rayDirection).hit;
+fn rayMarchBVHFirstHit(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> bool {
+  var closestIntersection = RayMarchResult();
+  closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
+
+  // Create a stack to store the nodes to visit
+  var stack = stack_new();
+  stack_push(&stack, 0);
+
+  // Track closest raymarch distance will let us skip nodes that are further than the closest raymarched object
+  var iterations = 0;
+  var nodeIndex = 0;
+
+  while (stack.head > 0u && iterations < MAX_STEPS) {
+    let node = bvhNodes[nodeIndex];
+    if(node.objectCount == 0){
+      nodeIndex = stack_pop(&stack);
+    }
+    // valid leaf, raymarch it
+    else if(node.objectCount == 1){
+        let leafNode = castNodeToLeafNode(node);
+        let intersection = leafBoundsIntersection(rayOrigin, rayDirection, leafNode);
+        if(intersection.isHit){
+          let voxelObject = voxelObjects[leafNode.voxelObjectIndex];
+          let shiftedRayOrigin = rayOrigin + rayDirection * (intersection.tNear + EPSILON);
+          let rayMarchResult = rayMarchTransformed(voxelObject, rayDirection, shiftedRayOrigin, 0);
+          if(rayMarchResult.hit){
+            return true;
+          }
+        }
+        nodeIndex = stack_pop(&stack);
+    }
+    else{
+      var leftDist = 0.0;
+      var rightDist = 0.0;
+      let isLeftNodeLeaf = bvhNodes[node.leftIndex].objectCount == 1;
+      let isRightNodeLeaf = bvhNodes[node.rightIndex].objectCount == 1;
+      if(isLeftNodeLeaf){
+        leftDist = leafBoundsIntersection(rayOrigin, rayDirection, castNodeToLeafNode(bvhNodes[node.leftIndex])).tNear;
+      }
+      else{
+        leftDist = getDistanceToNode(rayOrigin, rayDirection, bvhNodes[node.leftIndex]);
+      }
+      if(isRightNodeLeaf){
+        rightDist = leafBoundsIntersection(rayOrigin, rayDirection, castNodeToLeafNode(bvhNodes[node.rightIndex])).tNear;
+      }
+      else{
+        rightDist = getDistanceToNode(rayOrigin, rayDirection, bvhNodes[node.rightIndex]);
+      }
+      let hitLeft = leftDist >= 0.0;
+      let hitRight = rightDist >= 0.0;
+      if(hitLeft){
+        var nearIndex = node.leftIndex;
+        // We hit both left and right, choose the closest one
+        if(hitRight){
+          if(leftDist < rightDist){
+            // left is closer, push right to stack
+            stack_push(&stack, node.rightIndex);
+          } else {
+            // right is closer, push left to stack
+            stack_push(&stack, node.leftIndex);
+            nearIndex = node.rightIndex;
+          }
+        }
+        nodeIndex = nearIndex;
+      }
+      // We only hit the right Node
+      else if(hitRight){
+        nodeIndex = node.rightIndex;
+      }
+      // We didn't hit any node, pop the stack
+      else{
+        nodeIndex = stack_pop(&stack);
+      }
+    }
+
+    iterations += 1;
+    closestIntersection.colour += vec3<f32>(0.0075);
+  }
+
+  return false;
 }
