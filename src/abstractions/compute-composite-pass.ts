@@ -156,6 +156,15 @@ const brickBufferEntry: GPUBindGroupLayoutEntry = {
   },
 };
 
+const skyCubeTextureEntry: GPUBindGroupLayoutEntry = {
+  binding: 19,
+  visibility: GPUShaderStage.COMPUTE,
+  texture: {
+    sampleType: "float",
+    viewDimension: "cube",
+  },
+};
+
 export const baseBindGroupLayoutEntries = [
   depthEntry,
   inputTextureEntry,
@@ -175,6 +184,7 @@ export const baseBindGroupLayoutEntries = [
   worldPosEntry,
   albedoEntry,
   brickBufferEntry,
+  skyCubeTextureEntry,
 ];
 
 const NUM_THREADS_X = 8;
@@ -240,6 +250,7 @@ struct Time {
 @group(0) @binding(16) var worldPosTex : texture_2d<f32>;
 @group(0) @binding(17) var albedoTex : texture_2d<f32>;
 @group(0) @binding(18) var<storage> brickBuffer: array<Brick>;
+@group(0) @binding(19) var skyCube : texture_cube<f32>;
 
 const DOWNSCALE = ${downscale};
 ${matrices}
@@ -420,6 +431,12 @@ ${shaderCode}`;
         resource: {
           buffer: volumeAtlas.getBrickMapBuffer(),
         },
+      },
+      {
+        binding: 19,
+        resource: outputTextures.skyTexture.createView({
+          dimension: "cube",
+        }),
       },
     ];
 

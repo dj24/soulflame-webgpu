@@ -68,16 +68,23 @@ fn main(
     var inverseViewProjection = viewProjections.inverseViewProjection;
     let rayDirection = calculateRayDirection(screenUV,inverseViewProjection);
 
-
     var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(cameraPosition, 1.0)).xyz;
-    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-    let tNear = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5).tNear - 0.00001;
-    let worldPos = transformPosition(voxelObject.transform, objectRayOrigin + objectRayDirection * tNear);
 
-    let result = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);
+    let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size - vec3(1));
+
+    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+    var tNear = 0.0;
+    if(!isInBounds){
+      tNear = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5).tNear - 0.00001;
+    }
+    var worldPos = transformPosition(voxelObject.transform, objectRayOrigin + objectRayDirection * tNear);
+    var result = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);
     if(!result.hit){
       discard;
+       return output;
     }
+
+
 //    output.albedo = vec4(abs(result.worldPos) % 1.0, 1);
     output.albedo = vec4(result.colour, 1);
     output.normal = vec4(result.normal, 1);

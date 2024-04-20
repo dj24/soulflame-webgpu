@@ -31,7 +31,7 @@ fn sample_sky(rayDirection: vec3<f32>) -> vec3<f32> {
 const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const START_DISTANCE: f32 = 0.0;
 const FOG_DENSITY: f32 = 0.01;
-const NEAR: f32 = 0.5;
+const NEAR: f32 = 0.1;
 const FAR: f32 = 10000.0;
 
 @compute @workgroup_size(8, 8, 1)

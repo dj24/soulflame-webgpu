@@ -671,8 +671,9 @@ const start = async () => {
     // getVoxelLatticePass(),
     // getReflectionsPass(),
     getShadowsPass(),
-    // getLightsPass(),
     getSkyPass(),
+    // getLightsPass(),
+
     // getMotionBlurPass(),
     // getDiffusePass(),
     // getVolumetricFog(),

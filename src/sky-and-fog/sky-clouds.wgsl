@@ -314,8 +314,6 @@ fn main(
    let depthFactor = clamp(exp(-(dist - START_DISTANCE) * FOG_DENSITY), 0.0, 1.0);
    let output = vec4(mix(color,inputSample, depthFactor), 1);
    textureStore(outputTex, pixel, output);
-
-
 }
 
 fn getDebugColor(index: u32) -> vec4<f32> {

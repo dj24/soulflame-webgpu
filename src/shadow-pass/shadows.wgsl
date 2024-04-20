@@ -2,12 +2,12 @@
 
 fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>) -> bool {
 //    return rayMarchBVHCoarse(worldPos, shadowRayDirection, 100000.0);
-  return rayMarchBVHFirstHit(worldPos, shadowRayDirection, 10000.0);
+  return rayMarchBVH(worldPos, shadowRayDirection).hit;
 //  return rayMarchBVH(worldPos, shadowRayDirection).hit;
 }
 
 
-const SUN_COLOR = vec3<f32>(1.0, 0.9, 0.6);
+const SUN_COLOR = vec3<f32>(0.9);
 const MOON_COLOR = vec3<f32>(0.5, 0.5, 1.0);
 const SUBPIXEL_SAMPLE_POSITIONS: array<vec2<f32>, 8> = array<vec2<f32>, 8>(
   vec2<f32>(0.25, 0.25),
@@ -61,26 +61,20 @@ fn main(
   let uv = vec2<f32>(outputPixel) / resolution;
   var normalSample = textureLoad(normalTex, samplePixel, 0).rgb;
   var r = textureSampleLevel(blueNoiseTex, nearestSampler, blueNoiseUv, 0).xy;
-  var worldPos = textureLoad(worldPosTex, samplePixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
-//  worldPos += randomInPlanarUnitDisk(r, normalSample) * POSITION_SCATTER_AMOUNT;
   var shadowAmount = vec3(0.0);
-  let selectedLight = Light(
-                      -sunDirection,
-                      SUN_COLOR,
-                    );
-
-
-//    var shadowRayDirection = selectedLight.direction + randomInHemisphere(r, selectedLight.direction) * SCATTER_AMOUNT;
-    var shadowRayDirection = selectedLight.direction;
-
-  if(!shadowRay(worldPos, shadowRayDirection)){
-    shadowAmount += vec3(0.0);
-    let rayDirection = normalize(worldPos - cameraPosition);
-    shadowAmount += selectedLight.colour;
-    shadowAmount += blinnPhong(normalSample, shadowRayDirection, rayDirection, 0.5, 80.0, selectedLight.colour);
+  let selectedLight = Light( -sunDirection,SUN_COLOR);
+  var shadowRayDirection = selectedLight.direction;
+  var worldPos = textureLoad(worldPosTex, samplePixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
+  if(all(worldPos <= vec3(0.0))){
+    textureStore(outputTex, outputPixel, vec4(0.0));
+    return;
   }
 
-  textureStore(outputTex, outputPixel, vec4(shadowAmount, 1.0));
+//  worldPos += randomInPlanarUnitDisk(r, normalSample) * POSITION_SCATTER_AMOUNT;
+//  shadowRayDirection += randomInHemisphere(r, selectedLight.direction) * SCATTER_AMOUNT;
+  if(shadowRay(worldPos, shadowRayDirection)){
+      textureStore(outputTex, outputPixel, vec4(1.0));
+  }
 }
 
 @compute @workgroup_size(8, 8, 1)
@@ -90,28 +84,7 @@ fn composite(
   let texSize = vec2<f32>(textureDimensions(outputTex));
   let pixel = GlobalInvocationID.xy;
   let uv = (vec2<f32>(pixel) - vec2(0.5)) / texSize;
-//  let shadowAmount = 1.0 - textureSampleLevel(intermediaryTexture, linearSampler, uv, 0.0);
   let inputSample = textureLoad(albedoTex, pixel, 0);
-//  let depthRef = textureLoad(depthTex, pixel, 0).a;
-//  let normalRef = textureLoad(normalTex, pixel, 0).rgb;
-//  var total = vec3(0.0);
-//  var count = 0.0;
-//
-//  for(var i = 2; i < 3; i+= 1) {
-//    for(var j = 2; j < 3; j += 1) {
-//      let offset = vec2(f32(i), f32(j)) / texSize;
-//      let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, uv + offset, 0.0).rgb;
-////      let depthSample = textureLoad(depthTex, vec2<i32>(pixel) + vec2(i, j), 0).a;
-////      let normalSample = textureLoad(normalTex, vec2<i32>(pixel) + vec2(i, j), 0).rgb;
-//      // bilateral blur
-//      let gaussianWeight = exp(-(f32(i * i) + f32(j * j)) * 0.01);
-////      let normalDifference = dot(normalSample, normalRef);
-////      let normalWeight = 1.0 - exp(-normalDifference * normalDifference * 10.0);
-//      total += shadowSample;
-//      count += 1.0;
-//    }
-//  }
-//  total /= count;
-//  textureStore(outputTex, pixel, inputSample * vec4(total,1));
-  textureStore(outputTex, pixel, textureLoad(intermediaryTexture, pixel, 0) * inputSample);
+  let shadowSample = 1.0 - textureLoad(intermediaryTexture, pixel, 0);
+  textureStore(outputTex, pixel, shadowSample);
 }

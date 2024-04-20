@@ -1,5 +1,4 @@
 import { device, RenderArgs, RenderPass } from "../app";
-// import sky from "./sky.wgsl";
 import sky from "./sky-clouds.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
 import { createTextureFromImage } from "webgpu-utils";
