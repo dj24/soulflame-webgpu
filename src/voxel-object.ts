@@ -90,6 +90,10 @@ export class VoxelObject {
     ];
   }
 
+  get OBB() {
+    return getBoundingBox(this.objectSpaceCorners);
+  }
+
   get worldSpaceCorners() {
     return this.objectSpaceCorners.map((corner) => {
       return vec3.transformMat4(corner, this.transform);

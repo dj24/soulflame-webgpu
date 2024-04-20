@@ -2,12 +2,13 @@
 
 fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>) -> bool {
   return rayMarchBVH(worldPos, shadowRayDirection).hit;
-  //  return rayMarchTransformed(voxelObjects[0], shadowRayDirection, worldPos, 0).hit;
+//    return rayMarchTransformed(voxelObjects[0], shadowRayDirection, worldPos, 0).hit;
 }
 
 
 const SUN_COLOR = vec3<f32>(0.9);
 const MOON_COLOR = vec3<f32>(0.5, 0.5, 1.0);
+const SKY_AMBIENT_INTENSITY = 0.15;
 const SUBPIXEL_SAMPLE_POSITIONS: array<vec2<f32>, 8> = array<vec2<f32>, 8>(
   vec2<f32>(0.25, 0.25),
   vec2<f32>(0.75, 0.25),
@@ -22,8 +23,8 @@ const BLUE_NOISE_SIZE = 512;
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const SHADOW_ACNE_OFFSET: f32 = 0.005;
-const SCATTER_AMOUNT: f32 = 0.1;
-const POSITION_SCATTER_AMOUNT: f32 = 0.5;
+const SCATTER_AMOUNT: f32 = 0.05;
+const POSITION_SCATTER_AMOUNT: f32 = 0.01;
 
 fn blinnPhong(normal: vec3<f32>, lightDirection: vec3<f32>, viewDirection: vec3<f32>, specularStrength: f32, shininess: f32, lightColour: vec3<f32>) -> vec3<f32> {
   let halfDirection = normalize(lightDirection + viewDirection);
@@ -64,31 +65,66 @@ fn main(
   var shadowRayDirection = selectedLight.direction;
   var worldPos = textureLoad(worldPosTex, samplePixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
   if(all(worldPos <= vec3(0.0))){
-    textureStore(outputTex, outputPixel, vec4(0.0));
+    textureStore(outputTex, outputPixel, vec4(1.0));
     return;
   }
 
-//  worldPos += randomInPlanarUnitDisk(r, normalSample) * POSITION_SCATTER_AMOUNT;
+  worldPos += randomInPlanarUnitDisk(r, normalSample) * POSITION_SCATTER_AMOUNT;
   shadowRayDirection += randomInHemisphere(r, selectedLight.direction) * SCATTER_AMOUNT;
   if(shadowRay(worldPos, shadowRayDirection)){
       textureStore(outputTex, outputPixel, vec4(0.0));
   } else{
-      let rayDirection = normalize(worldPos - cameraPosition);
-      let reflectedRayDirection = reflect(rayDirection, normalSample);
-      let reflectance = blinnPhong(normalSample, selectedLight.direction, normalize(-worldPos), 0.5, 32.0, selectedLight.colour);
-//      let sky = textureSampleLevel(skyCube, linearSampler, reflectedRayDirection, 0.0).rgb;
-      textureStore(outputTex, outputPixel, vec4(reflectance,1.0));
+      textureStore(outputTex, outputPixel, vec4(1.0));
   }
+}
+
+const PI = 3.1415926535897932384626433832795;
+
+fn polarToCartesian(angle: f32, radius: f32) -> vec2<f32> {
+  let radians = angle * PI / 180.0;
+  let x = radius * cos(radians);
+  let y = radius * sin(radians);
+  return vec2<f32>(x, y);
 }
 
 @compute @workgroup_size(8, 8, 1)
 fn composite(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
-  let texSize = vec2<f32>(textureDimensions(outputTex));
+  let texSize = textureDimensions(outputTex);
   let pixel = GlobalInvocationID.xy;
-  let uv = (vec2<f32>(pixel) - vec2(0.5)) / texSize;
+  let uv = (vec2<f32>(pixel) - vec2(0.5)) / vec2<f32>(texSize);
   let inputSample = textureLoad(albedoTex, pixel, 0);
-  let shadowSample = textureLoad(intermediaryTexture, pixel, 0);
-  textureStore(outputTex, pixel, shadowSample * inputSample);
+  let shadowRef = textureLoad(intermediaryTexture, pixel, 0);
+  let normalRef = textureLoad(normalTex, pixel, 0).rgb;
+  let worldPosRef = textureLoad(worldPosTex, pixel, 0).rgb;
+  let distanceRef = distance(worldPosRef, cameraPosition);
+
+  var output = vec3(0.0);
+  var totalWeight = 0.0;
+  var radius = 2;
+  // Max distance the sample can be from the reference point
+  var distanceThreshold = 0.2;
+  for(var i = 0; i <= 12; i++){
+    let angle = (i % 6) * 60; // 0, 90, 180, 270
+    let radius = i;
+    let offsetPixel = vec2<i32>(pixel) + vec2<i32>(polarToCartesian(f32(angle), f32(radius)));
+    let shadowSample =  textureLoad(intermediaryTexture, offsetPixel, 0);
+    let normalSample = textureLoad(normalTex, offsetPixel, 0).rgb;
+    let worldPosSample = textureLoad(worldPosTex, offsetPixel, 0).rgb;
+    let normalWeight = dot(normalSample, normalRef);
+    let distanceSample = distance(worldPosSample, worldPosRef);
+    let distanceWeight = (1.0 - clamp(distanceSample / distanceThreshold, 0.0, 1.0));
+    let sampleWeight =  distanceWeight * normalWeight;
+    output += shadowSample.rgb * sampleWeight;
+    totalWeight+= sampleWeight;
+  }
+  output/= totalWeight;
+
+  textureStore(outputTex, pixel,vec4(output, 1));
+
+  let selectedLight = Light(sunDirection,SUN_COLOR);
+  let viewDirection = normalize(cameraPosition - worldPosRef);
+  let reflectance = blinnPhong(normalRef, selectedLight.direction, viewDirection, 0.5, 32.0, selectedLight.colour);
+//  textureStore(outputTex, pixel, vec4(output * reflectance * inputSample.rgb, 1));
 }

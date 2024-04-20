@@ -16,14 +16,13 @@ const ceilToNearestMultipleOf = (n: number, multiple: number) => {
 
 export type BoundingBox = { min: Vec3; max: Vec3 };
 
-type VoxelBrick = {
+type LeafNode = {
   AABB: BoundingBox;
   OBB: BoundingBox;
   objectIndex: number;
-  brickIndex: number;
 };
 
-const getAABB = (voxelObjects: VoxelBrick[]) => {
+const getAABB = (voxelObjects: LeafNode[]) => {
   let min = vec3.create(Infinity, Infinity, Infinity);
   let max = vec3.create(-Infinity, -Infinity, -Infinity);
   for (const { AABB } of voxelObjects) {
@@ -33,7 +32,7 @@ const getAABB = (voxelObjects: VoxelBrick[]) => {
   return { min, max };
 };
 
-const getNodeSAHCost = (voxelObjects: VoxelBrick[]) => {
+const getNodeSAHCost = (voxelObjects: LeafNode[]) => {
   const aaBB = getAABB(voxelObjects);
   const area =
     (aaBB.max[0] - aaBB.min[0]) *
@@ -45,7 +44,7 @@ const getNodeSAHCost = (voxelObjects: VoxelBrick[]) => {
 const SAH_WEIGHT = 1;
 const BALANCE_WEIGHT = 1000;
 
-const splitObjectsBySAH = (voxelObjects: VoxelBrick[]) => {
+const splitObjectsBySAH = (voxelObjects: LeafNode[]) => {
   let minCost = Infinity;
   let minIndex = -1;
   const middleIndex = Math.floor(voxelObjects.length / 2);
@@ -164,46 +163,37 @@ export const createBVH = (
 ): GPUBuffer => {
   let nodes: BVHNode[] = [];
 
-  const brickOBBs = voxelObjects.map((voxelObject) => {
-    return voxelObject.brickOBBs;
+  const allLeafNodes: LeafNode[] = voxelObjects.map((voxelObject, index) => {
+    return {
+      AABB: voxelObject.AABB,
+      objectIndex: index,
+      OBB: voxelObject.OBB,
+    };
   });
 
-  const allBricks: VoxelBrick[] = voxelObjects
-    .map((voxelObject, objectIndex) => {
-      return voxelObject.brickAABBs.map((AABB, brickIndex) => {
-        return {
-          AABB,
-          objectIndex,
-          brickIndex,
-          OBB: brickOBBs[objectIndex][brickIndex],
-        };
-      });
-    })
-    .flat();
-
-  console.log({ voxelObjects, allBricks });
+  console.log({ voxelObjects, allLeafNodes });
 
   let childIndex = 0;
-  const build = (bricks: VoxelBrick[], startIndex: number) => {
+  const build = (leafNodes: LeafNode[], startIndex: number) => {
     if (voxelObjects.length === 0) {
       return;
     }
-    const isLeaf = bricks.length === 1;
+    const isLeaf = leafNodes.length === 1;
     if (isLeaf) {
       nodes[startIndex] = {
-        leftChildIndex: bricks[0].objectIndex,
-        rightChildIndex: bricks[0].brickIndex,
+        leftChildIndex: leafNodes[0].objectIndex,
+        rightChildIndex: -1,
         objectCount: 1,
-        AABBMax: bricks[0].OBB.max,
-        AABBMin: bricks[0].OBB.min,
+        AABBMax: leafNodes[0].OBB.max,
+        AABBMin: leafNodes[0].OBB.min,
       };
       return;
     }
-    const AABB = getAABB(bricks);
+    const AABB = getAABB(leafNodes);
     let leftChildIndex = -1;
     let rightChildIndex = -1;
 
-    const { left, right } = splitObjectsBySAH(bricks);
+    const { left, right } = splitObjectsBySAH(leafNodes);
 
     if (left.length > 0) {
       leftChildIndex = ++childIndex;
@@ -217,7 +207,7 @@ export const createBVH = (
     nodes[startIndex] = {
       leftChildIndex,
       rightChildIndex,
-      objectCount: bricks.length,
+      objectCount: leafNodes.length,
       AABBMax: AABB.max,
       AABBMin: AABB.min,
     };
@@ -264,7 +254,7 @@ export const createBVH = (
   };
 
   const start = performance.now();
-  build(allBricks, 0);
+  build(allLeafNodes, 0);
   const end = performance.now();
   frameTimeTracker.addSample("create bvh", end - start);
 

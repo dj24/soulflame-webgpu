@@ -145,9 +145,9 @@ fn main(
   var closestIntersection = RayMarchResult();
 
   let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
-  if(bvhResult.hit){
+//  if(bvhResult.hit){
     closestIntersection = bvhResult;
-  }
+//  }
 
   let normal = closestIntersection.normal;
   let depth = distance(cameraPosition, closestIntersection.worldPos);
