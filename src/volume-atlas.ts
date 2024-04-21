@@ -2,6 +2,7 @@ import { vec3, Vec3 } from "wgpu-matrix";
 import { createBrickMapFromTexture } from "./create-brickmap/create-brick-map-from-texture";
 import { BrickMap } from "./create-brickmap/create-brick-map-from-voxels";
 import { writeTextureToCanvas } from "./write-texture-to-canvas";
+import { flatten3dTexture } from "./flatten-3d-texture";
 
 const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
   format: "rgba8unorm",
@@ -200,38 +201,39 @@ export const getVolumeAtlas = async (
     await device.queue.onSubmittedWorkDone();
 
     // Draw to debug canvas
-    const zSliceTexture = device.createTexture({
-      size: {
-        width: newAtlasTexture.width,
-        height: newAtlasTexture.height,
-        depthOrArrayLayers: 1,
-      },
-      format: "rgba8unorm",
-      usage:
-        GPUTextureUsage.COPY_DST |
-        GPUTextureUsage.RENDER_ATTACHMENT |
-        GPUTextureUsage.TEXTURE_BINDING,
-    });
-    const commandEncoder2 = device.createCommandEncoder();
-    commandEncoder2.copyTextureToTexture(
-      {
-        texture: newAtlasTexture,
-        mipLevel: 0,
-        origin: { x: 0, y: 0, z: newAtlasTexture.depthOrArrayLayers / 2 },
-      },
-      {
-        texture: zSliceTexture,
-        mipLevel: 0,
-        origin: { x: 0, y: 0, z: 0 },
-      },
-      {
-        width: newAtlasTexture.width,
-        height: newAtlasTexture.height,
-        depthOrArrayLayers: 1,
-      },
-    );
-    device.queue.submit([commandEncoder2.finish()]);
-    await device.queue.onSubmittedWorkDone();
+    // const zSliceTexture = device.createTexture({
+    //   size: {
+    //     width: newAtlasTexture.width,
+    //     height: newAtlasTexture.height,
+    //     depthOrArrayLayers: 1,
+    //   },
+    //   format: "rgba8unorm",
+    //   usage:
+    //     GPUTextureUsage.COPY_DST |
+    //     GPUTextureUsage.RENDER_ATTACHMENT |
+    //     GPUTextureUsage.TEXTURE_BINDING,
+    // });
+    // const commandEncoder2 = device.createCommandEncoder();
+    // commandEncoder2.copyTextureToTexture(
+    //   {
+    //     texture: newAtlasTexture,
+    //     mipLevel: 0,
+    //     origin: { x: 0, y: 0, z: newAtlasTexture.depthOrArrayLayers / 2 },
+    //   },
+    //   {
+    //     texture: zSliceTexture,
+    //     mipLevel: 0,
+    //     origin: { x: 0, y: 0, z: 0 },
+    //   },
+    //   {
+    //     width: newAtlasTexture.width,
+    //     height: newAtlasTexture.height,
+    //     depthOrArrayLayers: 1,
+    //   },
+    // );
+    // device.queue.submit([commandEncoder2.finish()]);
+    // await device.queue.onSubmittedWorkDone();
+    const zSliceTexture = await flatten3dTexture(device, newAtlasTexture);
     writeTextureToCanvas(device, "debug-canvas", zSliceTexture);
   };
 

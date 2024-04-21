@@ -1,5 +1,5 @@
 import { Vec3 } from "wgpu-matrix";
-import generateMips from "./generate-octree.wgsl";
+import generateMips from "./generate-octree.compute.wgsl";
 
 export const nextPowerOf2 = (n: number) => {
   return Math.pow(2, Math.ceil(Math.log2(n)));

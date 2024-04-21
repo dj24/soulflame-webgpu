@@ -1,4 +1,4 @@
-import computeBrickmap from "./brickmap.wgsl";
+import computeBrickmap from "./brickmap.compute.wgsl";
 import { TVoxels } from "../convert-vxm";
 import { writeToUniformBuffer } from "../buffer-utils";
 

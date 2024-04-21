@@ -1,4 +1,4 @@
-import removeInternalVoxelsCompute from "./remove-internal-voxels.wgsl";
+import removeInternalVoxelsCompute from "./remove-internal-voxels.compute.wgsl";
 
 export const removeInternalVoxels = (
   commandEncoder: GPUCommandEncoder,

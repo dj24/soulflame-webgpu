@@ -1,5 +1,5 @@
 import { numMipLevels } from "webgpu-utils";
-import generateMips from "./generate-mips.wgsl";
+import generateMips from "./generate-mips.compute.wgsl";
 
 export const generateOctreeMips = (
   commandEncoder: GPUCommandEncoder,

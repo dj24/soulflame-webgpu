@@ -3,7 +3,7 @@ import {
   writeToFloatUniformBuffer,
   writeToUniformBuffer,
 } from "../buffer-utils";
-import createTextureFromVoxelsCompute from "./create-texture-from-voxels.wgsl";
+import createTextureFromVoxelsCompute from "./create-texture-from-voxels.compute.wgsl";
 
 type CreateTextureFromVoxels = {
   commandBuffer: GPUCommandBuffer;
