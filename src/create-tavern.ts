@@ -29,7 +29,7 @@ type TSceneDefinition = {
 };
 
 const NAME_ALLOWLIST = [
-  // "monu10",
+  "monu10",
   "Dragon",
   // "sponza-small",
   // "Sponza",

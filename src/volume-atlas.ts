@@ -1,6 +1,7 @@
 import { vec3, Vec3 } from "wgpu-matrix";
 import { createBrickMapFromTexture } from "./create-brickmap/create-brick-map-from-texture";
 import { BrickMap } from "./create-brickmap/create-brick-map-from-voxels";
+import { writeTextureToCanvas } from "./write-texture-to-canvas";
 
 const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
   format: "rgba8unorm",
@@ -194,44 +195,44 @@ export const getVolumeAtlas = async (
       brickMap,
     };
 
-    // Get all the bricks in array form
-    const brickArray = Object.values(brickMap);
-
-    // Calculate the total number of array items (32-bit integers) in the brick map
-    const totalArrayItems = brickArray.reduce(
-      (acc, brick) => acc + brick.length,
-      0,
-    );
-
-    // Create a new GPU buffer to hold the expanded brick map
-    const newBrickMapBuffer = device.createBuffer({
-      size:
-        brickMapBuffer.size + totalArrayItems * Uint32Array.BYTES_PER_ELEMENT,
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE,
-    });
-
-    // Copy the old brick map into the new buffer
-    commandEncoder.copyBufferToBuffer(
-      brickMapBuffer,
-      0, // source offset
-      newBrickMapBuffer,
-      0, // destination offset
-      brickMapBuffer.size,
-    );
-
     // Prevents race condition between the copy and the write
     device.queue.submit([commandEncoder.finish()]);
     await device.queue.onSubmittedWorkDone();
 
-    // Set the bricks in the new buffer
-    brickArray.forEach((brick, i) => {
-      device.queue.writeBuffer(newBrickMapBuffer, i * brick.byteLength, brick);
+    // Draw to debug canvas
+    const zSliceTexture = device.createTexture({
+      size: {
+        width: newAtlasTexture.width,
+        height: newAtlasTexture.height,
+        depthOrArrayLayers: 1,
+      },
+      format: "rgba8unorm",
+      usage:
+        GPUTextureUsage.COPY_DST |
+        GPUTextureUsage.RENDER_ATTACHMENT |
+        GPUTextureUsage.TEXTURE_BINDING,
     });
-
+    const commandEncoder2 = device.createCommandEncoder();
+    commandEncoder2.copyTextureToTexture(
+      {
+        texture: newAtlasTexture,
+        mipLevel: 0,
+        origin: { x: 0, y: 0, z: newAtlasTexture.depthOrArrayLayers / 2 },
+      },
+      {
+        texture: zSliceTexture,
+        mipLevel: 0,
+        origin: { x: 0, y: 0, z: 0 },
+      },
+      {
+        width: newAtlasTexture.width,
+        height: newAtlasTexture.height,
+        depthOrArrayLayers: 1,
+      },
+    );
+    device.queue.submit([commandEncoder2.finish()]);
     await device.queue.onSubmittedWorkDone();
-
-    // Reassign the brick map buffer to the new buffer
-    brickMapBuffer = newBrickMapBuffer;
+    writeTextureToCanvas(device, "debug-canvas", zSliceTexture);
   };
 
   /**

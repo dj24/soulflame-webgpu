@@ -69,7 +69,7 @@ fn main(
     return;
   }
 
-  worldPos += randomInPlanarUnitDisk(r, normalSample) * POSITION_SCATTER_AMOUNT;
+//  worldPos += randomInPlanarUnitDisk(r, normalSample) * POSITION_SCATTER_AMOUNT;
   shadowRayDirection += randomInHemisphere(r, selectedLight.direction) * SCATTER_AMOUNT;
   if(shadowRay(worldPos, shadowRayDirection)){
       textureStore(outputTex, outputPixel, vec4(0.0));
@@ -126,5 +126,5 @@ fn composite(
   let selectedLight = Light(sunDirection,SUN_COLOR);
   let viewDirection = normalize(cameraPosition - worldPosRef);
   let reflectance = blinnPhong(normalRef, selectedLight.direction, viewDirection, 0.5, 32.0, selectedLight.colour);
-//  textureStore(outputTex, pixel, vec4(output * reflectance * inputSample.rgb, 1));
+  textureStore(outputTex, pixel, vec4(output * reflectance * inputSample.rgb, 1));
 }

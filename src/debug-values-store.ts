@@ -23,8 +23,8 @@ export class DebugValuesStore {
     this.targetTranslateX = 0;
     this.rotateY = 0;
     this.targetRotateY = 0;
-    this.sunRotateY = 2.6;
-    this.targetSunRotateY = 2.6;
+    this.sunRotateY = 0.6;
+    this.targetSunRotateY = 0.6;
   }
 
   update() {

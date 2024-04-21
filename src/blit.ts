@@ -44,7 +44,7 @@ export const blit = (device: GPUDevice) => {
     });
     renderPass.setPipeline(renderPipeline);
     renderPass.setBindGroup(0, bindGroup);
-    renderPass.draw(0);
+    renderPass.draw(6);
     renderPass.end();
   };
   return render;
