@@ -11,6 +11,19 @@ body{
     transform-origin: top left;
 }
 
+#debug-canvas {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    left: 0;
+    height: 240px;
+    background: rgba(30, 30, 30, 0.6);
+    backdrop-filter: blur(32px);
+    z-index: 100;
+    /*transform: scale(2);*/
+    transform-origin: bottom left;
+}
+
 .overlay {
     position: absolute;
     top: 0;
