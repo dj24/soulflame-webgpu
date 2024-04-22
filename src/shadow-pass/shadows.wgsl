@@ -8,7 +8,7 @@ fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>) -> bool {
 
 const SUN_COLOR = vec3<f32>(0.9);
 const MOON_COLOR = vec3<f32>(0.5, 0.5, 1.0);
-const SKY_AMBIENT_INTENSITY = 0.15;
+const SKY_AMBIENT_INTENSITY = 0.1;
 const SUBPIXEL_SAMPLE_POSITIONS: array<vec2<f32>, 8> = array<vec2<f32>, 8>(
   vec2<f32>(0.25, 0.25),
   vec2<f32>(0.75, 0.25),
@@ -121,7 +121,7 @@ fn composite(
   }
   output/= totalWeight;
 
-  textureStore(outputTex, pixel,vec4(output, 1));
+//  textureStore(outputTex, pixel,vec4(output, 1));
 
   let selectedLight = Light(sunDirection,SUN_COLOR);
   let viewDirection = normalize(cameraPosition - worldPosRef);

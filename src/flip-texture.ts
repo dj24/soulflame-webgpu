@@ -1,33 +1,25 @@
-export const flatten3dTexture = async (
+export const flipTexture = async (
   device: GPUDevice,
   texture: GPUTexture,
 ): Promise<GPUTexture> => {
   const { width, height, depthOrArrayLayers } = texture;
-  const textureFormat = texture.format;
-
   const stagingTexture = device.createTexture({
     size: { width, height, depthOrArrayLayers: 1 },
-    format: textureFormat,
+    format: texture.format,
     usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
   });
 
   const computeShaderModule = device.createShaderModule({
     code: `
-      @group(0) @binding(0) var voxels : texture_3d<f32>;
+      @group(0) @binding(0) var inputTex : texture_2d<f32>;
       @group(0) @binding(1) var outputTex : texture_storage_2d<rgba8unorm, write>;
 
       @compute @workgroup_size(8, 8, 1)
       fn main(
        @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
       ) {
-        let textureSize = textureDimensions(voxels);
-        for (var z = 0u; z < textureSize.z; z++) {
-          let texel = textureLoad(voxels, vec3(GlobalInvocationID.xy, z), 0);
-          if(texel.a > 0.0) {
-            textureStore(outputTex, vec2(GlobalInvocationID.xy), texel);
-            return;
-          }
-        }
+        let textureSize = textureDimensions(inputTex);
+        textureStore(outputTex, vec2(GlobalInvocationID.x, textureSize.y - GlobalInvocationID.y), textureLoad(inputTex, GlobalInvocationID.xy, 0));
       }
     `,
   });

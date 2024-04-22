@@ -87,11 +87,12 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     },
   };
 
-  const brickMapBufferEntry: GPUBindGroupLayoutEntry = {
+  const worldPosTextureEntry: GPUBindGroupLayoutEntry = {
     binding: 11,
     visibility: GPUShaderStage.COMPUTE,
-    buffer: {
-      type: "read-only-storage",
+    storageTexture: {
+      format: "rgba32float",
+      viewDimension: "2d",
     },
   };
 
@@ -126,7 +127,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       },
       sunDirectionEntry,
       bvhBufferEntry,
-      brickMapBufferEntry,
+      worldPosTextureEntry,
     ],
   });
 
@@ -141,9 +142,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
             count: atomic<u32>
           };
           @group(0) @binding(10) var<storage> bvhNodes: array<BVHNode>;
-          @group(0) @binding(11) var<storage> brickBuffer: array<Brick>;
-          @group(0) @binding(12) var<storage, read_write> groupsToFullyTrace: array<vec2<u32>>;
-          @group(0) @binding(13) var<storage, read_write> indirectArgs: IndirectArgs;
           ${getRayDirection}
           ${boxIntersection}
           ${raymarchVoxels}
@@ -221,9 +219,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 11,
-          resource: {
-            buffer: volumeAtlas.getBrickMapBuffer(),
-          },
+          resource: outputTextures.worldPositionTexture.createView(),
         },
       ],
     });

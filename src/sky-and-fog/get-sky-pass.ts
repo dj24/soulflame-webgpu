@@ -1,5 +1,6 @@
 import { device, RenderArgs, RenderPass } from "../app";
 import sky from "./sky-clouds.wgsl";
+import randomCommon from "../random-common.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
 import { createTextureFromImage } from "webgpu-utils";
 
@@ -137,7 +138,7 @@ export const getSkyPass = async (): Promise<RenderPass> => {
     }),
     compute: {
       module: device.createShaderModule({
-        code: `${getRayDirection}${sky}`,
+        code: `${randomCommon}${getRayDirection}${sky}`,
       }),
       entryPoint: "main",
     },
@@ -149,7 +150,7 @@ export const getSkyPass = async (): Promise<RenderPass> => {
     }),
     compute: {
       module: device.createShaderModule({
-        code: `${getRayDirection}${sky}`,
+        code: `${randomCommon}${getRayDirection}${sky}`,
       }),
       entryPoint: "writeToCube",
     },
@@ -177,7 +178,7 @@ export const getSkyPass = async (): Promise<RenderPass> => {
   );
 
   const lastSkyTexture = device.createTexture({
-    size: [512, 512, 6],
+    size: [768, 768, 6],
     format: "rgba8unorm",
     usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
   });

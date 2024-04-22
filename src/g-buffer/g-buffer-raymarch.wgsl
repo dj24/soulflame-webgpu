@@ -18,6 +18,7 @@ struct ViewProjectionMatrices {
 @group(0) @binding(7) var velocityTex : texture_storage_2d<rgba16float, write>;
 @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;
 @group(0) @binding(9) var<uniform> sunDirection : vec3<f32>;
+@group(0) @binding(11) var worldPosTex : texture_storage_2d<rgba32float, write>;
 
 
 fn plainIntersect(ro: vec3<f32>, rd: vec3<f32>, p: vec4<f32>) -> f32 {
@@ -158,4 +159,5 @@ fn main(
   textureStore(albedoTex, pixel, vec4(albedo, 1));
   textureStore(normalTex, pixel, vec4(normal,1));
   textureStore(velocityTex, pixel, vec4(velocity ,0));
+  textureStore(worldPosTex, pixel, vec4(worldPos, 1));
 }

@@ -3,6 +3,7 @@ import { createBrickMapFromTexture } from "./create-brickmap/create-brick-map-fr
 import { BrickMap } from "./create-brickmap/create-brick-map-from-voxels";
 import { writeTextureToCanvas } from "./write-texture-to-canvas";
 import { flatten3dTexture } from "./flatten-3d-texture";
+import { flipTexture } from "./flip-texture";
 
 const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
   format: "rgba8unorm",
@@ -233,7 +234,10 @@ export const getVolumeAtlas = async (
     // );
     // device.queue.submit([commandEncoder2.finish()]);
     // await device.queue.onSubmittedWorkDone();
-    const zSliceTexture = await flatten3dTexture(device, newAtlasTexture);
+    const zSliceTexture = await flipTexture(
+      device,
+      await flatten3dTexture(device, newAtlasTexture),
+    );
     writeTextureToCanvas(device, "debug-canvas", zSliceTexture);
   };
 
