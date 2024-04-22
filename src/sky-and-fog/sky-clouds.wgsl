@@ -25,9 +25,11 @@ const MAX_DISTANCE = 10000.0;
 @group(0) @binding(7) var pebbleTex : texture_2d<f32>;
 @group(0) @binding(8) var linearSampler : sampler;
 @group(0) @binding(9) var<uniform> cameraPosition : vec3<f32>;
+@group(0) @binding(10) var worldPosTex : texture_2d<f32>;
 @group(1) @binding(1) var skyCube : texture_cube<f32>;
 @group(1) @binding(2) var skyCubeWrite : texture_storage_2d_array<rgba8unorm, write>;
 @group(1) @binding(3) var lastSkyCube : texture_2d_array<f32>;
+
 
 
 // Noise generation functions (by iq)
@@ -234,7 +236,7 @@ fn skyRay(org: vec3<f32>, dir: vec3<f32>,sun_direction: vec3<f32>) -> vec3<f32>
 
   let pC = org + intersectSphere(org, dir, vec3(0.0, -EARTH_RADIUS, 0.0), ATM_END+1000.0)*dir;
   // high clouds
-  //color += T*vec3(3.0)*max(0.0, fbm(vec3(1.0, 1.0, 1.8)*pC*0.002) - 0.4);
+  color += T*vec3(3.0)*max(0.0, fbm(vec3(1.0, 1.0, 1.8)*pC*0.002) - 0.4);
 
 	var background = 6.0*mix(vec3(0.2, 0.52, 1.0), vec3(0.8, 0.95, 1.0), pow(0.5+0.5*mu, 15.0))+mix(vec3(3.5), vec3(0.0), min(1.0, 2.3*dir.y));
   background += T*vec3(1e4*smoothstep(0.9998, 1.0, mu));
@@ -343,12 +345,12 @@ fn main(
 
     var color = sky;
 
-   let depthSample = textureLoad(depth, pixel, 0).r;
-   let inputSample = textureLoad(inputTex, pixel, 0).rgb;
-   let dist = NEAR * FAR / (FAR - depthSample * (FAR - NEAR));
-   let depthFactor = clamp(exp(-(dist - START_DISTANCE) * FOG_DENSITY), 0.0, 1.0);
-   let output = vec4(mix(color,inputSample, depthFactor), 1);
-   textureStore(outputTex, pixel, output);
+    if(all(textureLoad(worldPosTex, pixel, 0).rgb < vec3(0.00001))){
+      let output = vec4(color, 1);
+      textureStore(outputTex, pixel, output);
+      return;
+    }
+
 }
 
 fn getDebugColor(index: u32) -> vec4<f32> {

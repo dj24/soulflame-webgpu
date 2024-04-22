@@ -109,6 +109,14 @@ export const getSkyPass = async (): Promise<RenderPass> => {
     },
   };
 
+  const worldPosTextureEntry: GPUBindGroupLayoutEntry = {
+    binding: 10,
+    visibility: GPUShaderStage.COMPUTE,
+    texture: {
+      sampleType: "unfilterable-float",
+    },
+  };
+
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
       depthEntry,
@@ -121,6 +129,7 @@ export const getSkyPass = async (): Promise<RenderPass> => {
       pebbleTextureEntry,
       linearSamplerEntry,
       cameraPositionEntry,
+      worldPosTextureEntry,
     ],
   });
 
@@ -266,6 +275,10 @@ export const getSkyPass = async (): Promise<RenderPass> => {
           resource: {
             buffer: cameraPositionBuffer,
           },
+        },
+        {
+          binding: 10,
+          resource: outputTextures.worldPositionTexture.createView(),
         },
       ],
     });

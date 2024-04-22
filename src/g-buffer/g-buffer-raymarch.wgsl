@@ -14,7 +14,7 @@ struct ViewProjectionMatrices {
 @group(0) @binding(4) var normalTex : texture_storage_2d<rgba16float, write>;
 @group(0) @binding(5) var albedoTex : texture_storage_2d<rgba8unorm, write>;
 //@group(0) @binding(6) var depthRead : texture_2d<f32>;
-//@group(0) @binding(6) var depthWrite : texture_storage_2d<rgba32float, write>;
+@group(0) @binding(6) var depthWrite : texture_storage_2d<rgba32float, write>;
 @group(0) @binding(7) var velocityTex : texture_storage_2d<rgba16float, write>;
 @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;
 @group(0) @binding(9) var<uniform> sunDirection : vec3<f32>;
@@ -146,9 +146,15 @@ fn main(
   var closestIntersection = RayMarchResult();
 
   let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
-  if(bvhResult.hit){
-    closestIntersection = bvhResult;
+  if(!bvhResult.hit){
+    textureStore(albedoTex, pixel, vec4(0));
+    textureStore(normalTex, pixel, vec4(0));
+    textureStore(velocityTex, pixel, vec4(0));
+    textureStore(worldPosTex, pixel, vec4(0));
+    return;
   }
+  closestIntersection = bvhResult;
+
 
   let normal = closestIntersection.normal;
   let depth = distance(cameraPosition, closestIntersection.worldPos);

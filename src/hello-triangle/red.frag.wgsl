@@ -81,11 +81,10 @@ fn main(
     var result = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);
     if(!result.hit){
       discard;
-       return output;
+      return output;
     }
 
 
-//    output.albedo = vec4(abs(result.worldPos) % 1.0, 1);
     output.albedo = vec4(result.colour, 1);
     output.normal = vec4(result.normal, 1);
     output.worldPosition = vec4(result.worldPos, 1);
@@ -97,6 +96,5 @@ fn main(
     let far = 10000.0;
     let linearDepth = normaliseValue(near, far, raymarchedDistance);
     output.depth = linearDepth;
-//    output.albedo = vec4(output.normal);
     return output;
 }
