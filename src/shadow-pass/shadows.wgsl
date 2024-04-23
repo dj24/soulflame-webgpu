@@ -60,10 +60,11 @@ fn main(
     return;
   }
 
-  var blueNoisePixel = outputPixel % BLUE_NOISE_SIZE;
+  var blueNoisePixel = vec2(outputPixel.x + time.frame * 32, outputPixel.y + time.frame * 16) % BLUE_NOISE_SIZE;
   if(time.frame % 2 == 0){
-    blueNoisePixel.x = BLUE_NOISE_SIZE - blueNoisePixel.x;
+    blueNoisePixel.y = BLUE_NOISE_SIZE - blueNoisePixel.y;
   }
+
   var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).xy;
   let selectedLight = Light(sunDirection,SUN_COLOR);
   var shadowRayDirection = selectedLight.direction;
@@ -102,20 +103,17 @@ fn composite(
 
   var output = vec3(0.0);
   var totalWeight = 0.0;
-  // Max distance the sample can be from the reference point
-  var maxDistanceToRefRatio = 0.001;
-  for(var i = 0; i <= 12; i++){
+  for(var i = 0; i <= 6; i++){
     let angle = i * 60; // 0, 90, 180, 270
-    let radius = (i+2) / 3;
+    let radius = (i+1) / 2;
     let offsetPixel = vec2<i32>(pixel) + vec2<i32>(polarToCartesian(f32(angle), f32(radius)));
     let shadowSample =  textureLoad(intermediaryTexture, offsetPixel, 0);
     let normalSample = textureLoad(normalTex, offsetPixel, 0).rgb;
     let worldPosSample = textureLoad(worldPosTex, offsetPixel, 0).rgb;
     let normalWeight = select(0.0, 1.0, dot(normalSample, normalRef) > 0.99);
     let distanceSample = distance(worldPosSample, cameraPosition);
-    let distanceSampleToRefRatio = abs(distanceSample / distanceRef);
-    let normalisedDistanceDifference = clamp((distanceSampleToRefRatio - maxDistanceToRefRatio), 0.0, maxDistanceToRefRatio) / maxDistanceToRefRatio;
-    let distanceWeight = normalisedDistanceDifference;
+    let distanceDifference = distanceSample / distanceRef;
+    let distanceWeight = select(0.0, 1.0, distanceDifference < 2.0);
     let sampleWeight =   distanceWeight * normalWeight;
     output += shadowSample.rgb * sampleWeight;
     totalWeight+= sampleWeight;

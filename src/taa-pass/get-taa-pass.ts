@@ -1,4 +1,4 @@
-import taa from "./taa.wgsl";
+import taa from "./taa.compute.wgsl";
 import { device, RenderArgs, RenderPass, resolution } from "../app";
 
 const downscaleFactor = 1;
@@ -10,6 +10,7 @@ export const getTaaPass = async (): Promise<RenderPass> => {
   const createHistoryTextureView = () => {
     if (!historyTexture) {
       historyTexture = device.createTexture({
+        label: "TAA History Texture",
         size: [resolution[0], resolution[1], 1],
         format: "rgba8unorm",
         usage:

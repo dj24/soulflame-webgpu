@@ -676,7 +676,7 @@ const start = async () => {
     // getMotionBlurPass(),
     // getDiffusePass(),
     // getVolumetricFog(),
-    // getTaaPass(),
+    getTaaPass(),
     getBoxOutlinePass(),
     // getWaterPass(),
 
