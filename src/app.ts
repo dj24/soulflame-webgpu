@@ -31,6 +31,7 @@ import { getTaaPass } from "./taa-pass/get-taa-pass";
 import { getReflectionsPass } from "./reflections-pass/get-reflections-pass";
 import { getLightsPass, Light } from "./lights-pass/get-lights-pass";
 import { getVoxelLatticePass } from "./voxel-lattice/get-voxel-lattice-pass";
+import { getFXAAPass } from "./fxaa-pass/fxaa-pass";
 
 export type RenderArgs = {
   enabled?: boolean;
@@ -72,8 +73,9 @@ const startingCameraFieldOfView = 90 * (Math.PI / 180);
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
   // position: vec3.create(-25, 10, -70),
-  position: vec3.create(-31, 6, -50),
-  direction: vec3.create(0.0, 0, -0.5),
+  // position: vec3.create(-31, 6, -50),
+  position: vec3.create(-23, 6, -45),
+  direction: vec3.create(-0.5, 0, -0.5),
 });
 
 const debugUI = new DebugUI();
@@ -667,7 +669,7 @@ const start = async () => {
   const computePassPromises: Promise<RenderPass>[] = [
     // fullscreenQuad(device),
     getHelloTrianglePass(),
-    getGBufferPass(),
+    // getGBufferPass(),
     // getVoxelLatticePass(),
     // getReflectionsPass(),
     getShadowsPass(),
@@ -676,6 +678,7 @@ const start = async () => {
     // getMotionBlurPass(),
     // getDiffusePass(),
     // getVolumetricFog(),
+    getFXAAPass(),
     getTaaPass(),
     getBoxOutlinePass(),
     // getWaterPass(),

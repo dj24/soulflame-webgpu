@@ -19,7 +19,7 @@ const SUBPIXEL_SAMPLE_POSITIONS: array<vec2<f32>, 8> = array<vec2<f32>, 8>(
   vec2<f32>(0.625, 0.125),
   vec2<f32>(0.875, 0.125)
 );
-const BLUE_NOISE_SIZE = 512;
+const BLUE_NOISE_SIZE = 511;
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const SHADOW_ACNE_OFFSET: f32 = 0.005;
@@ -44,12 +44,22 @@ fn remapToSampleIndex(blueNoiseValue: f32, numSamples: u32) -> u32 {
     return u32(blueNoiseValue * f32(numSamples));
 }
 
-
+fn randomInCosineWeightedHemisphere(r: vec2<f32>, normal: vec3<f32>) -> vec3<f32> {
+  let r1 = 2.0 * PI * r.x;
+  let r2 = r.y;
+  let r2s = sqrt(r2);
+  let w = normal;
+  let u = normalize(cross((select(vec3<f32>(1.0, 0.0, 0.0), vec3<f32>(0.0, 1.0, 0.0),abs(w.x) > 0.1)), w));
+  let v = cross(w, u);
+  return normalize(u * cos(r1) * r2s + v * sin(r1) * r2s + w * sqrt(1.0 - r2));
+}
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
+  let texSize = textureDimensions(outputTex);
+  let uv = (vec2<f32>(GlobalInvocationID.xy) - vec2(0.5)) / vec2<f32>(texSize);
   let samplePixel = GlobalInvocationID.xy * DOWNSCALE;
   let outputPixel = GlobalInvocationID.xy;
   var normalSample = textureLoad(normalTex, samplePixel, 0).rgb;
@@ -64,13 +74,14 @@ fn main(
   if(time.frame % 2 == 0){
     blueNoisePixel.y = BLUE_NOISE_SIZE - blueNoisePixel.y;
   }
+  if(time.frame % 3 == 0){
+    blueNoisePixel.x = BLUE_NOISE_SIZE - blueNoisePixel.x;
+  }
 
   var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).xy;
   let selectedLight = Light(sunDirection,SUN_COLOR);
-  var shadowRayDirection = selectedLight.direction;
-//  worldPos += randomInPlanarUnitDisk(r, normalSample) * POSITION_SCATTER_AMOUNT;
-//  shadowRayDirection += randomInHemisphere(r, selectedLight.direction) * SCATTER_AMOUNT;
-  shadowRayDirection = randomInHemisphere(r, normalSample);
+  var shadowRayDirection = randomInCosineWeightedHemisphere(r, normalSample);
+
   if(shadowRay(worldPos, shadowRayDirection)){
       textureStore(outputTex, outputPixel, vec4(0.0));
   } else{
@@ -88,6 +99,8 @@ fn polarToCartesian(angle: f32, radius: f32) -> vec2<f32> {
   return vec2<f32>(x, y);
 }
 
+const DISTANCE_IMPORTANCE =0.5;
+
 @compute @workgroup_size(8, 8, 1)
 fn composite(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
@@ -103,27 +116,21 @@ fn composite(
 
   var output = vec3(0.0);
   var totalWeight = 0.0;
-  for(var i = 0; i <= 6; i++){
-    let angle = i * 60; // 0, 90, 180, 270
-    let radius = (i+1) / 2;
+  for(var i = 0; i <= 8; i++){
+    let angle = i * 30; // 0, 90, 180, 270
+    let radius = (i + 3) / 4;
     let offsetPixel = vec2<i32>(pixel) + vec2<i32>(polarToCartesian(f32(angle), f32(radius)));
     let shadowSample =  textureLoad(intermediaryTexture, offsetPixel, 0);
     let normalSample = textureLoad(normalTex, offsetPixel, 0).rgb;
     let worldPosSample = textureLoad(worldPosTex, offsetPixel, 0).rgb;
     let normalWeight = select(0.0, 1.0, dot(normalSample, normalRef) > 0.99);
-    let distanceSample = distance(worldPosSample, cameraPosition);
-    let distanceDifference = distanceSample / distanceRef;
-    let distanceWeight = select(0.0, 1.0, distanceDifference < 2.0);
+    let distanceWeight = 1.0 - clamp(distance(worldPosRef, worldPosSample) * DISTANCE_IMPORTANCE,0.0,1.0);
     let sampleWeight =   distanceWeight * normalWeight;
     output += shadowSample.rgb * sampleWeight;
     totalWeight+= sampleWeight;
   }
   output/= totalWeight;
 
-  textureStore(outputTex, pixel,shadowRef * albedoSample);
-
-  let selectedLight = Light(sunDirection,SUN_COLOR);
-  let viewDirection = normalize(cameraPosition - worldPosRef);
-  let reflectance = blinnPhong(normalRef, selectedLight.direction, viewDirection, 0.0, 32.0, selectedLight.colour);
-//  textureStore(outputTex, pixel, vec4(output * albedoSample.rgb, 1));
+//  textureStore(outputTex, pixel,shadowRef);
+    textureStore(outputTex, pixel, vec4(output * albedoSample.rgb, 1));
 }

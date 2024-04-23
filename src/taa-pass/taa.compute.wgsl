@@ -60,7 +60,7 @@ fn main(
 
     historySample = clamp(historySample, minCol, maxCol);
 
-    var sourceWeight: f32 = 0.05;
+    var sourceWeight: f32 = 0.1;
     var historyWeight: f32 = 1.0 - sourceWeight;
     let compressedSource: vec3<f32> = sourceSample * rcp(max(max(sourceSample.r, sourceSample.g), sourceSample.b) + 1.0);
     let compressedHistory: vec3<f32> = historySample * rcp(max(max(historySample.r, historySample.g), historySample.b) + 1.0);
