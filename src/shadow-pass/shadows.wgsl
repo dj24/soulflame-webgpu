@@ -52,29 +52,29 @@ fn main(
 ) {
   let samplePixel = GlobalInvocationID.xy * DOWNSCALE;
   let outputPixel = GlobalInvocationID.xy;
-  var blueNoisePixel = outputPixel % BLUE_NOISE_SIZE;
-  if(time.frame % 2 == 0){
-    blueNoisePixel.x = BLUE_NOISE_SIZE - blueNoisePixel.x;
-  }
-  let blueNoiseUv = vec2<f32>(blueNoisePixel) / vec2<f32>(BLUE_NOISE_SIZE);
-  let resolution = vec2<f32>(textureDimensions(depthTex));
-  let uv = vec2<f32>(outputPixel) / resolution;
   var normalSample = textureLoad(normalTex, samplePixel, 0).rgb;
-  var r = textureSampleLevel(blueNoiseTex, nearestSampler, blueNoiseUv, 0).xy;
-  let selectedLight = Light(sunDirection,SUN_COLOR);
-  var shadowRayDirection = selectedLight.direction;
+
   var worldPos = textureLoad(worldPosTex, samplePixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
   if(all(worldPos <= vec3(0.0))){
     textureStore(outputTex, outputPixel, vec4(1.0));
     return;
   }
 
+  var blueNoisePixel = outputPixel % BLUE_NOISE_SIZE;
+  if(time.frame % 2 == 0){
+    blueNoisePixel.x = BLUE_NOISE_SIZE - blueNoisePixel.x;
+  }
+  var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).xy;
+  let selectedLight = Light(sunDirection,SUN_COLOR);
+  var shadowRayDirection = selectedLight.direction;
 //  worldPos += randomInPlanarUnitDisk(r, normalSample) * POSITION_SCATTER_AMOUNT;
-  shadowRayDirection += randomInHemisphere(r, selectedLight.direction) * SCATTER_AMOUNT;
+//  shadowRayDirection += randomInHemisphere(r, selectedLight.direction) * SCATTER_AMOUNT;
+  shadowRayDirection = randomInHemisphere(r, normalSample);
   if(shadowRay(worldPos, shadowRayDirection)){
       textureStore(outputTex, outputPixel, vec4(0.0));
   } else{
-      textureStore(outputTex, outputPixel, vec4(1.0));
+      let sky = textureSampleLevel(skyCube, linearSampler, shadowRayDirection, 0.0) * 2.0;
+      textureStore(outputTex, outputPixel, sky);
   }
 }
 
@@ -94,7 +94,7 @@ fn composite(
   let texSize = textureDimensions(outputTex);
   let pixel = GlobalInvocationID.xy;
   let uv = (vec2<f32>(pixel) - vec2(0.5)) / vec2<f32>(texSize);
-  let inputSample = textureLoad(albedoTex, pixel, 0);
+  let albedoSample = textureLoad(albedoTex, pixel, 0);
   let shadowRef = textureLoad(intermediaryTexture, pixel, 0);
   let normalRef = textureLoad(normalTex, pixel, 0).rgb;
   let worldPosRef = textureLoad(worldPosTex, pixel, 0).rgb;
@@ -102,29 +102,30 @@ fn composite(
 
   var output = vec3(0.0);
   var totalWeight = 0.0;
-  var radius = 2;
   // Max distance the sample can be from the reference point
-  var distanceThreshold = 0.2;
+  var maxDistanceToRefRatio = 0.001;
   for(var i = 0; i <= 12; i++){
-    let angle = (i % 6) * 60; // 0, 90, 180, 270
-    let radius = i;
+    let angle = i * 60; // 0, 90, 180, 270
+    let radius = (i+2) / 3;
     let offsetPixel = vec2<i32>(pixel) + vec2<i32>(polarToCartesian(f32(angle), f32(radius)));
     let shadowSample =  textureLoad(intermediaryTexture, offsetPixel, 0);
     let normalSample = textureLoad(normalTex, offsetPixel, 0).rgb;
     let worldPosSample = textureLoad(worldPosTex, offsetPixel, 0).rgb;
-    let normalWeight = dot(normalSample, normalRef);
-    let distanceSample = distance(worldPosSample, worldPosRef);
-    let distanceWeight = (1.0 - clamp(distanceSample / distanceThreshold, 0.0, 1.0));
-    let sampleWeight =  distanceWeight * normalWeight;
+    let normalWeight = select(0.0, 1.0, dot(normalSample, normalRef) > 0.99);
+    let distanceSample = distance(worldPosSample, cameraPosition);
+    let distanceSampleToRefRatio = abs(distanceSample / distanceRef);
+    let normalisedDistanceDifference = clamp((distanceSampleToRefRatio - maxDistanceToRefRatio), 0.0, maxDistanceToRefRatio) / maxDistanceToRefRatio;
+    let distanceWeight = normalisedDistanceDifference;
+    let sampleWeight =   distanceWeight * normalWeight;
     output += shadowSample.rgb * sampleWeight;
     totalWeight+= sampleWeight;
   }
   output/= totalWeight;
 
-//  textureStore(outputTex, pixel,vec4(output, 1));
+  textureStore(outputTex, pixel,shadowRef * albedoSample);
 
   let selectedLight = Light(sunDirection,SUN_COLOR);
   let viewDirection = normalize(cameraPosition - worldPosRef);
   let reflectance = blinnPhong(normalRef, selectedLight.direction, viewDirection, 0.0, 32.0, selectedLight.colour);
-  textureStore(outputTex, pixel, vec4(output * reflectance * inputSample.rgb, 1));
+//  textureStore(outputTex, pixel, vec4(output * albedoSample.rgb, 1));
 }
