@@ -125,6 +125,6 @@ fn composite(
 
   let selectedLight = Light(sunDirection,SUN_COLOR);
   let viewDirection = normalize(cameraPosition - worldPosRef);
-  let reflectance = blinnPhong(normalRef, selectedLight.direction, viewDirection, 0.5, 32.0, selectedLight.colour);
+  let reflectance = blinnPhong(normalRef, selectedLight.direction, viewDirection, 0.0, 32.0, selectedLight.colour);
   textureStore(outputTex, pixel, vec4(output * reflectance * inputSample.rgb, 1));
 }
