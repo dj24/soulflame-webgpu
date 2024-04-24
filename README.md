@@ -20,4 +20,4 @@ R,G,B Channels: Voxel colour
 
 Alpha Channel Values
 1. Regular Voxel
-2. Emissive Voxel
+2. Emissive Voxelpp

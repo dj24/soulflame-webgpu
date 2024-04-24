@@ -99,7 +99,7 @@ fn polarToCartesian(angle: f32, radius: f32) -> vec2<f32> {
   return vec2<f32>(x, y);
 }
 
-const DISTANCE_IMPORTANCE =0.5;
+const DISTANCE_IMPORTANCE =1.0;
 
 @compute @workgroup_size(8, 8, 1)
 fn composite(
@@ -118,7 +118,7 @@ fn composite(
   var totalWeight = 0.0;
   for(var i = 0; i <= 8; i++){
     let angle = i * 30; // 0, 90, 180, 270
-    let radius = (i + 3) / 4;
+    let radius = (i + 1) / 2;
     let offsetPixel = vec2<i32>(pixel) + vec2<i32>(polarToCartesian(f32(angle), f32(radius)));
     let shadowSample =  textureLoad(intermediaryTexture, offsetPixel, 0);
     let normalSample = textureLoad(normalTex, offsetPixel, 0).rgb;
