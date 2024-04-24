@@ -205,6 +205,18 @@ fn debugColourFromIndex(index: i32) -> vec3<f32> {
 }
 
 fn getDistanceToNode(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, node: BVHNode) -> f32 {
+  let isLeaf = node.objectCount == 0;
+  if(isLeaf){
+    let voxelObject = voxelObjects[node.leftIndex];
+    let objectRayOrigin = (voxelObject.inverseTransform * vec4(rayOrigin, 1.0)).xyz;
+    let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size - vec3(1));
+    if(isInBounds){
+      return 0.0;
+    }
+    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+    let intersection = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size / 2);
+    return intersection.tNear;
+  }
   if(all(rayOrigin >= node.AABBMin) && all(rayOrigin <= node.AABBMax)){
     return 0.0;
   }

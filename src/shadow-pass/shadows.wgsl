@@ -23,7 +23,7 @@ const BLUE_NOISE_SIZE = 511;
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const SHADOW_ACNE_OFFSET: f32 = 0.005;
-const SCATTER_AMOUNT: f32 = 0.05;
+const SCATTER_AMOUNT: f32 = 0.75;
 const POSITION_SCATTER_AMOUNT: f32 = 0.01;
 
 fn blinnPhong(normal: vec3<f32>, lightDirection: vec3<f32>, viewDirection: vec3<f32>, specularStrength: f32, shininess: f32, lightColour: vec3<f32>) -> vec3<f32> {
@@ -70,17 +70,18 @@ fn main(
     return;
   }
 
-  var blueNoisePixel = vec2(outputPixel.x + time.frame * 32, outputPixel.y + time.frame * 16) % BLUE_NOISE_SIZE;
-  if(time.frame % 2 == 0){
-    blueNoisePixel.y = BLUE_NOISE_SIZE - blueNoisePixel.y;
-  }
-  if(time.frame % 3 == 0){
-    blueNoisePixel.x = BLUE_NOISE_SIZE - blueNoisePixel.x;
-  }
+var blueNoisePixel = outputPixel % BLUE_NOISE_SIZE;
+//  var blueNoisePixel = vec2(outputPixel.x + time.frame * 32, outputPixel.y + time.frame * 16) % BLUE_NOISE_SIZE;
+//  if(time.frame % 2 == 0){
+//    blueNoisePixel.y = BLUE_NOISE_SIZE - blueNoisePixel.y;
+//  }
+//  if(time.frame % 3 == 0){
+//    blueNoisePixel.x = BLUE_NOISE_SIZE - blueNoisePixel.x;
+//  }
 
   var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).xy;
-  let selectedLight = Light(sunDirection,SUN_COLOR);
   var shadowRayDirection = randomInCosineWeightedHemisphere(r, normalSample);
+  shadowRayDirection = mix(sunDirection, shadowRayDirection, SCATTER_AMOUNT);
 
   if(shadowRay(worldPos, shadowRayDirection)){
       textureStore(outputTex, outputPixel, vec4(0.0));
@@ -131,6 +132,6 @@ fn composite(
   }
   output/= totalWeight;
 
-//  textureStore(outputTex, pixel,shadowRef);
-    textureStore(outputTex, pixel, vec4(output * albedoSample.rgb, 1));
+  textureStore(outputTex, pixel,shadowRef * albedoSample);
+//    textureStore(outputTex, pixel, vec4(output * albedoSample.rgb, 1));
 }

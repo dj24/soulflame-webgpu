@@ -60,42 +60,25 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
 
   while (stack.head > 0u && iterations < MAX_STEPS) {
     let node = bvhNodes[nodeIndex];
-    if(node.objectCount == 0){
-      nodeIndex = stack_pop(&stack);
-    }
-    // valid leaf, raymarch it
-    else if(node.objectCount == 1){
-        let leafNode = castNodeToLeafNode(node);
-        let intersection = leafBoundsIntersection(rayOrigin, rayDirection, leafNode);
-        if(intersection.isHit && intersection.tNear < closestRaymarchDist){
-          let voxelObject = voxelObjects[leafNode.voxelObjectIndex];
-          let shiftedRayOrigin = rayOrigin + rayDirection * (intersection.tNear + EPSILON);
-          let rayMarchResult = rayMarchTransformed(voxelObject, rayDirection, shiftedRayOrigin, 0);
-          let rayMarchDist = intersection.tNear + rayMarchResult.t;
-          if(rayMarchResult.hit && rayMarchDist < closestRaymarchDist){
-            closestIntersection = rayMarchResult;
-            closestRaymarchDist = intersection.tNear + rayMarchResult.t;
-          }
-        }
-        nodeIndex = stack_pop(&stack);
-    }
-    else{
+    if(node.objectCount > 1){
       var leftDist = 0.0;
       var rightDist = 0.0;
-      let isLeftNodeLeaf = bvhNodes[node.leftIndex].objectCount == 1;
-      let isRightNodeLeaf = bvhNodes[node.rightIndex].objectCount == 1;
-      if(isLeftNodeLeaf){
-        leftDist = leafBoundsIntersection(rayOrigin, rayDirection, castNodeToLeafNode(bvhNodes[node.leftIndex])).tNear;
-      }
-      else{
-        leftDist = getDistanceToNode(rayOrigin, rayDirection, bvhNodes[node.leftIndex]);
-      }
-      if(isRightNodeLeaf){
-        rightDist = leafBoundsIntersection(rayOrigin, rayDirection, castNodeToLeafNode(bvhNodes[node.rightIndex])).tNear;
-      }
-      else{
-        rightDist = getDistanceToNode(rayOrigin, rayDirection, bvhNodes[node.rightIndex]);
-      }
+      let leftNode = bvhNodes[node.leftIndex];
+      let rightNode = bvhNodes[node.rightIndex];
+      let isLeftNodeLeaf = leftNode.objectCount == 1;
+      let isRightNodeLeaf = rightNode.objectCount == 1;
+//      if(isLeftNodeLeaf){
+//        leftDist = leafBoundsIntersection(rayOrigin, rayDirection, castNodeToLeafNode(leftNode)).tNear;
+//      }
+//      else{
+        leftDist = getDistanceToNode(rayOrigin, rayDirection, leftNode);
+//      }
+//      if(isRightNodeLeaf){
+//        rightDist = leafBoundsIntersection(rayOrigin, rayDirection, castNodeToLeafNode(rightNode)).tNear;
+//      }
+//      else{
+        rightDist = getDistanceToNode(rayOrigin, rayDirection, rightNode);
+//      }
       let hitLeft = leftDist >= 0.0 && leftDist < closestRaymarchDist;
       let hitRight = rightDist >= 0.0 && rightDist < closestRaymarchDist;
       if(hitLeft){
@@ -121,6 +104,25 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
       else{
         nodeIndex = stack_pop(&stack);
       }
+    }
+    // valid leaf, raymarch it
+    else if(node.objectCount == 1){
+        let leafNode = castNodeToLeafNode(node);
+        let intersection = leafBoundsIntersection(rayOrigin, rayDirection, leafNode);
+        let worldPos = rayOrigin + rayDirection * intersection.tNear;
+        if(intersection.isHit){
+//          let voxelObject = voxelObjects[leafNode.voxelObjectIndex];
+//          let shiftedRayOrigin = rayOrigin + rayDirection * (intersection.tNear + EPSILON);
+//          let rayMarchResult = rayMarchTransformed(voxelObjectaew, rayDirection, shiftedRayOrigin, 0);
+//          let rayMarchDist = distance(rayOrigin, rayMarchResult.worldPos);
+//          if(rayMarchResult.hit && rayMarchDist < closestRaymarchDist){
+//            closestIntersection = rayMarchResult;
+//            closestRaymarchDist = rayMarchDist;
+            closestIntersection.hit = true;
+            closestIntersection.colour = abs(worldPos) %1.0;
+//          }
+        }
+        nodeIndex = stack_pop(&stack);
     }
 
     iterations += 1;

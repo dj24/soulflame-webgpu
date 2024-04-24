@@ -29,8 +29,8 @@ type TSceneDefinition = {
 };
 
 const NAME_ALLOWLIST = [
-  "monu10",
   "Dragon",
+  // "monu10",
   // "sponza-small",
   // "Sponza",
   // "Table",
@@ -47,7 +47,7 @@ const NAME_ALLOWLIST = [
   // "TorchHolder",
   // "FireLogs",
   // "Tankard",
-  // "Bookshelf",
+  "Bookshelf",
   // "Books4",
   // "Door",
   // "BigDoor",
@@ -152,6 +152,6 @@ export const createTavern = async (
       ),
     );
   }
-  console.log({ volumes, torchPositions });
+  console.log({ volumes });
   console.debug(`Tavern created with ${voxelObjects.length} items`);
 };
