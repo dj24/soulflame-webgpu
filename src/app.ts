@@ -55,6 +55,8 @@ export type RenderPass = {
   label?: string;
 };
 
+const FPS_CAP = 50;
+
 export const debugValues = new DebugValuesStore();
 
 export let device: GPUDevice;
@@ -467,31 +469,24 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     document.getElementById("objectcount").innerHTML =
       `Objects: ${voxelObjectsInFrustrum.length} / ${voxelObjects.length} in view`;
 
-    const voxelObjectDataViews = voxelObjectsInFrustrum.map((voxelObject) =>
-      voxelObject.toDataView(),
+    const voxelObjectsArray = voxelObjectsInFrustrum.flatMap((voxelObject) =>
+      voxelObject.toArray(),
     );
 
-    const totalSize = voxelObjectDataViews.reduce(
-      (acc, dataView) => acc + dataView.byteLength,
-      0,
-    );
-
-    if (!transformationMatrixBuffer) {
+    if (transformationMatrixBuffer) {
+      writeToFloatUniformBuffer(transformationMatrixBuffer, voxelObjectsArray);
+    } else {
+      transformationMatrixBuffer = createFloatUniformBuffer(
+        device,
+        voxelObjectsArray,
+        "voxel object",
+      );
       transformationMatrixBuffer = device.createBuffer({
-        size: totalSize,
+        size: new Float32Array(voxelObjectsArray).byteLength,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         mappedAtCreation: false,
       });
     }
-    voxelObjectDataViews.forEach((dataView, index) => {
-      device.queue.writeBuffer(
-        transformationMatrixBuffer,
-        0, // offset
-        dataView.buffer,
-        0, // data offset
-        dataView.byteLength,
-      );
-    });
   };
 
   setInterval(() => {
@@ -503,13 +498,6 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       startTime = now;
     }
 
-    // Candle flicker
-    // lights.forEach((light, index) => {
-    //   const octave1 = Math.sin(now / 200 + index) * 0.2;
-    //   const octave2 = Math.sin(now / 100 + index) * 0.1;
-    //   const octave3 = Math.sin(now / 50) * 0.05;
-    //   light.size = 3 + octave1 + octave2 + octave3;
-    // });
     // Disco lights
     // lights.forEach((light, index) => {
     //   light.position = [
@@ -669,7 +657,7 @@ const start = async () => {
   const computePassPromises: Promise<RenderPass>[] = [
     // fullscreenQuad(device),
     getHelloTrianglePass(),
-    getGBufferPass(),
+    // getGBufferPass(),
     // getVoxelLatticePass(),
     // getReflectionsPass(),
     getShadowsPass(),
@@ -680,7 +668,7 @@ const start = async () => {
     // getVolumetricFog(),
     // getFXAAPass(),
     // getTaaPass(),
-    getBoxOutlinePass(),
+    // getBoxOutlinePass(),
     // getWaterPass(),
 
     fullscreenQuad(device),

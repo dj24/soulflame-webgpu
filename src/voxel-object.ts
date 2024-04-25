@@ -76,18 +76,4 @@ export class VoxelObject {
       0.0, //padding for 4 byte stride
     ];
   }
-
-  toDataView() {
-    const floats = this.toArray();
-    const buffer = new ArrayBuffer(floats.length * 4 + 4);
-    const view = new DataView(buffer);
-    for (let i = 0; i < floats.length; i++) {
-      view.setFloat32(i * 4, floats[i], true);
-    }
-    return view;
-  }
-
-  toFloat32Array() {
-    return new Float32Array(this.toArray());
-  }
 }

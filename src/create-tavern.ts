@@ -23,8 +23,10 @@ type TSceneDefinition = {
 
 const NAME_ALLOWLIST = [
   "street-scene",
+  "debug-plane",
   "Dragon",
-  // "monu10",
+  "monu10",
+  "teapot",
   // "sponza-small",
   // "Sponza",
   // "Table",
