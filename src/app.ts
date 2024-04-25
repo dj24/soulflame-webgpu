@@ -74,8 +74,8 @@ export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
   // position: vec3.create(-25, 10, -70),
   position: vec3.create(-31, 6, -50),
-  // position: vec3.create(-23, 6, -45),
-  direction: vec3.create(-0.0, 0, -0.5),
+  // position: vec3.create(-45, 30, 40),
+  direction: vec3.create(0.0, 0, -0.5),
 });
 
 const debugUI = new DebugUI();
@@ -668,7 +668,7 @@ const start = async () => {
 
   const computePassPromises: Promise<RenderPass>[] = [
     // fullscreenQuad(device),
-    // getHelloTrianglePass(),
+    getHelloTrianglePass(),
     getGBufferPass(),
     // getVoxelLatticePass(),
     // getReflectionsPass(),

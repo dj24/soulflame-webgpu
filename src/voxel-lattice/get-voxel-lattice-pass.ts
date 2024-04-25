@@ -302,12 +302,6 @@ export const getVoxelLatticePass = async (): Promise<RenderPass> => {
               buffer: cameraPositionBuffer,
             },
           },
-          {
-            binding: 6,
-            resource: {
-              buffer: volumeAtlas.getBrickMapBuffer(),
-            },
-          },
         ],
       });
       bindGroups.push(bindGroup);

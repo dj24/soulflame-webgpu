@@ -1,6 +1,4 @@
 import { vec3, Vec3 } from "wgpu-matrix";
-import { createBrickMapFromTexture } from "./create-brickmap/create-brick-map-from-texture";
-import { BrickMap } from "./create-brickmap/create-brick-map-from-voxels";
 import { writeTextureToCanvas } from "./write-texture-to-canvas";
 import { flatten3dTexture } from "./flatten-3d-texture";
 import { flipTexture } from "./flip-texture";
@@ -18,8 +16,6 @@ const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
 type VolumeAtlasEntry = {
   location: Vec3;
   size: Vec3;
-  brickMapOffset: number;
-  brickMap: BrickMap;
 };
 
 export type VolumeAtlasDictionary = {
@@ -32,18 +28,14 @@ export type VolumeAtlas = {
   addVolume: (
     commandEncoder: GPUCommandEncoder,
     texture: GPUTexture,
-    brickMap: BrickMap,
     label: string,
   ) => void;
   removeVolume: (label: string) => void;
   getAtlasTextureView: () => GPUTextureView;
-  getBrickMapBuffer: () => GPUBuffer;
   dimensions: Vec3;
 };
 
-const BRICKMAP_SIZE = 8;
 const DEFAULT_ATLAS_SIZE = 8;
-const BRICK_STRIDE_BYTES = 64;
 const ceilToNearestMultipleOf = (n: number, multiple: number) => {
   return Math.ceil(n / multiple) * multiple;
 };
@@ -74,8 +66,6 @@ export const getVolumeAtlas = async (
   device.queue.submit([commandEncoder.finish()]);
   await device.queue.onSubmittedWorkDone();
 
-  let brickMapBuffer = await createBrickMapFromTexture(device, atlasTexture);
-
   const getVolume = (label: string) => {
     return dictionary[label];
   };
@@ -84,13 +74,11 @@ export const getVolumeAtlas = async (
    * Add a volume to the atlas. Requires `commandEncoder.finish()` to be called to execute the copy
    * @param commandEncoder - command encoder to use for copying the texture
    * @param texture - 3d texture to copy into the atlas
-   * @param brickMap - brickmap for the texture in UInt32Array format
    * @param label - label to use for the volume in the dictionary
    */
   const addVolume = async (
     commandEncoder: GPUCommandEncoder,
     texture: GPUTexture,
-    brickMap: BrickMap,
     label: string,
   ) => {
     if (dictionary[label]) {
@@ -100,12 +88,9 @@ export const getVolumeAtlas = async (
     }
 
     const { width, height, depthOrArrayLayers } = texture;
-    const roundedWidth = ceilToNearestMultipleOf(width, BRICKMAP_SIZE);
-    const roundedHeight = ceilToNearestMultipleOf(height, BRICKMAP_SIZE);
-    const roundedDepth = ceilToNearestMultipleOf(
-      depthOrArrayLayers,
-      BRICKMAP_SIZE,
-    );
+    const roundedWidth = ceilToNearestMultipleOf(width, 8);
+    const roundedHeight = ceilToNearestMultipleOf(height, 8);
+    const roundedDepth = ceilToNearestMultipleOf(depthOrArrayLayers, 8);
     console.debug(`Adding ${label} to atlas`, {
       width,
       height,
@@ -186,54 +171,17 @@ export const getVolumeAtlas = async (
       );
     }
 
-    const brickMapOffset = brickMapBuffer.size / BRICK_STRIDE_BYTES;
-
     atlasTexture = newAtlasTexture;
 
     dictionary[label] = {
       location: [atlasLocationX, 0, 0],
       size: [width, height, depthOrArrayLayers],
-      brickMapOffset,
-      brickMap,
     };
 
     // Prevents race condition between the copy and the write
     device.queue.submit([commandEncoder.finish()]);
     await device.queue.onSubmittedWorkDone();
 
-    // Draw to debug canvas
-    // const zSliceTexture = device.createTexture({
-    //   size: {
-    //     width: newAtlasTexture.width,
-    //     height: newAtlasTexture.height,
-    //     depthOrArrayLayers: 1,
-    //   },
-    //   format: "rgba8unorm",
-    //   usage:
-    //     GPUTextureUsage.COPY_DST |
-    //     GPUTextureUsage.RENDER_ATTACHMENT |
-    //     GPUTextureUsage.TEXTURE_BINDING,
-    // });
-    // const commandEncoder2 = device.createCommandEncoder();
-    // commandEncoder2.copyTextureToTexture(
-    //   {
-    //     texture: newAtlasTexture,
-    //     mipLevel: 0,
-    //     origin: { x: 0, y: 0, z: newAtlasTexture.depthOrArrayLayers / 2 },
-    //   },
-    //   {
-    //     texture: zSliceTexture,
-    //     mipLevel: 0,
-    //     origin: { x: 0, y: 0, z: 0 },
-    //   },
-    //   {
-    //     width: newAtlasTexture.width,
-    //     height: newAtlasTexture.height,
-    //     depthOrArrayLayers: 1,
-    //   },
-    // );
-    // device.queue.submit([commandEncoder2.finish()]);
-    // await device.queue.onSubmittedWorkDone();
     const zSliceTexture = await flipTexture(
       device,
       await flatten3dTexture(device, newAtlasTexture),
@@ -333,10 +281,6 @@ export const getVolumeAtlas = async (
     return view;
   };
 
-  const getBrickMapBuffer = () => {
-    return brickMapBuffer;
-  };
-
   const getVolumes = (): VolumeAtlasDictionary => {
     return dictionary;
   };
@@ -347,7 +291,6 @@ export const getVolumeAtlas = async (
     getVolume,
     removeVolume,
     getAtlasTextureView,
-    getBrickMapBuffer,
     dimensions: vec3.create(
       atlasTexture.width,
       atlasTexture.height,

@@ -353,5 +353,5 @@ export const getSkyPass = async (): Promise<RenderPass> => {
 
     return [commandEncoder.finish()];
   };
-  return { render, label: "sky and fog" };
+  return { render, label: "sky" };
 };

@@ -70,14 +70,14 @@ fn main(
     return;
   }
 
-var blueNoisePixel = outputPixel % BLUE_NOISE_SIZE;
-//  var blueNoisePixel = vec2(outputPixel.x + time.frame * 32, outputPixel.y + time.frame * 16) % BLUE_NOISE_SIZE;
-//  if(time.frame % 2 == 0){
-//    blueNoisePixel.y = BLUE_NOISE_SIZE - blueNoisePixel.y;
-//  }
-//  if(time.frame % 3 == 0){
-//    blueNoisePixel.x = BLUE_NOISE_SIZE - blueNoisePixel.x;
-//  }
+//var blueNoisePixel = outputPixel % BLUE_NOISE_SIZE;
+  var blueNoisePixel = vec2(outputPixel.x + time.frame * 32, outputPixel.y + time.frame * 16) % BLUE_NOISE_SIZE;
+  if(time.frame % 2 == 0){
+    blueNoisePixel.y = BLUE_NOISE_SIZE - blueNoisePixel.y;
+  }
+  if(time.frame % 3 == 0){
+    blueNoisePixel.x = BLUE_NOISE_SIZE - blueNoisePixel.x;
+  }
 
   var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).xy;
   var shadowRayDirection = randomInCosineWeightedHemisphere(r, normalSample);

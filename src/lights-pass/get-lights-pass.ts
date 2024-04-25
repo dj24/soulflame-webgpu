@@ -449,12 +449,6 @@ export const getLightsPass = async (): Promise<RenderPass> => {
             binding: 10,
             resource: outputTextures.depthTexture.createView(),
           },
-          {
-            binding: 11,
-            resource: {
-              buffer: volumeAtlas.getBrickMapBuffer(),
-            },
-          },
         ],
       });
       bindGroups.push(bindGroup);

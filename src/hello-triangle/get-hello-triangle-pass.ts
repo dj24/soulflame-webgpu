@@ -63,14 +63,6 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
           type: "uniform",
         },
       },
-      // Brick buffer
-      {
-        binding: 6,
-        visibility: GPUShaderStage.FRAGMENT,
-        buffer: {
-          type: "read-only-storage",
-        },
-      },
     ],
   });
 
@@ -104,7 +96,6 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     fragment: {
       module: device.createShaderModule({
         code: `
-        @group(0) @binding(6) var<storage> brickBuffer: array<Brick>;
         ${getRayDirection}
         ${boxIntersection}
         ${raymarchVoxels}
@@ -242,12 +233,6 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
             binding: 5,
             resource: {
               buffer: cameraPositionBuffer,
-            },
-          },
-          {
-            binding: 6,
-            resource: {
-              buffer: volumeAtlas.getBrickMapBuffer(),
             },
           },
         ],

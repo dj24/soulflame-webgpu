@@ -18,7 +18,6 @@ export type BoundingBox = { min: Vec3; max: Vec3 };
 
 type LeafNode = {
   AABB: BoundingBox;
-  OBB: BoundingBox;
   objectIndex: number;
 };
 
@@ -70,93 +69,6 @@ const splitObjectsBySAH = (voxelObjects: LeafNode[]) => {
   return { left, right };
 };
 
-const splitObjectsBySAHCompute = async (
-  device: GPUDevice,
-  voxelObjects: VoxelObject[],
-) => {
-  const commandEncoder = device.createCommandEncoder();
-  const voxelObjectsBuffer = device.createBuffer({
-    size: voxelObjects.length * 512,
-    usage:
-      GPUBufferUsage.COPY_DST |
-      GPUBufferUsage.COPY_SRC |
-      GPUBufferUsage.STORAGE,
-  });
-  // Stores the index of the voxel object to split on
-  const outputBuffer = device.createBuffer({
-    size: 4,
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-  });
-
-  const bindGroupLayout = device.createBindGroupLayout({
-    entries: [
-      {
-        binding: 1,
-        visibility: GPUShaderStage.COMPUTE,
-        buffer: {
-          type: "storage",
-        },
-      },
-      {
-        binding: 2,
-        visibility: GPUShaderStage.COMPUTE,
-        buffer: {
-          type: "storage",
-        },
-      },
-    ],
-  });
-
-  const computePipeline = device.createComputePipeline({
-    layout: device.createPipelineLayout({
-      bindGroupLayouts: [bindGroupLayout],
-    }),
-    compute: {
-      module: device.createShaderModule({
-        code: `
-        struct AABB {
-          vec3 min;
-          vec3 max;
-        };
-        @group(0) @binding(1) var<storage> cornersBuffer: array<AABB>;
-        @group(0) @binding(2) var<storage, read_write> splitIndex: <atomic<u32>>;
-        
-        @compute @workgroup_size(64, 1, 1)
-         fn main(
-           @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
-         ) {
-            
-         }
-        `,
-      }),
-      entryPoint: "main",
-    },
-  });
-
-  const bindGroup = device.createBindGroup({
-    layout: bindGroupLayout,
-    entries: [
-      {
-        binding: 1,
-        resource: {
-          buffer: voxelObjectsBuffer,
-        },
-      },
-      {
-        binding: 2,
-        resource: {
-          buffer: outputBuffer,
-        },
-      },
-    ],
-  });
-
-  const passEncoder = commandEncoder.beginComputePass();
-
-  const workGroupSizeX = 64;
-  const possibleSplitCount = voxelObjects.length;
-};
-
 export const createBVH = (
   device: GPUDevice,
   voxelObjects: VoxelObject[],
@@ -167,11 +79,8 @@ export const createBVH = (
     return {
       AABB: voxelObject.AABB,
       objectIndex: index,
-      OBB: voxelObject.OBB,
     };
   });
-
-  console.log({ voxelObjects, allLeafNodes });
 
   let childIndex = 0;
   const build = (leafNodes: LeafNode[], startIndex: number) => {
@@ -181,11 +90,11 @@ export const createBVH = (
     const isLeaf = leafNodes.length === 1;
     if (isLeaf) {
       nodes[startIndex] = {
-        leftChildIndex: leafNodes[0].objectIndex,
+        leftChildIndex: allLeafNodes.indexOf(leafNodes[0]),
         rightChildIndex: -1,
         objectCount: 1,
-        AABBMax: leafNodes[0].OBB.max,
-        AABBMin: leafNodes[0].OBB.min,
+        AABBMax: leafNodes[0].AABB.max,
+        AABBMin: leafNodes[0].AABB.min,
       };
       return;
     }
@@ -258,7 +167,12 @@ export const createBVH = (
   const end = performance.now();
   frameTimeTracker.addSample("create bvh", end - start);
 
-  console.log({ nodes });
+  console.log({
+    nodes: nodes.map((node) => ({
+      ...node,
+      voxelObject: voxelObjects[node.leftChildIndex],
+    })),
+  });
 
   return toGPUBuffer(device, nodes.length);
 };

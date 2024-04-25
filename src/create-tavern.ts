@@ -5,13 +5,6 @@ import { VoxelObject } from "./voxel-object";
 import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels";
 import { convertVxm } from "./convert-vxm";
 import { createTextureFromVoxels } from "./create-texture-from-voxels/create-texture-from-voxels";
-import { createBrickMapBuffer } from "./create-brickmap/create-brick-map-buffer";
-import {
-  BrickMap,
-  createBrickMapFromVoxels,
-  setBit,
-  setBitInBrick,
-} from "./create-brickmap/create-brick-map-from-voxels";
 
 export let voxelObjects: VoxelObject[] = [];
 
@@ -29,6 +22,7 @@ type TSceneDefinition = {
 };
 
 const NAME_ALLOWLIST = [
+  "street-scene",
   "Dragon",
   // "monu10",
   // "sponza-small",
@@ -47,7 +41,7 @@ const NAME_ALLOWLIST = [
   // "TorchHolder",
   // "FireLogs",
   // "Tankard",
-  "Bookshelf",
+  // "Bookshelf",
   // "Books4",
   // "Door",
   // "BigDoor",
@@ -57,7 +51,6 @@ const NAME_ALLOWLIST = [
 type ProcessTavernObject = {
   name: string;
   texture: GPUTexture;
-  brickMap: BrickMap;
 };
 
 const processTavernObject = async (
@@ -77,21 +70,11 @@ const processTavernObject = async (
   let texture = await createTextureFromVoxels(device, voxels);
   console.timeEnd(`Create texture from voxels for ${name}`);
 
-  // console.time(`Remove internal voxels from ${name}`);
-  // texture = removeInternalVoxels(commandEncoder, device, texture);
-  // console.timeEnd(`Remove internal voxels from ${name}`);
-
   console.time(`Generate octree mips for ${name}`);
   generateOctreeMips(commandEncoder, device, texture);
   console.timeEnd(`Generate octree mips for ${name}`);
 
-  console.time(`Create brick map for ${name}`);
-  // const brickMap = await createBrickMap(device, voxels);
-  const brickMap = createBrickMapFromVoxels(voxels);
-  console.log({ brickMap });
-  console.timeEnd(`Create brick map for ${name}`);
-
-  return { name, texture, brickMap };
+  return { name, texture };
 };
 
 export const createTavern = async (
@@ -115,9 +98,9 @@ export const createTavern = async (
         processTavernObject(commandEncoder, name, device),
       ),
     );
-    for (const { name, texture, brickMap } of textures) {
+    for (const { name, texture } of textures) {
       console.time(`Add volume for ${name}`);
-      await volumeAtlas.addVolume(commandEncoder, texture, brickMap, name);
+      await volumeAtlas.addVolume(commandEncoder, texture, name);
       commandEncoder = device.createCommandEncoder();
       console.timeEnd(`Add volume for ${name}`);
     }
@@ -143,13 +126,7 @@ export const createTavern = async (
     mat4.scale(m, child.scale, m);
     mat4.multiply(m, mat4.fromQuat(child.rotation), m);
     voxelObjects.push(
-      new VoxelObject(
-        m,
-        volume.size,
-        volume.location,
-        volume.brickMapOffset,
-        child.name,
-      ),
+      new VoxelObject(m, volume.size, volume.location, child.name),
     );
   }
   console.log({ volumes });
