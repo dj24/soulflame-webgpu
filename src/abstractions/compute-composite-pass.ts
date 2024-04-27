@@ -300,6 +300,7 @@ ${shaderCode}`;
     blueNoiseTexture,
     timeBuffer,
     bvhBuffer,
+    commandEncoder,
   }: RenderArgs) => {
     if (!copyOutputTexture) {
       copyOutputTexture = device.createTexture({
@@ -324,7 +325,7 @@ ${shaderCode}`;
           GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
       });
     }
-    const commandEncoder = device.createCommandEncoder();
+    // const commandEncoder = device.createCommandEncoder();
     commandEncoder.copyTextureToTexture(
       {
         texture: outputTextures.finalTexture, // TODO: pass texture as well as view

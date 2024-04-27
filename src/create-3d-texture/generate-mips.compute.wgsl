@@ -1,6 +1,3 @@
-@group(0) @binding(0) var input : texture_3d<f32>;
-@group(0) @binding(1) var output : texture_storage_3d<rgba8unorm, write>;
-
 const NODES_PER_LEVEL = 8u;
 
 /*

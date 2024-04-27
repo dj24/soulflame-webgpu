@@ -1,4 +1,5 @@
 import removeInternalVoxelsCompute from "./remove-internal-voxels.compute.wgsl";
+import { VOLUME_ATLAS_FORMAT } from "../constants";
 
 export const removeInternalVoxels = (
   commandEncoder: GPUCommandEncoder,
@@ -52,7 +53,11 @@ export const removeInternalVoxels = (
     }),
     compute: {
       module: device.createShaderModule({
-        code: removeInternalVoxelsCompute,
+        code: `
+        @group(0) @binding(0) var input : texture_3d<f32>;
+        @group(0) @binding(1) var output : texture_storage_3d<${VOLUME_ATLAS_FORMAT}, write>;
+        ${removeInternalVoxelsCompute}
+        `,
       }),
       entryPoint: "main",
     },

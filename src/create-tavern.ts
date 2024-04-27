@@ -72,9 +72,10 @@ const processTavernObject = async (
   let texture = await createTextureFromVoxels(device, voxels);
   console.timeEnd(`Create texture from voxels for ${name}`);
 
-  console.time(`Generate octree mips for ${name}`);
-  generateOctreeMips(commandEncoder, device, texture);
-  console.timeEnd(`Generate octree mips for ${name}`);
+  // TODO: adjust to use render pipeline for 8bit texture support
+  // console.time(`Generate octree mips for ${name}`);
+  // generateOctreeMips(commandEncoder, device, texture);
+  // console.timeEnd(`Generate octree mips for ${name}`);
 
   return { name, texture };
 };

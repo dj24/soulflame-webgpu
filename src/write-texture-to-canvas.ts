@@ -1,4 +1,5 @@
 import fullscreenQuadShader from "./fullscreen-quad/fullscreentexturedquad.wgsl";
+import { VOLUME_ATLAS_FORMAT } from "./constants";
 
 export const writeTextureToCanvas = async (
   device: GPUDevice,
@@ -12,7 +13,7 @@ export const writeTextureToCanvas = async (
   const gpuContext = canvas.getContext("webgpu");
   gpuContext.configure({
     device,
-    format: navigator.gpu.getPreferredCanvasFormat(),
+    format: VOLUME_ATLAS_FORMAT,
     usage: GPUTextureUsage.RENDER_ATTACHMENT,
   });
   const commandEncoder = device.createCommandEncoder();
@@ -29,7 +30,7 @@ export const writeTextureToCanvas = async (
     fragment: {
       module: fullscreenQuadShaderModule,
       entryPoint: "fragment_main",
-      targets: [{ format: "bgra8unorm" }],
+      targets: [{ format: VOLUME_ATLAS_FORMAT }],
     },
   });
   const renderPass = commandEncoder.beginRenderPass({

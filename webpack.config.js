@@ -26,14 +26,6 @@ module.exports = () => {
           loader: "file-loader",
         },
         {
-          test: /\.vxm$/,
-          use: [
-            {
-              loader: path.resolve(__dirname, "vxm-loader.js"),
-            },
-          ],
-        },
-        {
           test: /\.wgsl$/i,
           type: "asset/source",
         },

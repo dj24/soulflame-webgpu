@@ -1,5 +1,6 @@
 import { numMipLevels } from "webgpu-utils";
 import generateMips from "./generate-mips.compute.wgsl";
+import { VOLUME_ATLAS_FORMAT } from "../constants";
 
 export const generateOctreeMips = (
   commandEncoder: GPUCommandEncoder,
@@ -64,7 +65,10 @@ export const generateOctreeMips = (
       }),
       compute: {
         module: device.createShaderModule({
-          code: generateMips,
+          code: `
+          @group(0) @binding(0) var input : texture_3d<f32>;
+          @group(0) @binding(1) var output : texture_storage_3d<${VOLUME_ATLAS_FORMAT}, write>;
+          ${generateMips}`,
         }),
         entryPoint: "main",
       },

@@ -1,6 +1,3 @@
-@group(0) @binding(0) var input : texture_3d<f32>;
-@group(0) @binding(1) var output : texture_storage_3d<rgba8unorm, write>;
-
 const FACES_PER_CUBE = 6;
 
 // if all face of the voxel are covered, we remove the inner voxel

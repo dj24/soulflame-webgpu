@@ -32,6 +32,7 @@ import { getReflectionsPass } from "./reflections-pass/get-reflections-pass";
 import { getLightsPass, Light } from "./lights-pass/get-lights-pass";
 import { getVoxelLatticePass } from "./voxel-lattice/get-voxel-lattice-pass";
 import { getFXAAPass } from "./fxaa-pass/fxaa-pass";
+import { getAdaptiveShadowsPass } from "./adaptive-shadow-pass/get-adaptive-shadows-pass";
 
 export type RenderArgs = {
   enabled?: boolean;
@@ -602,8 +603,8 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         blueNoiseTexture,
         bvhBuffer: BVHBuffer,
         lights,
-      }).forEach((commands) => {
-        commandBuffers.push(commands);
+      }).forEach((commandBuffer) => {
+        commandBuffers.push(commandBuffer);
       });
     });
 
@@ -661,6 +662,7 @@ const start = async () => {
     // getVoxelLatticePass(),
     // getReflectionsPass(),
     getShadowsPass(),
+    // getAdaptiveShadowsPass(),
     getSkyPass(),
     // getLightsPass(),
     // getMotionBlurPass(),

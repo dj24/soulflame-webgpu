@@ -2,14 +2,14 @@ import { vec3, Vec3 } from "wgpu-matrix";
 import { writeTextureToCanvas } from "./write-texture-to-canvas";
 import { flatten3dTexture } from "./flatten-3d-texture";
 import { flipTexture } from "./flip-texture";
+import { VOLUME_ATLAS_FORMAT } from "./constants";
 
 const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
-  format: "rgba8unorm",
+  format: VOLUME_ATLAS_FORMAT,
   usage:
     GPUTextureUsage.COPY_SRC |
     GPUTextureUsage.COPY_DST |
-    GPUTextureUsage.TEXTURE_BINDING |
-    GPUTextureUsage.STORAGE_BINDING,
+    GPUTextureUsage.TEXTURE_BINDING,
   dimension: "3d",
 };
 
@@ -182,11 +182,12 @@ export const getVolumeAtlas = async (
     device.queue.submit([commandEncoder.finish()]);
     await device.queue.onSubmittedWorkDone();
 
-    const zSliceTexture = await flipTexture(
-      device,
-      await flatten3dTexture(device, newAtlasTexture),
-    );
-    writeTextureToCanvas(device, "debug-canvas", zSliceTexture);
+    //TODO: adjust to use render pipeline to support 8 bit format
+    // const zSliceTexture = await flipTexture(
+    //   device,
+    //   await flatten3dTexture(device, newAtlasTexture),
+    // );
+    // writeTextureToCanvas(device, "debug-canvas", zSliceTexture);
   };
 
   /**
@@ -225,7 +226,7 @@ export const getVolumeAtlas = async (
       compute: {
         module: device.createShaderModule({
           code: `
-                @group(0) @binding(0) var texture : texture_storage_3d<rgba8unorm, write>;
+                @group(0) @binding(0) var texture : texture_storage_3d<VOLUME_ATLAS_FORMAT, write>;
                 override startX: u32 = 0;
                 override startY: u32 = 0;
                 override startZ: u32 = 0;
