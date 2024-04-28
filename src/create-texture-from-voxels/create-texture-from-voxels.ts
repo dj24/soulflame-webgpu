@@ -12,11 +12,10 @@ const convert3DTo1D = (
 };
 
 /**
- * Create a command buffer for creating 3D texture from voxels
- * Command buffer must be submitted to the GPUQueue to execute
+ * Creates a 3D texture from a TVoxels object
  * @param device GPUDevice used to create the texture
  * @param voxels TVoxels object containing the voxel data
- * @returns CreateTextureFromVoxels object containing the command buffer and texture
+ * @returns GPUTexture containing the voxel data
  */
 export const createTextureFromVoxels = async (
   device: GPUDevice,

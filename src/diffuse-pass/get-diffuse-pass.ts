@@ -284,7 +284,7 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
       entries: [
         {
           binding: 1,
-          resource: volumeAtlas.getAtlasTextureView(),
+          resource: volumeAtlas.atlasTextureView,
         },
         {
           binding: 3,

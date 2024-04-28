@@ -1,23 +1,32 @@
+![Image](logo.png)
+
+---
+
+[Deployed Demo](https://dj24.github.io/soulflame-webgpu/)
+
+[Docs](https://dj24.github.io/soulflame-webgpu/docs/)
+
+---
+
 ## Getting Started
 
-[Demo](https://dj24.github.io/soulflame-webgpu/)
+After cloning the repo run `npm install`, followed by `npm run serve` to start the development server on `localhost:8080`.
 
-After cloning the repo run
+---
 
-```
-npm install
-```
+## Project Structure
 
-To install webpack, then you can run the serve task and point your browser to `localhost:8080`:
+### Asset Workflow
+Currently, only `.vxm` ([VoxEdit](https://www.sandbox.game/en/create/vox-edit/)) files are supported. `.vox` ([MagicaVoxel](https://ephtracy.github.io/)) support is planned.
 
-```
-npm run serve
-```
+1. Add `.vxm` files to the public directory.
+2. Get this file via a fetch request or similar
+3. Get the `ArrayBuffer` of the response
+4. Convert the `ArrayBuffer` to an object of `TVoxels` type via [`convertVxm`](src/convert-vxm.ts)
+5. Create a [GPUTexture](https://developer.mozilla.org/en-US/docs/Web/API/GPUTexture) using [`createTextureFromVoxels`](src/create-texture-from-voxels.ts)
+6. Add the texture to the VolumeAtlas
 
-## Import Format
+### Render Loop
+TODO
 
-R,G,B Channels: Voxel colour
-
-Alpha Channel Values
-1. Regular Voxel
-2. Emissive Voxelpp
+---

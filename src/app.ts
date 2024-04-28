@@ -12,7 +12,7 @@ import { mat4, vec2, vec3 } from "wgpu-matrix";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { DebugValuesStore } from "./debug-values-store";
 import { createTextureFromImage, createTextureFromImages } from "webgpu-utils";
-import { getVolumeAtlas, VolumeAtlas } from "./volume-atlas";
+import { VolumeAtlas } from "./volume-atlas";
 import { getFrameTimeTracker } from "./frametime-tracker";
 import { generateOctreeMips } from "./create-3d-texture/generate-octree-mips";
 import { getMotionBlurPass } from "./motion-blur/motion-blur";
@@ -555,7 +555,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     let commandBuffers: GPUCommandBuffer[] = [];
 
-    voxelTextureView = volumeAtlas.getAtlasTextureView();
+    voxelTextureView = volumeAtlas.atlasTextureView;
     if (!voxelTextureView) {
       animationFrameId = requestAnimationFrame(frame);
       return;
@@ -653,7 +653,7 @@ const start = async () => {
       GPUTextureUsage.STORAGE_BINDING,
   });
 
-  volumeAtlas = await getVolumeAtlas(device);
+  volumeAtlas = new VolumeAtlas(device);
   await createTavern(device, volumeAtlas);
 
   const computePassPromises: Promise<RenderPass>[] = [

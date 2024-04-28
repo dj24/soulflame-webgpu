@@ -103,7 +103,7 @@ export const createTavern = async (
     );
     for (const { name, texture } of textures) {
       console.time(`Add volume for ${name}`);
-      await volumeAtlas.addVolume(commandEncoder, texture, name);
+      await volumeAtlas.addVolume(texture, name);
       commandEncoder = device.createCommandEncoder();
       console.timeEnd(`Add volume for ${name}`);
     }
@@ -111,7 +111,7 @@ export const createTavern = async (
 
   console.timeEnd("Load all volumes");
 
-  const volumes = volumeAtlas.getVolumes();
+  const volumes = volumeAtlas.dictionary;
 
   let torchPositions = [];
 

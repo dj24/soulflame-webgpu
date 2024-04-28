@@ -287,7 +287,7 @@ export const getVoxelLatticePass = async (): Promise<RenderPass> => {
           },
           {
             binding: 3,
-            resource: volumeAtlas.getAtlasTextureView(),
+            resource: volumeAtlas.atlasTextureView,
           },
           {
             binding: 4,

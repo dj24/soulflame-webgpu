@@ -169,7 +169,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       entries: [
         {
           binding: 0,
-          resource: volumeAtlas.getAtlasTextureView(),
+          resource: volumeAtlas.atlasTextureView,
         },
         {
           binding: 2,

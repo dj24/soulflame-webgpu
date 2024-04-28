@@ -13,6 +13,10 @@ export type TVoxels = {
   PACK?: number;
 };
 
+/**
+ * Convert a vxm file to a voxel object
+ * @param arrayBuffer The vxm file as an ArrayBuffer
+ */
 export const convertVxm = (arrayBuffer: ArrayBuffer): TVoxels => {
   console.time("convert vxm");
   const reader = new ByteReader(arrayBuffer);

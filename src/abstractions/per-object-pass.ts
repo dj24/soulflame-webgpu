@@ -251,7 +251,7 @@ ${shaderCode}`;
       },
       {
         binding: 4,
-        resource: volumeAtlas.getAtlasTextureView(),
+        resource: volumeAtlas.atlasTextureView,
       },
       {
         binding: 5,

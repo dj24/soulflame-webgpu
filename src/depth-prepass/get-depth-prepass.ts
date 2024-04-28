@@ -91,7 +91,7 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
         },
         {
           binding: 4,
-          resource: volumeAtlas.getAtlasTextureView(),
+          resource: volumeAtlas.atlasTextureView,
         },
       ],
     });

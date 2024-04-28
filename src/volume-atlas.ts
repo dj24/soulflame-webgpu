@@ -1,7 +1,4 @@
 import { vec3, Vec3 } from "wgpu-matrix";
-import { writeTextureToCanvas } from "./write-texture-to-canvas";
-import { flatten3dTexture } from "./flatten-3d-texture";
-import { flipTexture } from "./flip-texture";
 import { VOLUME_ATLAS_FORMAT } from "./constants";
 
 const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
@@ -14,7 +11,9 @@ const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
 };
 
 type VolumeAtlasEntry = {
+  /** The location of the volume in the atlas texture */
   location: Vec3;
+  /** The size of the volume in the atlas texture */
   size: Vec3;
 };
 
@@ -22,70 +21,64 @@ export type VolumeAtlasDictionary = {
   [key: string]: VolumeAtlasEntry;
 };
 
-export type VolumeAtlas = {
-  getVolumes: () => VolumeAtlasDictionary;
-  getVolume: (label: string) => VolumeAtlasEntry;
-  addVolume: (
-    commandEncoder: GPUCommandEncoder,
-    texture: GPUTexture,
-    label: string,
-  ) => void;
-  getAtlasTextureView: () => GPUTextureView;
-  dimensions: Vec3;
-};
-
 const DEFAULT_ATLAS_SIZE = 8;
+
 const ceilToNearestMultipleOf = (n: number, multiple: number) => {
   return Math.ceil(n / multiple) * multiple;
 };
 
-/**
- * Factory function for creating and managing a volume atlas
- * The atlas is a 3d texture that contains multiple voxel models, packing them along the x-axis
- * TODO: allow for overflows into the y-axis, and perhaps z-axis
- * @param device - The GPU device
- * @returns { getAtlasTextureView, addVolume, removeVolume }
+/** A class representing a volume atlas for storing multiple 3D textures.
+ *
+ * Each texture is packed along the x-axis of the atlas texture.
+ * //TODO: Add support for packing along other axes
+ *
+ * @example
+ * const device = navigator.gpu.requestAdapter();
+ * const volumeAtlas = new VolumeAtlas(device);
+ * const volume = await createTextureFromVoxels(device, voxels, "cube");
+ * volumeAtlas.addVolume(volume, "cube");
  */
-export const getVolumeAtlas = async (
-  device: GPUDevice,
-): Promise<VolumeAtlas> => {
-  let dictionary: VolumeAtlasDictionary = {};
-  const commandEncoder = device.createCommandEncoder();
-  let atlasTexture = device.createTexture({
-    size: {
-      width: DEFAULT_ATLAS_SIZE,
-      height: DEFAULT_ATLAS_SIZE,
-      depthOrArrayLayers: DEFAULT_ATLAS_SIZE,
-    },
-    ...descriptorPartial,
-    label: `Volume atlas containing `,
-    mipLevelCount: 1,
-  });
 
-  device.queue.submit([commandEncoder.finish()]);
-  await device.queue.onSubmittedWorkDone();
+export class VolumeAtlas {
+  #dictionary: VolumeAtlasDictionary = {};
+  #atlasTexture: GPUTexture;
+  #device: GPUDevice;
 
-  const getVolume = (label: string) => {
-    return dictionary[label];
-  };
+  constructor(device: GPUDevice) {
+    this.#device = device;
+    this.#atlasTexture = device.createTexture({
+      size: {
+        width: DEFAULT_ATLAS_SIZE,
+        height: DEFAULT_ATLAS_SIZE,
+        depthOrArrayLayers: DEFAULT_ATLAS_SIZE,
+      },
+      ...descriptorPartial,
+      label: `Volume atlas containing `,
+      mipLevelCount: 1,
+    });
+  }
 
-  /**
-   * Add a volume to the atlas. Requires `commandEncoder.finish()` to be called to execute the copy
-   * @param commandEncoder - command encoder to use for copying the texture
-   * @param texture - 3d texture to copy into the atlas
-   * @param label - label to use for the volume in the dictionary
-   */
-  const addVolume = async (
-    commandEncoder: GPUCommandEncoder,
-    texture: GPUTexture,
-    label: string,
-  ) => {
-    if (dictionary[label]) {
+  /** Get the dimensions of the atlas texture */
+  get dimensions() {
+    return vec3.create(
+      this.#atlasTexture.width,
+      this.#atlasTexture.height,
+      this.#atlasTexture.depthOrArrayLayers,
+    );
+  }
+
+  get dictionary() {
+    return this.#dictionary;
+  }
+
+  addVolume = async (texture: GPUTexture, label: string) => {
+    if (this.#dictionary[label]) {
       throw new Error(
         `Error adding volume to atlas: volume with label ${label} already exists`,
       );
     }
 
+    const commandEncoder = this.#device.createCommandEncoder();
     const { width, height, depthOrArrayLayers } = texture;
     const roundedWidth = ceilToNearestMultipleOf(width, 8);
     const roundedHeight = ceilToNearestMultipleOf(height, 8);
@@ -96,25 +89,28 @@ export const getVolumeAtlas = async (
       depthOrArrayLayers,
     });
 
-    const newWidth = atlasTexture.width + roundedWidth;
-    if (newWidth > device.limits.maxTextureDimension3D) {
+    const newWidth = this.#atlasTexture.width + roundedWidth;
+    if (newWidth > this.#device.limits.maxTextureDimension3D) {
       throw new Error(
-        `Error adding volume to atlas: adding volume would exceed device max texture dimension of ${device.limits.maxTextureDimension3D}`,
+        `Error adding volume to atlas: adding volume would exceed device max texture dimension of ${this.#device.limits.maxTextureDimension3D}`,
       );
     }
 
-    const newHeight = Math.max(atlasTexture.height, roundedHeight);
-    const newDepth = Math.max(atlasTexture.depthOrArrayLayers, roundedDepth);
+    const newHeight = Math.max(this.#atlasTexture.height, roundedHeight);
+    const newDepth = Math.max(
+      this.#atlasTexture.depthOrArrayLayers,
+      roundedDepth,
+    );
 
     const newMipLevelCount = Math.max(
       texture.mipLevelCount,
-      atlasTexture.mipLevelCount,
+      this.#atlasTexture.mipLevelCount,
     );
     console.debug(
       `Expanding atlas texture to [${newWidth}, ${newHeight}, ${newDepth}], mip levels: ${newMipLevelCount}`,
     );
 
-    const newAtlasTexture = device.createTexture({
+    const newAtlasTexture = this.#device.createTexture({
       size: {
         width: newWidth,
         height: newHeight,
@@ -122,23 +118,23 @@ export const getVolumeAtlas = async (
       },
       mipLevelCount: newMipLevelCount,
       ...descriptorPartial,
-      label: `${atlasTexture.label}, ${texture.label || "unnamed volume"}`,
+      label: `${this.#atlasTexture.label}, ${texture.label || "unnamed volume"}`,
     });
 
-    const atlasLocationX = atlasTexture.width;
+    const atlasLocationX = this.#atlasTexture.width;
 
     // Copy the old atlas texture into the new larger one
     commandEncoder.copyTextureToTexture(
       {
-        texture: atlasTexture,
+        texture: this.#atlasTexture,
       },
       {
         texture: newAtlasTexture,
       },
       {
-        width: atlasTexture.width,
-        height: atlasTexture.height,
-        depthOrArrayLayers: atlasTexture.depthOrArrayLayers,
+        width: this.#atlasTexture.width,
+        height: this.#atlasTexture.height,
+        depthOrArrayLayers: this.#atlasTexture.depthOrArrayLayers,
       },
     );
 
@@ -169,16 +165,16 @@ export const getVolumeAtlas = async (
       );
     }
 
-    atlasTexture = newAtlasTexture;
+    this.#atlasTexture = newAtlasTexture;
 
-    dictionary[label] = {
+    this.#dictionary[label] = {
       location: [atlasLocationX, 0, 0],
       size: [width, height, depthOrArrayLayers],
     };
 
     // Prevents race condition between the copy and the write
-    device.queue.submit([commandEncoder.finish()]);
-    await device.queue.onSubmittedWorkDone();
+    this.#device.queue.submit([commandEncoder.finish()]);
+    await this.#device.queue.onSubmittedWorkDone();
 
     //TODO: adjust to use render pipeline to support 8 bit format
     // const zSliceTexture = await flipTexture(
@@ -188,31 +184,12 @@ export const getVolumeAtlas = async (
     // writeTextureToCanvas(device, "debug-canvas", zSliceTexture);
   };
 
-  /**
-   * @returns {GPUTextureView} - view of the atlas texture
-   */
-  const getAtlasTextureView = (): GPUTextureView => {
-    if (!atlasTexture) {
+  get atlasTextureView() {
+    if (!this.#atlasTexture) {
       return null;
     }
-    const view = atlasTexture.createView();
-    view.label = atlasTexture.label;
-    return view;
-  };
-
-  const getVolumes = (): VolumeAtlasDictionary => {
-    return dictionary;
-  };
-
-  return {
-    getVolumes,
-    addVolume,
-    getVolume,
-    getAtlasTextureView,
-    dimensions: vec3.create(
-      atlasTexture.width,
-      atlasTexture.height,
-      atlasTexture.depthOrArrayLayers,
-    ),
-  };
-};
+    return this.#atlasTexture.createView({
+      label: this.#atlasTexture.label,
+    });
+  }
+}
