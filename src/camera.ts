@@ -1,11 +1,9 @@
-import { camera, deltaTime, frameCount, resolution } from "./app";
+import { camera, deltaTime, resolution } from "./app";
 import { KeyboardControls } from "./keyboard-controls";
 import { MoveableObject } from "./moveable-object";
 import { mat4, quat, vec3, Vec3 } from "wgpu-matrix";
-import { haltonJitter } from "./jitter-view-projection";
 
 const keyboardControls = new KeyboardControls();
-// const mouseControls = new MouseControls();
 
 export class Camera extends MoveableObject {
   fieldOfView: number;
@@ -24,38 +22,6 @@ export class Camera extends MoveableObject {
       ),
     });
     this.fieldOfView = options.fieldOfView;
-  }
-
-  get direction() {
-    // TODO: figure out why this is negative in render pass but not compute
-    return vec3.transformQuat(vec3.create(0, 0, 1), this.rotation);
-  }
-
-  get right() {
-    return vec3.transformQuat(vec3.create(1, 0, 0), this.rotation);
-  }
-
-  get left() {
-    return vec3.transformQuat(vec3.create(-1, 0, 0), this.rotation);
-  }
-
-  get up() {
-    return vec3.transformQuat(vec3.create(0, 1, 0), this.rotation);
-  }
-
-  get down() {
-    return vec3.transformQuat(vec3.create(0, -1, 0), this.rotation);
-  }
-
-  get viewMatrix() {
-    const eye = this.position;
-    const view = mat4.lookAt(eye, vec3.add(eye, this.direction), this.up);
-    return view;
-    // return haltonJitter(frameCount, view);
-  }
-
-  get inverseViewMatrix() {
-    return mat4.invert(this.viewMatrix);
   }
 
   get projectionMatrix() {
@@ -84,7 +50,6 @@ export const moveCamera = () => {
   const rotationSpeed = 0.005 * deltaTime;
   const speed = 0.04 * deltaTime;
   let direction = vec3.zero();
-  // TODO: Why is it backwards?
   if (keyboardControls.pressed.a) {
     direction = vec3.add(direction, camera.left);
   }

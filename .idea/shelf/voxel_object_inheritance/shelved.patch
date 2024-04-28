@@ -1,0 +1,74 @@
+Index: src/voxel-object.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import { mat4, Mat4, vec3, Vec3 } from \"wgpu-matrix\";\nimport { v4 as uuidv4 } from \"uuid\";\nimport { BoundingBox } from \"./bvh\";\n\n/**\n * Get the bounding box of a set of corners\n * @param corners\n */\nconst getBoundingBox = (corners: Vec3[]): BoundingBox => {\n  let min = vec3.create(Infinity, Infinity, Infinity);\n  let max = vec3.create(-Infinity, -Infinity, -Infinity);\n  for (const corner of corners) {\n    min = vec3.min(min, corner);\n    max = vec3.max(max, corner);\n  }\n  return { min, max };\n};\n\n/**\n * A class representing a voxel object in the scene.\n *\n * This does not include the actual voxel data, but rather the object's transform, size, and atlas location.\n *\n * Actual voxel data is stored in the {@link VolumeAtlas}.\n * @example\n * const transform = mat4.create();\n * const size = vec3.create(1, 1, 1);\n * const atlasLocation = vec3.create(0, 0, 0);\n * const name = \"cube\";\n * const cubeObject = new VoxelObject(transform, size, atlasLocation, name);\n */\nexport class VoxelObject {\n  /** A uuid identifier for this object */\n  id: string;\n  /** A human readable name for this object */\n  name: string;\n  /** Model transform matrix */\n  transform: Mat4;\n  /** Inverse of the model transform matrix */\n  inverseTransform: Mat4;\n  /** Previous frame's model transform matrix */\n  previousTransform: Mat4;\n  /** Previous frame's inverse of the model transform matrix */\n  previousInverseTransform: Mat4;\n  /** Size of the object in voxels */\n  size: Vec3;\n  /** Location in the texture volume atlas */\n  atlasLocation: Vec3;\n  /** The center of the object in world space */\n  worldSpaceCenter: Vec3;\n\n  constructor(\n    transform: Mat4,\n    size: Vec3,\n    atlasLocation: Vec3,\n    name = \"unnamed\",\n  ) {\n    this.id = uuidv4();\n    this.name = name;\n    this.transform = transform;\n    this.size = size;\n    this.inverseTransform = mat4.invert(this.transform);\n    this.previousTransform = mat4.clone(this.transform);\n    this.previousInverseTransform = mat4.clone(this.inverseTransform);\n    this.atlasLocation = atlasLocation;\n    const minBound = vec3.transformMat4(vec3.create(), this.transform);\n    const maxBound = vec3.transformMat4(this.size, this.transform);\n    this.worldSpaceCenter = vec3.lerp(minBound, maxBound, 0.5);\n  }\n\n  get objectSpaceCorners() {\n    return [\n      vec3.create(0, 0, 0),\n      vec3.create(0, 0, this.size[2]),\n      vec3.create(0, this.size[1], 0),\n      vec3.create(0, this.size[1], this.size[2]),\n      vec3.create(this.size[0], 0, 0),\n      vec3.create(this.size[0], 0, this.size[2]),\n      vec3.create(this.size[0], this.size[1], 0),\n      vec3.create(this.size[0], this.size[1], this.size[2]),\n    ];\n  }\n\n  get worldSpaceCorners() {\n    return this.objectSpaceCorners.map((corner) => {\n      return vec3.transformMat4(corner, this.transform);\n    });\n  }\n\n  /** Gets an axis aligned bounding box for the object in world space */\n  get AABB() {\n    return getBoundingBox(this.worldSpaceCorners);\n  }\n\n  /** Gets the object's transform matrix as a flat array, for usage in a gpu buffer */\n  toArray() {\n    return [\n      ...this.transform,\n      ...this.inverseTransform,\n      ...this.previousTransform,\n      ...this.previousInverseTransform,\n      ...this.size,\n      0.0, //padding for 4 byte stride\n      ...this.atlasLocation,\n      0.0, //padding for 4 byte stride\n    ];\n  }\n}\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/voxel-object.ts b/src/voxel-object.ts
+--- a/src/voxel-object.ts	(revision 8434ae2dc3c03678136d65d8a41c791988f091fe)
++++ b/src/voxel-object.ts	(date 1714309842604)
+@@ -1,6 +1,7 @@
+-import { mat4, Mat4, vec3, Vec3 } from "wgpu-matrix";
++import { mat4, Mat4, Quat, vec3, Vec3 } from "wgpu-matrix";
+ import { v4 as uuidv4 } from "uuid";
+ import { BoundingBox } from "./bvh";
++import { MoveableObject } from "./moveable-object";
+ 
+ /**
+  * Get the bounding box of a set of corners
+@@ -29,43 +30,35 @@
+  * const name = "cube";
+  * const cubeObject = new VoxelObject(transform, size, atlasLocation, name);
+  */
+-export class VoxelObject {
+-  /** A uuid identifier for this object */
++export class VoxelObject extends MoveableObject {
++  /** uuid identifier for this object */
+   id: string;
+-  /** A human readable name for this object */
++  /** Readable name for this object */
+   name: string;
+-  /** Model transform matrix */
+-  transform: Mat4;
+-  /** Inverse of the model transform matrix */
+-  inverseTransform: Mat4;
+-  /** Previous frame's model transform matrix */
+-  previousTransform: Mat4;
+-  /** Previous frame's inverse of the model transform matrix */
+-  previousInverseTransform: Mat4;
+   /** Size of the object in voxels */
+   size: Vec3;
+   /** Location in the texture volume atlas */
+   atlasLocation: Vec3;
+-  /** The center of the object in world space */
+-  worldSpaceCenter: Vec3;
+ 
+   constructor(
+-    transform: Mat4,
++    position: Vec3,
++    scale: Vec3,
++    rotation: Quat,
+     size: Vec3,
+     atlasLocation: Vec3,
+     name = "unnamed",
+   ) {
++    super(position, scale, rotation);
+     this.id = uuidv4();
+     this.name = name;
+-    this.transform = transform;
+     this.size = size;
+-    this.inverseTransform = mat4.invert(this.transform);
+-    this.previousTransform = mat4.clone(this.transform);
+-    this.previousInverseTransform = mat4.clone(this.inverseTransform);
+     this.atlasLocation = atlasLocation;
++  }
++
++  get worldSpaceCenter() {
+     const minBound = vec3.transformMat4(vec3.create(), this.transform);
+     const maxBound = vec3.transformMat4(this.size, this.transform);
+-    this.worldSpaceCenter = vec3.lerp(minBound, maxBound, 0.5);
++    return vec3.lerp(minBound, maxBound, 0.5);
+   }
+ 
+   get objectSpaceCorners() {

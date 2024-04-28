@@ -1,0 +1,192 @@
+Index: src/moveable-object.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import { camera, deltaTime } from \"./app\";\nimport { quat, Quat, vec3, Vec3 } from \"wgpu-matrix\";\nimport { animate, glide } from \"motion\";\nimport { haltonSequence } from \"./halton-sequence\";\nimport { haltonJitter } from \"./jitter-view-projection\";\n\nexport class MoveableObject {\n  position: Vec3;\n  targetPosition: Vec3;\n  rotation: Quat;\n  targetRotation: Quat;\n  scale: Vec3;\n  targetScale: Vec3;\n  constructor(options: { position: Vec3; rotation: Quat }) {\n    this.position = options.position;\n    this.rotation = options.rotation;\n    this.targetPosition = this.position;\n    this.targetRotation = this.rotation;\n    this.scale = vec3.create(1, 1, 1);\n    this.targetScale = this.scale;\n  }\n\n  update() {\n    animate(\n      (progress: number) => {\n        this.position = vec3.lerp(this.position, this.targetPosition, progress);\n      },\n      {\n        easing: glide({\n          velocity: 0.0002 * deltaTime,\n        }),\n      },\n    );\n    animate(\n      (progress: number) => {\n        this.rotation = quat.slerp(\n          this.rotation,\n          this.targetRotation,\n          progress,\n        );\n      },\n      {\n        easing: glide({\n          velocity: 0.0002 * deltaTime,\n        }),\n      },\n    );\n    animate(\n      (progress: number) => {\n        this.scale = vec3.lerp(this.scale, this.targetScale, progress);\n      },\n      {\n        easing: glide({\n          velocity: 0.0002 * deltaTime,\n        }),\n      },\n    );\n  }\n\n  // getJitteredPosition(frameNumber: number): Vec3 {\n  //   const haltonOffset = haltonJitter(frameNumber);\n  //   const right = vec3.mulScalar(camera.right, haltonOffset[0]);\n  //   const up = vec3.mulScalar(camera.up, haltonOffset[1]);\n  //   return vec3.add(vec3.add(this.position, right), up);\n  // }\n}\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/moveable-object.ts b/src/moveable-object.ts
+--- a/src/moveable-object.ts	(revision 8434ae2dc3c03678136d65d8a41c791988f091fe)
++++ b/src/moveable-object.ts	(date 1714317503443)
+@@ -1,66 +1,122 @@
+-import { camera, deltaTime } from "./app";
+-import { quat, Quat, vec3, Vec3 } from "wgpu-matrix";
+-import { animate, glide } from "motion";
+-import { haltonSequence } from "./halton-sequence";
+-import { haltonJitter } from "./jitter-view-projection";
++import { Mat4, mat4, quat, Quat, vec3, Vec3 } from "wgpu-matrix";
++import { animate } from "motion";
+ 
+ export class MoveableObject {
+-  position: Vec3;
+-  targetPosition: Vec3;
+-  rotation: Quat;
+-  targetRotation: Quat;
+-  scale: Vec3;
+-  targetScale: Vec3;
+-  constructor(options: { position: Vec3; rotation: Quat }) {
+-    this.position = options.position;
+-    this.rotation = options.rotation;
+-    this.targetPosition = this.position;
+-    this.targetRotation = this.rotation;
+-    this.scale = vec3.create(1, 1, 1);
+-    this.targetScale = this.scale;
++  #position: Vec3;
++  #targetPosition: Vec3;
++  #rotation: Quat;
++  #targetRotation: Quat;
++  #scale: Vec3;
++  #targetScale: Vec3;
++  #previousTransform: Mat4;
++  #previousInverseTransform: Mat4;
++
++  constructor(position: Vec3, rotation: Quat, scale = vec3.create(1, 1, 1)) {
++    this.#position = position;
++    this.#rotation = rotation;
++    this.#targetPosition = this.#position;
++    this.#targetRotation = this.#rotation;
++    this.#scale = scale;
++    this.#targetScale = this.scale;
++    this.#previousTransform = mat4.clone(this.transform);
++    this.#previousInverseTransform = mat4.clone(this.inverseTransform);
++  }
++
++  get transform() {
++    let matrix = mat4.create();
++    const translation = mat4.translate(mat4.create(), this.#position);
++    const scale = mat4.scale(mat4.create(), this.#scale);
++    const rotation = mat4.fromQuat(mat4.create(), this.#rotation);
++    mat4.mul(matrix, translation, matrix);
++    mat4.mul(matrix, scale, matrix);
++    mat4.mul(matrix, rotation, matrix);
++    return matrix;
++  }
++
++  get inverseTransform() {
++    return mat4.invert(this.transform);
++  }
++
++  get previousTransform() {
++    return this.#previousTransform;
++  }
++
++  get previousInverseTransform() {
++    return this.#previousInverseTransform;
++  }
++
++  set position(value: Vec3) {
++    this.#targetPosition = value;
++  }
++
++  get position() {
++    return this.#position;
++  }
++
++  set rotation(value: Quat) {
++    this.#targetRotation = value;
++  }
++
++  get rotation() {
++    return this.#rotation;
++  }
++
++  set scale(value: Vec3) {
++    this.#targetScale = value;
++  }
++
++  get scale() {
++    return this.#scale;
++  }
++
++  get direction() {
++    return vec3.transformQuat(vec3.create(0, 0, 1), this.rotation);
++  }
++
++  get right() {
++    return vec3.transformQuat(vec3.create(1, 0, 0), this.rotation);
++  }
++
++  get left() {
++    return vec3.transformQuat(vec3.create(-1, 0, 0), this.rotation);
++  }
++
++  get up() {
++    return vec3.transformQuat(vec3.create(0, 1, 0), this.rotation);
++  }
++
++  get down() {
++    return vec3.transformQuat(vec3.create(0, -1, 0), this.rotation);
++  }
++
++  get viewMatrix() {
++    const eye = this.position;
++    return mat4.lookAt(eye, vec3.add(eye, this.direction), this.up);
++  }
++
++  get inverseViewMatrix() {
++    return mat4.invert(this.viewMatrix);
+   }
+ 
+   update() {
+-    animate(
+-      (progress: number) => {
+-        this.position = vec3.lerp(this.position, this.targetPosition, progress);
+-      },
+-      {
+-        easing: glide({
+-          velocity: 0.0002 * deltaTime,
+-        }),
+-      },
+-    );
+-    animate(
+-      (progress: number) => {
+-        this.rotation = quat.slerp(
+-          this.rotation,
+-          this.targetRotation,
+-          progress,
+-        );
+-      },
+-      {
+-        easing: glide({
+-          velocity: 0.0002 * deltaTime,
+-        }),
+-      },
+-    );
+-    animate(
+-      (progress: number) => {
+-        this.scale = vec3.lerp(this.scale, this.targetScale, progress);
+-      },
+-      {
+-        easing: glide({
+-          velocity: 0.0002 * deltaTime,
+-        }),
+-      },
+-    );
++    animate((progress: number) => {
++      this.#position = vec3.lerp(
++        this.#position,
++        this.#targetPosition,
++        progress,
++      );
++    });
++    animate((progress: number) => {
++      this.#rotation = quat.slerp(
++        this.#rotation,
++        this.#targetRotation,
++        progress,
++      );
++    });
++    animate((progress: number) => {
++      this.#scale = vec3.lerp(this.#scale, this.#targetScale, progress);
++    });
++    this.#previousTransform = mat4.clone(this.transform);
++    this.#previousInverseTransform = mat4.clone(this.inverseTransform);
+   }
+-
+-  // getJitteredPosition(frameNumber: number): Vec3 {
+-  //   const haltonOffset = haltonJitter(frameNumber);
+-  //   const right = vec3.mulScalar(camera.right, haltonOffset[0]);
+-  //   const up = vec3.mulScalar(camera.up, haltonOffset[1]);
+-  //   return vec3.add(vec3.add(this.position, right), up);
+-  // }
+ }
