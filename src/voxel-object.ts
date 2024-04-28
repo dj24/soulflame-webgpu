@@ -1,6 +1,7 @@
 import { mat4, Mat4, vec3, Vec3 } from "wgpu-matrix";
 import { v4 as uuidv4 } from "uuid";
 import { BoundingBox } from "./bvh";
+import { MoveableObject } from "./moveable-object";
 
 /**
  * Get the bounding box of a set of corners
@@ -29,19 +30,11 @@ const getBoundingBox = (corners: Vec3[]): BoundingBox => {
  * const name = "cube";
  * const cubeObject = new VoxelObject(transform, size, atlasLocation, name);
  */
-export class VoxelObject {
+export class VoxelObject extends MoveableObject {
   /** A uuid identifier for this object */
   id: string;
-  /** A human readable name for this object */
+  /** A readable name for this object */
   name: string;
-  /** Model transform matrix */
-  transform: Mat4;
-  /** Inverse of the model transform matrix */
-  inverseTransform: Mat4;
-  /** Previous frame's model transform matrix */
-  previousTransform: Mat4;
-  /** Previous frame's inverse of the model transform matrix */
-  previousInverseTransform: Mat4;
   /** Size of the object in voxels */
   size: Vec3;
   /** Location in the texture volume atlas */
@@ -50,18 +43,21 @@ export class VoxelObject {
   worldSpaceCenter: Vec3;
 
   constructor(
-    transform: Mat4,
+    position: Vec3,
+    rotation: Vec3,
+    scale: Vec3,
     size: Vec3,
     atlasLocation: Vec3,
     name = "unnamed",
   ) {
+    super({
+      position,
+      rotation,
+      scale,
+    });
     this.id = uuidv4();
     this.name = name;
-    this.transform = transform;
     this.size = size;
-    this.inverseTransform = mat4.invert(this.transform);
-    this.previousTransform = mat4.clone(this.transform);
-    this.previousInverseTransform = mat4.clone(this.inverseTransform);
     this.atlasLocation = atlasLocation;
     const minBound = vec3.transformMat4(vec3.create(), this.transform);
     const maxBound = vec3.transformMat4(this.size, this.transform);
