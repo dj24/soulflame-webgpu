@@ -15,6 +15,8 @@ type VolumeAtlasEntry = {
   location: Vec3;
   /** The size of the volume in the atlas texture */
   size: Vec3;
+  /** The y position of the volume in the atlas texture */
+  // paletteIndex: number;
 };
 
 export type VolumeAtlasDictionary = {
@@ -42,6 +44,7 @@ const ceilToNearestMultipleOf = (n: number, multiple: number) => {
 export class VolumeAtlas {
   #dictionary: VolumeAtlasDictionary = {};
   #atlasTexture: GPUTexture;
+  #paletteTexture: GPUTexture;
   #device: GPUDevice;
 
   constructor(device: GPUDevice) {
@@ -71,7 +74,7 @@ export class VolumeAtlas {
     return this.#dictionary;
   }
 
-  addVolume = async (texture: GPUTexture, label: string) => {
+  addVolume = async (volume: GPUTexture, label: string) => {
     if (this.#dictionary[label]) {
       throw new Error(
         `Error adding volume to atlas: volume with label ${label} already exists`,
@@ -79,7 +82,7 @@ export class VolumeAtlas {
     }
 
     const commandEncoder = this.#device.createCommandEncoder();
-    const { width, height, depthOrArrayLayers } = texture;
+    const { width, height, depthOrArrayLayers } = volume;
     const roundedWidth = ceilToNearestMultipleOf(width, 8);
     const roundedHeight = ceilToNearestMultipleOf(height, 8);
     const roundedDepth = ceilToNearestMultipleOf(depthOrArrayLayers, 8);
@@ -103,7 +106,7 @@ export class VolumeAtlas {
     );
 
     const newMipLevelCount = Math.max(
-      texture.mipLevelCount,
+      volume.mipLevelCount,
       this.#atlasTexture.mipLevelCount,
     );
     console.debug(
@@ -118,7 +121,7 @@ export class VolumeAtlas {
       },
       mipLevelCount: newMipLevelCount,
       ...descriptorPartial,
-      label: `${this.#atlasTexture.label}, ${texture.label || "unnamed volume"}`,
+      label: `${this.#atlasTexture.label}, ${volume.label || "unnamed volume"}`,
     });
 
     const atlasLocationX = this.#atlasTexture.width;
@@ -140,15 +143,15 @@ export class VolumeAtlas {
 
     for (
       let mipLevel = 0;
-      mipLevel < Math.min(texture.mipLevelCount, newAtlasTexture.mipLevelCount);
+      mipLevel < Math.min(volume.mipLevelCount, newAtlasTexture.mipLevelCount);
       mipLevel++
     ) {
-      const mipWidth = Math.max(1, texture.width >> mipLevel);
-      const mipHeight = Math.max(1, texture.height >> mipLevel);
-      const mipDepth = Math.max(1, texture.depthOrArrayLayers >> mipLevel);
+      const mipWidth = Math.max(1, volume.width >> mipLevel);
+      const mipHeight = Math.max(1, volume.height >> mipLevel);
+      const mipDepth = Math.max(1, volume.depthOrArrayLayers >> mipLevel);
       commandEncoder.copyTextureToTexture(
         {
-          texture: texture,
+          texture: volume,
           mipLevel,
           origin: { x: 0, y: 0, z: 0 }, // Specify the source origin
         },

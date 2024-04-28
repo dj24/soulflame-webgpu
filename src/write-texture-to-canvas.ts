@@ -13,7 +13,7 @@ export const writeTextureToCanvas = async (
   const gpuContext = canvas.getContext("webgpu");
   gpuContext.configure({
     device,
-    format: VOLUME_ATLAS_FORMAT,
+    format: "rgba8unorm",
     usage: GPUTextureUsage.RENDER_ATTACHMENT,
   });
   const commandEncoder = device.createCommandEncoder();
@@ -30,7 +30,7 @@ export const writeTextureToCanvas = async (
     fragment: {
       module: fullscreenQuadShaderModule,
       entryPoint: "fragment_main",
-      targets: [{ format: VOLUME_ATLAS_FORMAT }],
+      targets: [{ format: "rgba8unorm" }],
     },
   });
   const renderPass = commandEncoder.beginRenderPass({

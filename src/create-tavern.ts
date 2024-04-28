@@ -5,6 +5,8 @@ import { VoxelObject } from "./voxel-object";
 import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels";
 import { convertVxm } from "./convert-vxm";
 import { createTextureFromVoxels } from "./create-texture-from-voxels/create-texture-from-voxels";
+import { createPaletteTextureFromVoxels } from "./create-texture-from-voxels/create-palette-texture-from-voxels";
+import { writeTextureToCanvas } from "./write-texture-to-canvas";
 
 export let voxelObjects: VoxelObject[] = [];
 
@@ -71,6 +73,12 @@ const processTavernObject = async (
   console.time(`Create texture from voxels for ${name}`);
   let texture = await createTextureFromVoxels(device, voxels);
   console.timeEnd(`Create texture from voxels for ${name}`);
+
+  console.time(`Create palette texture for ${name}`);
+  const palette = await createPaletteTextureFromVoxels(device, voxels);
+  console.timeEnd(`Create palette texture for ${name}`);
+
+  writeTextureToCanvas(device, "debug-canvas", palette);
 
   // TODO: adjust to use render pipeline for 8bit texture support
   // console.time(`Generate octree mips for ${name}`);

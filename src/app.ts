@@ -670,7 +670,7 @@ const start = async () => {
     // getDiffusePass(),
     // getVolumetricFog(),
     // getFXAAPass(),
-    // getTaaPass(),
+    getTaaPass(),
     // getFogPass(),
     // getBoxOutlinePass(),
     // getWaterPass(),

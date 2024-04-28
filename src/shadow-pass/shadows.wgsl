@@ -54,7 +54,7 @@ fn randomInCosineWeightedHemisphere(r: vec2<f32>, normal: vec3<f32>) -> vec3<f32
   return normalize(u * cos(r1) * r2s + v * sin(r1) * r2s + w * sqrt(1.0 - r2));
 }
 
-const SAMPLES_PER_PIXEL = 2u;
+const SAMPLES_PER_PIXEL = 1u;
 const SAMPLE_OFFSETS: array<vec2<i32>, 4> = array<vec2<i32>, 4>(
   vec2<i32>(0, 0),
   vec2<i32>(1, 1),
