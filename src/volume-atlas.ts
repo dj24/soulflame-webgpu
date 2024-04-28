@@ -30,7 +30,6 @@ export type VolumeAtlas = {
     texture: GPUTexture,
     label: string,
   ) => void;
-  removeVolume: (label: string) => void;
   getAtlasTextureView: () => GPUTextureView;
   dimensions: Vec3;
 };
@@ -126,9 +125,8 @@ export const getVolumeAtlas = async (
       label: `${atlasTexture.label}, ${texture.label || "unnamed volume"}`,
     });
 
-    console.log({ newMipLevelCount, atlasTexture });
-
     const atlasLocationX = atlasTexture.width;
+
     // Copy the old atlas texture into the new larger one
     commandEncoder.copyTextureToTexture(
       {
@@ -191,86 +189,6 @@ export const getVolumeAtlas = async (
   };
 
   /**
-   * Remove a volume from the atlas
-   * TODO: shift the atlas texture to fill the gap
-   * TODO: check if out of bounds to allow for 8,8,1 num threads
-   * @param label - label of the volume to remove
-   */
-  const removeVolume = async (label: string) => {
-    if (!dictionary[label]) {
-      throw new Error(
-        `Error removing volume from atlas: volume with label ${label} does not exist`,
-      );
-    }
-    if (!atlasTexture) {
-      throw new Error(
-        "Error removing from atlas: No atlas texture to remove volume from",
-      );
-    }
-    const { location: startIndex, size } = dictionary[label];
-    const endIndex = vec3.add(startIndex, size);
-    const sizeOfRemoval = vec3.subtract(endIndex, startIndex);
-    if (
-      sizeOfRemoval[0] > atlasTexture.width ||
-      sizeOfRemoval[1] > atlasTexture.height ||
-      sizeOfRemoval[2] > atlasTexture.depthOrArrayLayers
-    ) {
-      throw new Error(
-        `Error removing from atlas: volume to remove (${sizeOfRemoval}) is larger than atlas texture (${atlasTexture.width}, ${atlasTexture.height}, ${atlasTexture.depthOrArrayLayers})`,
-      );
-    }
-    const commandEncoder = device.createCommandEncoder();
-    const computePass = commandEncoder.beginComputePass();
-    const clearVolumePipeline = device.createComputePipeline({
-      layout: "auto",
-      compute: {
-        module: device.createShaderModule({
-          code: `
-                @group(0) @binding(0) var texture : texture_storage_3d<VOLUME_ATLAS_FORMAT, write>;
-                override startX: u32 = 0;
-                override startY: u32 = 0;
-                override startZ: u32 = 0;
-                @compute @workgroup_size(1, 1, 1)
-                fn main(
-                  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
-                ) {
-                  textureStore(texture, GlobalInvocationID + vec3(startX, startY, startZ), vec4(0.0));
-                }
-            `,
-        }),
-        entryPoint: "main",
-        constants: {
-          startX: startIndex[0],
-          startY: startIndex[1],
-          startZ: startIndex[2],
-        },
-      },
-    });
-    computePass.setPipeline(clearVolumePipeline);
-    computePass.setBindGroup(
-      0,
-      device.createBindGroup({
-        layout: clearVolumePipeline.getBindGroupLayout(0),
-        entries: [
-          {
-            binding: 0,
-            resource: atlasTexture.createView(),
-          },
-        ],
-      }),
-    );
-    computePass.dispatchWorkgroups(
-      sizeOfRemoval[0],
-      sizeOfRemoval[1],
-      sizeOfRemoval[2],
-    );
-    computePass.end();
-
-    device.queue.submit([commandEncoder.finish()]);
-    await device.queue.onSubmittedWorkDone();
-  };
-
-  /**
    * @returns {GPUTextureView} - view of the atlas texture
    */
   const getAtlasTextureView = (): GPUTextureView => {
@@ -290,7 +208,6 @@ export const getVolumeAtlas = async (
     getVolumes,
     addVolume,
     getVolume,
-    removeVolume,
     getAtlasTextureView,
     dimensions: vec3.create(
       atlasTexture.width,

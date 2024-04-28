@@ -662,7 +662,7 @@ const start = async () => {
     // getGBufferPass(),
     // getVoxelLatticePass(),
     // getReflectionsPass(),
-    getShadowsPass(),
+    // getShadowsPass(),
     // getAdaptiveShadowsPass(),
     getSkyPass(),
     // getLightsPass(),
@@ -671,7 +671,7 @@ const start = async () => {
     // getVolumetricFog(),
     // getFXAAPass(),
     // getTaaPass(),
-    getFogPass(),
+    // getFogPass(),
     // getBoxOutlinePass(),
     // getWaterPass(),
 
