@@ -1,13 +1,13 @@
 import { RenderPass } from "../app";
-import shadows from "./shadows.wgsl";
 import { createComputeCompositePass } from "../abstractions/compute-composite-pass";
+import fog from "./fog.compute.wgsl";
 
-export const getShadowsPass = async (): Promise<RenderPass> => {
+export const getFogPass = async (): Promise<RenderPass> => {
   return createComputeCompositePass({
-    shaderCode: shadows,
+    shaderCode: fog,
     effectEntryPoint: "main",
     compositeEntryPoint: "composite",
-    downscale: 2,
-    label: "shadows",
+    downscale: 4,
+    label: "fog",
   });
 };

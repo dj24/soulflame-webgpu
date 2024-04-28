@@ -33,6 +33,7 @@ import { getLightsPass, Light } from "./lights-pass/get-lights-pass";
 import { getVoxelLatticePass } from "./voxel-lattice/get-voxel-lattice-pass";
 import { getFXAAPass } from "./fxaa-pass/fxaa-pass";
 import { getAdaptiveShadowsPass } from "./adaptive-shadow-pass/get-adaptive-shadows-pass";
+import { getFogPass } from "./fog-pass/get-fog-pass";
 
 export type RenderArgs = {
   enabled?: boolean;
@@ -670,6 +671,7 @@ const start = async () => {
     // getVolumetricFog(),
     // getFXAAPass(),
     // getTaaPass(),
+    getFogPass(),
     // getBoxOutlinePass(),
     // getWaterPass(),
 

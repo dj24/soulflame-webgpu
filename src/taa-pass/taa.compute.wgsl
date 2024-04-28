@@ -29,7 +29,7 @@ fn main(
 
     var historySample: vec3<f32> = textureLoad(HistoryRead, previousPixel, 0).rgb;
 
-    textureStore(HistoryWrite, id.xy, vec4<f32>(mix(textureLoad(HistoryRead, id.xy, 0).rgb, sourceSample, 0.05), 1.0));
+    textureStore(HistoryWrite, id.xy, vec4<f32>(mix(textureLoad(HistoryRead, id.xy, 0).rgb, sourceSample, 0.125), 1.0));
     return;
 
     // Sample depth from the Depth texture

@@ -219,7 +219,8 @@ export const createComputeCompositePass = async ({
   const code = `
 struct Time {
   frame: u32,
-  deltaTime: f32
+  deltaTime: f32,
+  elapsed: f32
 };
 
 @group(0) @binding(0) var depthTex : texture_2d<f32>;
