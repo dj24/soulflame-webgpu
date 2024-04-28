@@ -1,1 +1,0 @@
-(self.webpackChunksoulflame_webgpu=self.webpackChunksoulflame_webgpu||[]).push([[846],{846:e=>{e.exports={size:[2,7,2],normalisedPivot:[.5,0,.5],bounds:{min:[15,0,15],max:[16,6,16]},sliceFilePaths:["https://dj24.github.io/soulflame-webgpu/voxel-models/Candle/0.png","https://dj24.github.io/soulflame-webgpu/voxel-models/Candle/1.png"],emissiveVoxels:[]}}}]);
