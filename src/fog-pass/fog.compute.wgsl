@@ -1,10 +1,10 @@
 
 const BLUE_NOISE_SIZE = 511;
-const MAX_DISTANCE = 300.0;
+const MAX_DISTANCE = 50.0;
 const START_DISTANCE = 0.0;
-const EXTINCTION = 0.000001;
-const FORWARD_SCATTER = 0.4;
-const STEPS = 16.0;
+const EXTINCTION = 0.001;
+const FORWARD_SCATTER = 0.1;
+const STEPS = 12.0;
 
 fn henyeyGreenstein(cosTheta: f32, g: f32) -> f32 {
   let g2 = g * g;
@@ -15,7 +15,12 @@ fn beerLambertLaw(distance: f32, extinction: f32) -> f32 {
   return exp(-distance * extinction);
 }
 
+fn screenBlend(base: vec4<f32>, blend: vec4<f32>) -> vec4<f32> {
+  return vec4<f32>(1.0) - (vec4<f32>(1.0) - blend) * (vec4<f32>(1.0) - base);
+}
 
+
+// TODO: blur in direction of sun ray (convert to screen space)
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
@@ -26,29 +31,34 @@ fn main(
   var distanceFromCamera = length(worldPos - cameraPosition);
   //TODO: This is a hack to avoid the fact that the sky depth is incorrect
   if(all(worldPos == vec3<f32>(0.0))){
-    var distanceFromCamera = FAR_PLANE;
+    distanceFromCamera = MAX_DISTANCE;
   }
-  distanceFromCamera = min(distanceFromCamera, MAX_DISTANCE);
   let rayDir = normalize(worldPos - cameraPosition);
   var blueNoisePixel = pixel % BLUE_NOISE_SIZE;
   let blueNoiseSample = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
   var inScattering = vec3<f32>(0.0);
   var count = 0.0;
   var stepLength = distanceFromCamera / STEPS;
+  stepLength = 1.0;
   for(var t = START_DISTANCE; t < distanceFromCamera; t += stepLength){
     let positionAlongRay = cameraPosition + rayDir * t + randomInUnitSphere(blueNoiseSample) * 0.25;
     let shadowRay = rayMarchBVHFirstHit(positionAlongRay, sunDirection);
     if(!shadowRay){
       let cosTheta = dot(rayDir, sunDirection);
       let phaseFunction = henyeyGreenstein(cosTheta, FORWARD_SCATTER);
-      let extinction = EXTINCTION;
       let distanceFromSurface = distanceFromCamera - t;
-      let attenuation = beerLambertLaw(distanceFromSurface, extinction);
-      inScattering += phaseFunction * attenuation;
+      let attenuation = beerLambertLaw(distanceFromSurface, EXTINCTION);
+      inScattering += phaseFunction;
     }
     count += 1.0;
   }
-  textureStore(outputTex, pixel, vec4<f32>(inScattering / STEPS, 1.0));
+  textureStore(outputTex, pixel, vec4<f32>(inScattering, length(inScattering)) / count);
+//textureStore(outputTex, pixel, vec4<f32>(distanceFromCamera / MAX_DISTANCE));
+//    let b = 0.01;
+//    let t = length(worldPos - cameraPosition);
+//    let fogAmount = 1.0 - exp(-t*b);
+//    textureStore(outputTex, pixel, vec4<f32>(fogAmount));
+
 }
 
 // 5x5 Gaussian blur kernel, weight in z component
@@ -88,9 +98,9 @@ fn composite(
 ) {
   let texSize = textureDimensions(outputTex);
   let shadowSampleUV = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(texSize);
-  var outputColour = vec4<f32>(0.0);
+  var fogAmount = vec4<f32>(0.0);
   var totalWeight = 0.0;
-  let texelSize = 1.0 / vec2<f32>(texSize);
+  let texelSize = 1.0 / vec2<f32>(textureDimensions(outputTex));
 
   for(var i = 0u; i < 25; i++){
     let foo = BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS_5x5[i];
@@ -99,12 +109,13 @@ fn composite(
     let fogSample = textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0);
     let gaussWeight = foo.z;
     totalWeight += gaussWeight;
-    outputColour += fogSample * gaussWeight;
+    fogAmount += fogSample * gaussWeight;
   }
-  outputColour /= totalWeight;
+  fogAmount /= totalWeight;
 
   let colourSample = textureLoad(inputTex, GlobalInvocationID.xy, 0);
-  let additivelyBlended = colourSample + outputColour;
-  let subtractivelyBlended = colourSample - outputColour;
-  textureStore(outputTex, GlobalInvocationID.xy, additivelyBlended);
+
+  let fogColour = vec3<f32>(0.6, 0.7, 0.8);
+  let blend = mix(colourSample.rgb, fogColour, length(fogAmount.rgb));
+  textureStore(outputTex, GlobalInvocationID.xy, vec4(blend, 1));
 }

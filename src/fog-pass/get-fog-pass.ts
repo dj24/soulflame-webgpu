@@ -7,7 +7,7 @@ export const getFogPass = async (): Promise<RenderPass> => {
     shaderCode: fog,
     effectEntryPoint: "main",
     compositeEntryPoint: "composite",
-    downscale: 4,
+    downscale: 8,
     label: "fog",
   });
 };

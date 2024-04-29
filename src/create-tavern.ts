@@ -49,7 +49,7 @@ const NAME_ALLOWLIST = [
   // "Books4",
   // "Door",
   // "BigDoor",
-  // "Tavern",
+  "Tavern",
 ];
 
 const processTavernObject = async (
