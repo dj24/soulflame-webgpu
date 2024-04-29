@@ -109,8 +109,8 @@ export class VoxelObject extends MoveableObject {
       ...this.#size,
       0.0, //padding for 4 byte stride
       ...this.#atlasLocation,
-      0.0, //padding for 4 byte stride
-      // this.#paletteIndex,
+      // 0.0, //padding for 4 byte stride
+      this.#paletteIndex,
     ];
   }
 }

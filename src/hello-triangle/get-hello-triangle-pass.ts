@@ -16,19 +16,14 @@ import getRayDirection from "../shader/get-ray-direction.wgsl";
 import { getCuboidVertices } from "../primitive-meshes/cuboid";
 import { VoxelObject } from "../voxel-object";
 
+const VOXEL_OBJECT_STRUCT_SIZE = 512;
+
 export const getHelloTrianglePass = async (): Promise<RenderPass> => {
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
       {
         binding: 0,
         visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-        buffer: {
-          type: "uniform",
-        },
-      },
-      {
-        binding: 1,
-        visibility: GPUShaderStage.VERTEX,
         buffer: {
           type: "uniform",
         },
@@ -50,7 +45,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
       },
       {
         binding: 4,
-        visibility: GPUShaderStage.FRAGMENT,
+        visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX,
         buffer: {
           type: "read-only-storage",
         },
@@ -187,12 +182,8 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
       size: 256 * sortedVoxelObjectsFrontToBack.length,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    const modelMatrixBuffer = device.createBuffer({
-      size: 256 * sortedVoxelObjectsFrontToBack.length,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
     const voxelObjectBuffer = device.createBuffer({
-      size: 512 * sortedVoxelObjectsFrontToBack.length,
+      size: VOXEL_OBJECT_STRUCT_SIZE * sortedVoxelObjectsFrontToBack.length,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
 
@@ -210,13 +201,6 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
             },
           },
           {
-            binding: 1,
-            resource: {
-              buffer: modelMatrixBuffer,
-              offset: 256 * i,
-            },
-          },
-          {
             binding: 2,
             resource: {
               buffer: viewProjectionMatricesBuffer,
@@ -230,7 +214,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
             binding: 4,
             resource: {
               buffer: voxelObjectBuffer,
-              offset: 512 * i,
+              offset: VOXEL_OBJECT_STRUCT_SIZE * i,
             },
           },
           {
@@ -260,18 +244,11 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
         mvp.byteOffset,
         mvp.byteLength,
       );
-      const m = new Float32Array(voxelObject.transform);
-      device.queue.writeBuffer(
-        modelMatrixBuffer,
-        256 * i,
-        m.buffer,
-        m.byteOffset,
-        m.byteLength,
-      );
       const object = new Float32Array(voxelObject.toArray());
+      console.log(object.byteLength);
       device.queue.writeBuffer(
         voxelObjectBuffer,
-        512 * i,
+        VOXEL_OBJECT_STRUCT_SIZE * i,
         object.buffer,
         object.byteOffset,
         object.byteLength,

@@ -1,5 +1,15 @@
+struct VoxelObject {
+  transform: mat4x4<f32>,
+  inverseTransform: mat4x4<f32>,
+  previousTransform: mat4x4<f32>,
+  previousInverseTransform: mat4x4<f32>,
+  size : vec3<f32>,
+  atlasLocation : vec3<f32>,
+  paletteIndex : f32,
+}
+
 @binding(0) @group(0) var<uniform> modelViewProjectionMatrix : mat4x4f;
-@binding(1) @group(0) var<uniform> modelMatrix : mat4x4f;
+@group(0) @binding(4) var<storage> voxelObject : VoxelObject;
 
 struct VertexOutput {
   @builtin(position) position : vec4f,
@@ -16,7 +26,7 @@ fn main(
   var clipPosition = modelViewProjectionMatrix * objectPos;
 //  clipPosition.z = -clipPosition.z;
   output.position = clipPosition;
-  output.worldPos = (modelMatrix * objectPos).xyz;
+  output.worldPos = (voxelObject.transform * objectPos).xyz;
   output.objectPos = objectPos.xyz;
   output.ndc = clipPosition.xyz / clipPosition.w;
   output.ndc.y = -output.ndc.y;

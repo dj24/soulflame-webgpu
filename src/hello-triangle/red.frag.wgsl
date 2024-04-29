@@ -25,7 +25,6 @@ struct GBufferOutput {
   @location(1) normal : vec4f,
   @location(2) worldPosition : vec4f,
   @location(3) velocity : vec4f,
-//  @location(4) depth : f32,
   @builtin(frag_depth) depth : f32,
 }
 
@@ -88,7 +87,7 @@ fn main(
     worldPos = result.worldPos;
     let objectPos = voxelObject.inverseTransform * vec4<f32>(worldPos, 1.0);
     let paletteX = i32(result.colour.r * 255.0);
-    let paletteY = 4;
+    let paletteY = i32(voxelObject.paletteIndex);
     output.albedo = textureLoad(palette, vec2(paletteX, paletteY), 0);
     output.normal = vec4(result.normal, 1);
     output.worldPosition = vec4(result.worldPos, 1);
