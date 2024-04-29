@@ -32,48 +32,55 @@ const getBoundingBox = (corners: Vec3[]): BoundingBox => {
  */
 export class VoxelObject extends MoveableObject {
   /** A uuid identifier for this object */
-  id: string;
+  #id: string;
   /** A readable name for this object */
-  name: string;
+  #name: string;
   /** Size of the object in voxels */
-  size: Vec3;
+  #size: Vec3;
   /** Location in the texture volume atlas */
-  atlasLocation: Vec3;
-  /** The center of the object in world space */
-  worldSpaceCenter: Vec3;
+  #atlasLocation: Vec3;
+  /** Index of the palette in the palette texture */
+  #paletteIndex: number;
 
-  constructor(
-    position: Vec3,
-    rotation: Vec3,
-    scale: Vec3,
-    size: Vec3,
-    atlasLocation: Vec3,
+  constructor({
+    position,
+    rotation,
+    scale,
+    size,
+    atlasLocation,
     name = "unnamed",
-  ) {
+    paletteIndex,
+  }: {
+    position: Vec3;
+    rotation: Vec3;
+    scale: Vec3;
+    size: Vec3;
+    atlasLocation: Vec3;
+    name: string;
+    paletteIndex: number;
+  }) {
     super({
       position,
       rotation,
       scale,
     });
-    this.id = uuidv4();
-    this.name = name;
-    this.size = size;
-    this.atlasLocation = atlasLocation;
-    const minBound = vec3.transformMat4(vec3.create(), this.transform);
-    const maxBound = vec3.transformMat4(this.size, this.transform);
-    this.worldSpaceCenter = vec3.lerp(minBound, maxBound, 0.5);
+    this.#id = uuidv4();
+    this.#name = name;
+    this.#size = size;
+    this.#atlasLocation = atlasLocation;
+    this.#paletteIndex = paletteIndex;
   }
 
   get objectSpaceCorners() {
     return [
       vec3.create(0, 0, 0),
-      vec3.create(0, 0, this.size[2]),
-      vec3.create(0, this.size[1], 0),
-      vec3.create(0, this.size[1], this.size[2]),
-      vec3.create(this.size[0], 0, 0),
-      vec3.create(this.size[0], 0, this.size[2]),
-      vec3.create(this.size[0], this.size[1], 0),
-      vec3.create(this.size[0], this.size[1], this.size[2]),
+      vec3.create(0, 0, this.#size[2]),
+      vec3.create(0, this.#size[1], 0),
+      vec3.create(0, this.#size[1], this.#size[2]),
+      vec3.create(this.#size[0], 0, 0),
+      vec3.create(this.#size[0], 0, this.#size[2]),
+      vec3.create(this.#size[0], this.#size[1], 0),
+      vec3.create(this.#size[0], this.#size[1], this.#size[2]),
     ];
   }
 
@@ -88,6 +95,10 @@ export class VoxelObject extends MoveableObject {
     return getBoundingBox(this.worldSpaceCorners);
   }
 
+  get size() {
+    return this.#size;
+  }
+
   /** Gets the object's transform matrix as a flat array, for usage in a gpu buffer */
   toArray() {
     return [
@@ -95,10 +106,11 @@ export class VoxelObject extends MoveableObject {
       ...this.inverseTransform,
       ...this.previousTransform,
       ...this.previousInverseTransform,
-      ...this.size,
+      ...this.#size,
       0.0, //padding for 4 byte stride
-      ...this.atlasLocation,
+      ...this.#atlasLocation,
       0.0, //padding for 4 byte stride
+      // this.#paletteIndex,
     ];
   }
 }

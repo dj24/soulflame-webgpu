@@ -146,7 +146,7 @@ export const createTextureFromVoxels = async (
             let voxelIndex = convert3DTo1D(vec3<u32>(sizeX, sizeY, sizeZ), vec3<u32>(voxelPosition));
             let voxel = voxelBuffer[voxelIndex];
             let normalisedPaletteIndex = f32(voxel.a) / 255.0;
-            return vec4(f32(voxel.a),0,0,0);
+            return vec4(normalisedPaletteIndex,0,0,0);
           }
         `,
       }),

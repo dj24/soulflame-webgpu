@@ -52,16 +52,11 @@ const NAME_ALLOWLIST = [
   // "Tavern",
 ];
 
-type ProcessTavernObject = {
-  name: string;
-  texture: GPUTexture;
-};
-
 const processTavernObject = async (
   commandEncoder: GPUCommandEncoder,
   name: string,
   device: GPUDevice,
-): Promise<ProcessTavernObject> => {
+) => {
   console.time(`Fetch ${name}`);
   const response = await fetch(`./Tavern/${name}.vxm`);
   console.timeEnd(`Fetch ${name}`);
@@ -78,14 +73,14 @@ const processTavernObject = async (
   const palette = await createPaletteTextureFromVoxels(device, voxels);
   console.timeEnd(`Create palette texture for ${name}`);
 
-  writeTextureToCanvas(device, "debug-canvas", palette);
+  // writeTextureToCanvas(device, "debug-canvas", palette);
 
   // TODO: adjust to use render pipeline for 8bit texture support
   // console.time(`Generate octree mips for ${name}`);
   // generateOctreeMips(commandEncoder, device, texture);
   // console.timeEnd(`Generate octree mips for ${name}`);
 
-  return { name, texture };
+  return { name, texture, palette };
 };
 
 export const createTavern = async (
@@ -109,9 +104,9 @@ export const createTavern = async (
         processTavernObject(commandEncoder, name, device),
       ),
     );
-    for (const { name, texture } of textures) {
+    for (const { name, texture, palette } of textures) {
       console.time(`Add volume for ${name}`);
-      await volumeAtlas.addVolume(texture, name);
+      await volumeAtlas.addVolume(texture, palette, name);
       commandEncoder = device.createCommandEncoder();
       console.timeEnd(`Add volume for ${name}`);
     }
@@ -129,22 +124,23 @@ export const createTavern = async (
       console.warn(`Volume not found for child ${child.name}, skipping...`);
       return;
     }
-    const m = mat4.identity();
     if (child.name === "Candle") {
       torchPositions.push(child.position);
     }
-    mat4.translate(m, child.position, m);
-    mat4.scale(m, child.scale, m);
-    mat4.multiply(m, mat4.fromQuat(child.rotation), m);
+
+    const { position, rotation, scale, name } = child;
+    const { size, location, paletteIndex } = volume;
+
     voxelObjects.push(
-      new VoxelObject(
-        child.position,
-        child.rotation,
-        child.scale,
-        volume.size,
-        volume.location,
-        child.name,
-      ),
+      new VoxelObject({
+        position,
+        rotation,
+        scale,
+        size,
+        atlasLocation: location,
+        name,
+        paletteIndex,
+      }),
     );
   }
   console.log({ volumes });

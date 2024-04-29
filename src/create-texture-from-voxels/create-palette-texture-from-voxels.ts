@@ -13,7 +13,7 @@ export const createPaletteTextureFromVoxels = async (
       height: 1,
     },
     format: "rgba8unorm",
-    usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+    usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC,
     dimension: "2d",
     mipLevelCount: 1,
   });

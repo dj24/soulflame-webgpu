@@ -186,11 +186,6 @@ export const getVoxelLatticePass = async (): Promise<RenderPass> => {
     timestampWrites,
     cameraPositionBuffer,
   }: RenderArgs) => {
-    // const sortedVoxelObjectsFrontToBack = voxelObjects.sort((a, b) => {
-    //   const aDist = vec3.distance(a.worldSpaceCenter, camera.position);
-    //   const bDist = vec3.distance(b.worldSpaceCenter, camera.position);
-    //   return aDist - bDist;
-    // });
     const sortedVoxelObjectsFrontToBack = voxelObjects;
 
     const colorAttachments: GPURenderPassColorAttachment[] = [

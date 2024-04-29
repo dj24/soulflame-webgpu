@@ -54,7 +54,7 @@ fn randomInCosineWeightedHemisphere(r: vec2<f32>, normal: vec3<f32>) -> vec3<f32
   return normalize(u * cos(r1) * r2s + v * sin(r1) * r2s + w * sqrt(1.0 - r2));
 }
 
-const SAMPLES_PER_PIXEL = 1u;
+const SAMPLES_PER_PIXEL = 2u;
 const SAMPLE_OFFSETS: array<vec2<i32>, 4> = array<vec2<i32>, 4>(
   vec2<i32>(0, 0),
   vec2<i32>(1, 1),
@@ -75,7 +75,7 @@ fn main(
   var output = vec4<f32>(0.0);
   var count = 0.0;
   for(var i = 0u; i < SAMPLES_PER_PIXEL; i++){
-    var samplePixel =  outputPixel + SAMPLE_OFFSETS[i];
+    var samplePixel =  outputPixel + SAMPLE_OFFSETS[i + time.frame % 3];
     samplePixel.x += i32(time.frame) * 32;
     samplePixel.y += i32(time.frame) * 16;
     blueNoisePixel = samplePixel % BLUE_NOISE_SIZE;

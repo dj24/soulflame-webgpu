@@ -10,7 +10,7 @@ struct ViewProjectionMatrices {
 @group(0) @binding(3) var voxels : texture_3d<f32>;
 @group(0) @binding(4) var<storage> voxelObject : VoxelObject;
 @group(0) @binding(5) var<uniform> cameraPosition : vec3<f32>;
-@group(0) @binding(6) var depthStore : texture_storage_2d<r32float, write>;
+@group(0) @binding(6) var palette : texture_2d<f32>;
 
 
 const IDENTITY_MATRIX = mat4x4<f32>(
@@ -58,7 +58,7 @@ fn normaliseValue(min: f32, max: f32, value: f32) -> f32 {
 @fragment
 fn main(
 
-  @location(0) objectPos : vec3f,
+//  @location(0) objectPos : vec3f,
 //   @location(1) worldPos : vec3f,
     @location(2) @interpolate(linear) ndc : vec3f
 ) -> GBufferOutput
@@ -85,7 +85,11 @@ fn main(
     }
 
 
-    output.albedo = vec4(result.colour, 1);
+    worldPos = result.worldPos;
+    let objectPos = voxelObject.inverseTransform * vec4<f32>(worldPos, 1.0);
+    let paletteX = i32(result.colour.r * 255.0);
+    let paletteY = 4;
+    output.albedo = textureLoad(palette, vec2(paletteX, paletteY), 0);
     output.normal = vec4(result.normal, 1);
     output.worldPosition = vec4(result.worldPos, 1);
     output.velocity = vec4(getVelocity(result, viewProjections), 1);

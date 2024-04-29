@@ -5,7 +5,7 @@ struct VoxelObject {
   previousInverseTransform: mat4x4<f32>,
   size : vec3<f32>,
   atlasLocation : vec3<f32>,
-  brickOffset : u32,
+  paletteIndex : f32,
 }
 
 @binding(0) @group(0) var<uniform> modelViewProjectionMatrix : mat4x4f;

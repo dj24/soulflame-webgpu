@@ -63,6 +63,15 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
           type: "uniform",
         },
       },
+      // Palette texture
+      {
+        binding: 6,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: {
+          sampleType: "float",
+          viewDimension: "2d",
+        },
+      },
     ],
   });
 
@@ -134,11 +143,6 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     timestampWrites,
     cameraPositionBuffer,
   }: RenderArgs) => {
-    // const sortedVoxelObjectsFrontToBack = voxelObjects.sort((a, b) => {
-    //   const aDist = vec3.distance(a.worldSpaceCenter, camera.position);
-    //   const bDist = vec3.distance(b.worldSpaceCenter, camera.position);
-    //   return aDist - bDist;
-    // });
     const sortedVoxelObjectsFrontToBack = voxelObjects;
 
     const colorAttachments: GPURenderPassColorAttachment[] = [
@@ -234,6 +238,10 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
             resource: {
               buffer: cameraPositionBuffer,
             },
+          },
+          {
+            binding: 6,
+            resource: volumeAtlas.paletteTextureView,
           },
         ],
       });
