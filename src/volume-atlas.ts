@@ -1,5 +1,5 @@
 import { Vec3 } from "wgpu-matrix";
-import { VOLUME_ATLAS_FORMAT } from "./constants";
+import { VOLUME_ATLAS_FORMAT, VOLUME_MIP_LEVELS } from "./constants";
 import { writeTextureToCanvas } from "./write-texture-to-canvas";
 
 const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
@@ -58,7 +58,7 @@ export class VolumeAtlas {
       },
       ...descriptorPartial,
       label: `Volume atlas containing `,
-      mipLevelCount: 1,
+      mipLevelCount: VOLUME_MIP_LEVELS,
     });
     this.#paletteTexture = device.createTexture({
       size: {
@@ -110,18 +110,13 @@ export class VolumeAtlas {
       this.#atlasTexture.depthOrArrayLayers,
       roundedDepth,
     );
-
-    const newMipLevelCount = Math.max(
-      volume.mipLevelCount,
-      this.#atlasTexture.mipLevelCount,
-    );
     const newAtlasTexture = this.#device.createTexture({
       size: {
         width: newWidth,
         height: newHeight,
         depthOrArrayLayers: newDepth,
       },
-      mipLevelCount: newMipLevelCount,
+      mipLevelCount: this.#atlasTexture.mipLevelCount,
       ...descriptorPartial,
       label: `${this.#atlasTexture.label}, ${volume.label || "unnamed volume"}`,
     });

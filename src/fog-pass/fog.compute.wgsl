@@ -117,5 +117,6 @@ fn composite(
 
   let fogColour = vec3<f32>(0.6, 0.7, 0.8);
   let blend = mix(colourSample.rgb, fogColour, length(fogAmount.rgb));
-  textureStore(outputTex, GlobalInvocationID.xy, vec4(blend, 1));
+//  textureStore(outputTex, GlobalInvocationID.xy, vec4(blend, 1));
+textureStore(outputTex, GlobalInvocationID.xy, fogAmount);
 }

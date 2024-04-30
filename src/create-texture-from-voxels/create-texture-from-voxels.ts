@@ -1,5 +1,5 @@
 import { TVoxels } from "../convert-vxm";
-import { VOLUME_ATLAS_FORMAT } from "../constants";
+import { VOLUME_ATLAS_FORMAT, VOLUME_MIP_LEVELS } from "../constants";
 import { Vec3 } from "wgpu-matrix";
 
 const convert3DTo1D = (
@@ -15,7 +15,7 @@ const convert3DTo1D = (
  * Creates a 3D texture from a TVoxels object
  * @param device GPUDevice used to create the texture
  * @param voxels TVoxels object containing the voxel data
- * @returns GPUTexture containing the voxel data
+ * @returns GPUTexture containing the voxel data, with a single mip level
  */
 export const createTextureFromVoxels = async (
   device: GPUDevice,
@@ -34,7 +34,7 @@ export const createTextureFromVoxels = async (
       GPUTextureUsage.COPY_DST |
       GPUTextureUsage.RENDER_ATTACHMENT,
     dimension: "2d",
-    mipLevelCount: 3,
+    mipLevelCount: VOLUME_MIP_LEVELS,
   });
 
   const totalVoxels =
@@ -202,7 +202,7 @@ export const createTextureFromVoxels = async (
 
     passEncoder.setPipeline(renderPipeline);
     passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.draw(6, texture.depthOrArrayLayers);
+    passEncoder.draw(6);
     passEncoder.end();
   }
 

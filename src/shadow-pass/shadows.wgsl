@@ -110,7 +110,7 @@ fn polarToCartesian(angle: f32, radius: f32) -> vec2<f32> {
   return vec2<f32>(x, y);
 }
 
-const BLUR_RADIUS = 1.0;
+const BLUR_RADIUS = 2.0;
 
 // 3x3 Gaussian blur kernel, weight in z component
 const BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS: array<vec3<f32>, 9> = array<vec3<f32>, 9>(

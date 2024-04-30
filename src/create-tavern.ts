@@ -49,7 +49,7 @@ const NAME_ALLOWLIST = [
   // "Books4",
   // "Door",
   // "BigDoor",
-  "Tavern",
+  // "Tavern",
 ];
 
 const processTavernObject = async (
@@ -75,10 +75,9 @@ const processTavernObject = async (
 
   // writeTextureToCanvas(device, "debug-canvas", palette);
 
-  // TODO: adjust to use render pipeline for 8bit texture support
-  // console.time(`Generate octree mips for ${name}`);
-  // generateOctreeMips(commandEncoder, device, texture);
-  // console.timeEnd(`Generate octree mips for ${name}`);
+  console.time(`Generate octree mips for ${name}`);
+  await generateOctreeMips(device, texture);
+  console.timeEnd(`Generate octree mips for ${name}`);
 
   return { name, texture, palette };
 };

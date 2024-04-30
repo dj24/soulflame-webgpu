@@ -1,94 +1,143 @@
-import { numMipLevels } from "webgpu-utils";
-import generateMips from "./generate-mips.compute.wgsl";
-import { VOLUME_ATLAS_FORMAT } from "../constants";
+import renderOctreeFragmentShader from "./generate-octree-mips.frag.wgsl";
 
-export const generateOctreeMips = (
-  commandEncoder: GPUCommandEncoder,
+export const generateOctreeMips = async (
   device: GPUDevice,
   volume: GPUTexture,
-): void => {
-  const mipLevelCount = Math.min(
-    numMipLevels(volume, "3d"),
-    volume.mipLevelCount,
-  );
-
+) => {
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
       {
         binding: 0,
-        visibility: GPUShaderStage.COMPUTE,
+        visibility: GPUShaderStage.FRAGMENT,
         texture: {
           viewDimension: "3d",
         },
       },
       {
         binding: 1,
-        visibility: GPUShaderStage.COMPUTE,
-        storageTexture: {
-          access: "write-only",
-          format: volume.format,
-          viewDimension: "3d",
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: {
+          type: "uniform",
         },
       },
     ],
   });
 
-  for (let mipLevel = 1; mipLevel < mipLevelCount; mipLevel++) {
-    console.debug(`Generating mip level ${mipLevel}`);
-    // Use the previous mip, so that we do not need to check every voxel for every level
-    const inputTextureView = volume.createView({
-      baseMipLevel: mipLevel - 1,
-      mipLevelCount: 1,
-    });
-    const outputTextureView = volume.createView({
-      baseMipLevel: mipLevel,
-      mipLevelCount: 1,
-    });
+  const zIndicesBuffer = device.createBuffer({
+    size: volume.depthOrArrayLayers * 256,
+    usage:
+      GPUBufferUsage.COPY_DST |
+      GPUBufferUsage.COPY_SRC |
+      GPUBufferUsage.UNIFORM,
+  });
 
-    const bindGroup = device.createBindGroup({
-      layout: bindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: inputTextureView,
-        },
-        {
-          binding: 1,
-          resource: outputTextureView,
-        },
-      ],
-    });
+  const incrementingIndices = Array.from(
+    { length: volume.depthOrArrayLayers },
+    (_, i) => i,
+  );
 
-    const octreePipeline = device.createComputePipeline({
-      layout: device.createPipelineLayout({
-        bindGroupLayouts: [bindGroupLayout],
+  for (let i = 0; i < incrementingIndices.length; i++) {
+    device.queue.writeBuffer(
+      zIndicesBuffer,
+      256 * i, // offset
+      new Uint32Array([incrementingIndices[i]]).buffer,
+    );
+  }
+
+  const renderPipeline = device.createRenderPipeline({
+    layout: device.createPipelineLayout({
+      bindGroupLayouts: [bindGroupLayout],
+    }),
+    vertex: {
+      module: device.createShaderModule({
+        code: `
+          struct VertexOutput {
+            @builtin(position) Position : vec4<f32>,
+          }
+          const pos = array(
+              vec2( 1.0,  1.0),
+              vec2( 1.0, -1.0),
+              vec2(-1.0, -1.0),
+              vec2( 1.0,  1.0),
+              vec2(-1.0, -1.0),
+              vec2(-1.0,  1.0),
+            );
+          @vertex
+          fn vertex_main(@builtin(vertex_index) VertexIndex : u32) -> VertexOutput {
+            var output : VertexOutput;
+            output.Position = vec4(pos[VertexIndex], 0.0, 1.0);
+            return output;
+          }`,
       }),
-      compute: {
-        module: device.createShaderModule({
-          code: `
-          @group(0) @binding(0) var input : texture_3d<f32>;
-          @group(0) @binding(1) var output : texture_storage_3d<${VOLUME_ATLAS_FORMAT}, write>;
-          ${generateMips}`,
-        }),
-        entryPoint: "main",
-      },
-    });
-    //
-    // const commandEncoder = device.createCommandEncoder();
-    const computePass = commandEncoder.beginComputePass();
-    computePass.setPipeline(octreePipeline);
-    computePass.setBindGroup(0, bindGroup);
+      entryPoint: "vertex_main",
+    },
+    // TODO: Output octree into mipmap here
+    fragment: {
+      module: device.createShaderModule({
+        code: `
+          @group(0) @binding(0) var voxels : texture_3d<f32>;
+          @group(0) @binding(1) var<uniform> zIndex: u32;
+          ${renderOctreeFragmentShader}
+        `,
+      }),
+      entryPoint: "fragment_main",
+      targets: [{ format: volume.format }],
+    },
+  });
 
-    const widthAtMipLevel = Math.max(1, volume.width >> mipLevel);
-    const heightAtMipLevel = Math.max(1, volume.height >> mipLevel);
+  const commandEncoder = device.createCommandEncoder();
+
+  // For each mip level, render each slice of the 3D texture
+  for (let mipLevel = 1; mipLevel < volume.mipLevelCount; mipLevel++) {
+    console.debug(`Generating mip level ${mipLevel}`);
     const depthAtMipLevel = Math.max(1, volume.depthOrArrayLayers >> mipLevel);
 
-    const workGroupsX = Math.ceil(widthAtMipLevel / 4);
-    const workGroupsY = Math.ceil(heightAtMipLevel / 4);
-    const workGroupsZ = Math.ceil(depthAtMipLevel / 4);
+    // Render each slice of the 3D texture
+    for (let i = 0; i < depthAtMipLevel; i++) {
+      const bindGroup = device.createBindGroup({
+        layout: bindGroupLayout,
+        entries: [
+          {
+            binding: 0,
+            resource: volume.createView({
+              baseMipLevel: mipLevel - 1,
+              mipLevelCount: 1,
+            }),
+          },
+          {
+            binding: 1,
+            resource: {
+              buffer: zIndicesBuffer,
+              offset: i * 256,
+              size: 4,
+            },
+          },
+        ],
+      });
 
-    computePass.dispatchWorkgroups(workGroupsX, workGroupsY, workGroupsZ);
+      const passEncoder = commandEncoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: volume.createView({
+              baseArrayLayer: i, // Render to the current slice
+              arrayLayerCount: 1,
+              baseMipLevel: mipLevel, // Use the previous mip, so that we do not need to check every voxel for every level
+              mipLevelCount: 1,
+              dimension: "2d",
+            }),
+            loadOp: "clear",
+            clearValue: [0.0, 0.0, 0.0, 0.0],
+            storeOp: "store",
+          },
+        ],
+      });
 
-    computePass.end();
+      passEncoder.setPipeline(renderPipeline);
+      passEncoder.setBindGroup(0, bindGroup);
+      passEncoder.draw(6);
+      passEncoder.end();
+    }
   }
+  device.queue.submit([commandEncoder.finish()]);
+  await device.queue.onSubmittedWorkDone();
 };
