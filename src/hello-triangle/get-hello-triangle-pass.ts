@@ -245,7 +245,6 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
         mvp.byteLength,
       );
       const object = new Float32Array(voxelObject.toArray());
-      console.log(object.byteLength);
       device.queue.writeBuffer(
         voxelObjectBuffer,
         VOXEL_OBJECT_STRUCT_SIZE * i,

@@ -73,12 +73,6 @@ const processTavernObject = async (
   const palette = await createPaletteTextureFromVoxels(device, voxels);
   console.timeEnd(`Create palette texture for ${name}`);
 
-  // writeTextureToCanvas(device, "debug-canvas", palette);
-
-  console.time(`Generate octree mips for ${name}`);
-  await generateOctreeMips(device, texture);
-  console.timeEnd(`Generate octree mips for ${name}`);
-
   return { name, texture, palette };
 };
 

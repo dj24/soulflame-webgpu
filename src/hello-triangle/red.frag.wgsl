@@ -77,7 +77,7 @@ fn main(
       tNear = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5).tNear - 0.00001;
     }
     var worldPos = transformPosition(voxelObject.transform, objectRayOrigin + objectRayDirection * tNear);
-    var result = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);
+    var result = rayMarchTransformed(voxelObject, rayDirection, worldPos, 2);
     if(!result.hit){
       discard;
       return output;

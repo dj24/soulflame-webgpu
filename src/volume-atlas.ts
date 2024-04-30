@@ -1,6 +1,7 @@
 import { Vec3 } from "wgpu-matrix";
 import { VOLUME_ATLAS_FORMAT, VOLUME_MIP_LEVELS } from "./constants";
 import { writeTextureToCanvas } from "./write-texture-to-canvas";
+import { generateOctreeMips } from "./create-3d-texture/generate-octree-mips";
 
 const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
   format: VOLUME_ATLAS_FORMAT,
@@ -24,11 +25,13 @@ export type VolumeAtlasDictionary = {
   [key: string]: VolumeAtlasEntry;
 };
 
-const DEFAULT_ATLAS_SIZE = 8;
-const PALETTE_WIDTH = 256;
 const ceilToNearestMultipleOf = (n: number, multiple: number) => {
   return Math.ceil(n / multiple) * multiple;
 };
+
+const minVolumeSize = Math.pow(2, VOLUME_MIP_LEVELS - 1);
+const DEFAULT_ATLAS_SIZE = minVolumeSize;
+const PALETTE_WIDTH = 256;
 
 /** A class representing a volume atlas for storing multiple 3D textures.
  *
@@ -94,9 +97,12 @@ export class VolumeAtlas {
     const commandEncoder = this.#device.createCommandEncoder();
 
     const { width, height, depthOrArrayLayers } = volume;
-    const roundedWidth = ceilToNearestMultipleOf(width, 8);
-    const roundedHeight = ceilToNearestMultipleOf(height, 8);
-    const roundedDepth = ceilToNearestMultipleOf(depthOrArrayLayers, 8);
+    const roundedWidth = ceilToNearestMultipleOf(width, minVolumeSize);
+    const roundedHeight = ceilToNearestMultipleOf(height, minVolumeSize);
+    const roundedDepth = ceilToNearestMultipleOf(
+      depthOrArrayLayers,
+      minVolumeSize,
+    );
 
     const newWidth = this.#atlasTexture.width + roundedWidth;
     if (newWidth > this.#device.limits.maxTextureDimension3D) {
@@ -138,32 +144,23 @@ export class VolumeAtlas {
       },
     );
 
-    for (
-      let mipLevel = 0;
-      mipLevel < Math.min(volume.mipLevelCount, newAtlasTexture.mipLevelCount);
-      mipLevel++
-    ) {
-      const mipWidth = Math.max(1, volume.width >> mipLevel);
-      const mipHeight = Math.max(1, volume.height >> mipLevel);
-      const mipDepth = Math.max(1, volume.depthOrArrayLayers >> mipLevel);
-      commandEncoder.copyTextureToTexture(
-        {
-          texture: volume,
-          mipLevel,
-          origin: { x: 0, y: 0, z: 0 }, // Specify the source origin
-        },
-        {
-          texture: newAtlasTexture,
-          mipLevel,
-          origin: { x: atlasLocationX >> mipLevel, y: 0, z: 0 }, // Specify the destination origin (z-axis slice)
-        },
-        {
-          width: mipWidth,
-          height: mipHeight,
-          depthOrArrayLayers: mipDepth,
-        },
-      );
-    }
+    commandEncoder.copyTextureToTexture(
+      {
+        texture: volume,
+        mipLevel: 0,
+        origin: { x: 0, y: 0, z: 0 }, // Specify the source origin
+      },
+      {
+        texture: newAtlasTexture,
+        mipLevel: 0,
+        origin: { x: atlasLocationX, y: 0, z: 0 }, // Specify the destination origin (z-axis slice)
+      },
+      {
+        width: volume.width,
+        height: volume.height,
+        depthOrArrayLayers: volume.depthOrArrayLayers,
+      },
+    );
 
     this.#atlasTexture = newAtlasTexture;
 
@@ -225,6 +222,11 @@ export class VolumeAtlas {
 
     this.#device.queue.submit([commandEncoder.finish()]);
     await this.#device.queue.onSubmittedWorkDone();
+
+    this.#atlasTexture = await generateOctreeMips(
+      this.#device,
+      this.#atlasTexture,
+    );
 
     writeTextureToCanvas(this.#device, "debug-canvas", this.#paletteTexture);
 
