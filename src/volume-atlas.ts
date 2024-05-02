@@ -29,8 +29,8 @@ const ceilToNearestMultipleOf = (n: number, multiple: number) => {
   return Math.ceil(n / multiple) * multiple;
 };
 
-const minVolumeSize = Math.pow(2, VOLUME_MIP_LEVELS - 1);
-const DEFAULT_ATLAS_SIZE = minVolumeSize;
+const MIN_VOLUME_SIZE = Math.pow(2, VOLUME_MIP_LEVELS - 1);
+const DEFAULT_ATLAS_SIZE = MIN_VOLUME_SIZE;
 const PALETTE_WIDTH = 256;
 
 /** A class representing a volume atlas for storing multiple 3D textures.
@@ -97,11 +97,11 @@ export class VolumeAtlas {
     const commandEncoder = this.#device.createCommandEncoder();
 
     const { width, height, depthOrArrayLayers } = volume;
-    const roundedWidth = ceilToNearestMultipleOf(width, minVolumeSize);
-    const roundedHeight = ceilToNearestMultipleOf(height, minVolumeSize);
+    const roundedWidth = ceilToNearestMultipleOf(width, MIN_VOLUME_SIZE);
+    const roundedHeight = ceilToNearestMultipleOf(height, MIN_VOLUME_SIZE);
     const roundedDepth = ceilToNearestMultipleOf(
       depthOrArrayLayers,
-      minVolumeSize,
+      MIN_VOLUME_SIZE,
     );
 
     const newWidth = this.#atlasTexture.width + roundedWidth;

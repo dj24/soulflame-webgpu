@@ -662,7 +662,7 @@ const start = async () => {
     // getGBufferPass(),
     // getVoxelLatticePass(),
     // getReflectionsPass(),
-    // getShadowsPass(),
+    getShadowsPass(),
     // getAdaptiveShadowsPass(),
     getSkyPass(),
     // getLightsPass(),
@@ -672,7 +672,7 @@ const start = async () => {
     // getFXAAPass(),
     // getTaaPass(),
     // getFogPass(),
-    // getBoxOutlinePass(),
+    getBoxOutlinePass(),
     // getWaterPass(),
 
     fullscreenQuad(device),

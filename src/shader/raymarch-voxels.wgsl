@@ -162,6 +162,23 @@ fn rayMarchTransformed(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOri
       return  rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel);
 }
 
+fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>, startingMipLevel: u32) -> RayMarchResult {
+   var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
+   let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+   var output = RayMarchResult();
+   for(var mipLevel = startingMipLevel; mipLevel > 0; mipLevel--){
+     output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel);
+     if(output.hit){
+//       objectRayOrigin += output.t * objectRayDirection;
+     }
+     else{
+      return output;
+     }
+   }
+   objectRayOrigin += (output.t - EPSILON) * objectRayDirection;
+   return rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
+}
+
 const STACK_LEN: u32 = 32u;
 struct Stack {
   arr: array<i32, STACK_LEN>,

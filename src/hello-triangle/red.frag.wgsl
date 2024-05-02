@@ -77,7 +77,8 @@ fn main(
       tNear = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5).tNear - 0.00001;
     }
     var worldPos = transformPosition(voxelObject.transform, objectRayOrigin + objectRayDirection * tNear);
-    var result = rayMarchTransformed(voxelObject, rayDirection, worldPos, 2);
+//    var result = rayMarchOctree(voxelObject, rayDirection, worldPos, 2);
+    var result = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);
     if(!result.hit){
       discard;
       return output;
@@ -88,6 +89,7 @@ fn main(
     let objectPos = voxelObject.inverseTransform * vec4<f32>(worldPos, 1.0);
     let paletteX = i32(result.colour.r * 255.0);
     let paletteY = i32(voxelObject.paletteIndex);
+//    output.albedo = vec4(f32(result.stepsTaken)) * 0.01;
     output.albedo = textureLoad(palette, vec2(paletteX, paletteY), 0);
     output.normal = vec4(result.normal, 1);
     output.worldPosition = vec4(result.worldPos, 1);

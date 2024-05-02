@@ -78,6 +78,7 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
           let voxelObject = voxelObjects[node.leftIndex];
           let shiftedRayOrigin = rayOrigin + rayDirection * distanceToLeaf;
           let rayMarchResult = rayMarchTransformed(voxelObject, rayDirection, shiftedRayOrigin, 0);
+//          let rayMarchResult = rayMarchOctree(voxelObject, rayDirection, shiftedRayOrigin, 2);
           let rayMarchDist = distance(rayOrigin, rayMarchResult.worldPos);
           if(rayMarchResult.hit && rayMarchDist < closestRaymarchDist){
             closestIntersection = rayMarchResult;
