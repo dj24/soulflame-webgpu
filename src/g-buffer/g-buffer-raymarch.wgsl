@@ -19,6 +19,8 @@ struct ViewProjectionMatrices {
 @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;
 @group(0) @binding(9) var<uniform> sunDirection : vec3<f32>;
 @group(0) @binding(11) var worldPosTex : texture_storage_2d<rgba32float, write>;
+@group(0) @binding(12) var paletteTex : texture_3d<f32>;
+
 
 
 fn plainIntersect(ro: vec3<f32>, rd: vec3<f32>, p: vec4<f32>) -> f32 {

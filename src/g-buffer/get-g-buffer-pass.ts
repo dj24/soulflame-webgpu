@@ -23,10 +23,6 @@ export type OutputTextures = {
   skyTexture?: GPUTexture;
 };
 
-const ceilToNearestMultipleOf = (n: number, multiple: number) => {
-  return Math.ceil(n / multiple) * multiple;
-};
-
 export const getGBufferPass = async (): Promise<RenderPass> => {
   const normalEntry: GPUBindGroupLayoutEntry = {
     binding: 4,
@@ -96,6 +92,15 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     },
   };
 
+  const paletteTextureEntry: GPUBindGroupLayoutEntry = {
+    binding: 12,
+    visibility: GPUShaderStage.COMPUTE,
+    texture: {
+      sampleType: "float",
+      viewDimension: "2d",
+    },
+  };
+
   const uniformsBindGroupLayout = device.createBindGroupLayout({
     entries: [
       {
@@ -128,10 +133,12 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       sunDirectionEntry,
       bvhBufferEntry,
       worldPosTextureEntry,
+      paletteTextureEntry,
     ],
   });
 
-  const pipeline = device.createComputePipeline({
+  const pipeline = await device.createComputePipelineAsync({
+    label: "raymarch g-buffer",
     layout: device.createPipelineLayout({
       bindGroupLayouts: [uniformsBindGroupLayout],
     }),
@@ -221,14 +228,17 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           binding: 11,
           resource: outputTextures.worldPositionTexture.createView(),
         },
+        {
+          binding: 12,
+          resource: volumeAtlas.paletteTextureView,
+        },
       ],
     });
 
     // Raymarch the scene
-    const threadGroupCountX = 8;
-    const threadGroupCountY = 8;
-    const workGroupsX = Math.ceil(resolution[0] / threadGroupCountX);
-    const workGroupsY = Math.ceil(resolution[1] / threadGroupCountY);
+    const tileSize = 17;
+    const workGroupsX = Math.ceil(resolution[0] / 8);
+    const workGroupsY = Math.ceil(resolution[1] / 8);
     computePass.setPipeline(pipeline);
     computePass.setBindGroup(0, computeBindGroup);
     computePass.dispatchWorkgroups(workGroupsX, workGroupsY);

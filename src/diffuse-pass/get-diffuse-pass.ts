@@ -232,6 +232,7 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
     screenSpaceRadianceCacheBuffer = device.createBuffer({
       size: totalSize,
       usage: GPUBufferUsage.STORAGE,
+      label: "radiance cache",
     });
     return screenSpaceRadianceCacheBuffer;
   };

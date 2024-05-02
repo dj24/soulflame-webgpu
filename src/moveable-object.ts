@@ -1,41 +1,27 @@
 import { Mat4, mat4, quat, Quat, vec3, Vec3 } from "wgpu-matrix";
 import { animate, glide } from "motion";
 import { deltaTime } from "./app";
-
-interface UpdatedByRenderLoop {
-  update(): void;
-}
+import { UpdatedByRenderLoop } from "./decorators/updated-by-render-loop";
 
 interface Animateable<T> extends UpdatedByRenderLoop {
   value: T;
   target: T;
 }
 
+@UpdatedByRenderLoop.register
 export class Vec3Animation implements Animateable<Vec3> {
-  #value;
-  #target;
+  value;
+  target;
 
   constructor(value: Vec3, target: Vec3) {
-    this.#value = value;
-    this.#target = target;
-  }
-
-  get value() {
-    return this.#value;
-  }
-
-  set target(target: Vec3) {
-    this.#target = target;
-  }
-
-  get target() {
-    return this.#target;
+    this.value = value;
+    this.target = target;
   }
 
   update() {
     animate(
       (progress: number) => {
-        this.#value = vec3.lerp(this.#value, this.#target, progress);
+        this.value = vec3.lerp(this.value, this.target, progress);
       },
       {
         easing: glide({
@@ -46,31 +32,20 @@ export class Vec3Animation implements Animateable<Vec3> {
   }
 }
 
+@UpdatedByRenderLoop.register
 export class QuatAnimation implements Animateable<Quat> {
-  #value: Quat;
-  #target: Quat;
+  value: Quat;
+  target: Quat;
 
   constructor(value: Quat, target: Quat) {
-    this.#value = value;
-    this.#target = target;
-  }
-
-  get value() {
-    return this.#value;
-  }
-
-  set target(target: Quat) {
-    this.#target = target;
-  }
-
-  get target() {
-    return this.#target;
+    this.value = value;
+    this.target = target;
   }
 
   update() {
     animate(
       (progress: number) => {
-        this.#value = quat.slerp(this.#value, this.#target, progress);
+        this.value = quat.slerp(this.value, this.target, progress);
       },
       {
         easing: glide({
@@ -81,26 +56,26 @@ export class QuatAnimation implements Animateable<Quat> {
   }
 }
 
-export class MoveableObject implements UpdatedByRenderLoop {
-  #position: Vec3Animation;
-  #rotation: QuatAnimation;
-  #scale: Vec3;
+export class MoveableObject {
+  position: Vec3Animation;
+  rotation: QuatAnimation;
+  scale: Vec3;
   #targetScale: Vec3;
   #previousTransform: Mat4;
 
   constructor(options: { position: Vec3; rotation: Quat; scale?: Vec3 }) {
-    this.#position = new Vec3Animation(options.position, options.position);
-    this.#rotation = new QuatAnimation(options.rotation, options.rotation);
-    this.#scale = options.scale ?? vec3.create(1, 1, 1);
-    this.#targetScale = this.#scale;
+    this.position = new Vec3Animation(options.position, options.position);
+    this.rotation = new QuatAnimation(options.rotation, options.rotation);
+    this.scale = options.scale ?? vec3.create(1, 1, 1);
+    this.#targetScale = this.scale;
     this.#previousTransform = this.transform;
   }
 
   get transform() {
     let m = mat4.identity();
-    mat4.translate(m, this.#position.value, m);
-    mat4.scale(m, this.#scale, m);
-    mat4.multiply(m, mat4.fromQuat(this.#rotation.value), m);
+    mat4.translate(m, this.position.value, m);
+    mat4.scale(m, this.scale, m);
+    mat4.multiply(m, mat4.fromQuat(this.rotation.value), m);
     return m;
   }
 
@@ -117,27 +92,19 @@ export class MoveableObject implements UpdatedByRenderLoop {
   }
 
   set targetPosition(position: Vec3) {
-    this.#position.target = position;
-  }
-
-  get position() {
-    return this.#position;
+    this.position.target = position;
   }
 
   get targetPosition() {
-    return this.#position.target;
+    return this.position.target;
   }
 
   set targetRotation(rotation: Quat) {
-    this.#rotation.target = rotation;
+    this.rotation.target = rotation;
   }
 
   get targetRotation() {
-    return this.#rotation.target;
-  }
-
-  get rotation() {
-    return this.#rotation;
+    return this.rotation.target;
   }
 
   set targetScale(scale: Vec3) {
@@ -146,10 +113,6 @@ export class MoveableObject implements UpdatedByRenderLoop {
 
   get targetScale() {
     return this.#targetScale;
-  }
-
-  get scale() {
-    return this.#scale;
   }
 
   get direction() {
@@ -180,14 +143,5 @@ export class MoveableObject implements UpdatedByRenderLoop {
 
   get inverseViewMatrix() {
     return mat4.invert(this.viewMatrix);
-  }
-
-  update() {
-    this.#position.update();
-    this.#rotation.update();
-    animate((progress: number) => {
-      this.#scale = vec3.lerp(this.#scale, this.#targetScale, progress);
-    });
-    this.#previousTransform = this.transform;
   }
 }

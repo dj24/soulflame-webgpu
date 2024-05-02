@@ -119,6 +119,18 @@ export const getBoxOutlinePass = async (): Promise<RenderPass> => {
     },
   });
 
+  const verticesBuffer = device.createBuffer({
+    size: vertexStride * verticesPerMesh * voxelObjects.length,
+    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    label: "vertices buffer",
+  });
+
+  const modelViewProjectionMatrixBuffer = device.createBuffer({
+    size: 256 * voxelObjects.length,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    label: "mvp buffer",
+  });
+
   const render = ({
     commandEncoder,
     outputTextures,
@@ -130,16 +142,6 @@ export const getBoxOutlinePass = async (): Promise<RenderPass> => {
     lights,
   }: RenderArgs) => {
     let bindGroups = [];
-
-    const verticesBuffer = device.createBuffer({
-      size: vertexStride * verticesPerMesh * voxelObjects.length,
-      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-    });
-
-    const modelViewProjectionMatrixBuffer = device.createBuffer({
-      size: 256 * voxelObjects.length,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
 
     for (let i = 0; i < voxelObjects.length; i++) {
       // const vertices = getArrowMesh();

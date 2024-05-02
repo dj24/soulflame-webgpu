@@ -74,6 +74,12 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
         let distanceToLeaf = getDistanceToNode(rayOrigin, rayDirection, node);
         let isHit = distanceToLeaf >= 0.0;
         let worldPos = rayOrigin + rayDirection * distanceToLeaf;
+//        if(isHit){
+//          closestIntersection.worldPos = worldPos;
+//          closestIntersection.hit = true;
+//          closestIntersection.normal = vec3<f32>(0.0);
+//          closestIntersection.colour = abs(worldPos) % 1.0;;
+//        }
         if(isHit){
           let voxelObject = voxelObjects[node.leftIndex];
           let shiftedRayOrigin = rayOrigin + rayDirection * distanceToLeaf;
@@ -96,7 +102,6 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
   return closestIntersection;
 }
 
-// TODO: Implement this
 fn rayMarchBVHFirstHit(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> bool {
   var closestIntersection = RayMarchResult();
     closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;

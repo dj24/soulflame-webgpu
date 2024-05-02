@@ -54,6 +54,7 @@ export const createTextureFromVoxels = async (
       GPUBufferUsage.COPY_DST |
       GPUBufferUsage.COPY_SRC |
       GPUBufferUsage.UNIFORM,
+    label: "voxels buffer",
   });
 
   const incrementingIndices = Array.from(

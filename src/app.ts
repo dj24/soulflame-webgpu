@@ -23,7 +23,7 @@ import { getVolumetricFog } from "./volumetric-fog/get-volumetric-fog";
 import { createTavern, voxelObjects } from "./create-tavern";
 import { GetObjectsArgs } from "./get-objects-transforms/objects-worker";
 import { getBoxOutlinePass } from "./box-outline/get-box-outline-pass";
-import { createBVH } from "./bvh";
+import { BVH } from "./bvh";
 import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
 import { getWaterPass } from "./water-pass/get-water-pass";
 import { getHelloTrianglePass } from "./hello-triangle/get-hello-triangle-pass";
@@ -34,6 +34,7 @@ import { getVoxelLatticePass } from "./voxel-lattice/get-voxel-lattice-pass";
 import { getFXAAPass } from "./fxaa-pass/fxaa-pass";
 import { getAdaptiveShadowsPass } from "./adaptive-shadow-pass/get-adaptive-shadows-pass";
 import { getFogPass } from "./fog-pass/get-fog-pass";
+import { UpdatedByRenderLoop } from "./decorators/updated-by-render-loop";
 
 export type RenderArgs = {
   enabled?: boolean;
@@ -170,6 +171,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let transformationMatrixBuffer: GPUBuffer;
   let viewProjectionMatricesBuffer: GPUBuffer;
   let sunDirectionBuffer: GPUBuffer;
+  let bvh: BVH;
 
   let previousInverseViewProjectionMatrix = mat4.create();
   let previousViewProjectionMatrix = mat4.create();
@@ -191,6 +193,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       count: computePasses.length * 2, //start and end of each pass
     });
     timestampQueryBuffer = device.createBuffer({
+      label: "timestamp query",
       size: 8 * timestampQuerySet.count,
       usage:
         GPUBufferUsage.QUERY_RESOLVE |
@@ -199,8 +202,6 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         GPUBufferUsage.COPY_DST,
     });
   }
-
-  let BVHBuffer = createBVH(device, voxelObjects);
 
   const init = () => {
     if (depthTexture) {
@@ -322,7 +323,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
   const getTimeBuffer = () => {
     if (!timeBuffer) {
-      timeBuffer = createUniformBuffer([frameCount, 0, 0]);
+      timeBuffer = createUniformBuffer([frameCount, 0, 0], "time buffer");
     }
     device.queue.writeBuffer(
       timeBuffer,
@@ -376,6 +377,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       viewProjectionMatricesBuffer = createFloatUniformBuffer(
         device,
         bufferContents,
+        "view matrices buffer",
       );
     }
   };
@@ -397,11 +399,10 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         newDirection[2],
       ]);
     } else {
-      sunDirectionBuffer = createUniformBuffer([
-        newDirection[0],
-        newDirection[1],
-        newDirection[2],
-      ]);
+      sunDirectionBuffer = createUniformBuffer(
+        [newDirection[0], newDirection[1], newDirection[2]],
+        "sun buffer",
+      );
     }
   };
 
@@ -418,6 +419,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     const size = timestampQueryBuffer.size;
     const gpuReadBuffer = device.createBuffer({
       size,
+      label: "gpu read buffer",
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
     });
     const copyEncoder = device.createCommandEncoder();
@@ -465,6 +467,13 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
   createBlueNoiseTexture();
 
+  bvh = new BVH(device, voxelObjects);
+  const cameraPositionBuffer = createFloatUniformBuffer(
+    device,
+    [0, 0, 0, 0],
+    "camera position",
+  );
+
   const getVoxelObjectsBuffer = () => {
     const voxelObjectsInFrustrum = voxelObjects;
 
@@ -487,6 +496,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         size: new Float32Array(voxelObjectsArray).byteLength,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         mappedAtCreation: false,
+        label: "voxel objects transforms buffer",
       });
     }
   };
@@ -525,8 +535,10 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     }
 
     moveCamera();
-    camera.update();
-    debugValues.update();
+    UpdatedByRenderLoop.GetImplementations().forEach((implementation) => {
+      implementation.prototype.update();
+    });
+    bvh.update(voxelObjects);
 
     const jitteredCameraPosition = mat4.getTranslation(
       camera.inverseViewMatrix,
@@ -540,10 +552,9 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     getResolutionBuffer();
     getSunDirectionBuffer();
 
-    const cameraPositionBuffer = createFloatUniformBuffer(
-      device,
+    writeToFloatUniformBuffer(
+      cameraPositionBuffer,
       jitteredCameraPosition as number[],
-      "camera position",
     );
 
     createAlbedoTexture();
@@ -582,6 +593,8 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         };
       }
 
+      bvh.update(voxelObjects);
+
       render({
         commandEncoder,
         resolutionBuffer,
@@ -602,7 +615,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         timestampWrites,
         sunDirectionBuffer,
         blueNoiseTexture,
-        bvhBuffer: BVHBuffer,
+        bvhBuffer: bvh.gpuBuffer,
         lights,
       }).forEach((commandBuffer) => {
         commandBuffers.push(commandBuffer);
@@ -658,11 +671,11 @@ const start = async () => {
 
   const computePassPromises: Promise<RenderPass>[] = [
     // fullscreenQuad(device),
-    getHelloTrianglePass(),
-    // getGBufferPass(),
+    // getHelloTrianglePass(),
+    getGBufferPass(),
     // getVoxelLatticePass(),
     // getReflectionsPass(),
-    getShadowsPass(),
+    // getShadowsPass(),
     // getAdaptiveShadowsPass(),
     getSkyPass(),
     // getLightsPass(),

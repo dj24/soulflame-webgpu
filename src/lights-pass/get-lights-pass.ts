@@ -343,6 +343,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     const verticesBuffer = device.createBuffer({
       size: vertexStride * verticesPerLight * lights.length,
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+      label: "vertices",
     });
 
     const lightVerticesBuffer = device.createBuffer({

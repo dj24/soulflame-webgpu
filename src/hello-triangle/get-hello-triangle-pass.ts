@@ -177,14 +177,17 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     const verticesBuffer = device.createBuffer({
       size: 576 * sortedVoxelObjectsFrontToBack.length,
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+      label: "vertices buffer",
     });
     const modelViewProjectionMatrixBuffer = device.createBuffer({
       size: 256 * sortedVoxelObjectsFrontToBack.length,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      label: "mvp buffer",
     });
     const voxelObjectBuffer = device.createBuffer({
       size: VOXEL_OBJECT_STRUCT_SIZE * sortedVoxelObjectsFrontToBack.length,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      label: "voxel objects in raster",
     });
 
     let bindGroups = [];

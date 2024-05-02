@@ -1,7 +1,9 @@
 import { animate, glide } from "motion";
 import { vec3 } from "wgpu-matrix";
 import { deltaTime } from "./app";
+import { UpdatedByRenderLoop } from "./decorators/updated-by-render-loop";
 
+@UpdatedByRenderLoop.register
 export class DebugValuesStore {
   maxObjectCount;
   objectCount;

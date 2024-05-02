@@ -37,6 +37,7 @@ export const createOctreeBuffer = async (
   const octreeBuffer = device.createBuffer({
     size: bufferSize,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    label: "octree buffer",
   });
 
   const bindGroupLayout = device.createBindGroupLayout({

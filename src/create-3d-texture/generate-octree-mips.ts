@@ -137,6 +137,7 @@ const generateNextOctreeMip = async (
       GPUBufferUsage.COPY_DST |
       GPUBufferUsage.COPY_SRC |
       GPUBufferUsage.UNIFORM,
+    label: "z indices buffer",
   });
 
   const incrementingIndices = Array.from(

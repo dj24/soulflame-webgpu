@@ -69,28 +69,62 @@ const splitObjectsBySAH = (voxelObjects: LeafNode[]) => {
   return { left, right };
 };
 
-export const createBVH = (
-  device: GPUDevice,
-  voxelObjects: VoxelObject[],
-): GPUBuffer => {
-  let nodes: BVHNode[] = [];
+const stride = ceilToNearestMultipleOf(44, 16);
 
-  const allLeafNodes: LeafNode[] = voxelObjects.map((voxelObject, index) => {
-    return {
-      AABB: voxelObject.AABB,
-      objectIndex: index,
-    };
-  });
+/**
+ * Bounding Volume Hierarchy. Handles construction and GPU serialisation of the BVH.
+ */
+export class BVH {
+  #device: GPUDevice;
+  #nodes: BVHNode[];
+  #allLeafNodes: LeafNode[];
+  #childIndex: number;
+  #gpuBuffer: GPUBuffer;
 
-  let childIndex = 0;
-  const build = (leafNodes: LeafNode[], startIndex: number) => {
-    if (voxelObjects.length === 0) {
+  constructor(device: GPUDevice, voxelObjects: VoxelObject[]) {
+    this.#device = device;
+    this.#allLeafNodes = voxelObjects.map((voxelObject, index) => {
+      return {
+        AABB: voxelObject.AABB,
+        objectIndex: index,
+      };
+    });
+    this.#childIndex = 0;
+    this.#nodes = new Array(voxelObjects.length * 2 - 1);
+    this.#build(this.#allLeafNodes, 0);
+    this.#gpuBuffer = device.createBuffer({
+      size: this.#nodes.length * stride,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: false,
+      label: "bvh buffer",
+    });
+    this.#writeToGpuBuffer();
+  }
+
+  get gpuBuffer() {
+    return this.#gpuBuffer;
+  }
+
+  update(voxelObjects: VoxelObject[]) {
+    this.#allLeafNodes = voxelObjects.map((voxelObject, index) => {
+      return {
+        AABB: voxelObject.AABB,
+        objectIndex: index,
+      };
+    });
+    this.#childIndex = 0;
+    this.#build(this.#allLeafNodes, 0);
+    this.#writeToGpuBuffer();
+  }
+
+  #build(leafNodes: LeafNode[], startIndex: number) {
+    if (this.#allLeafNodes.length === 0) {
       return;
     }
     const isLeaf = leafNodes.length === 1;
     if (isLeaf) {
-      nodes[startIndex] = {
-        leftChildIndex: allLeafNodes.indexOf(leafNodes[0]),
+      this.#nodes[startIndex] = {
+        leftChildIndex: this.#allLeafNodes.indexOf(leafNodes[0]),
         rightChildIndex: -1,
         objectCount: 1,
         AABBMax: leafNodes[0].AABB.max,
@@ -105,31 +139,25 @@ export const createBVH = (
     const { left, right } = splitObjectsBySAH(leafNodes);
 
     if (left.length > 0) {
-      leftChildIndex = ++childIndex;
-      build(left, leftChildIndex);
+      leftChildIndex = ++this.#childIndex;
+      this.#build(left, leftChildIndex);
     }
     if (right.length > 0) {
-      rightChildIndex = ++childIndex;
-      build(right, rightChildIndex);
+      rightChildIndex = ++this.#childIndex;
+      this.#build(right, rightChildIndex);
     }
 
-    nodes[startIndex] = {
+    this.#nodes[startIndex] = {
       leftChildIndex,
       rightChildIndex,
       objectCount: leafNodes.length,
       AABBMax: AABB.max,
       AABBMin: AABB.min,
     };
-  };
+  }
 
-  const toGPUBuffer = (device: GPUDevice, length: number) => {
-    const stride = ceilToNearestMultipleOf(44, 16);
-    const buffer = device.createBuffer({
-      size: length * stride,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: false,
-    });
-    nodes.forEach((node, i) => {
+  #writeToGpuBuffer() {
+    this.#nodes.forEach((node, i) => {
       const bufferOffset = i * stride;
       const arrayBuffer = new ArrayBuffer(stride);
       const bufferView = new DataView(arrayBuffer);
@@ -151,28 +179,14 @@ export const createBVH = (
       bufferView.setFloat32(40, node.AABBMax[2], true);
 
       // Write the entire ArrayBuffer to the GPU buffer
-      device.queue.writeBuffer(
-        buffer,
+      this.#device.queue.writeBuffer(
+        this.#gpuBuffer,
         bufferOffset, // offset
         arrayBuffer,
         0, // data offset
         stride,
       );
     });
-    return buffer;
-  };
-
-  const start = performance.now();
-  build(allLeafNodes, 0);
-  const end = performance.now();
-  frameTimeTracker.addSample("create bvh", end - start);
-
-  console.log({
-    nodes: nodes.map((node) => ({
-      ...node,
-      voxelObject: voxelObjects[node.leftChildIndex],
-    })),
-  });
-
-  return toGPUBuffer(device, nodes.length);
-};
+    return this.#gpuBuffer;
+  }
+}

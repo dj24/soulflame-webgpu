@@ -8,10 +8,11 @@
     "moduleResolution": "node",
     "allowImportingTsExtensions": false,
     "resolveJsonModule": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "experimentalDecorators": true
   },
   "typedocOptions": {
   "entryPoints": ["./src/**.ts"],
     "out": "dist/docs"
-  },
+  }
 }

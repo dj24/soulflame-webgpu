@@ -254,6 +254,7 @@ ${bvhCoarse}
 ${shaderCode}`;
 
   const effectPipeline = device.createComputePipeline({
+    label,
     layout: device.createPipelineLayout({
       bindGroupLayouts: [bindGroupLayout],
     }),
@@ -266,6 +267,7 @@ ${shaderCode}`;
   });
 
   const compositePipeline = device.createComputePipeline({
+    label: `${label} - composite`,
     layout: device.createPipelineLayout({
       bindGroupLayouts: [compositeBindGroupLayout],
     }),
