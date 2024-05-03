@@ -27,32 +27,31 @@ struct GBufferOutput {
   @location(3) velocity : vec4f,
   @builtin(frag_depth) depth : f32,
 }
-
-fn getVelocity(rayMarchResult: RayMarchResult, viewProjections: ViewProjectionMatrices) -> vec3<f32> {
-  let vp = viewProjections.viewProjection;
-    let previousVp = viewProjections.previousViewProjection;
-    let modelMatrix = rayMarchResult.modelMatrix;
-    let previousModelMatrix = rayMarchResult.previousModelMatrix;
-
-    // Get current object space position of the current pixel
-    let objectPos = rayMarchResult.objectPos.xyz;
-    let objectClipSpace = vp * modelMatrix * vec4(objectPos.xyz, 1.0);
-    let objectNDC = objectClipSpace.xyz / objectClipSpace.w;
-
-    // Get previous position of the current object space position
-    let previousObjectClipSpace = previousVp * previousModelMatrix * vec4(objectPos.xyz, 1.0);
-    let previousObjectNDC = previousObjectClipSpace.xyz / previousObjectClipSpace.w;
-
-    // Get velocity based on the difference between the current and previous positions
-    var velocity = objectNDC - previousObjectNDC;
-    velocity.y = -velocity.y;
-  return velocity;
-}
+//
+//fn getVelocity(rayMarchResult: RayMarchResult, viewProjections: ViewProjectionMatrices) -> vec3<f32> {
+//  let vp = viewProjections.viewProjection;
+//    let previousVp = viewProjections.previousViewProjection;
+//    let modelMatrix = rayMarchResult.modelMatrix;
+//    let previousModelMatrix = rayMarchResult.previousModelMatrix;
+//
+//    // Get current object space position of the current pixel
+//    let objectPos = rayMarchResult.objectPos.xyz;
+//    let objectClipSpace = vp * modelMatrix * vec4(objectPos.xyz, 1.0);
+//    let objectNDC = objectClipSpace.xyz / objectClipSpace.w;
+//
+//    // Get previous position of the current object space position
+//    let previousObjectClipSpace = previousVp * previousModelMatrix * vec4(objectPos.xyz, 1.0);
+//    let previousObjectNDC = previousObjectClipSpace.xyz / previousObjectClipSpace.w;
+//
+//    // Get velocity based on the difference between the current and previous positions
+//    var velocity = objectNDC - previousObjectNDC;
+//    velocity.y = -velocity.y;
+//  return velocity;
+//}
 
 fn normaliseValue(min: f32, max: f32, value: f32) -> f32 {
   return (value - min) / (max - min);
 }
-
 
 @fragment
 fn main(
@@ -77,23 +76,24 @@ fn main(
       tNear = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5).tNear - 0.00001;
     }
     var worldPos = transformPosition(voxelObject.transform, objectRayOrigin + objectRayDirection * tNear);
-//    var result = rayMarchOctree(voxelObject, rayDirection, worldPos, 2);
-    var result = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);
+    var result = rayMarchOctree(voxelObject, rayDirection, worldPos, 2);
+//    var result = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);
     if(!result.hit){
       discard;
       return output;
     }
 
 
-    worldPos = result.worldPos;
-    let objectPos = voxelObject.inverseTransform * vec4<f32>(worldPos, 1.0);
-    let paletteX = i32(result.colour.r * 255.0);
-    let paletteY = i32(voxelObject.paletteIndex);
-//    output.albedo = vec4(f32(result.stepsTaken)) * 0.01;
-    output.albedo = textureLoad(palette, vec2(paletteX, paletteY), 0);
+    let objectPos = objectRayOrigin + objectRayDirection * result.t;
+    worldPos = transformPosition(voxelObject.transform, objectPos);
+
+    output.albedo = vec4(f32(result.stepsTaken)) * 0.01;
+//       let paletteX = i32(result.colour.r * 255.0);
+//        let paletteY = i32(voxelObject.paletteIndex);
+//    output.albedo = textureLoad(palette, vec2(paletteX, paletteY), 0);
     output.normal = vec4(result.normal, 1);
-    output.worldPosition = vec4(result.worldPos, 1);
-    output.velocity = vec4(getVelocity(result, viewProjections), 1);
+    output.worldPosition = vec4(worldPos, 1);
+//    output.velocity = vec4(getVelocity(result, viewProjections), 1);
 
     let raymarchedDistance = length(result.worldPos - cameraPosition);
 

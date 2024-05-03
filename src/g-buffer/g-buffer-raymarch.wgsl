@@ -149,13 +149,13 @@ fn main(
   var closestIntersection = RayMarchResult();
 
   let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
-//  if(!bvhResult.hit){
-//    textureStore(albedoTex, pixel, vec4(0));
-//    textureStore(normalTex, pixel, vec4(0));
-//    textureStore(velocityTex, pixel, vec4(0));
-//    textureStore(worldPosTex, pixel, vec4(0));
-//    return;
-//  }
+  if(!bvhResult.hit){
+    textureStore(albedoTex, pixel, vec4(0));
+    textureStore(normalTex, pixel, vec4(0));
+    textureStore(velocityTex, pixel, vec4(0));
+    textureStore(worldPosTex, pixel, vec4(0));
+    return;
+  }
   closestIntersection = bvhResult;
 
 

@@ -38,6 +38,7 @@ struct RayMarchResult {
   normal: vec3<f32>,
   stepsTaken: i32,
   hit: bool,
+  t: f32,
 }
 
 fn isInBounds(position: vec3<i32>, size: vec3<i32>) -> bool {
@@ -105,14 +106,13 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
 
     let samplePosition = vec3<u32>(currentIndex) + atlasLocation;
     let mipSample0 = textureLoad(voxels, samplePosition / vec3((1u << mipLevel)), mipLevel);
-    output.normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(objectNormal));
-    output.worldPos = (voxelObject.transform *  vec4(objectPos, 1.0)).xyz;
-    output.hit = mipSample0.r > 0.0;
+
 
     if(mipSample0.r > 0.0 && isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
         output.worldPos = (voxelObject.transform *  vec4(objectPos, 1.0)).xyz;
         output.normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(objectNormal));
         output.hit = true;
+        output.t = tCurrent;
         return output;
     }
 
@@ -147,9 +147,8 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
    var output = RayMarchResult();
    for(var mipLevel = startingMipLevel; mipLevel > 0; mipLevel--){
      output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel);
-     let t = distance(output.worldPos, objectRayOrigin);
      if(output.hit){
-       objectRayOrigin += t * objectRayDirection;
+       objectRayOrigin += (output.t - EPSILON) * objectRayDirection;
      }
      else{
       return output;
