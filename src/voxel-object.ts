@@ -1,7 +1,7 @@
 import { mat4, Mat4, vec3, Vec3 } from "wgpu-matrix";
 import { v4 as uuidv4 } from "uuid";
 import { BoundingBox } from "./bvh";
-import { MoveableObject } from "./moveable-object";
+import { MovableObject } from "./movable-object";
 
 /**
  * Get the bounding box of a set of corners
@@ -30,7 +30,7 @@ const getBoundingBox = (corners: Vec3[]): BoundingBox => {
  * const name = "cube";
  * const cubeObject = new VoxelObject(transform, size, atlasLocation, name);
  */
-export class VoxelObject extends MoveableObject {
+export class VoxelObject extends MovableObject {
   /** A uuid identifier for this object */
   #id: string;
   /** A readable name for this object */

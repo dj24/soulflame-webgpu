@@ -1,11 +1,13 @@
 import { camera, deltaTime, resolution } from "./app";
 import { KeyboardControls } from "./keyboard-controls";
-import { MoveableObject } from "./moveable-object";
+import { MovableObject } from "./movable-object";
 import { mat4, quat, vec3, Vec3 } from "wgpu-matrix";
+import { UpdatedByRenderLoop } from "./decorators/updated-by-render-loop";
 
 const keyboardControls = new KeyboardControls();
 
-export class Camera extends MoveableObject {
+@UpdatedByRenderLoop.register
+export class Camera extends MovableObject {
   fieldOfView: number;
   near = 0.5;
   far = 10000;
@@ -44,39 +46,45 @@ export class Camera extends MoveableObject {
   get inverseViewProjectionMatrix() {
     return mat4.invert(this.viewProjectionMatrix);
   }
-}
 
-export const moveCamera = () => {
-  const rotationSpeed = 0.005 * deltaTime;
-  const speed = 0.04 * deltaTime;
-  let direction = vec3.zero();
-  if (keyboardControls.pressed.a) {
-    direction = vec3.add(direction, camera.left);
+  update() {
+    const rotationSpeed = 0.005 * deltaTime;
+    const speed = 0.04 * deltaTime;
+    let direction = vec3.zero();
+    if (keyboardControls.pressed.a) {
+      direction = vec3.add(direction, camera.left);
+    }
+    if (keyboardControls.pressed.d) {
+      direction = vec3.add(direction, camera.right);
+    }
+    if (keyboardControls.pressed.w) {
+      direction = vec3.add(direction, camera.direction);
+    }
+    if (keyboardControls.pressed.s) {
+      direction = vec3.subtract(direction, camera.direction);
+    }
+    if (keyboardControls.pressed.e) {
+      camera.targetRotation = quat.rotateY(
+        camera.targetRotation,
+        rotationSpeed,
+      );
+    }
+    if (keyboardControls.pressed.q) {
+      camera.targetRotation = quat.rotateY(
+        camera.targetRotation,
+        -rotationSpeed,
+      );
+    }
+    if (keyboardControls.pressed[" "]) {
+      direction = vec3.add(direction, camera.up);
+    }
+    if (keyboardControls.pressed.shift) {
+      direction = vec3.add(direction, camera.down);
+    }
+    direction = vec3.normalize(direction);
+    camera.targetPosition = vec3.add(
+      camera.targetPosition,
+      vec3.mulScalar(direction, speed),
+    );
   }
-  if (keyboardControls.pressed.d) {
-    direction = vec3.add(direction, camera.right);
-  }
-  if (keyboardControls.pressed.w) {
-    direction = vec3.add(direction, camera.direction);
-  }
-  if (keyboardControls.pressed.s) {
-    direction = vec3.subtract(direction, camera.direction);
-  }
-  if (keyboardControls.pressed.e) {
-    camera.targetRotation = quat.rotateY(camera.targetRotation, rotationSpeed);
-  }
-  if (keyboardControls.pressed.q) {
-    camera.targetRotation = quat.rotateY(camera.targetRotation, -rotationSpeed);
-  }
-  if (keyboardControls.pressed[" "]) {
-    direction = vec3.add(direction, camera.up);
-  }
-  if (keyboardControls.pressed.shift) {
-    direction = vec3.add(direction, camera.down);
-  }
-  direction = vec3.normalize(direction);
-  camera.targetPosition = vec3.add(
-    camera.targetPosition,
-    vec3.mulScalar(direction, speed),
-  );
-};
+}

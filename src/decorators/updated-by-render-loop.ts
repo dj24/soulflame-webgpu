@@ -2,19 +2,26 @@ export interface UpdatedByRenderLoop {
   update(): void;
 }
 
+/**
+ * A decorator that registers a class to be updated by the render loop.
+ * The class must implement the `update` method.
+ */
 export namespace UpdatedByRenderLoop {
-  type Constructor<T> = {
-    new (...args: any[]): T;
-    readonly prototype: T;
+  type Constructor = new (...args: any[]) => UpdatedByRenderLoop;
+  const instances: UpdatedByRenderLoop[] = [];
+
+  export const updateAll = () => {
+    for (const instance of instances) {
+      instance.update();
+    }
   };
-  const implementations: Constructor<UpdatedByRenderLoop>[] = [];
-  export function GetImplementations(): Constructor<UpdatedByRenderLoop>[] {
-    return implementations;
-  }
-  export function register<T extends Constructor<UpdatedByRenderLoop>>(
-    constructor: T,
-  ) {
-    implementations.push(constructor);
-    return constructor;
-  }
+
+  export const register = <T extends Constructor>(constructor: T) => {
+    return class extends constructor {
+      constructor(...args: any[]) {
+        super(...args);
+        instances.push(this);
+      }
+    };
+  };
 }

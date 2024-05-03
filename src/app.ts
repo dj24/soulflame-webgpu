@@ -5,7 +5,7 @@ import {
   writeToUniformBuffer,
 } from "./buffer-utils";
 import { getGBufferPass, OutputTextures } from "./g-buffer/get-g-buffer-pass";
-import { Camera, moveCamera } from "./camera";
+import { Camera } from "./camera";
 import { DebugUI } from "./ui";
 import "./main.css";
 import { mat4, vec2, vec3 } from "wgpu-matrix";
@@ -35,28 +35,6 @@ import { getFXAAPass } from "./fxaa-pass/fxaa-pass";
 import { getAdaptiveShadowsPass } from "./adaptive-shadow-pass/get-adaptive-shadows-pass";
 import { getFogPass } from "./fog-pass/get-fog-pass";
 import { UpdatedByRenderLoop } from "./decorators/updated-by-render-loop";
-
-export type RenderArgs = {
-  enabled?: boolean;
-  commandEncoder: GPUCommandEncoder;
-  resolutionBuffer: GPUBuffer;
-  outputTextures: OutputTextures;
-  cameraPositionBuffer: GPUBuffer;
-  transformationMatrixBuffer: GPUBuffer;
-  timeBuffer: GPUBuffer;
-  viewProjectionMatricesBuffer?: GPUBuffer;
-  timestampWrites?: GPUComputePassTimestampWrites;
-  sunDirectionBuffer?: GPUBuffer;
-  blueNoiseTexture?: GPUTexture;
-  bvhBuffer: GPUBuffer;
-  lights: Light[];
-  volumeAtlas: VolumeAtlas;
-};
-
-export type RenderPass = {
-  render: (args: RenderArgs) => GPUCommandBuffer[];
-  label?: string;
-};
 
 const FPS_CAP = 50;
 
@@ -94,6 +72,28 @@ let skyTexture: GPUTexture;
 let animationFrameId: ReturnType<typeof requestAnimationFrame>;
 
 const baseLightOffset = [-33.5, 4.5, -45] as [number, number, number];
+
+export type RenderArgs = {
+  enabled?: boolean;
+  commandEncoder: GPUCommandEncoder;
+  resolutionBuffer: GPUBuffer;
+  outputTextures: OutputTextures;
+  cameraPositionBuffer: GPUBuffer;
+  transformationMatrixBuffer: GPUBuffer;
+  timeBuffer: GPUBuffer;
+  viewProjectionMatricesBuffer?: GPUBuffer;
+  timestampWrites?: GPUComputePassTimestampWrites;
+  sunDirectionBuffer?: GPUBuffer;
+  blueNoiseTexture?: GPUTexture;
+  bvhBuffer: GPUBuffer;
+  lights: Light[];
+  volumeAtlas: VolumeAtlas;
+};
+
+export type RenderPass = {
+  render: (args: RenderArgs) => GPUCommandBuffer[];
+  label?: string;
+};
 
 const torchPositions: Light["position"][] = [
   [-16.468910217285156, 2.6069962978363037, -44.74098205566406],
@@ -155,8 +155,6 @@ let lights: Light[] = Array.from({ length: 200 }).map(() => {
 
 // lights = [lights[2], lights[6]];
 
-const MAX_32_BIT_INT = 2 ** 32 - 1;
-
 const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let normalTexture: GPUTexture;
   let albedoTexture: GPUTexture;
@@ -165,14 +163,12 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let velocityTexture: GPUTexture;
   let blueNoiseTexture: GPUTexture;
   let worldPositionTexture: GPUTexture;
-
   let timeBuffer: GPUBuffer;
   let resolutionBuffer: GPUBuffer;
   let transformationMatrixBuffer: GPUBuffer;
   let viewProjectionMatricesBuffer: GPUBuffer;
   let sunDirectionBuffer: GPUBuffer;
   let bvh: BVH;
-
   let previousInverseViewProjectionMatrix = mat4.create();
   let previousViewProjectionMatrix = mat4.create();
 
@@ -534,17 +530,12 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       return;
     }
 
-    moveCamera();
-    UpdatedByRenderLoop.GetImplementations().forEach((implementation) => {
-      implementation.prototype.update();
-    });
+    UpdatedByRenderLoop.updateAll();
     bvh.update(voxelObjects);
 
     const jitteredCameraPosition = mat4.getTranslation(
       camera.inverseViewMatrix,
     );
-
-    // const jitteredCameraPosition = camera.position;
 
     document.getElementById("resolution").innerHTML = resolution.join(" x ");
 
@@ -714,10 +705,4 @@ const start = async () => {
   );
 };
 
-let startPromise = start();
-//
-// window.onresize = async () => {
-//   await startPromise;
-//   cancelAnimationFrame(animationFrameId);
-//   start();
-// };
+start();
