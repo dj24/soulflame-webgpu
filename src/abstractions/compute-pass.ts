@@ -55,7 +55,6 @@ struct Time {
 @group(0) @binding(16) var worldPosTex : texture_2d<f32>;
 @group(0) @binding(17) var albedoTex : texture_2d<f32>;
 
-const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
 ${matrices}
 ${randomCommon}
 ${getRayDirection}

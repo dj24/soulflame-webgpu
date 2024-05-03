@@ -34,18 +34,10 @@ struct VoxelObject {
 }
 
 struct RayMarchResult {
-  colour: vec3<f32>,
-  normal: vec3<f32>,
-  objectPos: vec3<f32>,
   worldPos: vec3<f32>,
-  hit: bool,
-  modelMatrix: mat4x4<f32>,
-  previousModelMatrix: mat4x4<f32>,
-  inverseModelMatrix: mat4x4<f32>,
-  previousInverseModelMatrix: mat4x4<f32>,
+  normal: vec3<f32>,
   stepsTaken: i32,
-  isWater: bool,
-  t: f32
+  hit: bool,
 }
 
 fn isInBounds(position: vec3<i32>, size: vec3<i32>) -> bool {
@@ -90,14 +82,6 @@ fn getBitInBrick(brick: Brick, bitIndex: u32) -> bool {
   return getBit(brick.voxels[maskIndex], bitIndexInMask);
 }
 
-struct BrickMarchResult {
-  hit: bool,
-  normal: vec3<f32>,
-  t: f32,
-  stepsTaken: i32
-}
-
-
 fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, objectRayOrigin: vec3<f32>, mipLevel: u32) -> RayMarchResult {
   var output = RayMarchResult();
   let rayDirSign = sign(objectRayDirection);
@@ -121,19 +105,14 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
 
     let samplePosition = vec3<u32>(currentIndex) + atlasLocation;
     let mipSample0 = textureLoad(voxels, samplePosition / vec3((1u << mipLevel)), mipLevel);
-    output.colour = objectPos / vec3<f32>(voxelObject.size);
+    output.normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(objectNormal));
+    output.worldPos = (voxelObject.transform *  vec4(objectPos, 1.0)).xyz;
+    output.hit = mipSample0.r > 0.0;
 
     if(mipSample0.r > 0.0 && isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
-        output.objectPos = objectPos;
-        output.worldPos = (voxelObject.transform *  vec4(output.objectPos, 1.0)).xyz;
+        output.worldPos = (voxelObject.transform *  vec4(objectPos, 1.0)).xyz;
         output.normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(objectNormal));
-        output.colour = mipSample0.rgb;
         output.hit = true;
-        output.modelMatrix = voxelObject.transform;
-        output.previousModelMatrix = voxelObject.previousTransform;
-        output.inverseModelMatrix = voxelObject.inverseTransform;
-        output.previousInverseModelMatrix = voxelObject.previousInverseTransform;
-        output.t = tCurrent;
         return output;
     }
 
@@ -168,14 +147,15 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
    var output = RayMarchResult();
    for(var mipLevel = startingMipLevel; mipLevel > 0; mipLevel--){
      output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel);
+     let t = distance(output.worldPos, objectRayOrigin);
      if(output.hit){
-//       objectRayOrigin += output.t * objectRayDirection;
+       objectRayOrigin += t * objectRayDirection;
      }
      else{
       return output;
      }
    }
-   objectRayOrigin += (output.t - EPSILON) * objectRayDirection;
+//   objectRayOrigin += (output.t - EPSILON) * objectRayDirection;
    return rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
 }
 

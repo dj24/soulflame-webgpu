@@ -74,16 +74,17 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
         let distanceToLeaf = getDistanceToNode(rayOrigin, rayDirection, node);
         let isHit = distanceToLeaf >= 0.0;
         let worldPos = rayOrigin + rayDirection * distanceToLeaf;
-//        if(isHit){
+//        if(isHit && distanceToLeaf < closestRaymarchDist){
 //          closestIntersection.worldPos = worldPos;
 //          closestIntersection.hit = true;
 //          closestIntersection.normal = vec3<f32>(0.0);
 //          closestIntersection.colour = abs(worldPos) % 1.0;;
+//          closestRaymarchDist = distanceToLeaf;
 //        }
-        if(isHit){
+        if(isHit && distanceToLeaf < closestRaymarchDist){
           let voxelObject = voxelObjects[node.leftIndex];
           let shiftedRayOrigin = rayOrigin + rayDirection * distanceToLeaf;
-          let rayMarchResult = rayMarchTransformed(voxelObject, rayDirection, shiftedRayOrigin, 0);
+          let rayMarchResult = rayMarchTransformed(voxelObject, rayDirection, shiftedRayOrigin, 2);
 //          let rayMarchResult = rayMarchOctree(voxelObject, rayDirection, shiftedRayOrigin, 2);
           let rayMarchDist = distance(rayOrigin, rayMarchResult.worldPos);
           if(rayMarchResult.hit && rayMarchDist < closestRaymarchDist){
@@ -96,7 +97,7 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
     }
 
     iterations += 1;
-    closestIntersection.colour += vec3<f32>(0.0075);
+//    closestIntersection.colour += vec3<f32>(0.0075);
   }
 
   return closestIntersection;
@@ -166,7 +167,7 @@ fn rayMarchBVHFirstHit(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> bool {
       }
 
       iterations += 1;
-      closestIntersection.colour += vec3<f32>(0.0075);
+//      closestIntersection.colour += vec3<f32>(0.0075);
     }
 
     return false;

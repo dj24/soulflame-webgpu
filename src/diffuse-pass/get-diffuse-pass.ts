@@ -143,7 +143,6 @@ export const getDiffusePass = async (): Promise<RenderPass> => {
   });
 
   const diffuseCode = `
-          const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
           ${randomCommon}
           ${boxIntersection}
           ${getRayDirection}

@@ -28,24 +28,25 @@ fn plainIntersect(ro: vec3<f32>, rd: vec3<f32>, p: vec4<f32>) -> f32 {
 }
 
 fn getVelocity(rayMarchResult: RayMarchResult, viewProjections: ViewProjectionMatrices) -> vec3<f32> {
-  let vp = viewProjections.viewProjection;
-    let previousVp = viewProjections.previousViewProjection;
-    let modelMatrix = rayMarchResult.modelMatrix;
-    let previousModelMatrix = rayMarchResult.previousModelMatrix;
-
-    // Get current object space position of the current pixel
-    let objectPos = rayMarchResult.objectPos.xyz;
-    let objectClipSpace = vp * modelMatrix * vec4(objectPos.xyz, 1.0);
-    let objectNDC = objectClipSpace.xyz / objectClipSpace.w;
-
-    // Get previous position of the current object space position
-    let previousObjectClipSpace = previousVp * previousModelMatrix * vec4(objectPos.xyz, 1.0);
-    let previousObjectNDC = previousObjectClipSpace.xyz / previousObjectClipSpace.w;
-
-    // Get velocity based on the difference between the current and previous positions
-    var velocity = objectNDC - previousObjectNDC;
-    velocity.y = -velocity.y;
-  return velocity;
+  return vec3<f32>(0.0);
+//  let vp = viewProjections.viewProjection;
+//    let previousVp = viewProjections.previousViewProjection;
+//    let modelMatrix = rayMarchResult.modelMatrix;
+//    let previousModelMatrix = rayMarchResult.previousModelMatrix;
+//
+//    // Get current object space position of the current pixel
+//    let objectPos = rayMarchResult.objectPos.xyz;
+//    let objectClipSpace = vp * modelMatrix * vec4(objectPos.xyz, 1.0);
+//    let objectNDC = objectClipSpace.xyz / objectClipSpace.w;
+//
+//    // Get previous position of the current object space position
+//    let previousObjectClipSpace = previousVp * previousModelMatrix * vec4(objectPos.xyz, 1.0);
+//    let previousObjectNDC = previousObjectClipSpace.xyz / previousObjectClipSpace.w;
+//
+//    // Get velocity based on the difference between the current and previous positions
+//    var velocity = objectNDC - previousObjectNDC;
+//    velocity.y = -velocity.y;
+//  return velocity;
 }
 
 fn getLeftChildIndex(index: i32) -> i32 {
@@ -148,19 +149,20 @@ fn main(
   var closestIntersection = RayMarchResult();
 
   let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
-  if(!bvhResult.hit){
-    textureStore(albedoTex, pixel, vec4(0));
-    textureStore(normalTex, pixel, vec4(0));
-    textureStore(velocityTex, pixel, vec4(0));
-    textureStore(worldPosTex, pixel, vec4(0));
-    return;
-  }
+//  if(!bvhResult.hit){
+//    textureStore(albedoTex, pixel, vec4(0));
+//    textureStore(normalTex, pixel, vec4(0));
+//    textureStore(velocityTex, pixel, vec4(0));
+//    textureStore(worldPosTex, pixel, vec4(0));
+//    return;
+//  }
   closestIntersection = bvhResult;
 
 
   let normal = closestIntersection.normal;
   let depth = distance(cameraPosition, closestIntersection.worldPos);
-  let albedo = closestIntersection.colour;
+//  let albedo = closestIntersection.colour;
+  let albedo = vec3(f32(closestIntersection.stepsTaken)) * 0.01;
   let velocity = getVelocity(closestIntersection, viewProjections);
   let worldPos = closestIntersection.worldPos;
 

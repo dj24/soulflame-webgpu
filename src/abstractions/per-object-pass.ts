@@ -4,6 +4,7 @@ import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
 import randomCommon from "../random-common.wgsl";
 import matrices from "../shader/matrices.wgsl";
+import { voxelObjects } from "../create-tavern";
 
 const depthEntry: GPUBindGroupLayoutEntry = {
   binding: 0,
@@ -160,7 +161,6 @@ export const createPerObjectPass = async ({
 @group(0) @binding(11) var<uniform> time : vec2<u32>;
 @group(0) @binding(12) var nearestSampler : sampler;
 
-const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
 ${matrices}
 ${randomCommon}
 ${getRayDirection}
@@ -310,7 +310,7 @@ ${shaderCode}`;
     computePass.setPipeline(effectPipeline);
     computePass.setBindGroup(0, bindGroup);
     computePass.dispatchWorkgroups(
-      Math.ceil(debugValues.objectCount / NUM_THREADS_X),
+      Math.ceil(voxelObjects.length / NUM_THREADS_X),
     );
 
     computePass.end();

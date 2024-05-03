@@ -50,15 +50,11 @@ const splitObjectsBySAH = (voxelObjects: LeafNode[]) => {
   for (let i = 1; i < voxelObjects.length; i++) {
     const left = voxelObjects.slice(0, i);
     const right = voxelObjects.slice(i);
-
     const sahCost = getNodeSAHCost(left) + getNodeSAHCost(right);
     const balanceFactor = Math.abs(i - middleIndex);
-
     const weightedBalanceFactor = balanceFactor * BALANCE_WEIGHT;
     const weightedSAHCost = sahCost * SAH_WEIGHT;
-
     const cost = weightedBalanceFactor + weightedSAHCost;
-
     if (cost < minCost) {
       minCost = cost;
       minIndex = i;

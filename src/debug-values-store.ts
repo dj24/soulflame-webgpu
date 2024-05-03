@@ -1,78 +1,59 @@
-import { animate, glide } from "motion";
-import { vec3 } from "wgpu-matrix";
-import { deltaTime } from "./app";
-import { UpdatedByRenderLoop } from "./decorators/updated-by-render-loop";
+import { NumberAnimation, Vec3Animation } from "./abstractions/animation";
 
-@UpdatedByRenderLoop.register
 export class DebugValuesStore {
-  maxObjectCount;
-  objectCount;
-  scale;
-  targetScale;
-  translateX;
-  targetTranslateX;
-  rotateY;
-  targetRotateY;
-  sunRotateY;
-  targetSunRotateY;
+  #scale: NumberAnimation;
+  #translateX: NumberAnimation;
+  #rotateY: NumberAnimation;
+  #sunRotateY;
 
   constructor() {
-    this.maxObjectCount = 222;
-    this.objectCount = 222;
-    this.scale = 1;
-    this.translateX = 0;
-    this.targetScale = 1;
-    this.targetTranslateX = 0;
-    this.rotateY = 0;
-    this.targetRotateY = 0;
-    this.sunRotateY = 0.6;
-    this.targetSunRotateY = 0.6;
+    this.#scale = new NumberAnimation(1);
+    this.#translateX = new NumberAnimation(0);
+    this.#rotateY = new NumberAnimation(0);
+    this.#sunRotateY = new NumberAnimation(0.6);
   }
 
-  update() {
-    animate(
-      (progress: number) => {
-        const distance = this.targetScale - this.scale;
-        this.scale = this.scale + distance * progress;
-      },
-      {
-        easing: glide({
-          velocity: 0.0002 * deltaTime,
-        }),
-      },
-    );
-    animate(
-      (progress: number) => {
-        const distance = this.targetTranslateX - this.translateX;
-        this.translateX = this.translateX + distance * progress;
-      },
-      {
-        easing: glide({
-          velocity: 0.0002 * deltaTime,
-        }),
-      },
-    );
-    animate(
-      (progress: number) => {
-        const distance = this.targetRotateY - this.rotateY;
-        this.rotateY = this.rotateY + distance * progress;
-      },
-      {
-        easing: glide({
-          velocity: 0.0002 * deltaTime,
-        }),
-      },
-    );
-    animate(
-      (progress: number) => {
-        const distance = this.targetSunRotateY - this.sunRotateY;
-        this.sunRotateY = this.sunRotateY + distance * progress;
-      },
-      {
-        easing: glide({
-          velocity: 0.0002 * deltaTime,
-        }),
-      },
-    );
+  set targetScale(value: number) {
+    this.#scale.target = value;
+  }
+
+  set targetTranslateX(value: number) {
+    this.#translateX.target = value;
+  }
+
+  set targetRotateY(value: number) {
+    this.#rotateY.target = value;
+  }
+
+  set targetSunRotateY(value: number) {
+    this.#sunRotateY.target = value;
+  }
+
+  get targetScale() {
+    return this.#scale.target;
+  }
+
+  get targetTranslateX() {
+    return this.#translateX.target;
+  }
+
+  get targetRotateY() {
+    return this.#rotateY.target;
+  }
+
+  get targetSunRotateY() {
+    return this.#sunRotateY.target;
+  }
+
+  get sunRotateY() {
+    return this.#sunRotateY.value;
+  }
+
+  get scale() {
+    return this.#scale.value;
+  }
+
+  get translateX() {
+    return this.#translateX.value;
   }
 }

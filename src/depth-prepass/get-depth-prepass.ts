@@ -37,7 +37,6 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
     compute: {
       module: device.createShaderModule({
         code: `
-          const VOXEL_OBJECT_COUNT = ${debugValues.objectCount};
           ${boxIntersection}
           ${raymarchVoxels}
           ${getRayDirection}

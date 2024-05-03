@@ -6,6 +6,7 @@ import { deltaTime } from "../app";
 interface Animated<T> extends UpdatedByRenderLoop {
   value: T;
   target: T;
+  update(): void;
 }
 
 @UpdatedByRenderLoop.register
@@ -22,6 +23,30 @@ export class Vec3Animation implements Animated<Vec3> {
     animate(
       (progress: number) => {
         this.value = vec3.lerp(this.value, this.target, progress);
+      },
+      {
+        easing: glide({
+          velocity: 0.0002 * deltaTime,
+        }),
+      },
+    );
+  }
+}
+
+@UpdatedByRenderLoop.register
+export class NumberAnimation implements Animated<number> {
+  value: number;
+  target: number;
+
+  constructor(value: number) {
+    this.value = value;
+    this.target = value;
+  }
+
+  update() {
+    animate(
+      (progress: number) => {
+        this.value = this.value + (this.target - this.value) * progress;
       },
       {
         easing: glide({
