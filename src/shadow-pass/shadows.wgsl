@@ -1,7 +1,9 @@
 
 
 fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>) -> bool {
-    return rayMarchBVH(worldPos, shadowRayDirection).hit;
+  let rayOrigin = worldPos + shadowRayDirection * 0.33; // To adccount for self occlusion of higher mip
+  return rayMarchBVHShadows(rayOrigin, shadowRayDirection).hit;
+//    return rayMarchBVH(worldPos, shadowRayDirection).hit;
 }
 
 
@@ -22,8 +24,8 @@ const BLUE_NOISE_SIZE = 511;
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const SHADOW_ACNE_OFFSET: f32 = 0.005;
-const SCATTER_AMOUNT: f32 = 0.75;
-const POSITION_SCATTER_AMOUNT: f32 = 0.01;
+const SCATTER_AMOUNT: f32 =0.8;
+const POSITION_SCATTER_AMOUNT: f32 = 0.25;
 
 fn blinnPhong(normal: vec3<f32>, lightDirection: vec3<f32>, viewDirection: vec3<f32>, specularStrength: f32, shininess: f32, lightColour: vec3<f32>) -> vec3<f32> {
   let halfDirection = normalize(lightDirection + viewDirection);
@@ -71,6 +73,7 @@ fn main(
   var blueNoisePixel = outputPixel % BLUE_NOISE_SIZE;
   var normalSample = textureLoad(normalTex, pixel, 0).rgb;
   var worldPos = textureLoad(worldPosTex, pixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
+
   var output = vec4<f32>(0.0);
   var count = 0.0;
   for(var i = 0u; i < SAMPLES_PER_PIXEL; i++){
@@ -85,9 +88,10 @@ fn main(
       blueNoisePixel.x = BLUE_NOISE_SIZE - blueNoisePixel.x;
     }
     var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
+    let sampleWorldPos = worldPos + randomInPlanarUnitDisk(r, normalSample) * POSITION_SCATTER_AMOUNT;
     var shadowRayDirection = randomInCosineWeightedHemisphere(r, normalSample);
     shadowRayDirection = mix(sunDirection, shadowRayDirection, SCATTER_AMOUNT);
-    if(shadowRay(worldPos, shadowRayDirection)){
+    if(shadowRay(sampleWorldPos, shadowRayDirection)){
         output += vec4(0.0);
         count += 1.0;
     } else{
@@ -109,7 +113,7 @@ fn polarToCartesian(angle: f32, radius: f32) -> vec2<f32> {
   return vec2<f32>(x, y);
 }
 
-const BLUR_RADIUS = 1.0;
+const BLUR_RADIUS = 2.0;
 
 // 3x3 Gaussian blur kernel, weight in z component
 const BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS: array<vec3<f32>, 9> = array<vec3<f32>, 9>(
@@ -170,31 +174,31 @@ fn composite(
   let normalRef = textureLoad(normalTex, pixel, 0).rgb;
   let depthRef = textureLoad(depthTex, pixel, 0).r;
   let shadowRef = textureSampleLevel(intermediaryTexture, linearSampler, shadowSampleUV, 0.0);
+//
+//  var outputColour = vec4<f32>(0.0);
+//  var totalWeight = 0.0;
+//
+//  for(var i = 0u; i < 25; i++){
+//    let foo = BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS_5x5[i];
+//    let offset = foo.xy * texelSize;
+//    let sampleUV = shadowSampleUV + offset * BLUR_RADIUS;
+//    let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
+//    let normalSample = textureSampleLevel(normalTex, linearSampler, sampleUV, 0.0).rgb;
+//    let depthSample = textureLoad(depthTex, samplePixel, 0).r;
+//    let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0);
+//
+//    let relativeDepthDifference = abs(depthSample - depthRef) / depthRef;
+//    let depthWeight = clamp(1.0 - relativeDepthDifference * DEPTH_SENSITIVITY, 0,1);
+//    let normalWeight = dot(normalSample, normalRef);
+//    let gaussWeight = foo.z;
+//
+//    let weight =  gaussWeight * normalWeight * depthWeight;
+//
+//    totalWeight += weight;
+//    outputColour += shadowSample * weight;
+//  }
+//  outputColour /= totalWeight;
 
-  var outputColour = vec4<f32>(0.0);
-  var totalWeight = 0.0;
-
-  for(var i = 0u; i < 25; i++){
-    let foo = BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS_5x5[i];
-    let offset = foo.xy * texelSize;
-    let sampleUV = shadowSampleUV + offset * BLUR_RADIUS;
-    let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
-    let normalSample = textureSampleLevel(normalTex, linearSampler, sampleUV, 0.0).rgb;
-    let depthSample = textureLoad(depthTex, samplePixel, 0).r;
-    let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0);
-
-    let relativeDepthDifference = abs(depthSample - depthRef) / depthRef;
-    let depthWeight = clamp(1.0 - relativeDepthDifference * DEPTH_SENSITIVITY, 0,1);
-    let normalWeight = dot(normalSample, normalRef);
-    let gaussWeight = foo.z;
-
-    let weight =  gaussWeight * normalWeight * depthWeight;
-
-    totalWeight += weight;
-    outputColour += shadowSample * weight;
-  }
-  outputColour /= totalWeight;
-
-//  textureStore(outputTex, outputPixel, shadowRef);
-  textureStore(outputTex, pixel,outputColour * albedoSample);
+  textureStore(outputTex, outputPixel, shadowRef);
+//  textureStore(outputTex, pixel,outputColour * albedoSample);
 }

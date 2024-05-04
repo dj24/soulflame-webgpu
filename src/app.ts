@@ -71,7 +71,7 @@ let skyTexture: GPUTexture;
 
 let animationFrameId: ReturnType<typeof requestAnimationFrame>;
 
-const baseLightOffset = [-33.5, 4.5, -45] as [number, number, number];
+const baseLightOffset = [-35, 4.5, -45] as [number, number, number];
 
 export type RenderArgs = {
   enabled?: boolean;
@@ -153,7 +153,13 @@ let lights: Light[] = Array.from({ length: 200 }).map(() => {
   };
 });
 
-// lights = [lights[2], lights[6]];
+lights = [
+  {
+    position: [-38, 8, -35],
+    size: 3,
+    color: vec3.create(1, 1, 1),
+  },
+];
 
 const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let normalTexture: GPUTexture;
@@ -506,6 +512,16 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       startTime = now;
     }
 
+    // lights[0] = {
+    //   position: [
+    //     baseLightOffset[0] + Math.sin(now / 2000) * 5,
+    //     lights[0].position[1],
+    //     lights[0].position[2],
+    //   ],
+    //   size: 3,
+    //   color: vec3.create(1, 1, 1),
+    // };
+
     // Disco lights
     // lights.forEach((light, index) => {
     //   light.position = [
@@ -662,7 +678,7 @@ const start = async () => {
 
   const computePassPromises: Promise<RenderPass>[] = [
     // fullscreenQuad(device),
-    getHelloTrianglePass(),
+    // getHelloTrianglePass(),
     getGBufferPass(),
     // getVoxelLatticePass(),
     // getReflectionsPass(),
@@ -675,8 +691,8 @@ const start = async () => {
     // getVolumetricFog(),
     // getFXAAPass(),
     // getTaaPass(),
-    // getFogPass(),
-    getBoxOutlinePass(),
+    getFogPass(),
+    // getBoxOutlinePass(),
     // getWaterPass(),
 
     fullscreenQuad(device),

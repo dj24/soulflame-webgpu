@@ -163,14 +163,6 @@ export const getLightsPass = async (): Promise<RenderPass> => {
           viewDimension: "2d",
         },
       },
-      // brick map
-      {
-        binding: 11,
-        visibility: GPUShaderStage.FRAGMENT,
-        buffer: {
-          type: "read-only-storage",
-        },
-      },
     ],
   });
 
@@ -276,7 +268,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     },
     primitive: {
       topology: "line-list",
-      cullMode: "back",
+      cullMode: "none",
     },
   });
 

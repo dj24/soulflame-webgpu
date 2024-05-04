@@ -157,6 +157,24 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
    return rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
 }
 
+const SHADOW_MIN_MIP_LEVEL = 1u;
+
+fn rayMarchOctreeShadows(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>, startingMipLevel: u32) -> RayMarchResult {
+   var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
+   let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+   var output = RayMarchResult();
+   for(var mipLevel = startingMipLevel; mipLevel > SHADOW_MIN_MIP_LEVEL; mipLevel--){
+     output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel);
+     if(output.hit){
+       objectRayOrigin += (output.t - EPSILON) * objectRayDirection;
+     }
+     else{
+      return output;
+     }
+   }
+   return rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, SHADOW_MIN_MIP_LEVEL);
+}
+
 
 struct Stack {
   arr: array<i32, STACK_LEN>,

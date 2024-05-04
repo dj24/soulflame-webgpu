@@ -56,10 +56,10 @@ fn ndcToScreenUV(ndc: vec2<f32>) -> vec2<f32> {
 }
 
 
-const JITTERED_LIGHT_CENTER_RADIUS = 0.5;
+const JITTERED_LIGHT_CENTER_RADIUS = 0.05;
 const SHADOW_ACNE_OFFSET: f32 = 0.0001;
-const SCATTER_AMOUNT: f32 = 0.2;
-const POSITION_SCATTER_AMOUNT: f32 = 0.2;
+const SCATTER_AMOUNT: f32 = 0.01;
+const POSITION_SCATTER_AMOUNT: f32 = 0.01;
 
 @fragment
 fn main(
@@ -85,6 +85,7 @@ fn main(
 
   var distanceToLight = distance(worldPos, jitteredLightCenter);
   var attenuation = lightRadius / (distanceToLight * distanceToLight);
+  attenuation = 1.0;
 
   var shadowRayDirection = normalize(worldPos - jitteredLightCenter);
 //  shadowRayDirection += randomInHemisphere(r, shadowRayDirection) * SCATTER_AMOUNT;
@@ -97,9 +98,9 @@ fn main(
   var screenRayPosition = lightVolumeNdc.xy;
   var screenRayStep = normalize(lightPositionUV - screenUV) * abs(ndc.xy);
   let step = length(screenRayStep) / 16.0;
-//  if(rayMarchBVHFirstHit(worldPos - shadowRayDirection * 0.1, -shadowRayDirection, lightRadius)){
-//    return vec4(0.0);
-//  }
+  if(rayMarchBVH(worldPos - shadowRayDirection * 0.1, -shadowRayDirection).hit){
+    return vec4(0.0);
+  }
 
   let lightDirection = normalize(jitteredLightCenter - worldPos);
   let shaded = blinnPhong(normal, lightDirection, -rayDirection, 0.0, 0.0, lightColor);

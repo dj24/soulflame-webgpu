@@ -2,9 +2,9 @@
 const BLUE_NOISE_SIZE = 511;
 const MAX_DISTANCE = 50.0;
 const START_DISTANCE = 0.0;
-const EXTINCTION = 0.001;
-const FORWARD_SCATTER = 0.1;
-const STEPS = 12.0;
+const EXTINCTION = 0.05;
+const FORWARD_SCATTER = 0.25;
+const STEPS = 16.0;
 
 fn henyeyGreenstein(cosTheta: f32, g: f32) -> f32 {
   let g2 = g * g;
@@ -28,31 +28,27 @@ fn main(
   var pixel = GlobalInvocationID.xy;
   let gBufferPixel = pixel * DOWNSCALE;
   var worldPos = textureLoad(worldPosTex, gBufferPixel, 0).rgb;
-  var distanceFromCamera = length(worldPos - cameraPosition);
-  //TODO: This is a hack to avoid the fact that the sky depth is incorrect
-  if(all(worldPos == vec3<f32>(0.0))){
-    distanceFromCamera = MAX_DISTANCE;
-  }
+  var distanceFromCamera = min(length(worldPos - cameraPosition), MAX_DISTANCE);
   let rayDir = normalize(worldPos - cameraPosition);
   var blueNoisePixel = pixel % BLUE_NOISE_SIZE;
   let blueNoiseSample = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
   var inScattering = vec3<f32>(0.0);
   var count = 0.0;
+
   var stepLength = distanceFromCamera / STEPS;
-  stepLength = 1.0;
-  for(var t = START_DISTANCE; t < distanceFromCamera; t += stepLength){
-    let positionAlongRay = cameraPosition + rayDir * t + randomInUnitSphere(blueNoiseSample) * 0.25;
-    let shadowRay = rayMarchBVH(positionAlongRay, sunDirection).hit;
-    if(!shadowRay){
-      let cosTheta = dot(rayDir, sunDirection);
-      let phaseFunction = henyeyGreenstein(cosTheta, FORWARD_SCATTER);
-      let distanceFromSurface = distanceFromCamera - t;
-      let attenuation = beerLambertLaw(distanceFromSurface, EXTINCTION);
-      inScattering += phaseFunction;
-    }
-    count += 1.0;
+  var volColour = vec3(0.0);
+  var absorption = vec3(1.0);
+  var stepAbsorption = exp(-EXTINCTION * stepLength);
+  var stepColour = vec3(1.0 - stepAbsorption) * henyeyGreenstein(dot(rayDir, sunDirection), FORWARD_SCATTER);
+  for(var i = 0; i < i32(STEPS); i++){
+    let positionAlongRay = cameraPosition + rayDir * (f32(i) * stepLength);
+    absorption *= stepAbsorption;
+    let directLight = select(1.0, 0.0, rayMarchBVHShadows(positionAlongRay, sunDirection).hit);
+    volColour += stepColour * absorption * directLight;
   }
-  textureStore(outputTex, pixel, vec4<f32>(inScattering, length(inScattering)) / count);
+
+   textureStore(outputTex, pixel, vec4<f32>(volColour, 1.0));
+
 //textureStore(outputTex, pixel, vec4<f32>(distanceFromCamera / MAX_DISTANCE));
 //    let b = 0.01;
 //    let t = length(worldPos - cameraPosition);
@@ -106,7 +102,7 @@ fn composite(
     let foo = BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS_5x5[i];
     let offset = foo.xy * texelSize * BLUR_RADIUS;
     let sampleUV = shadowSampleUV + offset;
-    let fogSample = textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0);
+    let fogSample = textureSampleLevel(intermediaryTexture, nearestSampler, sampleUV, 0.0);
     let gaussWeight = foo.z;
     totalWeight += gaussWeight;
     fogAmount += fogSample * gaussWeight;
@@ -115,8 +111,5 @@ fn composite(
 
   let colourSample = textureLoad(inputTex, GlobalInvocationID.xy, 0);
 
-  let fogColour = vec3<f32>(0.6, 0.7, 0.8);
-  let blend = mix(colourSample.rgb, fogColour, length(fogAmount.rgb));
-//  textureStore(outputTex, GlobalInvocationID.xy, vec4(blend, 1));
-textureStore(outputTex, GlobalInvocationID.xy, fogAmount);
+  textureStore(outputTex, GlobalInvocationID.xy, fogAmount);
 }
