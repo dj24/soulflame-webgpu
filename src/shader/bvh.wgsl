@@ -1,6 +1,7 @@
 const BRICK_SIZE = 8;
 const MAX_STEPS = 256;
 
+
 struct BVHNode {
   leftIndex: i32,
   rightIndex: i32,

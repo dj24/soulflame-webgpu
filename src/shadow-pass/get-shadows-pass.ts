@@ -7,7 +7,7 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
     shaderCode: shadows,
     effectEntryPoint: "main",
     compositeEntryPoint: "composite",
-    downscale: 2,
+    downscale: 1,
     label: "shadows",
   });
 };

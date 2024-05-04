@@ -42,7 +42,7 @@ fn main(
   stepLength = 1.0;
   for(var t = START_DISTANCE; t < distanceFromCamera; t += stepLength){
     let positionAlongRay = cameraPosition + rayDir * t + randomInUnitSphere(blueNoiseSample) * 0.25;
-    let shadowRay = rayMarchBVHFirstHit(positionAlongRay, sunDirection);
+    let shadowRay = rayMarchBVH(positionAlongRay, sunDirection).hit;
     if(!shadowRay){
       let cosTheta = dot(rayDir, sunDirection);
       let phaseFunction = henyeyGreenstein(cosTheta, FORWARD_SCATTER);

@@ -6,7 +6,7 @@ fn fragment_main(@builtin(position) position : vec4<f32>) -> @location(0) vec4<f
   for(var x = u32(0); x < 2; x++){
     for(var y = u32(0); y < 2; y++){
       for(var z = u32(0); z < 2; z++){
-        let voxelX = srcTexel.x * 2 + x + 1;
+        let voxelX = srcTexel.x * 2 + x;
         let voxelY = srcTexel.y * 2 + y;
         let voxelZ = srcTexel.z * 2 + z;
         var voxelId = vec3<u32>(voxelX,voxelY,voxelZ);

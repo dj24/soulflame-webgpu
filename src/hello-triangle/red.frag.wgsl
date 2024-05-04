@@ -87,7 +87,8 @@ fn main(
     let objectPos = objectRayOrigin + objectRayDirection * result.t;
     worldPos = transformPosition(voxelObject.transform, objectPos);
 
-    output.albedo = vec4(f32(result.stepsTaken)) * 0.01;
+    output.albedo =  vec4(abs(result.worldPos * 0.25) % 1.0, 1.0);
+//    output.albedo = vec4(f32(result.stepsTaken)) * 0.02;
 //       let paletteX = i32(result.colour.r * 255.0);
 //        let paletteY = i32(voxelObject.paletteIndex);
 //    output.albedo = textureLoad(palette, vec2(paletteX, paletteY), 0);

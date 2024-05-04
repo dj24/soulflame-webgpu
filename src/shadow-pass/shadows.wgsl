@@ -1,8 +1,7 @@
 
 
 fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>) -> bool {
-  return rayMarchBVHFirstHit(worldPos, shadowRayDirection);
-//    return rayMarchTransformed(voxelObjects[0], shadowRayDirection, worldPos, 0).hit;
+    return rayMarchBVH(worldPos, shadowRayDirection).hit;
 }
 
 
@@ -54,7 +53,7 @@ fn randomInCosineWeightedHemisphere(r: vec2<f32>, normal: vec3<f32>) -> vec3<f32
   return normalize(u * cos(r1) * r2s + v * sin(r1) * r2s + w * sqrt(1.0 - r2));
 }
 
-const SAMPLES_PER_PIXEL = 2u;
+const SAMPLES_PER_PIXEL = 1u;
 const SAMPLE_OFFSETS: array<vec2<i32>, 4> = array<vec2<i32>, 4>(
   vec2<i32>(0, 0),
   vec2<i32>(1, 1),
@@ -110,7 +109,7 @@ fn polarToCartesian(angle: f32, radius: f32) -> vec2<f32> {
   return vec2<f32>(x, y);
 }
 
-const BLUR_RADIUS = 2.0;
+const BLUR_RADIUS = 1.0;
 
 // 3x3 Gaussian blur kernel, weight in z component
 const BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS: array<vec3<f32>, 9> = array<vec3<f32>, 9>(

@@ -662,11 +662,11 @@ const start = async () => {
 
   const computePassPromises: Promise<RenderPass>[] = [
     // fullscreenQuad(device),
-    // getHelloTrianglePass(),
+    getHelloTrianglePass(),
     getGBufferPass(),
     // getVoxelLatticePass(),
     // getReflectionsPass(),
-    // getShadowsPass(),
+    getShadowsPass(),
     // getAdaptiveShadowsPass(),
     getSkyPass(),
     // getLightsPass(),

@@ -2,7 +2,7 @@ const EPSILON = 0.0001;
 const MAX_RAY_STEPS = 256;
 const FAR_PLANE = 10000.0;
 const NEAR_PLANE = 0.5;
-
+const STACK_LEN: u32 = 32u;
 
 // Function to transform a normal vector from object to world space
 fn transformNormal(inverseTransform: mat4x4<f32>, normal: vec3<f32>) -> vec3<f32> {
@@ -154,11 +154,10 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       return output;
      }
    }
-//   objectRayOrigin += (output.t - EPSILON) * objectRayDirection;
    return rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
 }
 
-const STACK_LEN: u32 = 32u;
+
 struct Stack {
   arr: array<i32, STACK_LEN>,
 	head: u32,
@@ -191,3 +190,37 @@ const colours = array<vec3<f32>, 6>(
 fn debugColourFromIndex(index: i32) -> vec3<f32> {
   return colours[index % 6];
 }
+
+
+const OCTREE_CHILD_OFFSETS = array<vec3<i32>, 8>(
+  vec3<i32>(0, 0, 0),
+  vec3<i32>(1, 0, 0),
+  vec3<i32>(0, 1, 0),
+  vec3<i32>(1, 1, 0),
+  vec3<i32>(0, 0, 1),
+  vec3<i32>(1, 0, 1),
+  vec3<i32>(0, 1, 1),
+  vec3<i32>(1, 1, 1)
+);
+
+//fn rayMarchStack(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>, startingMipLevel: u32) -> RayMarchResult {
+//  // Create a stack to store the nodes to visit
+//  var stack = stack_new();
+//  var closestIntersection = RayMarchResult();
+//  var stack = stack_new();
+//  var mipLevel = startingMipLevel;
+//  var voxelSize = vec3<f32>(1 << mipLevel);
+//  var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
+//  let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+//
+//  stack_push(&stack, 0);
+//  closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
+//
+//  while (stack.head > 0u && iterations < MAX_STEPS) {
+//    var nodeDistances = array<f32>(8);
+//    for(var i = 0; i < 8; i++){
+//      nodeDistances[i] = FAR_PLANE;
+//    }
+//
+//  }
+//}

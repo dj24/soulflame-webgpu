@@ -160,9 +160,10 @@ fn main(
 
 
   let normal = closestIntersection.normal;
-  let depth = distance(cameraPosition, closestIntersection.worldPos);
+//  let depth = distance(cameraPosition, closestIntersection.worldPos);
 //  let albedo = closestIntersection.colour;
-  let albedo = vec3(f32(closestIntersection.stepsTaken)) * 0.01;
+//  let albedo = vec3(f32(closestIntersection.stepsTaken)) * 0.02;
+let albedo = abs(closestIntersection.worldPos * 0.25) % 1.0;
   let velocity = getVelocity(closestIntersection, viewProjections);
   let worldPos = closestIntersection.worldPos;
 
