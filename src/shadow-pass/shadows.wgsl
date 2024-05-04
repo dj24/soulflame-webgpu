@@ -199,6 +199,6 @@ fn composite(
 //  }
 //  outputColour /= totalWeight;
 
-  textureStore(outputTex, outputPixel, shadowRef);
+  textureStore(outputTex, outputPixel, shadowRef * albedoSample);
 //  textureStore(outputTex, pixel,outputColour * albedoSample);
 }

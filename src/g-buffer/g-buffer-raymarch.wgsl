@@ -153,7 +153,8 @@ fn main(
     textureStore(albedoTex, pixel, vec4(0));
     textureStore(normalTex, pixel, vec4(0));
     textureStore(velocityTex, pixel, vec4(0));
-    textureStore(worldPosTex, pixel, vec4(0));
+    let farPlaneWorldPos = rayOrigin + rayDirection * FAR_PLANE;
+    textureStore(worldPosTex, pixel, vec4(farPlaneWorldPos,1));
     return;
   }
   closestIntersection = bvhResult;
@@ -163,8 +164,8 @@ fn main(
 //  let depth = distance(cameraPosition, closestIntersection.worldPos);
 //  let albedo = closestIntersection.colour;
 //  let albedo = vec3(f32(closestIntersection.stepsTaken)) * 0.02;
-let albedo = abs(closestIntersection.worldPos * 0.25) % 1.0;
-//let albedo = vec3<f32>(0.25);
+//let albedo = abs(closestIntersection.worldPos * 0.25) % 1.0;
+let albedo = vec3<f32>(0.25);
   let velocity = getVelocity(closestIntersection, viewProjections);
   let worldPos = closestIntersection.worldPos;
 

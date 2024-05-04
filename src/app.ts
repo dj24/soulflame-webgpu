@@ -690,8 +690,8 @@ const start = async () => {
     // getDiffusePass(),
     // getVolumetricFog(),
     // getFXAAPass(),
-    // getTaaPass(),
     getFogPass(),
+    // getTaaPass(),
     // getBoxOutlinePass(),
     // getWaterPass(),
 

@@ -76,6 +76,10 @@ fn randomInHemisphere(co : vec2<f32>, normal : vec3<f32>) -> vec3<f32> {
     return -inUnitSphere;
 }
 
+fn randomAlongVector(co : vec2<f32>, direction : vec3<f32>) -> vec3<f32> {
+    return normalize(direction) * random(co);
+}
+
 // Function to perturb the normal vector within the hemisphere
 fn perturbDirection(normal: vec3<f32>, scatterAmount: f32, co: vec2<f32>) -> vec3<f32> {
     // Generate a random vector in a hemisphere

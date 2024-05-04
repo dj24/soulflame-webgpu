@@ -2,9 +2,18 @@
 const BLUE_NOISE_SIZE = 511;
 const MAX_DISTANCE = 50.0;
 const START_DISTANCE = 0.0;
-const EXTINCTION = 0.05;
-const FORWARD_SCATTER = 0.25;
-const STEPS = 16.0;
+const EXTINCTION = vec3(.04, .04, .03);
+const FORWARD_SCATTER = 0.5;
+const STEPS = 32.0;
+
+fn ACESFilm(x: vec3<f32>) -> vec3<f32>{
+    let a = 2.51;
+    let b = 0.03;
+    let c = 2.43;
+    let d = 0.59;
+    let e = 0.14;
+    return (x*(a*x+b))/(x*(c*x+d)+e);
+}
 
 fn henyeyGreenstein(cosTheta: f32, g: f32) -> f32 {
   let g2 = g * g;
@@ -26,24 +35,26 @@ fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
   var pixel = GlobalInvocationID.xy;
+  let uv = vec2<f32>(pixel) / vec2<f32>(textureDimensions(outputTex));
   let gBufferPixel = pixel * DOWNSCALE;
   var worldPos = textureLoad(worldPosTex, gBufferPixel, 0).rgb;
-  var distanceFromCamera = min(length(worldPos - cameraPosition), MAX_DISTANCE);
   let rayDir = normalize(worldPos - cameraPosition);
-  var blueNoisePixel = pixel % BLUE_NOISE_SIZE;
-  let blueNoiseSample = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
+  let rayOrigin = cameraPosition + rayDir * START_DISTANCE;
+  var distanceFromCamera = min(length(worldPos - rayOrigin), MAX_DISTANCE);
   var inScattering = vec3<f32>(0.0);
-  var count = 0.0;
-
   var stepLength = distanceFromCamera / STEPS;
   var volColour = vec3(0.0);
   var absorption = vec3(1.0);
   var stepAbsorption = exp(-EXTINCTION * stepLength);
   var stepColour = vec3(1.0 - stepAbsorption) * henyeyGreenstein(dot(rayDir, sunDirection), FORWARD_SCATTER);
+  var positionAlongRay = rayOrigin;
   for(var i = 0; i < i32(STEPS); i++){
-    let positionAlongRay = cameraPosition + rayDir * (f32(i) * stepLength);
+    positionAlongRay += rayDir * stepLength;
+//    positionAlongRay += randomAlongVector(blueNoiseSample, rayDir) * 2.0;
     absorption *= stepAbsorption;
-    let directLight = select(1.0, 0.0, rayMarchBVHShadows(positionAlongRay, sunDirection).hit);
+    var blueNoisePixel = (vec2<i32>(pixel) + vec2(i % 2, i % 3)) % BLUE_NOISE_SIZE;
+    let blueNoiseSample = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
+    let directLight = select(1.0, 0.0, rayMarchBVHShadows(positionAlongRay + randomInUnitSphere(blueNoiseSample) * 0.05, sunDirection).hit);
     volColour += stepColour * absorption * directLight;
   }
 
@@ -111,5 +122,5 @@ fn composite(
 
   let colourSample = textureLoad(inputTex, GlobalInvocationID.xy, 0);
 
-  textureStore(outputTex, GlobalInvocationID.xy, fogAmount);
+  textureStore(outputTex, GlobalInvocationID.xy, vec4(ACESFilm((fogAmount + colourSample).rgb), 1));
 }
