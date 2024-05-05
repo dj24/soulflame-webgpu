@@ -164,7 +164,7 @@ lights = [
 
 const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let normalTexture: GPUTexture;
-  let albedoTexture: AlbedoTexture;
+  let albedoTexture: typeof AlbedoTexture;
   let outputTexture: GPUTexture;
   let depthTexture: GPUTexture;
   let velocityTexture: GPUTexture;
@@ -533,6 +533,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     );
 
     albedoTexture = new AlbedoTexture(device, resolution[0], resolution[1]);
+    console.log({ albedoTexture });
     createNormalTexture();
     createDepthTexture();
     createVelocityTexture();
