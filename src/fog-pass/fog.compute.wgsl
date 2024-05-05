@@ -2,9 +2,9 @@
 const BLUE_NOISE_SIZE = 511;
 const MAX_DISTANCE = 50.0;
 const START_DISTANCE = 0.0;
-const EXTINCTION = vec3(.04, .04, .03);
+const EXTINCTION = vec3(.06, .055, .05);
 const FORWARD_SCATTER = 0.5;
-const STEPS = 32.0;
+const STEPS = 16.0;
 
 fn ACESFilm(x: vec3<f32>) -> vec3<f32>{
     let a = 2.51;
@@ -54,7 +54,7 @@ fn main(
     absorption *= stepAbsorption;
     var blueNoisePixel = (vec2<i32>(pixel) + vec2(i % 2, i % 3)) % BLUE_NOISE_SIZE;
     let blueNoiseSample = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
-    let directLight = select(1.0, 0.0, rayMarchBVHShadows(positionAlongRay + randomInUnitSphere(blueNoiseSample) * 0.05, sunDirection).hit);
+    let directLight = select(1.0, 0.0, rayMarchBVHShadows(positionAlongRay + randomInUnitSphere(blueNoiseSample) * 0.01, sunDirection).hit);
     volColour += stepColour * absorption * directLight;
   }
 
@@ -122,5 +122,6 @@ fn composite(
 
   let colourSample = textureLoad(inputTex, GlobalInvocationID.xy, 0);
 
-  textureStore(outputTex, GlobalInvocationID.xy, vec4(ACESFilm((fogAmount + colourSample).rgb), 1));
+  let output = ACESFilm((fogAmount + colourSample).rgb);
+  textureStore(outputTex, GlobalInvocationID.xy, vec4(output, 1));
 }
