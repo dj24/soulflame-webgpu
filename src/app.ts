@@ -35,6 +35,7 @@ import { getFXAAPass } from "./fxaa-pass/fxaa-pass";
 import { getAdaptiveShadowsPass } from "./adaptive-shadow-pass/get-adaptive-shadows-pass";
 import { getFogPass } from "./fog-pass/get-fog-pass";
 import { UpdatedByRenderLoop } from "./decorators/updated-by-render-loop";
+import { AlbedoTexture } from "./abstractions/g-buffer-texture";
 
 const FPS_CAP = 50;
 
@@ -163,7 +164,7 @@ lights = [
 
 const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let normalTexture: GPUTexture;
-  let albedoTexture: GPUTexture;
+  let albedoTexture: AlbedoTexture;
   let outputTexture: GPUTexture;
   let depthTexture: GPUTexture;
   let velocityTexture: GPUTexture;
@@ -206,24 +207,6 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   }
 
   const init = () => {
-    if (depthTexture) {
-      depthTexture = null;
-    }
-    if (normalTexture) {
-      normalTexture = null;
-    }
-    if (albedoTexture) {
-      albedoTexture = null;
-    }
-    if (velocityTexture) {
-      velocityTexture = null;
-    }
-    if (outputTexture) {
-      outputTexture = null;
-    }
-    if (worldPositionTexture) {
-      worldPositionTexture = null;
-    }
     const { clientWidth, clientHeight } = canvas.parentElement;
     let pixelRatio = 1.0;
     const canvasResolution = vec2.create(
@@ -278,21 +261,6 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       });
     }
     return depthTexture;
-  };
-
-  const createAlbedoTexture = () => {
-    if (!albedoTexture) {
-      albedoTexture = device.createTexture({
-        size: [resolution[0], resolution[1], 1],
-        format: "rgba8unorm",
-        usage:
-          GPUTextureUsage.TEXTURE_BINDING |
-          GPUTextureUsage.RENDER_ATTACHMENT |
-          GPUTextureUsage.STORAGE_BINDING |
-          GPUTextureUsage.COPY_SRC,
-      });
-    }
-    return albedoTexture;
   };
 
   const createVelocityTexture = () => {
@@ -564,7 +532,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       jitteredCameraPosition as number[],
     );
 
-    createAlbedoTexture();
+    albedoTexture = new AlbedoTexture(device, resolution[0], resolution[1]);
     createNormalTexture();
     createDepthTexture();
     createVelocityTexture();
@@ -608,7 +576,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         timeBuffer,
         outputTextures: {
           finalTexture: outputTexture,
-          albedoTexture,
+          albedoTexture: albedoTexture.texture,
           normalTexture,
           depthTexture,
           skyTexture,
@@ -672,6 +640,8 @@ const start = async () => {
       GPUTextureUsage.TEXTURE_BINDING |
       GPUTextureUsage.STORAGE_BINDING,
   });
+
+  console.log("INIT");
 
   volumeAtlas = new VolumeAtlas(device);
   await createTavern(device, volumeAtlas);

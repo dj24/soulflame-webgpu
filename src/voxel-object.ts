@@ -1,5 +1,4 @@
-import { mat4, Mat4, vec3, Vec3 } from "wgpu-matrix";
-import { v4 as uuidv4 } from "uuid";
+import { vec3, Vec3 } from "wgpu-matrix";
 import { BoundingBox } from "./bvh";
 import { MovableObject } from "./movable-object";
 
@@ -31,8 +30,8 @@ const getBoundingBox = (corners: Vec3[]): BoundingBox => {
  * const cubeObject = new VoxelObject(transform, size, atlasLocation, name);
  */
 export class VoxelObject extends MovableObject {
-  /** A uuid identifier for this object */
-  #id: string;
+  /** A unique identifier for this object */
+  #id: Symbol;
   /** A readable name for this object */
   #name: string;
   /** Size of the object in voxels */
@@ -64,7 +63,7 @@ export class VoxelObject extends MovableObject {
       rotation,
       scale,
     });
-    this.#id = uuidv4();
+    this.#id = Symbol();
     this.#name = name;
     this.#size = size;
     this.#atlasLocation = atlasLocation;

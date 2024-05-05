@@ -1,27 +1,21 @@
-// interface Singleton<T> {
-//   instance: T;
-// }
+export const SINGLETON_KEY = Symbol();
 
-// type SingletonConstructor<T> = new (...args: any[]) => Singleton<T>;
+export type Singleton<T extends new (...args: any[]) => any> = T & {
+  [SINGLETON_KEY]: T extends new (...args: any[]) => infer I ? I : never;
+};
 
-abstract class Singleton {
-  static #instance: Singleton;
-
-  protected constructor(...args: any[]) {
-    if (Singleton.#instance) {
-      return Singleton.#instance;
-    }
-    Singleton.#instance = new (this.constructor as any)(...args);
-  }
-}
-
-// export const Singleton = <T extends SingletonConstructor<T>>(
-//   constructor: T,
-// ) => {
-//   return class extends constructor {
-//     constructor(...args: any[]) {
-//       super(...args);
-//       this.instance = this;
-//     }
-//   };
-// };
+/** A decorator that ensures that only one instance of a class is created. */
+export const Singleton = <T extends new (...args: any[]) => any>(type: T) =>
+  new Proxy(type, {
+    construct(target: Singleton<T>, argsList, newTarget) {
+      if (target.prototype !== newTarget.prototype) {
+        return Reflect.construct(target, argsList, newTarget);
+      }
+      if (!target[SINGLETON_KEY]) {
+        console.debug(`Creating singleton instance of ${target.name}`);
+        target[SINGLETON_KEY] = Reflect.construct(target, argsList, newTarget);
+      }
+      console.debug(`Returning singleton instance of ${target.name}`);
+      return target[SINGLETON_KEY];
+    },
+  });
