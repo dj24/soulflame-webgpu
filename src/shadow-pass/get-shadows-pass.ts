@@ -9,5 +9,6 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
     compositeEntryPoint: "composite",
     downscale: 1,
     label: "shadows",
+    workgroupSizeFactor: [1, 2, 1],
   });
 };

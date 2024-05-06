@@ -34,6 +34,7 @@ struct VoxelObject {
 }
 
 struct RayMarchResult {
+  palettePosition: f32,
   worldPos: vec3<f32>,
   normal: vec3<f32>,
   stepsTaken: i32,
@@ -113,6 +114,7 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
         output.normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(objectNormal));
         output.hit = true;
         output.t = tCurrent;
+        output.palettePosition = mipSample0.r;
         return output;
     }
 

@@ -2,9 +2,9 @@
 const BLUE_NOISE_SIZE = 511;
 const MAX_DISTANCE = 50.0;
 const START_DISTANCE = 0.0;
-const EXTINCTION = vec3(.06, .055, .05);
+const EXTINCTION = vec3(.06);
 const FORWARD_SCATTER = 0.5;
-const STEPS = 16.0;
+const STEPS = 8.0;
 
 fn ACESFilm(x: vec3<f32>) -> vec3<f32>{
     let a = 2.51;
@@ -38,11 +38,14 @@ fn main(
   let uv = vec2<f32>(pixel) / vec2<f32>(textureDimensions(outputTex));
   let gBufferPixel = pixel * DOWNSCALE;
   var worldPos = textureLoad(worldPosTex, gBufferPixel, 0).rgb;
-  let rayDir = normalize(worldPos - cameraPosition);
-  let rayOrigin = cameraPosition + rayDir * START_DISTANCE;
-  var distanceFromCamera = min(length(worldPos - rayOrigin), MAX_DISTANCE);
-  var inScattering = vec3<f32>(0.0);
+  var distanceFromCamera = min(length(worldPos - cameraPosition), MAX_DISTANCE);
   var stepLength = distanceFromCamera / STEPS;
+  let rayDir = normalize(worldPos - cameraPosition);
+  var blueNoisePixel = (vec2<i32>(pixel)) % BLUE_NOISE_SIZE;
+  let blueNoiseSample = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
+  let startDistance = random(blueNoiseSample) * stepLength;
+  let rayOrigin = cameraPosition + rayDir * startDistance;
+  var inScattering = vec3<f32>(0.0);
   var volColour = vec3(0.0);
   var absorption = vec3(1.0);
   var stepAbsorption = exp(-EXTINCTION * stepLength);
@@ -50,22 +53,11 @@ fn main(
   var positionAlongRay = rayOrigin;
   for(var i = 0; i < i32(STEPS); i++){
     positionAlongRay += rayDir * stepLength;
-//    positionAlongRay += randomAlongVector(blueNoiseSample, rayDir) * 2.0;
     absorption *= stepAbsorption;
-    var blueNoisePixel = (vec2<i32>(pixel) + vec2(i % 2, i % 3)) % BLUE_NOISE_SIZE;
-    let blueNoiseSample = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
     let directLight = select(1.0, 0.0, rayMarchBVHShadows(positionAlongRay + randomInUnitSphere(blueNoiseSample) * 0.01, sunDirection).hit);
     volColour += stepColour * absorption * directLight;
   }
-
-   textureStore(outputTex, pixel, vec4<f32>(volColour, 1.0));
-
-//textureStore(outputTex, pixel, vec4<f32>(distanceFromCamera / MAX_DISTANCE));
-//    let b = 0.01;
-//    let t = length(worldPos - cameraPosition);
-//    let fogAmount = 1.0 - exp(-t*b);
-//    textureStore(outputTex, pixel, vec4<f32>(fogAmount));
-
+  textureStore(outputTex, pixel, vec4<f32>(volColour, 1.0));
 }
 
 // 5x5 Gaussian blur kernel, weight in z component
@@ -122,6 +114,7 @@ fn composite(
 
   let colourSample = textureLoad(inputTex, GlobalInvocationID.xy, 0);
 
-  let output = ACESFilm((fogAmount + colourSample).rgb);
+//  let output = (fogAmount + colourSample).rgb;
+let output = mix(colourSample.rgb, vec3(1.0), fogAmount.rgb);
   textureStore(outputTex, GlobalInvocationID.xy, vec4(output, 1));
 }

@@ -50,6 +50,8 @@ export class VolumeAtlas {
   #atlasTexture: GPUTexture;
   #paletteTexture: GPUTexture;
   #device: GPUDevice;
+  #atlasTextureView: GPUTextureView;
+  #paletteTextureView: GPUTextureView;
 
   constructor(device: GPUDevice) {
     this.#device = device;
@@ -77,6 +79,8 @@ export class VolumeAtlas {
       label: "Palette texture",
       mipLevelCount: 1,
     });
+    this.#atlasTextureView = this.#atlasTexture.createView();
+    this.#paletteTextureView = this.#paletteTexture.createView();
   }
 
   get dictionary() {
@@ -236,17 +240,15 @@ export class VolumeAtlas {
     //   await flatten3dTexture(device, newAtlasTexture),
     // );
     // writeTextureToCanvas(device, "debug-canvas", zSliceTexture);
+    this.#atlasTextureView = this.#atlasTexture.createView();
+    this.#paletteTextureView = this.#paletteTexture.createView();
   };
 
   get atlasTextureView() {
-    return this.#atlasTexture.createView({
-      label: this.#atlasTexture.label,
-    });
+    return this.#atlasTextureView;
   }
 
   get paletteTextureView() {
-    return this.#paletteTexture.createView({
-      label: this.#paletteTexture.label,
-    });
+    return this.#paletteTextureView;
   }
 }

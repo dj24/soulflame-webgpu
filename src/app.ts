@@ -30,6 +30,8 @@ import {
   VelocityTexture,
   WorldPositionTexture,
 } from "./abstractions/g-buffer-texture";
+import { getHelloTrianglePass } from "./hello-triangle/get-hello-triangle-pass";
+import { getTaaPass } from "./taa-pass/get-taa-pass";
 
 export const debugValues = new DebugValuesStore();
 
@@ -558,8 +560,8 @@ const start = async () => {
   await createTavern(device, volumeAtlas);
 
   const computePassPromises: Promise<RenderPass>[] = [
-    // getHelloTrianglePass(),
-    getGBufferPass(),
+    getHelloTrianglePass(),
+    // getGBufferPass(),
     getShadowsPass(),
     getSkyPass(),
     // getLightsPass(),

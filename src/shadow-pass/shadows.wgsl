@@ -63,44 +63,54 @@ const SAMPLE_OFFSETS: array<vec2<i32>, 4> = array<vec2<i32>, 4>(
   vec2<i32>(1, 0),
 );
 
+/** alternate frame checkerboard pattern
+  0,1
+  1,0
+
+  then
+  1,0
+  0,1
+*/
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
-  let texSize = textureDimensions(outputTex);
-  let pixel = vec2<i32>(GlobalInvocationID.xy * DOWNSCALE);
-  let outputPixel = vec2<i32>(GlobalInvocationID.xy);
-  var blueNoisePixel = outputPixel % BLUE_NOISE_SIZE;
+  let checkerboardIndex = i32(GlobalInvocationID.x % 2);
+  let frameIndex = i32(time.frame % 2);
+
+  let offset = vec2<i32>(checkerboardIndex);
+  var pixel = vec2<i32>(i32(GlobalInvocationID.x), i32(GlobalInvocationID.y) * 2);
+
+  pixel.y += checkerboardIndex;
+  pixel.x += frameIndex;
+
+  let outputPixel = pixel;
+
   var normalSample = textureLoad(normalTex, pixel, 0).rgb;
   var worldPos = textureLoad(worldPosTex, pixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
 
   var output = vec4<f32>(0.0);
-  var count = 0.0;
-  for(var i = 0u; i < SAMPLES_PER_PIXEL; i++){
-    var samplePixel =  outputPixel + SAMPLE_OFFSETS[i + time.frame % 3];
-    samplePixel.x += i32(time.frame) * 32;
-    samplePixel.y += i32(time.frame) * 16;
-    blueNoisePixel = samplePixel % BLUE_NOISE_SIZE;
-    if(time.frame % 2 == 0){
-      blueNoisePixel.y = BLUE_NOISE_SIZE - blueNoisePixel.y;
-    }
-    if(time.frame % 3 == 0){
-      blueNoisePixel.x = BLUE_NOISE_SIZE - blueNoisePixel.x;
-    }
-    var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
-    let sampleWorldPos = worldPos + randomInPlanarUnitDisk(r, normalSample) * POSITION_SCATTER_AMOUNT;
-    var shadowRayDirection = randomInCosineWeightedHemisphere(r, normalSample);
-    shadowRayDirection = mix(sunDirection, shadowRayDirection, SCATTER_AMOUNT);
-    if(shadowRay(sampleWorldPos, shadowRayDirection)){
-        output += vec4(0.0);
-        count += 1.0;
-    } else{
-        let sky = textureSampleLevel(skyCube, linearSampler, shadowRayDirection, 0.0) * 2.0;
-        output += sky;
-        count += 1.0;
-    }
+  var samplePixel = outputPixel;
+  samplePixel.x += i32(time.frame) * 32;
+  samplePixel.y += i32(time.frame) * 16;
+  var blueNoisePixel = samplePixel % BLUE_NOISE_SIZE;
+  if(time.frame % 2 == 0){
+    blueNoisePixel.y = BLUE_NOISE_SIZE - blueNoisePixel.y;
   }
-  output /= count;
+  if(time.frame % 3 == 0){
+    blueNoisePixel.x = BLUE_NOISE_SIZE - blueNoisePixel.x;
+  }
+  var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
+  let sampleWorldPos = worldPos + randomInPlanarUnitDisk(r, normalSample) * POSITION_SCATTER_AMOUNT;
+  var shadowRayDirection = randomInCosineWeightedHemisphere(r, normalSample);
+  shadowRayDirection = mix(sunDirection, shadowRayDirection, SCATTER_AMOUNT);
+  if(shadowRay(sampleWorldPos, shadowRayDirection)){
+      output = vec4(0.0);
+  } else{
+      let sky = textureSampleLevel(skyCube, linearSampler, shadowRayDirection, 0.0) * 4.0;
+      output = sky;
+  }
+
   textureStore(outputTex, outputPixel, output);
 }
 
@@ -113,7 +123,7 @@ fn polarToCartesian(angle: f32, radius: f32) -> vec2<f32> {
   return vec2<f32>(x, y);
 }
 
-const BLUR_RADIUS = 2.0;
+
 
 // 3x3 Gaussian blur kernel, weight in z component
 const BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS: array<vec3<f32>, 9> = array<vec3<f32>, 9>(
@@ -159,46 +169,72 @@ const BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS_5x5: array<vec3<f32>, 25> = arr
 
 
 const DEPTH_SENSITIVITY = 100.0;
+const BLUR_RADIUS = 1.0;
+const GOLDEN_RATIO = 1.61803398875;
 
 @compute @workgroup_size(8, 8, 1)
 fn composite(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
+  let offset = SAMPLE_OFFSETS[time.frame % 4];
   let texSize = textureDimensions(outputTex);
   let texelSize = 1.0 / vec2<f32>(texSize);
-  let pixel = GlobalInvocationID.xy;
-  let shadowSamplePixel = vec2<i32>(GlobalInvocationID.xy / DOWNSCALE);
+  let pixel = vec2<i32>(GlobalInvocationID.xy);
   let shadowSampleUV = (vec2<f32>(pixel)) / vec2<f32>(texSize);
   let outputPixel = GlobalInvocationID.xy;
   let albedoSample = textureLoad(inputTex, pixel, 0);
   let normalRef = textureLoad(normalTex, pixel, 0).rgb;
   let depthRef = textureLoad(depthTex, pixel, 0).r;
-  let shadowRef = textureSampleLevel(intermediaryTexture, linearSampler, shadowSampleUV, 0.0);
-//
-//  var outputColour = vec4<f32>(0.0);
-//  var totalWeight = 0.0;
-//
-//  for(var i = 0u; i < 25; i++){
-//    let foo = BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS_5x5[i];
-//    let offset = foo.xy * texelSize;
-//    let sampleUV = shadowSampleUV + offset * BLUR_RADIUS;
-//    let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
-//    let normalSample = textureSampleLevel(normalTex, linearSampler, sampleUV, 0.0).rgb;
-//    let depthSample = textureLoad(depthTex, samplePixel, 0).r;
-//    let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0);
-//
-//    let relativeDepthDifference = abs(depthSample - depthRef) / depthRef;
-//    let depthWeight = clamp(1.0 - relativeDepthDifference * DEPTH_SENSITIVITY, 0,1);
-//    let normalWeight = dot(normalSample, normalRef);
-//    let gaussWeight = foo.z;
-//
-//    let weight =  gaussWeight * normalWeight * depthWeight;
-//
-//    totalWeight += weight;
-//    outputColour += shadowSample * weight;
-//  }
-//  outputColour /= totalWeight;
+//  let shadowRef = textureSampleLevel(intermediaryTexture, nearestSampler, shadowSampleUV, 0.0);
+//  textureStore(outputTex, outputPixel, shadowRef * albedoSample);
 
-  textureStore(outputTex, outputPixel, shadowRef * albedoSample);
-//  textureStore(outputTex, pixel,outputColour * albedoSample);
+  var outputColour = vec4<f32>(0.0);
+  var totalWeight = 0.0;
+//  let taps = 9;
+//
+//  for (var i = 0; i < taps; i++) {
+////      let radius = sqrt(f32(i)) / sqrt(f32(taps));
+//      let radius = 1.0;
+//      let theta = f32(i) * GOLDEN_RATIO;
+//      let offset = vec2(sin(theta), cos(theta)) * radius;
+//      let tapUV = shadowSampleUV + offset;
+//      let tapPixel = vec2<i32>(tapUV * vec2<f32>(texSize));
+//      let normalSample = textureSampleLevel(normalTex, linearSampler, tapUV, 0.0).rgb;
+//      let depthSample = textureLoad(depthTex, tapPixel, 0).r;
+//      let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, tapUV, 0.0);
+//
+//      let relativeDepthDifference = abs(depthSample - depthRef) / depthRef;
+//      let depthWeight = clamp(1.0 - relativeDepthDifference * DEPTH_SENSITIVITY, 0,1);
+//      let normalWeight = dot(normalSample, normalRef);
+//
+//      let weight = 1.0;
+//
+//      totalWeight += weight;
+//      outputColour += shadowSample * weight;
+//  }
+
+  for(var i = 0u; i < 9; i++){
+    let foo = BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS[i];
+    let offset = foo.xy * texelSize;
+    let sampleUV = shadowSampleUV + offset * BLUR_RADIUS;
+    let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
+    let normalSample = textureSampleLevel(normalTex, linearSampler, sampleUV, 0.0).rgb;
+    let depthSample = textureLoad(depthTex, samplePixel, 0).r;
+    let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0);
+
+    let relativeDepthDifference = abs(depthSample - depthRef) / depthRef;
+    let depthWeight = clamp(1.0 - relativeDepthDifference * DEPTH_SENSITIVITY, 0,1);
+    let normalWeight = dot(normalSample, normalRef);
+    let gaussWeight = foo.z;
+
+    let weight =  depthWeight * normalWeight * gaussWeight;
+
+    totalWeight += weight;
+    outputColour += shadowSample * weight;
+  }
+
+  outputColour /= totalWeight;
+  textureStore(outputTex, pixel,outputColour * albedoSample);
+
+
 }

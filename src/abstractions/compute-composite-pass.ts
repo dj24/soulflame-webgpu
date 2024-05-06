@@ -187,6 +187,7 @@ type ComputeCompositePassArgs = {
   compositeEntryPoint: string;
   downscale: number;
   label: string;
+  workgroupSizeFactor?: [number, number, number];
 };
 
 /**
@@ -196,6 +197,7 @@ type ComputeCompositePassArgs = {
  * @param compositeEntryPoint - The name of the compute kernel that composites the effect into the final image.
  * @param downscale - The amount to downscale the final image by before applying the effect.
  * @param label - The label to use for the compute pass.
+ * @param workgroupSizeFactor - The factor to multiply the main compute workgroup dispatch size by.
  */
 export const createComputeCompositePass = async ({
   shaderCode,
@@ -203,6 +205,7 @@ export const createComputeCompositePass = async ({
   compositeEntryPoint,
   downscale,
   label,
+  workgroupSizeFactor = [1, 1, 1],
 }: ComputeCompositePassArgs): Promise<RenderPass> => {
   if (!Number.isInteger(downscale)) {
     throw new Error("Downscale must be an integer");
@@ -467,8 +470,12 @@ ${shaderCode}`;
     computePass.setPipeline(effectPipeline);
     computePass.setBindGroup(0, bindGroup);
     computePass.dispatchWorkgroups(
-      Math.ceil(intermediaryTexture.width / NUM_THREADS_X),
-      Math.ceil(intermediaryTexture.height / NUM_THREADS_Y),
+      Math.ceil(
+        intermediaryTexture.width / NUM_THREADS_X / workgroupSizeFactor[0],
+      ),
+      Math.ceil(
+        intermediaryTexture.height / NUM_THREADS_Y / workgroupSizeFactor[1],
+      ),
     );
 
     // Composite into image
