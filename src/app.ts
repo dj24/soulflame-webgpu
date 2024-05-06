@@ -11,35 +11,29 @@ import "./main.css";
 import { mat4, vec2, vec3 } from "wgpu-matrix";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { DebugValuesStore } from "./debug-values-store";
-import { createTextureFromImage, createTextureFromImages } from "webgpu-utils";
+import { createTextureFromImage } from "webgpu-utils";
 import { VolumeAtlas } from "./volume-atlas";
 import { getFrameTimeTracker } from "./frametime-tracker";
-import { generateOctreeMips } from "./create-3d-texture/generate-octree-mips";
-import { getMotionBlurPass } from "./motion-blur/motion-blur";
-import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels";
 import { getShadowsPass } from "./shadow-pass/get-shadows-pass";
 import { getSkyPass } from "./sky-and-fog/get-sky-pass";
-import { getVolumetricFog } from "./volumetric-fog/get-volumetric-fog";
 import { createTavern, voxelObjects } from "./create-tavern";
-import { GetObjectsArgs } from "./get-objects-transforms/objects-worker";
-import { getBoxOutlinePass } from "./box-outline/get-box-outline-pass";
 import { BVH } from "./bvh";
-import { getDepthPrepass } from "./depth-prepass/get-depth-prepass";
-import { getWaterPass } from "./water-pass/get-water-pass";
-import { getHelloTrianglePass } from "./hello-triangle/get-hello-triangle-pass";
-import { getTaaPass } from "./taa-pass/get-taa-pass";
-import { getReflectionsPass } from "./reflections-pass/get-reflections-pass";
 import { getLightsPass, Light } from "./lights-pass/get-lights-pass";
-import { getVoxelLatticePass } from "./voxel-lattice/get-voxel-lattice-pass";
-import { getFXAAPass } from "./fxaa-pass/fxaa-pass";
-import { getAdaptiveShadowsPass } from "./adaptive-shadow-pass/get-adaptive-shadows-pass";
 import { getFogPass } from "./fog-pass/get-fog-pass";
 import { UpdatedByRenderLoop } from "./decorators/updated-by-render-loop";
-import { AlbedoTexture } from "./abstractions/g-buffer-texture";
-
-const FPS_CAP = 50;
+import {
+  AlbedoTexture,
+  DepthTexture,
+  GBufferTexture,
+  NormalTexture,
+  OutputTexture,
+  VelocityTexture,
+  WorldPositionTexture,
+} from "./abstractions/g-buffer-texture";
 
 export const debugValues = new DebugValuesStore();
+
+let animationFrameId: number;
 
 export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
@@ -56,9 +50,7 @@ export let volumeAtlas: VolumeAtlas;
 const startingCameraFieldOfView = 90 * (Math.PI / 180);
 export let camera = new Camera({
   fieldOfView: startingCameraFieldOfView,
-  // position: vec3.create(-25, 10, -70),
   position: vec3.create(-31, 6, -50),
-  // position: vec3.create(-45, 30, 40),
   direction: vec3.create(0.0, 0, -0.5),
 });
 
@@ -69,10 +61,6 @@ frameTimeTracker.addSample("frame time", 0);
 
 let voxelTextureView: GPUTextureView;
 let skyTexture: GPUTexture;
-
-let animationFrameId: ReturnType<typeof requestAnimationFrame>;
-
-const baseLightOffset = [-35, 4.5, -45] as [number, number, number];
 
 export type RenderArgs = {
   enabled?: boolean;
@@ -144,6 +132,70 @@ const torchPositions: Light["position"][] = [
 //   };
 // });
 
+const resolveTimestampQueries = (
+  computePasses: RenderPass[],
+  timestampQuerySet: GPUQuerySet,
+  timestampQueryBuffer: GPUBuffer,
+  commandBuffers: GPUCommandBuffer[],
+) => {
+  const commandEncoder = device.createCommandEncoder();
+  commandEncoder.resolveQuerySet(
+    timestampQuerySet,
+    0,
+    timestampQuerySet.count,
+    timestampQueryBuffer,
+    0,
+  );
+  commandBuffers.push(commandEncoder.finish());
+  const size = timestampQueryBuffer.size;
+  const gpuReadBuffer = device.createBuffer({
+    size,
+    label: "gpu read buffer",
+    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+  });
+  const copyEncoder = device.createCommandEncoder();
+  copyEncoder.copyBufferToBuffer(
+    timestampQueryBuffer,
+    0,
+    gpuReadBuffer,
+    0,
+    size,
+  );
+  const copyCommands = copyEncoder.finish();
+  device.queue.submit([copyCommands]);
+  gpuReadBuffer
+    .mapAsync(GPUMapMode.READ)
+    .then(() => gpuReadBuffer.getMappedRange())
+    .then((arrayBuffer) => {
+      const timingsNanoseconds = new BigInt64Array(arrayBuffer);
+      const timingsMilliseconds: number[] = [];
+      timingsNanoseconds.forEach((nanoseconds) => {
+        timingsMilliseconds.push(Number(nanoseconds) / 1e6);
+      });
+      const computePassExecutionTimes = timingsMilliseconds.reduce(
+        (acc, val, index) => {
+          if (index % 2 === 0) {
+            acc.push(timingsMilliseconds[index + 1] - val);
+          }
+          return acc;
+        },
+        [],
+      );
+      computePassExecutionTimes.forEach((time, index) => {
+        const label = computePasses[index].label;
+        const inputId = `flag-${label}`;
+        const isPassEnabled = (
+          document.getElementById(inputId) as HTMLInputElement
+        )?.checked;
+        if (label && isPassEnabled) {
+          frameTimeTracker.addSample(label, time);
+        } else {
+          frameTimeTracker.clearEntry(label);
+        }
+      });
+    });
+};
+
 let lights: Light[] = Array.from({ length: 200 }).map(() => {
   return {
     position: [Math.random() * -80, Math.random() * 50, Math.random() * -200],
@@ -163,22 +215,6 @@ lights = [
 ];
 
 const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
-  let normalTexture: GPUTexture;
-  let albedoTexture: typeof AlbedoTexture;
-  let outputTexture: GPUTexture;
-  let depthTexture: GPUTexture;
-  let velocityTexture: GPUTexture;
-  let blueNoiseTexture: GPUTexture;
-  let worldPositionTexture: GPUTexture;
-  let timeBuffer: GPUBuffer;
-  let resolutionBuffer: GPUBuffer;
-  let transformationMatrixBuffer: GPUBuffer;
-  let viewProjectionMatricesBuffer: GPUBuffer;
-  let sunDirectionBuffer: GPUBuffer;
-  let bvh: BVH;
-  let previousInverseViewProjectionMatrix = mat4.create();
-  let previousViewProjectionMatrix = mat4.create();
-
   canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
   canvas.style.imageRendering = "pixelated";
   gpuContext = canvas.getContext("webgpu");
@@ -188,8 +224,26 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     usage: GPUTextureUsage.RENDER_ATTACHMENT,
   });
 
+  let normalTexture: GBufferTexture;
+  let albedoTexture: GBufferTexture;
+  let outputTexture: GBufferTexture;
+  let depthTexture: GBufferTexture;
+  let velocityTexture: GBufferTexture;
+  let worldPositionTexture: GBufferTexture;
+  let blueNoiseTexture: GPUTexture;
+
+  let timeBuffer: GPUBuffer;
+  let resolutionBuffer: GPUBuffer;
+  let transformationMatrixBuffer: GPUBuffer;
+  let viewProjectionMatricesBuffer: GPUBuffer;
+  let sunDirectionBuffer: GPUBuffer;
+
+  let bvh: BVH;
+  let previousInverseViewProjectionMatrix = mat4.create();
+  let previousViewProjectionMatrix = mat4.create();
   let timestampQuerySet: GPUQuerySet;
   let timestampQueryBuffer: GPUBuffer;
+
   if (device.features.has("timestamp-query")) {
     timestampQuerySet = device.createQuerySet({
       type: "timestamp",
@@ -217,78 +271,6 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     canvas.width = canvasResolution[0];
     canvas.height = canvasResolution[1];
     canvas.style.transform = `scale(${1 / pixelRatio})`;
-  };
-
-  const createOutputTexture = () => {
-    if (!outputTexture) {
-      outputTexture = device.createTexture({
-        size: [resolution[0], resolution[1], 1],
-        format: "rgba8unorm",
-        usage:
-          GPUTextureUsage.TEXTURE_BINDING |
-          GPUTextureUsage.COPY_SRC |
-          GPUTextureUsage.COPY_DST |
-          GPUTextureUsage.STORAGE_BINDING |
-          GPUTextureUsage.RENDER_ATTACHMENT,
-      });
-    }
-    return outputTexture;
-  };
-
-  const createNormalTexture = () => {
-    if (!normalTexture) {
-      normalTexture = device.createTexture({
-        size: [resolution[0], resolution[1], 1],
-        format: "rgba16float",
-        usage:
-          GPUTextureUsage.TEXTURE_BINDING |
-          GPUTextureUsage.STORAGE_BINDING |
-          GPUTextureUsage.RENDER_ATTACHMENT,
-      });
-    }
-    return normalTexture;
-  };
-
-  const createDepthTexture = () => {
-    if (!depthTexture) {
-      depthTexture = device.createTexture({
-        size: [resolution[0], resolution[1], 1],
-        format: "depth32float",
-        usage:
-          GPUTextureUsage.TEXTURE_BINDING |
-          GPUTextureUsage.RENDER_ATTACHMENT |
-          GPUTextureUsage.COPY_SRC,
-      });
-    }
-    return depthTexture;
-  };
-
-  const createVelocityTexture = () => {
-    if (!velocityTexture) {
-      velocityTexture = device.createTexture({
-        size: [resolution[0], resolution[1], 1],
-        format: "rgba16float",
-        usage:
-          GPUTextureUsage.TEXTURE_BINDING |
-          GPUTextureUsage.STORAGE_BINDING |
-          GPUTextureUsage.RENDER_ATTACHMENT,
-      });
-    }
-    return velocityTexture;
-  };
-
-  const createWorldPositionTexture = () => {
-    if (!worldPositionTexture) {
-      worldPositionTexture = device.createTexture({
-        size: [resolution[0], resolution[1], 1],
-        format: "rgba32float",
-        usage:
-          GPUTextureUsage.TEXTURE_BINDING |
-          GPUTextureUsage.STORAGE_BINDING |
-          GPUTextureUsage.RENDER_ATTACHMENT,
-      });
-    }
-    return worldPositionTexture;
   };
 
   const getTimeBuffer = () => {
@@ -376,65 +358,6 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     }
   };
 
-  const resolveTimestampQueries = (commandBuffers: GPUCommandBuffer[]) => {
-    const commandEncoder = device.createCommandEncoder();
-    commandEncoder.resolveQuerySet(
-      timestampQuerySet,
-      0,
-      timestampQuerySet.count,
-      timestampQueryBuffer,
-      0,
-    );
-    commandBuffers.push(commandEncoder.finish());
-    const size = timestampQueryBuffer.size;
-    const gpuReadBuffer = device.createBuffer({
-      size,
-      label: "gpu read buffer",
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-    });
-    const copyEncoder = device.createCommandEncoder();
-    copyEncoder.copyBufferToBuffer(
-      timestampQueryBuffer,
-      0,
-      gpuReadBuffer,
-      0,
-      size,
-    );
-    const copyCommands = copyEncoder.finish();
-    device.queue.submit([copyCommands]);
-    gpuReadBuffer
-      .mapAsync(GPUMapMode.READ)
-      .then(() => gpuReadBuffer.getMappedRange())
-      .then((arrayBuffer) => {
-        const timingsNanoseconds = new BigInt64Array(arrayBuffer);
-        const timingsMilliseconds: number[] = [];
-        timingsNanoseconds.forEach((nanoseconds) => {
-          timingsMilliseconds.push(Number(nanoseconds) / 1e6);
-        });
-        const computePassExecutionTimes = timingsMilliseconds.reduce(
-          (acc, val, index) => {
-            if (index % 2 === 0) {
-              acc.push(timingsMilliseconds[index + 1] - val);
-            }
-            return acc;
-          },
-          [],
-        );
-        computePassExecutionTimes.forEach((time, index) => {
-          const label = computePasses[index].label;
-          const inputId = `flag-${label}`;
-          const isPassEnabled = (
-            document.getElementById(inputId) as HTMLInputElement
-          )?.checked;
-          if (label && isPassEnabled) {
-            frameTimeTracker.addSample(label, time);
-          } else {
-            frameTimeTracker.clearEntry(label);
-          }
-        });
-      });
-  };
-
   createBlueNoiseTexture();
 
   bvh = new BVH(device, voxelObjects);
@@ -480,25 +403,6 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       startTime = now;
     }
 
-    // lights[0] = {
-    //   position: [
-    //     baseLightOffset[0] + Math.sin(now / 2000) * 5,
-    //     lights[0].position[1],
-    //     lights[0].position[2],
-    //   ],
-    //   size: 3,
-    //   color: vec3.create(1, 1, 1),
-    // };
-
-    // Disco lights
-    // lights.forEach((light, index) => {
-    //   light.position = [
-    //     light.position[0],
-    //     torchPositions[index][1] + Math.sin(now / 500 + index) * 4,
-    //     light.position[2],
-    //   ];
-    // });
-
     const newElapsedTime = now - startTime;
     deltaTime = newElapsedTime - elapsedTime;
     frameTimeTracker.addSample("frame time", deltaTime);
@@ -526,19 +430,21 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     getTimeBuffer();
     getResolutionBuffer();
     getSunDirectionBuffer();
-
     writeToFloatUniformBuffer(
       cameraPositionBuffer,
       jitteredCameraPosition as number[],
     );
 
     albedoTexture = new AlbedoTexture(device, resolution[0], resolution[1]);
-    console.log({ albedoTexture });
-    createNormalTexture();
-    createDepthTexture();
-    createVelocityTexture();
-    createOutputTexture();
-    createWorldPositionTexture();
+    normalTexture = new NormalTexture(device, resolution[0], resolution[1]);
+    depthTexture = new DepthTexture(device, resolution[0], resolution[1]);
+    velocityTexture = new VelocityTexture(device, resolution[0], resolution[1]);
+    outputTexture = new OutputTexture(device, resolution[0], resolution[1]);
+    worldPositionTexture = new WorldPositionTexture(
+      device,
+      resolution[0],
+      resolution[1],
+    );
 
     let commandBuffers: GPUCommandBuffer[] = [];
 
@@ -577,7 +483,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         timeBuffer,
         outputTextures: {
           finalTexture: outputTexture,
-          albedoTexture: albedoTexture.texture,
+          albedoTexture,
           normalTexture,
           depthTexture,
           skyTexture,
@@ -599,7 +505,12 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     });
 
     if (device.features.has("timestamp-query")) {
-      resolveTimestampQueries(commandBuffers);
+      resolveTimestampQueries(
+        computePasses,
+        timestampQuerySet,
+        timestampQueryBuffer,
+        commandBuffers,
+      );
     }
 
     device.queue.submit(commandBuffers);
@@ -626,11 +537,12 @@ const start = async () => {
         requiredLimits: { maxColorAttachmentBytesPerSample: 64 },
       });
     } catch (e) {
+      console.warn(
+        "Timestamp query or 64 byte colour attachment not supported, falling back",
+      );
       device = await adapter.requestDevice();
     }
   }
-
-  console.debug(device.limits);
 
   skyTexture = device.createTexture({
     dimension: "2d",
@@ -642,30 +554,18 @@ const start = async () => {
       GPUTextureUsage.STORAGE_BINDING,
   });
 
-  console.log("INIT");
-
   volumeAtlas = new VolumeAtlas(device);
   await createTavern(device, volumeAtlas);
 
   const computePassPromises: Promise<RenderPass>[] = [
-    // fullscreenQuad(device),
     // getHelloTrianglePass(),
     getGBufferPass(),
-    // getVoxelLatticePass(),
-    // getReflectionsPass(),
     getShadowsPass(),
-    // getAdaptiveShadowsPass(),
     getSkyPass(),
     // getLightsPass(),
-    // getMotionBlurPass(),
-    // getDiffusePass(),
-    // getVolumetricFog(),
-    // getFXAAPass(),
     getFogPass(),
     // getTaaPass(),
     // getBoxOutlinePass(),
-    // getWaterPass(),
-
     fullscreenQuad(device),
   ];
 

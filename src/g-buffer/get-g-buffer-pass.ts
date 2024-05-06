@@ -12,14 +12,15 @@ import {
   RenderPass,
   RenderArgs,
 } from "../app";
+import { GBufferTexture } from "../abstractions/g-buffer-texture";
 
 export type OutputTextures = {
-  finalTexture: GPUTexture;
-  albedoTexture?: GPUTexture;
-  normalTexture?: GPUTexture;
-  velocityTexture?: GPUTexture;
-  depthTexture?: GPUTexture;
-  worldPositionTexture?: GPUTexture;
+  finalTexture: GBufferTexture;
+  albedoTexture?: GBufferTexture;
+  normalTexture?: GBufferTexture;
+  velocityTexture?: GBufferTexture;
+  depthTexture?: GBufferTexture;
+  worldPositionTexture?: GBufferTexture;
   skyTexture?: GPUTexture;
 };
 
@@ -192,19 +193,19 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 4,
-          resource: outputTextures.normalTexture.createView(),
+          resource: outputTextures.normalTexture.view,
         },
         {
           binding: 5,
-          resource: outputTextures.albedoTexture.createView(),
+          resource: outputTextures.albedoTexture.view,
         },
         // {
         //   binding: 6,
-        //   resource: outputTextures.depthTexture.createView(),
+        //   resource: outputTextures.depthTexture.view,
         // },
         {
           binding: 7,
-          resource: outputTextures.velocityTexture.createView(),
+          resource: outputTextures.velocityTexture.view,
         },
         {
           binding: 8,
@@ -226,7 +227,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 11,
-          resource: outputTextures.worldPositionTexture.createView(),
+          resource: outputTextures.worldPositionTexture.view,
         },
         {
           binding: 12,
@@ -246,10 +247,10 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
 
     commandEncoder.copyTextureToTexture(
       {
-        texture: outputTextures.albedoTexture, // TODO: pass texture as well as view
+        texture: outputTextures.albedoTexture.texture, // TODO: pass texture as well as view
       },
       {
-        texture: outputTextures.finalTexture,
+        texture: outputTextures.finalTexture.texture,
       },
       {
         width: outputTextures.finalTexture.width,

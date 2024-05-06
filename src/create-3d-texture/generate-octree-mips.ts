@@ -29,7 +29,7 @@ const copy3dTextureTo2dArray = async (
     for (let i = 0; i < texture.depthOrArrayLayers >> m; i++) {
       commandEncoder.copyTextureToTexture(
         {
-          texture: texture,
+          texture,
           mipLevel: m,
           origin: { x: 0, y: 0, z: i },
         },
@@ -78,7 +78,7 @@ const copy2dArrayTo3dTexture = async (
     for (let i = 0; i < texture.depthOrArrayLayers >> m; i++) {
       commandEncoder.copyTextureToTexture(
         {
-          texture: texture,
+          texture,
           mipLevel: m,
           origin: { x: 0, y: 0, z: i },
         },

@@ -103,7 +103,7 @@ ${shaderCode}`;
         size: [
           outputTextures.finalTexture.width,
           outputTextures.finalTexture.height,
-          outputTextures.finalTexture.depthOrArrayLayers,
+          1,
         ],
         format: outputTextures.finalTexture.format,
         usage: outputTextures.finalTexture.usage,
@@ -113,7 +113,7 @@ ${shaderCode}`;
     const commandEncoder = device.createCommandEncoder();
     commandEncoder.copyTextureToTexture(
       {
-        texture: outputTextures.finalTexture, // TODO: pass texture as well as view
+        texture: outputTextures.finalTexture.texture, // TODO: pass texture as well as view
       },
       {
         texture: copyOutputTexture,
@@ -128,7 +128,7 @@ ${shaderCode}`;
     const entries = [
       {
         binding: 0,
-        resource: outputTextures.depthTexture.createView(),
+        resource: outputTextures.depthTexture.view,
       },
       {
         binding: 1,
@@ -136,7 +136,7 @@ ${shaderCode}`;
       },
       {
         binding: 2,
-        resource: outputTextures.finalTexture.createView(),
+        resource: outputTextures.finalTexture.view,
       },
       {
         binding: 3,
@@ -172,7 +172,7 @@ ${shaderCode}`;
       },
       {
         binding: 10,
-        resource: outputTextures.normalTexture.createView(),
+        resource: outputTextures.normalTexture.view,
       },
       {
         binding: 11,
@@ -190,7 +190,7 @@ ${shaderCode}`;
       },
       {
         binding: 14,
-        resource: outputTextures.velocityTexture.createView(),
+        resource: outputTextures.velocityTexture.view,
       },
       {
         binding: 15,
@@ -200,11 +200,11 @@ ${shaderCode}`;
       },
       {
         binding: 16,
-        resource: outputTextures.worldPositionTexture.createView(),
+        resource: outputTextures.worldPositionTexture.view,
       },
       {
         binding: 17,
-        resource: outputTextures.albedoTexture.createView(),
+        resource: outputTextures.albedoTexture.view,
       },
     ];
 

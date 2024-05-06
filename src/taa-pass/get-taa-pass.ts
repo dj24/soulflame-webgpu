@@ -49,7 +49,7 @@ export const getTaaPass = async (): Promise<RenderPass> => {
 
     commandEncoder.copyTextureToTexture(
       {
-        texture: outputTextures.finalTexture, // TODO: pass texture as well as view
+        texture: outputTextures.finalTexture.texture, // TODO: pass texture as well as view
       },
       {
         texture: currentFrameTexture,
@@ -75,11 +75,11 @@ export const getTaaPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 1,
-          resource: outputTextures.velocityTexture.createView(),
+          resource: outputTextures.velocityTexture.view,
         },
         {
           binding: 2,
-          resource: outputTextures.finalTexture.createView(),
+          resource: outputTextures.finalTexture.view,
         },
         {
           binding: 3,
@@ -87,7 +87,7 @@ export const getTaaPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 5,
-          resource: outputTextures.depthTexture.createView(),
+          resource: outputTextures.depthTexture.view,
         },
       ],
     });
@@ -98,7 +98,7 @@ export const getTaaPass = async (): Promise<RenderPass> => {
 
     commandEncoder.copyTextureToTexture(
       {
-        texture: outputTextures.finalTexture,
+        texture: outputTextures.finalTexture.texture,
       },
       {
         texture: historyTexture,

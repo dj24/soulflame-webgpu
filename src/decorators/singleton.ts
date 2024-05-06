@@ -12,10 +12,8 @@ export const Singleton = <T extends new (...args: any[]) => any>(type: T) =>
         return Reflect.construct(target, argsList, newTarget);
       }
       if (!target[SINGLETON_KEY]) {
-        console.debug(`Creating singleton instance of ${target.name}`);
         target[SINGLETON_KEY] = Reflect.construct(target, argsList, newTarget);
       }
-      console.debug(`Returning singleton instance of ${target.name}`);
       return target[SINGLETON_KEY];
     },
   });

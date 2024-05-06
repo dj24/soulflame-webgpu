@@ -399,7 +399,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
           },
           {
             binding: 2,
-            resource: outputTextures.worldPositionTexture.createView(),
+            resource: outputTextures.worldPositionTexture.view,
           },
           {
             binding: 3,
@@ -407,7 +407,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
           },
           {
             binding: 4,
-            resource: outputTextures.albedoTexture.createView(),
+            resource: outputTextures.albedoTexture.view,
           },
           {
             binding: 5,
@@ -423,7 +423,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
           },
           {
             binding: 7,
-            resource: outputTextures.normalTexture.createView(),
+            resource: outputTextures.normalTexture.view,
           },
           {
             binding: 8,
@@ -440,7 +440,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
           },
           {
             binding: 10,
-            resource: outputTextures.depthTexture.createView(),
+            resource: outputTextures.depthTexture.view,
           },
         ],
       });
@@ -466,7 +466,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     const passEncoder = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
-          view: outputTextures.finalTexture.createView(),
+          view: outputTextures.finalTexture.view,
           clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
           loadOp: "load",
           storeOp: "store",

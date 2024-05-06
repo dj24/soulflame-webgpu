@@ -190,25 +190,25 @@ export const getVoxelLatticePass = async (): Promise<RenderPass> => {
 
     const colorAttachments: GPURenderPassColorAttachment[] = [
       {
-        view: outputTextures.albedoTexture.createView(),
+        view: outputTextures.albedoTexture.view,
         clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
         loadOp: "clear",
         storeOp: "store",
       },
       {
-        view: outputTextures.normalTexture.createView(),
+        view: outputTextures.normalTexture.view,
         clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
         loadOp: "clear",
         storeOp: "store",
       },
       {
-        view: outputTextures.worldPositionTexture.createView(),
+        view: outputTextures.worldPositionTexture.view,
         clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
         loadOp: "clear",
         storeOp: "store",
       },
       {
-        view: outputTextures.velocityTexture.createView(),
+        view: outputTextures.velocityTexture.view,
         clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
         loadOp: "clear",
         storeOp: "store",
@@ -216,7 +216,7 @@ export const getVoxelLatticePass = async (): Promise<RenderPass> => {
     ];
 
     const depthStencilAttachment: GPURenderPassDepthStencilAttachment = {
-      view: outputTextures.depthTexture.createView(),
+      view: outputTextures.depthTexture.view,
       depthClearValue: 1.0,
       depthLoadOp: "clear",
       depthStoreOp: "store",
@@ -355,10 +355,10 @@ export const getVoxelLatticePass = async (): Promise<RenderPass> => {
 
     commandEncoder.copyTextureToTexture(
       {
-        texture: outputTextures.albedoTexture,
+        texture: outputTextures.albedoTexture.texture,
       },
       {
-        texture: outputTextures.finalTexture,
+        texture: outputTextures.finalTexture.texture,
       },
       {
         width: outputTextures.finalTexture.width,

@@ -185,7 +185,7 @@ export const getBoxOutlinePass = async (): Promise<RenderPass> => {
     const passEncoder = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
-          view: outputTextures.finalTexture.createView(),
+          view: outputTextures.finalTexture.view,
           clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
           loadOp: "load",
           storeOp: "store",

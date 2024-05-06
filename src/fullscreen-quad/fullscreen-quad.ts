@@ -34,7 +34,7 @@ export const fullscreenQuad = async (device: GPUDevice) => {
       entries: [
         {
           binding: 1,
-          resource: args.outputTextures.finalTexture.createView(),
+          resource: args.outputTextures.finalTexture.view,
         },
       ],
     });

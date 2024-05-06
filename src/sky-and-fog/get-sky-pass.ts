@@ -3,6 +3,7 @@ import sky from "./sky-clouds.wgsl";
 import randomCommon from "../random-common.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
 import { createTextureFromImage } from "webgpu-utils";
+import { defaultUsage } from "../abstractions/g-buffer-texture";
 
 export const getSkyPass = async (): Promise<RenderPass> => {
   const depthEntry: GPUBindGroupLayoutEntry = {
@@ -205,16 +206,16 @@ export const getSkyPass = async (): Promise<RenderPass> => {
         size: [
           outputTextures.finalTexture.width,
           outputTextures.finalTexture.height,
-          outputTextures.finalTexture.depthOrArrayLayers,
+          1,
         ],
-        format: outputTextures.finalTexture.format,
-        usage: outputTextures.finalTexture.usage,
+        format: "rgba8unorm",
+        usage: defaultUsage,
       });
     }
     const commandEncoder = device.createCommandEncoder();
     commandEncoder.copyTextureToTexture(
       {
-        texture: outputTextures.finalTexture, // TODO: pass texture as well as view
+        texture: outputTextures.finalTexture.texture, // TODO: pass texture as well as view
       },
       {
         texture: copyOutputTexture,
@@ -230,7 +231,7 @@ export const getSkyPass = async (): Promise<RenderPass> => {
       entries: [
         {
           binding: 0,
-          resource: outputTextures.depthTexture.createView(),
+          resource: outputTextures.depthTexture.view,
         },
         {
           binding: 1,
@@ -238,7 +239,7 @@ export const getSkyPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 2,
-          resource: outputTextures.finalTexture.createView(),
+          resource: outputTextures.finalTexture.view,
         },
         {
           binding: 3,
@@ -278,7 +279,7 @@ export const getSkyPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 10,
-          resource: outputTextures.worldPositionTexture.createView(),
+          resource: outputTextures.worldPositionTexture.view,
         },
       ],
     });
