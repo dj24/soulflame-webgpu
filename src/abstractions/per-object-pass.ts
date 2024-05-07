@@ -5,6 +5,7 @@ import getRayDirection from "../shader/get-ray-direction.wgsl";
 import randomCommon from "../random-common.wgsl";
 import matrices from "../shader/matrices.wgsl";
 import { voxelObjects } from "../create-tavern";
+import { OUTPUT_TEXTURE_FORMAT } from "../constants";
 
 const depthEntry: GPUBindGroupLayoutEntry = {
   binding: 0,
@@ -26,7 +27,7 @@ const outputTextureEntry: GPUBindGroupLayoutEntry = {
   binding: 2,
   visibility: GPUShaderStage.COMPUTE,
   storageTexture: {
-    format: "rgba8unorm",
+    format: OUTPUT_TEXTURE_FORMAT,
   },
 };
 
@@ -149,7 +150,7 @@ export const createPerObjectPass = async ({
   const code = `
 @group(0) @binding(0) var depthTex : texture_2d<f32>;
 @group(0) @binding(1) var inputTex : texture_2d<f32>;
-@group(0) @binding(2) var outputTex : texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(2) var outputTex : texture_storage_2d<${OUTPUT_TEXTURE_FORMAT}, write>;
 @group(0) @binding(3) var<uniform> viewProjections : ViewProjectionMatrices;
 @group(0) @binding(4) var voxels : texture_3d<f32>;
 @group(0) @binding(5) var<uniform> cameraPosition : vec3<f32>;

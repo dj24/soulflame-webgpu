@@ -17,7 +17,7 @@ const MAX_DISTANCE = 10000.0;
 
 @group(0) @binding(0) var depth : texture_2d<f32>;
 @group(0) @binding(1) var inputTex : texture_2d<f32>;
-@group(0) @binding(2) var outputTex : texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(2) var outputTex : texture_storage_2d<rgba16float, write>;
 @group(0) @binding(3) var<uniform> viewProjections : ViewProjectionMatrices;
 @group(0) @binding(4) var<uniform> sunDirection : vec3<f32>;
 @group(0) @binding(5) var<uniform> time : Time;

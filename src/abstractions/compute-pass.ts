@@ -5,6 +5,7 @@ import getRayDirection from "../shader/get-ray-direction.wgsl";
 import randomCommon from "../random-common.wgsl";
 import matrices from "../shader/matrices.wgsl";
 import { baseBindGroupLayoutEntries } from "./compute-composite-pass";
+import { OUTPUT_TEXTURE_FORMAT } from "../constants";
 
 const NUM_THREADS_X = 8;
 const NUM_THREADS_Y = 8;
@@ -38,7 +39,7 @@ struct Time {
 
 @group(0) @binding(0) var depthTex : texture_2d<f32>;
 @group(0) @binding(1) var inputTex : texture_2d<f32>;
-@group(0) @binding(2) var outputTex : texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(2) var outputTex : texture_storage_2d<${OUTPUT_TEXTURE_FORMAT}, write>;
 @group(0) @binding(3) var<uniform> viewProjections : ViewProjectionMatrices;
 @group(0) @binding(4) var voxels : texture_3d<f32>;
 @group(0) @binding(5) var<uniform> cameraPosition : vec3<f32>;

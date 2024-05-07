@@ -281,19 +281,19 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
 
     passEncoder.end();
 
-    commandEncoder.copyTextureToTexture(
-      {
-        texture: outputTextures.albedoTexture.texture,
-      },
-      {
-        texture: outputTextures.finalTexture.texture,
-      },
-      {
-        width: outputTextures.finalTexture.width,
-        height: outputTextures.finalTexture.height,
-        depthOrArrayLayers: 1, // Copy one layer (z-axis slice)
-      },
-    );
+    // commandEncoder.copyTextureToTexture(
+    //   {
+    //     texture: outputTextures.albedoTexture.texture,
+    //   },
+    //   {
+    //     texture: outputTextures.finalTexture.texture,
+    //   },
+    //   {
+    //     width: outputTextures.finalTexture.width,
+    //     height: outputTextures.finalTexture.height,
+    //     depthOrArrayLayers: 1, // Copy one layer (z-axis slice)
+    //   },
+    // );
 
     return [commandEncoder.finish()];
   };

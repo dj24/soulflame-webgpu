@@ -14,7 +14,6 @@ import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import boxIntersection from "../shader/box-intersection.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
 import { VoxelObject } from "../voxel-object";
-import { blit } from "../blit";
 
 const STRIDE = 256;
 
@@ -174,8 +173,6 @@ export const getVoxelLatticePass = async (): Promise<RenderPass> => {
       format: "depth32float",
     },
   });
-
-  const blitRender = blit(device);
 
   const render = ({
     commandEncoder,

@@ -245,19 +245,19 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     computePass.dispatchWorkgroups(workGroupsX, workGroupsY);
     computePass.end();
 
-    commandEncoder.copyTextureToTexture(
-      {
-        texture: outputTextures.albedoTexture.texture, // TODO: pass texture as well as view
-      },
-      {
-        texture: outputTextures.finalTexture.texture,
-      },
-      {
-        width: outputTextures.finalTexture.width,
-        height: outputTextures.finalTexture.height,
-        depthOrArrayLayers: 1, // Copy one layer (z-axis slice)
-      },
-    );
+    // commandEncoder.copyTextureToTexture(
+    //   {
+    //     texture: outputTextures.albedoTexture.texture, // TODO: pass texture as well as view
+    //   },
+    //   {
+    //     texture: outputTextures.finalTexture.texture,
+    //   },
+    //   {
+    //     width: outputTextures.finalTexture.width,
+    //     height: outputTextures.finalTexture.height,
+    //     depthOrArrayLayers: 1, // Copy one layer (z-axis slice)
+    //   },
+    // );
 
     return [commandEncoder.finish()];
   };

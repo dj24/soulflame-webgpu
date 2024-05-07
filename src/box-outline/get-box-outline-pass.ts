@@ -4,6 +4,7 @@ import { voxelObjects } from "../create-tavern";
 import { getCuboidVertices } from "../primitive-meshes/cuboid";
 import { getSphereVertices } from "../primitive-meshes/sphere";
 import { mat4 } from "wgpu-matrix";
+import { OUTPUT_TEXTURE_FORMAT } from "../constants";
 
 const vertexStride = 16;
 
@@ -108,7 +109,7 @@ export const getBoxOutlinePass = async (): Promise<RenderPass> => {
       entryPoint: "main",
       targets: [
         {
-          format: "rgba8unorm",
+          format: OUTPUT_TEXTURE_FORMAT,
         },
       ],
     },

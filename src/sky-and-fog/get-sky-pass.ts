@@ -4,6 +4,7 @@ import randomCommon from "../random-common.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
 import { createTextureFromImage } from "webgpu-utils";
 import { defaultUsage } from "../abstractions/g-buffer-texture";
+import { OUTPUT_TEXTURE_FORMAT } from "../constants";
 
 export const getSkyPass = async (): Promise<RenderPass> => {
   const depthEntry: GPUBindGroupLayoutEntry = {
@@ -25,7 +26,7 @@ export const getSkyPass = async (): Promise<RenderPass> => {
     binding: 2,
     visibility: GPUShaderStage.COMPUTE,
     storageTexture: {
-      format: "rgba8unorm",
+      format: OUTPUT_TEXTURE_FORMAT,
     },
   };
 
@@ -208,7 +209,7 @@ export const getSkyPass = async (): Promise<RenderPass> => {
           outputTextures.finalTexture.height,
           1,
         ],
-        format: "rgba8unorm",
+        format: OUTPUT_TEXTURE_FORMAT,
         usage: defaultUsage,
       });
     }

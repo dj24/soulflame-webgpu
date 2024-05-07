@@ -1,4 +1,5 @@
 import { Singleton } from "../decorators/singleton";
+import { OUTPUT_TEXTURE_FORMAT } from "../constants";
 
 export const defaultUsage =
   GPUTextureUsage.TEXTURE_BINDING |
@@ -27,7 +28,9 @@ const gBufferTextureFactory = (
         format,
         usage,
       });
-      this.#view = this.#texture.createView();
+      this.#view = this.#texture.createView({
+        label,
+      });
       this.#width = width;
       this.#height = height;
     }
@@ -73,4 +76,7 @@ export const WorldPositionTexture = gBufferTextureFactory(
   "world position",
   "rgba32float",
 );
-export const OutputTexture = gBufferTextureFactory("output", "rgba8unorm");
+export const OutputTexture = gBufferTextureFactory(
+  "output",
+  OUTPUT_TEXTURE_FORMAT,
+);
