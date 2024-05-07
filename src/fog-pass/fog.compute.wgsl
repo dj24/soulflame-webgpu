@@ -5,6 +5,8 @@ const START_DISTANCE = 0.0;
 const EXTINCTION = vec3(.06);
 const FORWARD_SCATTER = 0.5;
 const STEPS = 8.0;
+const NEAR  = 0.5;
+const FAR = 10000.0;
 
 fn ACESFilm(x: vec3<f32>) -> vec3<f32>{
     let a = 2.51;
@@ -37,13 +39,15 @@ fn main(
   var pixel = GlobalInvocationID.xy;
   let uv = vec2<f32>(pixel) / vec2<f32>(textureDimensions(outputTex));
   let gBufferPixel = pixel * DOWNSCALE;
-  var worldPos = textureLoad(worldPosTex, gBufferPixel, 0).rgb;
-  var distanceFromCamera = min(length(worldPos - cameraPosition), MAX_DISTANCE);
+
+  let depthSample = textureLoad(depthTex, pixel, 0).r;
+  let distanceFromCamera = min(depthSample * (FAR - NEAR) + NEAR, MAX_DISTANCE);
+
   var stepLength = distanceFromCamera / STEPS;
-  let rayDir = normalize(worldPos - cameraPosition);
+  let rayDir = calculateRayDirection(uv,viewProjections.inverseViewProjection);
   var blueNoisePixel = (vec2<i32>(pixel)) % BLUE_NOISE_SIZE;
   let blueNoiseSample = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
-  let startDistance = random(blueNoiseSample) * stepLength;
+  let startDistance = START_DISTANCE + random(blueNoiseSample) * stepLength;
   let rayOrigin = cameraPosition + rayDir * startDistance;
   var inScattering = vec3<f32>(0.0);
   var volColour = vec3(0.0);
