@@ -182,7 +182,7 @@ fn composite(
   let pixel = vec2<i32>(GlobalInvocationID.xy);
   let shadowSampleUV = (vec2<f32>(pixel)) / vec2<f32>(texSize);
   let outputPixel = GlobalInvocationID.xy;
-  let albedoSample = textureLoad(inputTex, pixel, 0);
+  let albedoSample = textureLoad(albedoTex, pixel, 0);
   let normalRef = textureLoad(normalTex, pixel, 0).rgb;
   let depthRef = textureLoad(depthTex, pixel, 0).r;
 //  let shadowRef = textureSampleLevel(intermediaryTexture, nearestSampler, shadowSampleUV, 0.0);
