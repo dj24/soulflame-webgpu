@@ -9,7 +9,7 @@ fn rcp(x: f32) -> f32 {
 
 @group(0) @binding(0) var CurrentColor : texture_2d<f32>;
 @group(0) @binding(1) var Velocity : texture_2d<f32>;
-@group(0) @binding(2) var HistoryWrite : texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(2) var HistoryWrite : texture_storage_2d<rgba16float, write>;
 @group(0) @binding(3) var HistoryRead : texture_2d<f32>;
 @group(0) @binding(5) var Depth : texture_2d<f32>;
 

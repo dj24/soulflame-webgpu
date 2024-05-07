@@ -1,9 +1,11 @@
-import { debugValues, device, RenderArgs, RenderPass } from "../app";
+import { device, RenderArgs, RenderPass } from "../app";
 import boxIntersection from "../shader/box-intersection.wgsl";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
 import randomCommon from "../random-common.wgsl";
 import matrices from "../shader/matrices.wgsl";
+import bvh from "../shader/bvh.wgsl";
+import bvhCoarse from "../shader/bvh-coarse.wgsl";
 import { baseBindGroupLayoutEntries } from "./compute-composite-pass";
 import { OUTPUT_TEXTURE_FORMAT } from "../constants";
 
@@ -46,7 +48,6 @@ struct Time {
 @group(0) @binding(6) var<storage> voxelObjects : array<VoxelObject>;
 @group(0) @binding(7) var<uniform> sunDirection : vec3<f32>;
 @group(0) @binding(8) var linearSampler : sampler;
-@group(0) @binding(9) var intermediaryTexture : texture_2d<f32>;
 @group(0) @binding(10) var normalTex : texture_2d<f32>;
 @group(0) @binding(11) var blueNoiseTex : texture_2d<f32>;
 @group(0) @binding(12) var<uniform> time : Time;
@@ -55,12 +56,15 @@ struct Time {
 @group(0) @binding(15) var<storage> bvhNodes: array<BVHNode>;
 @group(0) @binding(16) var worldPosTex : texture_2d<f32>;
 @group(0) @binding(17) var albedoTex : texture_2d<f32>;
+@group(0) @binding(18) var skyCube : texture_cube<f32>;
 
 ${matrices}
 ${randomCommon}
 ${getRayDirection}
 ${boxIntersection}
 ${raymarchVoxels}
+${bvh}
+${bvhCoarse}
 ${shaderCode}`;
 
   const effectPipeline = device.createComputePipeline({
@@ -206,6 +210,12 @@ ${shaderCode}`;
       {
         binding: 17,
         resource: outputTextures.albedoTexture.view,
+      },
+      {
+        binding: 18,
+        resource: outputTextures.skyTexture.createView({
+          dimension: "cube",
+        }),
       },
     ];
 

@@ -33,6 +33,7 @@ import {
 import { getHelloTrianglePass } from "./hello-triangle/get-hello-triangle-pass";
 import { getTaaPass } from "./taa-pass/get-taa-pass";
 import { getClearPass } from "./clear-pass/get-clear-pass";
+import { getTonemapPass } from "./tonemap-pass/get-tonemap-pass";
 
 export const debugValues = new DebugValuesStore();
 
@@ -567,9 +568,10 @@ const start = async () => {
     getShadowsPass(),
     getSkyPass(),
     // getLightsPass(),
-    // getFogPass(),
+    getFogPass(),
     // getTaaPass(),
     // getBoxOutlinePass(),
+    getTonemapPass(),
     fullscreenQuad(device),
   ];
 

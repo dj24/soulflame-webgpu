@@ -1,5 +1,6 @@
 import taa from "./taa.compute.wgsl";
 import { device, RenderArgs, RenderPass, resolution } from "../app";
+import { OUTPUT_TEXTURE_FORMAT } from "../constants";
 
 const downscaleFactor = 1;
 
@@ -12,7 +13,7 @@ export const getTaaPass = async (): Promise<RenderPass> => {
       historyTexture = device.createTexture({
         label: "TAA History Texture",
         size: [resolution[0], resolution[1], 1],
-        format: "rgba8unorm",
+        format: OUTPUT_TEXTURE_FORMAT,
         usage:
           GPUTextureUsage.TEXTURE_BINDING |
           GPUTextureUsage.STORAGE_BINDING |
@@ -39,7 +40,7 @@ export const getTaaPass = async (): Promise<RenderPass> => {
     if (!currentFrameTexture) {
       currentFrameTexture = device.createTexture({
         size: [resolution[0], resolution[1], 1],
-        format: "rgba8unorm",
+        format: OUTPUT_TEXTURE_FORMAT,
         usage:
           GPUTextureUsage.TEXTURE_BINDING |
           GPUTextureUsage.STORAGE_BINDING |

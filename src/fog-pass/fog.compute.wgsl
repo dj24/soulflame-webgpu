@@ -5,7 +5,7 @@ const START_DISTANCE = 0.0;
 const EXTINCTION = vec3(.06);
 const FORWARD_SCATTER = 0.5;
 const STEPS = 8.0;
-const NEAR  = 0.5;
+const NEAR  = 0.3;
 const FAR = 10000.0;
 
 fn ACESFilm(x: vec3<f32>) -> vec3<f32>{
@@ -118,7 +118,6 @@ fn composite(
 
   let colourSample = textureLoad(inputTex, GlobalInvocationID.xy, 0);
 
-//  let output = (fogAmount + colourSample).rgb;
-let output = mix(colourSample.rgb, vec3(1.0), fogAmount.rgb);
+  let output = (fogAmount + colourSample).rgb;
   textureStore(outputTex, GlobalInvocationID.xy, vec4(output, 1));
 }

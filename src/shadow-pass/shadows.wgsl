@@ -77,19 +77,13 @@ fn main(
 ) {
   let checkerboardIndex = i32(GlobalInvocationID.x % 2);
   let frameIndex = i32(time.frame % 2);
-
   let offset = vec2<i32>(checkerboardIndex);
   var pixel = vec2<i32>(i32(GlobalInvocationID.x), i32(GlobalInvocationID.y) * 2);
-
   pixel.y += checkerboardIndex;
   pixel.x += frameIndex;
-
   let outputPixel = pixel;
-
   var normalSample = textureLoad(normalTex, pixel, 0).rgb;
   var worldPos = textureLoad(worldPosTex, pixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
-
-  var output = vec4<f32>(0.0);
   var samplePixel = outputPixel;
   samplePixel.x += i32(time.frame) * 32;
   samplePixel.y += i32(time.frame) * 16;
@@ -105,13 +99,12 @@ fn main(
   var shadowRayDirection = randomInCosineWeightedHemisphere(r, normalSample);
   shadowRayDirection = mix(sunDirection, shadowRayDirection, SCATTER_AMOUNT);
   if(shadowRay(sampleWorldPos, shadowRayDirection)){
-      output = vec4(0.0);
+      textureStore(outputTex, outputPixel, vec4(0.01));
+      return;
   } else{
-      let sky = textureSampleLevel(skyCube, linearSampler, shadowRayDirection, 0.0) * 4.0;
-      output = sky;
+      let sky = textureSampleLevel(skyCube, linearSampler, shadowRayDirection, 0.0);
+      textureStore(outputTex, outputPixel, clamp(sky, vec4(0.0), vec4(1.0)));
   }
-
-  textureStore(outputTex, outputPixel, output);
 }
 
 const PI = 3.1415926535897932384626433832795;
@@ -176,65 +169,41 @@ const GOLDEN_RATIO = 1.61803398875;
 fn composite(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
-  let offset = SAMPLE_OFFSETS[time.frame % 4];
   let texSize = textureDimensions(outputTex);
   let texelSize = 1.0 / vec2<f32>(texSize);
   let pixel = vec2<i32>(GlobalInvocationID.xy);
   let shadowSampleUV = (vec2<f32>(pixel)) / vec2<f32>(texSize);
-  let outputPixel = GlobalInvocationID.xy;
   let albedoSample = textureLoad(albedoTex, pixel, 0);
   let normalRef = textureLoad(normalTex, pixel, 0).rgb;
   let depthRef = textureLoad(depthTex, pixel, 0).r;
-//  let shadowRef = textureSampleLevel(intermediaryTexture, nearestSampler, shadowSampleUV, 0.0);
-//  textureStore(outputTex, outputPixel, shadowRef * albedoSample);
+  let shadowRef = textureLoad(intermediaryTexture, pixel, 0);
+  textureStore(outputTex, pixel, shadowRef * albedoSample);
 
-  var outputColour = vec4<f32>(0.0);
-  var totalWeight = 0.0;
-//  let taps = 9;
+//  var outputColour = vec4<f32>(0.0);
+//  var totalWeight = 0.0;
 //
-//  for (var i = 0; i < taps; i++) {
-////      let radius = sqrt(f32(i)) / sqrt(f32(taps));
-//      let radius = 1.0;
-//      let theta = f32(i) * GOLDEN_RATIO;
-//      let offset = vec2(sin(theta), cos(theta)) * radius;
-//      let tapUV = shadowSampleUV + offset;
-//      let tapPixel = vec2<i32>(tapUV * vec2<f32>(texSize));
-//      let normalSample = textureSampleLevel(normalTex, linearSampler, tapUV, 0.0).rgb;
-//      let depthSample = textureLoad(depthTex, tapPixel, 0).r;
-//      let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, tapUV, 0.0);
+//  for(var i = 0u; i < 9; i++){
+//    let foo = BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS[i];
+//    let offset = foo.xy * texelSize;
+//    let sampleUV = shadowSampleUV + offset * BLUR_RADIUS;
+//    let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
+//    let normalSample = textureSampleLevel(normalTex, linearSampler, sampleUV, 0.0).rgb;
+//    let depthSample = textureLoad(depthTex, samplePixel, 0).r;
+//    let shadowSample = normalize(textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0));
 //
-//      let relativeDepthDifference = abs(depthSample - depthRef) / depthRef;
-//      let depthWeight = clamp(1.0 - relativeDepthDifference * DEPTH_SENSITIVITY, 0,1);
-//      let normalWeight = dot(normalSample, normalRef);
+//    let relativeDepthDifference = abs(depthSample - depthRef) / depthRef;
+//    let depthWeight = clamp(1.0 - relativeDepthDifference * DEPTH_SENSITIVITY, 0,1);
+//    let normalWeight = dot(normalSample, normalRef);
+//    let gaussWeight = foo.z;
 //
-//      let weight = 1.0;
+//    let weight =  depthWeight * normalWeight * gaussWeight;
 //
-//      totalWeight += weight;
-//      outputColour += shadowSample * weight;
+//    totalWeight += weight;
+//    outputColour += shadowSample * weight;
 //  }
-
-  for(var i = 0u; i < 9; i++){
-    let foo = BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS[i];
-    let offset = foo.xy * texelSize;
-    let sampleUV = shadowSampleUV + offset * BLUR_RADIUS;
-    let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
-    let normalSample = textureSampleLevel(normalTex, linearSampler, sampleUV, 0.0).rgb;
-    let depthSample = textureLoad(depthTex, samplePixel, 0).r;
-    let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0);
-
-    let relativeDepthDifference = abs(depthSample - depthRef) / depthRef;
-    let depthWeight = clamp(1.0 - relativeDepthDifference * DEPTH_SENSITIVITY, 0,1);
-    let normalWeight = dot(normalSample, normalRef);
-    let gaussWeight = foo.z;
-
-    let weight =  depthWeight * normalWeight * gaussWeight;
-
-    totalWeight += weight;
-    outputColour += shadowSample * weight;
-  }
-
-  outputColour /= totalWeight;
-  textureStore(outputTex, pixel,outputColour * albedoSample);
+//
+//  outputColour /= totalWeight;
+//  textureStore(outputTex, pixel,outputColour * albedoSample);
 
 
 }
