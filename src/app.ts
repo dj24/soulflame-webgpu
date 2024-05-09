@@ -570,7 +570,7 @@ const start = async () => {
     getShadowsPass(),
     getSkyPass(),
     getLightsPass(),
-    getFogPass(),
+    // getFogPass(),
     // getTaaPass(),
     // getBoxOutlinePass(),
     getTonemapPass(),

@@ -56,10 +56,8 @@ fn ndcToScreenUV(ndc: vec2<f32>) -> vec2<f32> {
 }
 
 
-const JITTERED_LIGHT_CENTER_RADIUS = 0.05;
+const JITTERED_LIGHT_CENTER_RADIUS = 0.01;
 const SHADOW_ACNE_OFFSET: f32 = 0.0001;
-const SCATTER_AMOUNT: f32 = 0.01;
-const POSITION_SCATTER_AMOUNT: f32 = 0.01;
 
 @fragment
 fn main(
@@ -76,29 +74,16 @@ fn main(
   let albedo = textureSampleLevel(albedoTex, nearestSampler, screenUV, 0.0).rgb;
   let normal = textureSampleLevel(normalTex, nearestSampler, screenUV, 0.0).xyz;
   var worldPos = textureSampleLevel(worldPosTex, nearestSampler, screenUV, 0.0).xyz;
- let ndc = getNdc(worldPos);
+  let ndc = getNdc(worldPos);
   let depth = ndc.z;
 
-//  worldPos += randomInPlanarUnitDisk(r, normal) * POSITION_SCATTER_AMOUNT;
   var jitteredLightCenter = lightPosition;
   jitteredLightCenter += randomInUnitSphere(r) * JITTERED_LIGHT_CENTER_RADIUS;
 
   var distanceToLight = distance(worldPos, jitteredLightCenter);
-  var attenuation = lightRadius / (distanceToLight * distanceToLight);
-//  attenuation = distanceToLight / lightRadius;
-//  return vec4(attenuation);
-
+  var attenuation = 1.0 / (distanceToLight * distanceToLight);
   var shadowRayDirection = normalize(worldPos - jitteredLightCenter);
-//  shadowRayDirection += randomInHemisphere(r, shadowRayDirection) * SCATTER_AMOUNT;
 
-  let rayStep = shadowRayDirection;
-
-  let lightPositionUV = calculateScreenSpaceUV(jitteredLightCenter, viewProjections.viewProjection);
-
-
-  var screenRayPosition = lightVolumeNdc.xy;
-  var screenRayStep = normalize(lightPositionUV - screenUV) * abs(ndc.xy);
-  let step = length(screenRayStep) / 16.0;
   if(rayMarchBVH(worldPos - shadowRayDirection * 0.1, -shadowRayDirection).hit){
     return vec4(0.0);
   }
@@ -106,8 +91,6 @@ fn main(
   let lightDirection = normalize(jitteredLightCenter - worldPos);
   let shaded = blinnPhong(normal, lightDirection, -rayDirection, 0.0, 0.0, lightColor);
   let albedoWithSpecular = albedo * shaded;
-
-
 
   // TODO: output hdr and tonemap
   return vec4(albedoWithSpecular, attenuation);
