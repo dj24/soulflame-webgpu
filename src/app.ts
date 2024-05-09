@@ -34,6 +34,7 @@ import { getHelloTrianglePass } from "./hello-triangle/get-hello-triangle-pass";
 import { getTaaPass } from "./taa-pass/get-taa-pass";
 import { getClearPass } from "./clear-pass/get-clear-pass";
 import { getTonemapPass } from "./tonemap-pass/get-tonemap-pass";
+import { SKYBOX_TEXTURE_FORMAT } from "./constants";
 
 export const debugValues = new DebugValuesStore();
 
@@ -214,7 +215,7 @@ lights = [
   {
     position: [-38, 8, -35],
     size: 3,
-    color: vec3.create(1, 1, 1),
+    color: vec3.create(50, 25, 25),
   },
 ];
 
@@ -549,9 +550,10 @@ const start = async () => {
   }
 
   skyTexture = device.createTexture({
+    label: "sky texture",
     dimension: "2d",
     size: [768, 768, 6],
-    format: "rgba8unorm",
+    format: SKYBOX_TEXTURE_FORMAT,
     usage:
       GPUTextureUsage.COPY_SRC |
       GPUTextureUsage.TEXTURE_BINDING |
@@ -567,7 +569,7 @@ const start = async () => {
     // getGBufferPass(),
     getShadowsPass(),
     getSkyPass(),
-    // getLightsPass(),
+    getLightsPass(),
     getFogPass(),
     // getTaaPass(),
     // getBoxOutlinePass(),

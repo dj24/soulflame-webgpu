@@ -18,6 +18,7 @@ import bvh from "../shader/bvh.wgsl";
 import bvhCoarse from "../shader/bvh-coarse.wgsl";
 import { getSphereVertices } from "../primitive-meshes/sphere";
 import { getCuboidVertices } from "../primitive-meshes/cuboid";
+import { OUTPUT_TEXTURE_FORMAT } from "../constants";
 
 export type Light = {
   position: [number, number, number];
@@ -209,7 +210,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
       targets: [
         // albedo
         {
-          format: "rgba8unorm",
+          format: OUTPUT_TEXTURE_FORMAT,
           blend: {
             color: {
               srcFactor: "src-alpha",
@@ -260,9 +261,8 @@ export const getLightsPass = async (): Promise<RenderPass> => {
       }),
       entryPoint: "main",
       targets: [
-        // albedo
         {
-          format: "rgba8unorm",
+          format: OUTPUT_TEXTURE_FORMAT,
         },
       ],
     },
@@ -302,9 +302,8 @@ export const getLightsPass = async (): Promise<RenderPass> => {
       }),
       entryPoint: "main",
       targets: [
-        // albedo
         {
-          format: "rgba8unorm",
+          format: OUTPUT_TEXTURE_FORMAT,
         },
       ],
     },
@@ -496,13 +495,13 @@ export const getLightsPass = async (): Promise<RenderPass> => {
       passEncoder.draw(verticesPerCuboid);
     }
 
-    // drawLightSpheres({
-    //   passEncoder,
-    //   pipeline: wireFramePipeline,
-    //   verticesBuffer,
-    //   bindGroups,
-    //   lights,
-    // });
+    drawLightSpheres({
+      passEncoder,
+      pipeline: wireFramePipeline,
+      verticesBuffer,
+      bindGroups,
+      lights,
+    });
 
     passEncoder.end();
 

@@ -10,8 +10,8 @@ struct Time {
 // Cloud parameters
 const EARTH_RADIUS = 6300e3;
 const CLOUD_START = 600.0;
-const CLOUD_HEIGHT = 800.0;
-const SUN_POWER = vec3(1.0,0.9,0.6) * 500.;
+const CLOUD_HEIGHT = 600.0;
+const SUN_POWER = vec3(1.0,0.9,0.6) * 200.;
 const LOW_SCATTER = vec3(1.0, 0.7, 0.5);
 const MAX_DISTANCE = 10000.0;
 
@@ -27,7 +27,7 @@ const MAX_DISTANCE = 10000.0;
 @group(0) @binding(9) var<uniform> cameraPosition : vec3<f32>;
 @group(0) @binding(10) var worldPosTex : texture_2d<f32>;
 @group(1) @binding(1) var skyCube : texture_cube<f32>;
-@group(1) @binding(2) var skyCubeWrite : texture_storage_2d_array<rgba8unorm, write>;
+@group(1) @binding(2) var skyCubeWrite : texture_storage_2d_array<rgba16float, write>;
 @group(1) @binding(3) var lastSkyCube : texture_2d_array<f32>;
 
 
@@ -481,7 +481,7 @@ fn spiralBlurHistorySample( pixel: vec2<u32>, cubeFaceIndex: u32 ) -> vec3<f32>
     return output / weights;
 }
 
-const HISTORY_BLEND = 0.9;
+const HISTORY_BLEND = 0.8;
 
 @compute @workgroup_size(8, 8, 1)
 fn writeToCube(
@@ -499,32 +499,8 @@ fn writeToCube(
   let fogPhase = 0.5*HenyeyGreenstein(mu, 0.7)+0.5*HenyeyGreenstein(mu, -0.6);
   var colour = sky;
   colour = mix(fogPhase*0.1*LOW_SCATTER*SUN_POWER+10.0*vec3(0.55, 0.8, 1.0), colour, exp(-0.0003*fogDistance));
-  colour = tonemapACES(colour * 0.1);
-  let newSample = RGBToYCoCg(colour);
-//  var history = RGBToYCoCg(textureLoad(lastSkyCube, pixel, cubeFaceIndex, 0).rgb);
-var history = spiralBlurHistorySample(pixel, cubeFaceIndex);
-
-  var colorAvg = newSample;
-  var colorVar = newSample*newSample;
-  // Marco Salvi's Implementation (by Chris Wyman)
-  let textureSize = textureDimensions(skyCubeWrite).xy;
-  for(var i = 0; i < 8; i++)
-  {
-    let samplePixel = vec2<i32>(pixel) + offsets[i];
-    if(any(samplePixel < vec2(0)) || any(samplePixel >= vec2<i32>(textureSize))){
-      continue;
-    }
-    let fetch = RGBToYCoCg(textureLoad(lastSkyCube, samplePixel, cubeFaceIndex, 0).xyz);
-    colorAvg += fetch;
-    colorVar += fetch*fetch;
-  }
-  colorAvg /= 9.0;
-  colorVar /= 9.0;
-  let gColorBoxSigma = 0.75;
-  let sigma = sqrt(max(vec3(0.0), colorVar - colorAvg*colorAvg));
-  let colorMin = colorAvg - gColorBoxSigma * sigma;
-  let colorMax = colorAvg + gColorBoxSigma * sigma;
-  history = clamp(history, colorMin, colorMax);
-  colour = YCoCgToRGB(mix(newSample, history, HISTORY_BLEND));
+  let newSample = colour;
+  var history = textureLoad(lastSkyCube, pixel, cubeFaceIndex, 0).rgb;
+  colour = mix(newSample, history, HISTORY_BLEND);
   textureStore(skyCubeWrite, pixel, cubeFaceIndex, vec4(colour,1));
 }

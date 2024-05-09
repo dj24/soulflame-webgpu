@@ -1,9 +1,9 @@
 
 const BLUE_NOISE_SIZE = 511;
-const MAX_DISTANCE = 50.0;
+const MAX_DISTANCE = 40.0;
 const START_DISTANCE = 0.0;
 const EXTINCTION = vec3(.06, 0.05, 0.055);
-const FORWARD_SCATTER = 0.3;
+const FORWARD_SCATTER = 0.5;
 const STEPS = 8.0;
 const NEAR  = 0.3;
 const FAR = 10000.0;
@@ -105,36 +105,21 @@ fn composite(
   var totalWeight = 0.0;
   let texelSize = 1.0 / vec2<f32>(textureDimensions(outputTex));
 
-//  for(var i = 0u; i < 1; i++){
-//    let foo = BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS_5x5[i];
-//    let offset = foo.xy * texelSize * BLUR_RADIUS;
-//    let sampleUV = shadowSampleUV + offset;
-//    let fogSample = textureSampleLevel(intermediaryTexture, nearestSampler, sampleUV, 0.0);
-//    let gaussWeight = foo.z;
-//    totalWeight += gaussWeight;
-//    fogAmount += fogSample * gaussWeight;
-//  }
-//  fogAmount /= totalWeight;
-
-  // project sun direction to screen space
-  let sunPosition = -sunDirection * FAR;
-  let sunClipSpace = viewProjections.viewProjection * vec4(sunPosition, 1.0);
-  let sunNDC = sunClipSpace / sunClipSpace.w;
-  let sunUV = vec2(1.0)-(sunNDC * 0.5 + 0.5).xy;
-  let blurDirection = (sunUV - shadowSampleUV) * 4.0;
-  for(var i = 0u; i < 25; i++){
-    let offset = blurDirection * f32(i) * texelSize;
+  for(var i = 0u; i < 1; i++){
+    let foo = BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS_5x5[i];
+    let offset = foo.xy * texelSize * BLUR_RADIUS;
     let sampleUV = shadowSampleUV + offset;
     let fogSample = textureSampleLevel(intermediaryTexture, nearestSampler, sampleUV, 0.0);
-    totalWeight += 1.0;
-    fogAmount += fogSample;
+    let gaussWeight = foo.z;
+    totalWeight += gaussWeight;
+    fogAmount += fogSample * gaussWeight;
   }
   fogAmount /= totalWeight;
 
 
   let colourSample = textureLoad(inputTex, GlobalInvocationID.xy, 0);
 
-//  let output = (fogAmount + colourSample).rgb;
-  let output = fogAmount.rgb;
+  let output = (fogAmount + colourSample).rgb;
+//  let output = fogAmount.rgb;
   textureStore(outputTex, GlobalInvocationID.xy, vec4(output, 1));
 }

@@ -66,7 +66,7 @@ fn main(
     @location(0) @interpolate(linear) lightVolumeNdc : vec3f
 ) -> @location(0) vec4f {
   let lightPosition = light.position.xyz;
-  let lightRadius = light.radius; // WHY?
+  let lightRadius = light.radius * 2.0; // WHY?
   let lightColor = light.color.rgb;
   var screenUV = lightVolumeNdc.xy * 0.5 + 0.5;
 
@@ -85,7 +85,8 @@ fn main(
 
   var distanceToLight = distance(worldPos, jitteredLightCenter);
   var attenuation = lightRadius / (distanceToLight * distanceToLight);
-  attenuation = 1.0;
+//  attenuation = distanceToLight / lightRadius;
+//  return vec4(attenuation);
 
   var shadowRayDirection = normalize(worldPos - jitteredLightCenter);
 //  shadowRayDirection += randomInHemisphere(r, shadowRayDirection) * SCATTER_AMOUNT;
@@ -105,6 +106,7 @@ fn main(
   let lightDirection = normalize(jitteredLightCenter - worldPos);
   let shaded = blinnPhong(normal, lightDirection, -rayDirection, 0.0, 0.0, lightColor);
   let albedoWithSpecular = albedo * shaded;
+
 
 
   // TODO: output hdr and tonemap
