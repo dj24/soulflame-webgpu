@@ -159,7 +159,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
    return rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
 }
 
-const SHADOW_MIN_MIP_LEVEL = 1u;
+const SHADOW_MIN_MIP_LEVEL =1u;
 
 fn rayMarchOctreeShadows(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>, startingMipLevel: u32) -> RayMarchResult {
    var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;

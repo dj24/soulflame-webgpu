@@ -12,5 +12,5 @@ struct Light {
 fn main(
     @location(0) @interpolate(linear) ndc : vec3f
 ) -> @location(0) vec4f {
-  return vec4(light.color,0.25);
+  return vec4(light.color,0.01);
 }

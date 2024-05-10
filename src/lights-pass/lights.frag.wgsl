@@ -14,6 +14,8 @@ struct ViewProjectionMatrices {
   inverseProjection: mat4x4<f32>
 };
 
+const BLUE_NOISE_SIZE = 511;
+
 
 @group(0) @binding(1) var nearestSampler : sampler;
 @group(0) @binding(2) var worldPosTex : texture_2d<f32>;
@@ -25,6 +27,7 @@ struct ViewProjectionMatrices {
 @group(0) @binding(8) var<uniform> light: Light;
 @group(0) @binding(9) var<uniform> viewProjections : ViewProjectionMatrices;
 @group(0) @binding(10) var depthTex : texture_2d<f32>;
+@group(0) @binding(11) var blueNoiseTex : texture_2d<f32>;
 
 fn blinnPhong(normal: vec3<f32>, lightDirection: vec3<f32>, viewDirection: vec3<f32>, specularStrength: f32, shininess: f32, lightColour: vec3<f32>) -> vec3<f32> {
   let halfDirection = normalize(lightDirection + viewDirection);
@@ -56,7 +59,8 @@ fn ndcToScreenUV(ndc: vec2<f32>) -> vec2<f32> {
 }
 
 
-const JITTERED_LIGHT_CENTER_RADIUS = 0.01;
+
+const JITTERED_LIGHT_CENTER_RADIUS = 0.5;
 const SHADOW_ACNE_OFFSET: f32 = 0.0001;
 
 @fragment
@@ -67,10 +71,10 @@ fn main(
   let lightRadius = light.radius * 2.0; // WHY?
   let lightColor = light.color.rgb;
   var screenUV = lightVolumeNdc.xy * 0.5 + 0.5;
+  let screenPixel = vec2<i32>(vec2<f32>(textureDimensions(worldPosTex).xy) * screenUV);
 
   // TODO: use bluenoise instead uv
-  let r = screenUV;
-  let rayDirection = calculateRayDirection(screenUV,viewProjections.inverseViewProjection);
+  let r = textureLoad(blueNoiseTex, screenPixel % BLUE_NOISE_SIZE, 0).xy;
   let albedo = textureSampleLevel(albedoTex, nearestSampler, screenUV, 0.0).rgb;
   let normal = textureSampleLevel(normalTex, nearestSampler, screenUV, 0.0).xyz;
   var worldPos = textureSampleLevel(worldPosTex, nearestSampler, screenUV, 0.0).xyz;
@@ -81,17 +85,24 @@ fn main(
   jitteredLightCenter += randomInUnitSphere(r) * JITTERED_LIGHT_CENTER_RADIUS;
 
   var distanceToLight = distance(worldPos, jitteredLightCenter);
-  var attenuation = 1.0 / (distanceToLight * distanceToLight);
-  var shadowRayDirection = normalize(worldPos - jitteredLightCenter);
-
-  if(rayMarchBVH(worldPos - shadowRayDirection * 0.1, -shadowRayDirection).hit){
+  var shadowRayDirection = -normalize(worldPos - jitteredLightCenter);
+  if(dot(normal, shadowRayDirection) < 0.0){
+    return vec4(0.0);
+  }
+  var attenuation = 1.0 - saturate(distanceToLight / lightRadius);
+  if(attenuation <= 0.0){
     return vec4(0.0);
   }
 
-  let lightDirection = normalize(jitteredLightCenter - worldPos);
-  let shaded = blinnPhong(normal, lightDirection, -rayDirection, 0.0, 0.0, lightColor);
+  if(rayMarchBVHShadows(worldPos + normal * 0.33, shadowRayDirection).hit){
+    return vec4(0.0);
+  }
+
+
+  let rayDirection = calculateRayDirection(screenUV,viewProjections.inverseViewProjection);
+  let shaded = blinnPhong(normal, -shadowRayDirection, rayDirection, 0.0, 0.0, lightColor);
   let albedoWithSpecular = albedo * shaded;
 
   // TODO: output hdr and tonemap
-  return vec4(albedoWithSpecular, attenuation);
+  return vec4(albedo * lightColor, attenuation);
 }

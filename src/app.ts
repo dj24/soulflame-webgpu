@@ -213,9 +213,24 @@ let lights: Light[] = Array.from({ length: 200 }).map(() => {
 
 lights = [
   {
-    position: [-38, 8, -35],
-    size: 3,
-    color: vec3.create(50, 25, 25),
+    position: [-43.8, 5.5, -36],
+    size: 2.2,
+    color: vec3.create(50, 5, 5),
+  },
+  {
+    position: [-36, 5.5, -36],
+    size: 2.2,
+    color: vec3.create(15, 50, 15),
+  },
+  {
+    position: [-25, 5.5, -36],
+    size: 2.2,
+    color: vec3.create(15, 15, 50),
+  },
+  {
+    position: [-55, 5.5, -36],
+    size: 2.2,
+    color: vec3.create(30, 5, 40),
   },
 ];
 

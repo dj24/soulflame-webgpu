@@ -164,6 +164,14 @@ export const getLightsPass = async (): Promise<RenderPass> => {
           viewDimension: "2d",
         },
       },
+      // blue noise
+      {
+        binding: 11,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: {
+          sampleType: "float",
+        },
+      },
     ],
   });
 
@@ -263,6 +271,17 @@ export const getLightsPass = async (): Promise<RenderPass> => {
       targets: [
         {
           format: OUTPUT_TEXTURE_FORMAT,
+          blend: {
+            color: {
+              srcFactor: "src-alpha",
+              dstFactor: "dst-alpha",
+              operation: "add",
+            },
+            alpha: {
+              srcFactor: "one",
+              dstFactor: "one-minus-src-alpha",
+            },
+          },
         },
       ],
     },
@@ -328,6 +347,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     timestampWrites,
     bvhBuffer,
     lights,
+    blueNoiseTexture,
   }: RenderArgs) => {
     let bindGroups = [];
 
@@ -440,6 +460,10 @@ export const getLightsPass = async (): Promise<RenderPass> => {
           {
             binding: 10,
             resource: outputTextures.depthTexture.view,
+          },
+          {
+            binding: 11,
+            resource: blueNoiseTexture.createView(),
           },
         ],
       });
