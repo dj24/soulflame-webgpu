@@ -95,7 +95,7 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
 
 const MAX_SHADOW_BVH_VISITS = 8;
 
-fn rayMarchBVHShadows(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult {
+fn rayMarchBVHShadows(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, mipLevel: u32) -> RayMarchResult {
    var closestIntersection = RayMarchResult();
    closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
 

@@ -172,6 +172,14 @@ export const getLightsPass = async (): Promise<RenderPass> => {
           sampleType: "float",
         },
       },
+      // time buffer
+      {
+        binding: 12,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: {
+          type: "uniform",
+        },
+      },
     ],
   });
 
@@ -348,6 +356,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     bvhBuffer,
     lights,
     blueNoiseTexture,
+    timeBuffer,
   }: RenderArgs) => {
     let bindGroups = [];
 
@@ -464,6 +473,12 @@ export const getLightsPass = async (): Promise<RenderPass> => {
           {
             binding: 11,
             resource: blueNoiseTexture.createView(),
+          },
+          {
+            binding: 12,
+            resource: {
+              buffer: timeBuffer,
+            },
           },
         ],
       });

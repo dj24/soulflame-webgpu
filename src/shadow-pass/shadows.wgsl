@@ -1,8 +1,8 @@
 
 
 fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>) -> bool {
-  let rayOrigin = worldPos + shadowRayDirection * 0.33; // To adccount for self occlusion of higher mip
-  return rayMarchBVHShadows(rayOrigin, shadowRayDirection).hit;
+  let rayOrigin = worldPos + shadowRayDirection * 0.66; // To adccount for self occlusion of higher mip
+  return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 2).hit;
 //    return rayMarchBVH(worldPos, shadowRayDirection).hit;
 }
 

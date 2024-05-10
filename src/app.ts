@@ -361,7 +361,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     // Multiply the existing direction vector by the rotation matrix
     const newDirection = vec3.normalize(
-      vec3.transformMat4(vec3.create(0, 0.5, -1), rotationMatrix),
+      vec3.transformMat4(vec3.create(0, 0.75, -1), rotationMatrix),
     );
 
     if (sunDirectionBuffer) {
@@ -585,7 +585,7 @@ const start = async () => {
     getShadowsPass(),
     getSkyPass(),
     getLightsPass(),
-    // getFogPass(),
+    getFogPass(),
     // getTaaPass(),
     // getBoxOutlinePass(),
     getTonemapPass(),

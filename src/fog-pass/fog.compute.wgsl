@@ -2,9 +2,9 @@
 const BLUE_NOISE_SIZE = 511;
 const MAX_DISTANCE = 40.0;
 const START_DISTANCE = 0.0;
-const EXTINCTION = vec3(.06, 0.05, 0.055);
-const FORWARD_SCATTER = 0.5;
-const STEPS = 8.0;
+const EXTINCTION = vec3(.06, 0.04, 0.02);
+const FORWARD_SCATTER = 0.7;
+const STEPS = 16.0;
 const NEAR  = 0.3;
 const FAR = 10000.0;
 
@@ -55,10 +55,15 @@ fn main(
   var stepAbsorption = exp(-EXTINCTION * stepLength);
   var stepColour = vec3(1.0 - stepAbsorption) * henyeyGreenstein(dot(rayDir, sunDirection), FORWARD_SCATTER);
   var positionAlongRay = rayOrigin;
+  var distanceTravelled = 0.0;
   for(var i = 0; i < i32(STEPS); i++){
-    positionAlongRay += rayDir * stepLength;
+    if(distanceTravelled > distanceFromCamera){
+      break;
+    }
+    distanceTravelled += stepLength;
+    positionAlongRay = rayOrigin + rayDir * distanceTravelled;
     absorption *= stepAbsorption;
-    let directLight = select(1.0, 0.0, rayMarchBVHShadows(positionAlongRay + randomInUnitSphere(blueNoiseSample) * 0.01, sunDirection).hit);
+    let directLight = select(1.0, 0.0, rayMarchBVHShadows(positionAlongRay + randomInUnitSphere(blueNoiseSample) * 0.01, sunDirection, 1).hit);
     volColour += stepColour * absorption * directLight;
   }
   textureStore(outputTex, pixel, vec4<f32>(volColour, 1.0));
@@ -109,7 +114,7 @@ fn composite(
     let foo = BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS_5x5[i];
     let offset = foo.xy * texelSize * BLUR_RADIUS;
     let sampleUV = shadowSampleUV + offset;
-    let fogSample = textureSampleLevel(intermediaryTexture, nearestSampler, sampleUV, 0.0);
+    let fogSample = textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0);
     let gaussWeight = foo.z;
     totalWeight += gaussWeight;
     fogAmount += fogSample * gaussWeight;
@@ -117,6 +122,7 @@ fn composite(
   fogAmount /= totalWeight;
 
 
+  fogAmount *= 8.0;
   let colourSample = textureLoad(inputTex, GlobalInvocationID.xy, 0);
 
   let output = (fogAmount + colourSample).rgb;
