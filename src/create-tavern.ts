@@ -30,7 +30,7 @@ const NAME_ALLOWLIST = [
   "monu10",
   "teapot",
   // "sponza-small",
-  "Sponza",
+  // "Sponza",
   // "Table",
   // "Bench",
   // "Stool",

@@ -3,10 +3,11 @@ const BLUE_NOISE_SIZE = 511;
 const MAX_DISTANCE = 40.0;
 const START_DISTANCE = 0.0;
 const EXTINCTION = vec3(.06, 0.04, 0.02);
-const FORWARD_SCATTER = 0.7;
+const FORWARD_SCATTER = 0.8;
 const STEPS = 16.0;
 const NEAR  = 0.3;
 const FAR = 10000.0;
+const LIGHT_INTENSITY = 5.0;
 
 fn ACESFilm(x: vec3<f32>) -> vec3<f32>{
     let a = 2.51;
@@ -31,7 +32,6 @@ fn screenBlend(base: vec4<f32>, blend: vec4<f32>) -> vec4<f32> {
 }
 
 
-// TODO: blur in direction of sun ray (convert to screen space)
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
@@ -40,7 +40,8 @@ fn main(
   let uv = vec2<f32>(pixel) / vec2<f32>(textureDimensions(outputTex));
   let gBufferPixel = pixel * DOWNSCALE;
 
-  let depthSample = textureLoad(depthTex, pixel, 0).r;
+  let depthSample = textureLoad(depthTex, gBufferPixel, 0).r;
+  let normalSample = textureLoad(normalTex, gBufferPixel, 0).xyz;
   let distanceFromCamera = min(depthSample * (FAR - NEAR) + NEAR, MAX_DISTANCE);
 
   var stepLength = distanceFromCamera / STEPS;
@@ -63,7 +64,13 @@ fn main(
     distanceTravelled += stepLength;
     positionAlongRay = rayOrigin + rayDir * distanceTravelled;
     absorption *= stepAbsorption;
-    let directLight = select(1.0, 0.0, rayMarchBVHShadows(positionAlongRay + randomInUnitSphere(blueNoiseSample) * 0.01, sunDirection, 1).hit);
+    var directLight = LIGHT_INTENSITY;
+    if(dot(normalSample, sunDirection) > 0.0){
+      directLight = 0.0;
+    }
+    else if(rayMarchBVHShadows(positionAlongRay, sunDirection,1).hit){
+      directLight = 0.0;
+    }
     volColour += stepColour * absorption * directLight;
   }
   textureStore(outputTex, pixel, vec4<f32>(volColour, 1.0));
@@ -98,7 +105,7 @@ const BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS_5x5: array<vec3<f32>, 25> = arr
   vec3<f32>(-2.0, -2.0, 1.0 / 273.0),
 );
 
-const BLUR_RADIUS = 4.0;
+const BLUR_RADIUS = 1.0;
 
 @compute @workgroup_size(8, 8, 1)
 fn composite(
@@ -121,8 +128,6 @@ fn composite(
   }
   fogAmount /= totalWeight;
 
-
-  fogAmount *= 8.0;
   let colourSample = textureLoad(inputTex, GlobalInvocationID.xy, 0);
 
   let output = (fogAmount + colourSample).rgb;
