@@ -534,13 +534,13 @@ export const getLightsPass = async (): Promise<RenderPass> => {
       passEncoder.draw(verticesPerCuboid);
     }
 
-    drawLightSpheres({
-      passEncoder,
-      pipeline: wireFramePipeline,
-      verticesBuffer,
-      bindGroups,
-      lights,
-    });
+    // drawLightSpheres({
+    //   passEncoder,
+    //   pipeline: wireFramePipeline,
+    //   verticesBuffer,
+    //   bindGroups,
+    //   lights,
+    // });
 
     passEncoder.end();
 

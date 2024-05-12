@@ -35,6 +35,7 @@ import { getTaaPass } from "./taa-pass/get-taa-pass";
 import { getClearPass } from "./clear-pass/get-clear-pass";
 import { getTonemapPass } from "./tonemap-pass/get-tonemap-pass";
 import { SKYBOX_TEXTURE_FORMAT } from "./constants";
+import { getBloomPass } from "./bloom-pass/get-bloom-pass";
 
 export const debugValues = new DebugValuesStore();
 
@@ -361,7 +362,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     // Multiply the existing direction vector by the rotation matrix
     const newDirection = vec3.normalize(
-      vec3.transformMat4(vec3.create(0, 0.6, -1), rotationMatrix),
+      vec3.transformMat4(vec3.create(0, 0.6, -0.8), rotationMatrix),
     );
 
     if (sunDirectionBuffer) {
@@ -585,6 +586,7 @@ const start = async () => {
     getShadowsPass(),
     getSkyPass(),
     getLightsPass(),
+    getBloomPass(),
     getFogPass(),
     // getTaaPass(),
     // getBoxOutlinePass(),
