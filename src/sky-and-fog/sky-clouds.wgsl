@@ -11,8 +11,8 @@ struct Time {
 const EARTH_RADIUS = 6300e3;
 const CLOUD_START = 600.0;
 const CLOUD_HEIGHT = 600.0;
-const SUN_POWER = vec3(0.6,0.4,0.2) * 100.0;
-const LOW_SCATTER = vec3(0.6,0.4,0.2)  * 50.0;
+const SUN_POWER = vec3(0.6,0.35,0.15) * 100.0;
+const LOW_SCATTER = vec3(0.6,0.35,0.15)  * 80.0;
 const MAX_DISTANCE = 10000.0;
 
 @group(0) @binding(0) var depth : texture_2d<f32>;

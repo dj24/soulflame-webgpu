@@ -2,7 +2,7 @@
 const BLUE_NOISE_SIZE = 511;
 const MAX_DISTANCE = 40.0;
 const START_DISTANCE = 0.0;
-const EXTINCTION = vec3(.06, .04, .02);
+const EXTINCTION = vec3(.06, .035, .015);
 const FORWARD_SCATTER = 0.8;
 const STEPS = 16.0;
 const NEAR  = 0.5;
