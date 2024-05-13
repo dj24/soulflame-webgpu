@@ -309,19 +309,12 @@ const getAdditveBlend = () => {
       {
         binding: 1,
         visibility: GPUShaderStage.COMPUTE,
-        texture: {
-          sampleType: "float",
-        },
-      },
-      {
-        binding: 2,
-        visibility: GPUShaderStage.COMPUTE,
         storageTexture: {
           format: OUTPUT_TEXTURE_FORMAT,
         },
       },
       {
-        binding: 3,
+        binding: 2,
         visibility: GPUShaderStage.COMPUTE,
         sampler: {},
       },
@@ -336,19 +329,20 @@ const getAdditveBlend = () => {
     compute: {
       module: device.createShaderModule({
         code: `
-        @group(0) @binding(0) var inputTex1 : texture_2d<f32>;
-        @group(0) @binding(1) var downscaledTex : texture_2d<f32>;
-        @group(0) @binding(2) var outputTex : texture_storage_2d<${OUTPUT_TEXTURE_FORMAT}, write>;
-        @group(0) @binding(3) var linearSampler : sampler;
+        @group(0) @binding(0) var inputTex : texture_2d<f32>;
+        @group(0) @binding(1) var outputTex : texture_storage_2d<${OUTPUT_TEXTURE_FORMAT}, write>;
+        @group(0) @binding(2) var linearSampler : sampler;
         @compute @workgroup_size(8, 8, 1)
         fn main(
           @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
         ) {
-            let color1 = textureLoad(inputTex1, vec2<i32>(GlobalInvocationID.xy), 0);
-            let centerOfPixel = vec2<f32>(GlobalInvocationID.xy) + vec2<f32>(0.5);
-            let uv = centerOfPixel / vec2<f32>(textureDimensions(downscaledTex));
-            let color2 = textureSampleLevel(downscaledTex, linearSampler, uv, 0);
-            textureStore(outputTex, GlobalInvocationID.xy, color1 + color2);
+            let uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(textureDimensions(outputTex)) * 2.0;
+            var total = vec4<f32>(0.0);
+            for(var i = 6; i > 0; i--) {
+                total += textureSampleLevel(inputTex, linearSampler, uv, f32(i));
+            }
+            total /= 6.0;
+            textureStore(outputTex, GlobalInvocationID.xy, total);
         }
         `,
       }),
@@ -358,10 +352,8 @@ const getAdditveBlend = () => {
 
   const enqueuePass = (args: {
     inputTexture: GPUTexture;
-    downscaledTexture: GPUTexture;
     outputTexture: GPUTexture;
     inputTextureView: GPUTextureView;
-    downscaledTextureView: GPUTextureView;
     outputTextureView: GPUTextureView;
   }) => {
     const commandEncoder = device.createCommandEncoder();
@@ -375,14 +367,10 @@ const getAdditveBlend = () => {
         },
         {
           binding: 1,
-          resource: args.downscaledTextureView,
-        },
-        {
-          binding: 2,
           resource: args.outputTextureView,
         },
         {
-          binding: 3,
+          binding: 2,
           resource: device.createSampler({
             magFilter: "linear",
             minFilter: "linear",
@@ -565,6 +553,7 @@ export const getBloomPass = async (): Promise<RenderPass> => {
   let thresholdTextureCopy: GPUTexture;
   let thresholdTextureViews: GPUTextureView[];
   let thresholdTextureCopyViews: GPUTextureView[];
+  let allMipsView: GPUTextureView;
 
   const horizontalBlur = getHorizontalBlur(2);
   const verticalBlur = getVerticalBlur(2);
@@ -610,6 +599,7 @@ export const getBloomPass = async (): Promise<RenderPass> => {
           mipLevelCount: 1,
         });
       });
+      allMipsView = thresholdTexture.createView();
     }
     const commandEncoder = device.createCommandEncoder();
     const computePass = commandEncoder.beginComputePass({
@@ -659,7 +649,7 @@ export const getBloomPass = async (): Promise<RenderPass> => {
       },
     );
 
-    const blurs = Array.from({ length: 2 }, (_, i) => {
+    const blurs = Array.from({ length: 6 }, (_, i) => {
       return [
         horizontalBlur({
           inputTexture: thresholdTexture,
@@ -687,10 +677,8 @@ export const getBloomPass = async (): Promise<RenderPass> => {
       ...blurs,
       additveBlend({
         inputTexture: thresholdTexture,
-        downscaledTexture: thresholdTexture,
+        inputTextureView: allMipsView,
         outputTexture: thresholdTextureCopy,
-        inputTextureView: thresholdTextureViews[0],
-        downscaledTextureView: thresholdTextureViews[1],
         outputTextureView: thresholdTextureCopyViews[0],
       }),
       upscalePass({
