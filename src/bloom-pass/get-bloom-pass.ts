@@ -296,6 +296,114 @@ const getHalfResDownscalePass = () => {
   return enqueuePass;
 };
 
+const getAdditveBlend = () => {
+  const bindGroupLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+        },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+        },
+      },
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        storageTexture: {
+          format: OUTPUT_TEXTURE_FORMAT,
+        },
+      },
+      {
+        binding: 3,
+        visibility: GPUShaderStage.COMPUTE,
+        sampler: {},
+      },
+    ],
+  });
+
+  const blendComputePipeline = device.createComputePipeline({
+    label: "blend",
+    layout: device.createPipelineLayout({
+      bindGroupLayouts: [bindGroupLayout],
+    }),
+    compute: {
+      module: device.createShaderModule({
+        code: `
+        @group(0) @binding(0) var inputTex1 : texture_2d<f32>;
+        @group(0) @binding(1) var downscaledTex : texture_2d<f32>;
+        @group(0) @binding(2) var outputTex : texture_storage_2d<${OUTPUT_TEXTURE_FORMAT}, write>;
+        @group(0) @binding(3) var linearSampler : sampler;
+        @compute @workgroup_size(8, 8, 1)
+        fn main(
+          @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
+        ) {
+            let color1 = textureLoad(inputTex1, vec2<i32>(GlobalInvocationID.xy), 0);
+            let centerOfPixel = vec2<f32>(GlobalInvocationID.xy) + vec2<f32>(0.5);
+            let uv = centerOfPixel / vec2<f32>(textureDimensions(downscaledTex));
+            let color2 = textureSampleLevel(downscaledTex, linearSampler, uv, 0);
+            textureStore(outputTex, GlobalInvocationID.xy, color1 + color2);
+        }
+        `,
+      }),
+      entryPoint: "main",
+    },
+  });
+
+  const enqueuePass = (args: {
+    inputTexture: GPUTexture;
+    downscaledTexture: GPUTexture;
+    outputTexture: GPUTexture;
+    inputTextureView: GPUTextureView;
+    downscaledTextureView: GPUTextureView;
+    outputTextureView: GPUTextureView;
+  }) => {
+    const commandEncoder = device.createCommandEncoder();
+    const computePass = commandEncoder.beginComputePass();
+    const bindGroup = device.createBindGroup({
+      layout: bindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: args.inputTextureView,
+        },
+        {
+          binding: 1,
+          resource: args.downscaledTextureView,
+        },
+        {
+          binding: 2,
+          resource: args.outputTextureView,
+        },
+        {
+          binding: 3,
+          resource: device.createSampler({
+            magFilter: "linear",
+            minFilter: "linear",
+          }),
+        },
+      ],
+    });
+    computePass.setPipeline(blendComputePipeline);
+    computePass.setBindGroup(0, bindGroup);
+    computePass.dispatchWorkgroups(
+      Math.ceil(args.outputTexture.width / 8),
+      Math.ceil(args.outputTexture.height / 8),
+      1,
+    );
+    computePass.end();
+    return commandEncoder.finish();
+  };
+
+  return enqueuePass;
+};
+
 const getDoubleResUpscalePass = () => {
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
@@ -458,10 +566,11 @@ export const getBloomPass = async (): Promise<RenderPass> => {
   let thresholdTextureViews: GPUTextureView[];
   let thresholdTextureCopyViews: GPUTextureView[];
 
-  const horizontalBlur = getHorizontalBlur(8);
-  const verticalBlur = getVerticalBlur(8);
+  const horizontalBlur = getHorizontalBlur(2);
+  const verticalBlur = getVerticalBlur(2);
   const downscalePass = getHalfResDownscalePass();
   const upscalePass = getDoubleResUpscalePass();
+  const additveBlend = getAdditveBlend();
 
   const render = (args: RenderArgs) => {
     if (!thresholdTexture) {
@@ -550,29 +659,43 @@ export const getBloomPass = async (): Promise<RenderPass> => {
       },
     );
 
+    const blurs = Array.from({ length: 2 }, (_, i) => {
+      return [
+        horizontalBlur({
+          inputTexture: thresholdTexture,
+          inputTextureView: thresholdTextureViews[i],
+          outputTexture: thresholdTextureCopy,
+          outputTextureView: thresholdTextureCopyViews[i],
+        }),
+        verticalBlur({
+          inputTexture: thresholdTextureCopy,
+          inputTextureView: thresholdTextureCopyViews[i],
+          outputTexture: thresholdTexture,
+          outputTextureView: thresholdTextureViews[i],
+        }),
+        downscalePass({
+          inputTexture: thresholdTexture,
+          inputTextureView: thresholdTextureViews[i],
+          outputTexture: thresholdTexture,
+          outputTextureView: thresholdTextureViews[i + 1],
+        }),
+      ];
+    }).flat();
+
     return [
       commandEncoder.finish(),
-      horizontalBlur({
+      ...blurs,
+      additveBlend({
         inputTexture: thresholdTexture,
-        inputTextureView: thresholdTextureViews[0],
+        downscaledTexture: thresholdTexture,
         outputTexture: thresholdTextureCopy,
+        inputTextureView: thresholdTextureViews[0],
+        downscaledTextureView: thresholdTextureViews[1],
         outputTextureView: thresholdTextureCopyViews[0],
       }),
-      verticalBlur({
+      upscalePass({
         inputTexture: thresholdTextureCopy,
         inputTextureView: thresholdTextureCopyViews[0],
-        outputTexture: thresholdTexture,
-        outputTextureView: thresholdTextureViews[0],
-      }),
-      downscalePass({
-        inputTexture: thresholdTexture,
-        inputTextureView: thresholdTextureViews[0],
-        outputTexture: thresholdTexture,
-        outputTextureView: thresholdTextureViews[1],
-      }),
-      upscalePass({
-        inputTexture: thresholdTexture,
-        inputTextureView: thresholdTextureViews[1],
         outputTexture: args.outputTextures.finalTexture.texture,
         outputTextureView: args.outputTextures.finalTexture.view,
       }),
