@@ -1,6 +1,5 @@
 import { device, RenderArgs, RenderPass } from "../app";
 import { OUTPUT_TEXTURE_FORMAT } from "../constants";
-import { quat } from "wgpu-matrix";
 
 /** Applies a horizontal blur to the input texture
  * @param radius The radius of the blur
@@ -296,7 +295,7 @@ const getHalfResDownscalePass = () => {
   return enqueuePass;
 };
 
-const getAdditveBlend = () => {
+const getAdditiveBlend = (blendAmount = 1) => {
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
       {
@@ -317,6 +316,13 @@ const getAdditveBlend = () => {
         binding: 2,
         visibility: GPUShaderStage.COMPUTE,
         sampler: {},
+      },
+      {
+        binding: 3,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+        },
       },
     ],
   });
@@ -332,17 +338,22 @@ const getAdditveBlend = () => {
         @group(0) @binding(0) var inputTex : texture_2d<f32>;
         @group(0) @binding(1) var outputTex : texture_storage_2d<${OUTPUT_TEXTURE_FORMAT}, write>;
         @group(0) @binding(2) var linearSampler : sampler;
+        @group(0) @binding(3) var outputTexCopy : texture_2d<f32>;
         @compute @workgroup_size(8, 8, 1)
         fn main(
           @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
         ) {
-            let uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(textureDimensions(outputTex)) * 2.0;
+            var uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(textureDimensions(outputTex));
             var total = vec4<f32>(0.0);
-            for(var i = 6; i > 0; i--) {
-                total += textureSampleLevel(inputTex, linearSampler, uv, f32(i));
+            for(var mip = 6; mip >= 0; mip--) {
+                let mipTexelSize = 1.0 / vec2<f32>(textureDimensions(inputTex, mip));
+                // TODO: understand why i need two texels offset?
+                total += textureSampleLevel(inputTex, linearSampler, uv + mipTexelSize * 2, f32(mip));
             }
-            total /= 6.0;
-            textureStore(outputTex, GlobalInvocationID.xy, total);
+            total /= 7.0;
+            total *= ${blendAmount};
+            let current = textureLoad(outputTexCopy, GlobalInvocationID.xy, 0);
+            textureStore(outputTex, GlobalInvocationID.xy, total + current);
         }
         `,
       }),
@@ -355,6 +366,7 @@ const getAdditveBlend = () => {
     outputTexture: GPUTexture;
     inputTextureView: GPUTextureView;
     outputTextureView: GPUTextureView;
+    outputTextureCopyView: GPUTextureView;
   }) => {
     const commandEncoder = device.createCommandEncoder();
     const computePass = commandEncoder.beginComputePass();
@@ -375,6 +387,10 @@ const getAdditveBlend = () => {
             magFilter: "linear",
             minFilter: "linear",
           }),
+        },
+        {
+          binding: 3,
+          resource: args.outputTextureCopyView,
         },
       ],
     });
@@ -389,102 +405,6 @@ const getAdditveBlend = () => {
     return commandEncoder.finish();
   };
 
-  return enqueuePass;
-};
-
-const getDoubleResUpscalePass = () => {
-  const bindGroupLayout = device.createBindGroupLayout({
-    entries: [
-      {
-        binding: 0,
-        visibility: GPUShaderStage.COMPUTE,
-        texture: {
-          sampleType: "float",
-        },
-      },
-      {
-        binding: 1,
-        visibility: GPUShaderStage.COMPUTE,
-        storageTexture: {
-          format: OUTPUT_TEXTURE_FORMAT,
-        },
-      },
-      {
-        binding: 2,
-        visibility: GPUShaderStage.COMPUTE,
-        sampler: {},
-      },
-    ],
-  });
-
-  const upscaleComputePipeline = device.createComputePipeline({
-    label: "upscale",
-    layout: device.createPipelineLayout({
-      bindGroupLayouts: [bindGroupLayout],
-    }),
-    compute: {
-      module: device.createShaderModule({
-        code: `
-        @group(0) @binding(0) var inputTex : texture_2d<f32>;
-        @group(0) @binding(1) var outputTex : texture_storage_2d<${OUTPUT_TEXTURE_FORMAT}, write>;
-        @group(0) @binding(2) var linearSampler : sampler;
-        @compute @workgroup_size(8, 8, 1)
-        fn main(
-          @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
-        ) {
-            var sum = vec4<f32>(0.0);
-            let pixel = vec2<i32>(GlobalInvocationID.xy) / 2;
-            for(var i = 0; i < 2; i++) {
-                for(var j = 0; j < 2; j++) {
-                    sum += textureLoad(inputTex, vec2<i32>(pixel + vec2(i, j)), 0);
-                }
-            }
-            textureStore(outputTex, GlobalInvocationID.xy, sum);
-        }
-        `,
-      }),
-      entryPoint: "main",
-    },
-  });
-
-  const enqueuePass = (args: {
-    inputTexture: GPUTexture;
-    outputTexture: GPUTexture;
-    inputTextureView: GPUTextureView;
-    outputTextureView: GPUTextureView;
-  }) => {
-    const commandEncoder = device.createCommandEncoder();
-    const computePass = commandEncoder.beginComputePass();
-    const bindGroup = device.createBindGroup({
-      layout: bindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: args.inputTextureView,
-        },
-        {
-          binding: 1,
-          resource: args.outputTextureView,
-        },
-        {
-          binding: 2,
-          resource: device.createSampler({
-            magFilter: "linear",
-            minFilter: "linear",
-          }),
-        },
-      ],
-    });
-    computePass.setPipeline(upscaleComputePipeline);
-    computePass.setBindGroup(0, bindGroup);
-    computePass.dispatchWorkgroups(
-      Math.ceil(args.outputTexture.width / 8),
-      Math.ceil(args.outputTexture.height / 8),
-      1,
-    );
-    computePass.end();
-    return commandEncoder.finish();
-  };
   return enqueuePass;
 };
 
@@ -526,22 +446,24 @@ export const getBloomPass = async (): Promise<RenderPass> => {
         @group(0) @binding(0) var inputTex : texture_2d<f32>;
         @group(0) @binding(1) var outputTex : texture_storage_2d<${OUTPUT_TEXTURE_FORMAT}, write>;
         @group(0) @binding(2) var depthTex : texture_2d<f32>;
+        
+        const DOWNSCALE_FACTOR = 2;
+        
         @compute @workgroup_size(8, 8, 1)
         fn main(
           @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
         ) {
-            let color = textureLoad(inputTex, vec2<i32>(GlobalInvocationID.xy), 0);
-            let depth = textureLoad(depthTex, vec2<i32>(GlobalInvocationID.xy), 0).r;
-            if(depth > 0.999) {
-              textureStore(outputTex, GlobalInvocationID.xy, vec4<f32>(0.0));
-              return;
-            }
+            let gBufferPixel = vec2<i32>(GlobalInvocationID.xy) * DOWNSCALE_FACTOR;
+            let bloomPixel = vec2<i32>(GlobalInvocationID.xy);
+            let color = textureLoad(inputTex, gBufferPixel, 0);
+            let depth = textureLoad(depthTex, gBufferPixel, 0).r;
+
             let luminance = dot(color.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
            
-            let threshold = 6.0;
+            let threshold = 16.0;
             let smoothedLuminance = smoothstep(threshold - 1.0, threshold, luminance);
             let thresholded = mix(vec4<f32>(0.0), color, smoothedLuminance);
-            textureStore(outputTex, GlobalInvocationID.xy, thresholded);
+            textureStore(outputTex,bloomPixel, thresholded);
         }
         `,
       }),
@@ -549,24 +471,25 @@ export const getBloomPass = async (): Promise<RenderPass> => {
     },
   });
 
+  let outputCopyTexture: GPUTexture;
+  let outputCopyView: GPUTextureView;
   let thresholdTexture: GPUTexture;
   let thresholdTextureCopy: GPUTexture;
   let thresholdTextureViews: GPUTextureView[];
   let thresholdTextureCopyViews: GPUTextureView[];
   let allMipsView: GPUTextureView;
 
-  const horizontalBlur = getHorizontalBlur(2);
-  const verticalBlur = getVerticalBlur(2);
+  const horizontalBlur = getHorizontalBlur(3);
+  const verticalBlur = getVerticalBlur(3);
   const downscalePass = getHalfResDownscalePass();
-  const upscalePass = getDoubleResUpscalePass();
-  const additveBlend = getAdditveBlend();
+  const additiveBlend = getAdditiveBlend(0.1);
 
   const render = (args: RenderArgs) => {
     if (!thresholdTexture) {
-      thresholdTexture = device.createTexture({
+      const thresholdDescriptor = {
         size: {
-          width: args.outputTextures.finalTexture.width,
-          height: args.outputTextures.finalTexture.height,
+          width: args.outputTextures.finalTexture.width / 2,
+          height: args.outputTextures.finalTexture.height / 2,
         },
         format: OUTPUT_TEXTURE_FORMAT,
         usage:
@@ -574,32 +497,34 @@ export const getBloomPass = async (): Promise<RenderPass> => {
           GPUTextureUsage.COPY_SRC |
           GPUTextureUsage.TEXTURE_BINDING,
         mipLevelCount: 8,
-      });
-      thresholdTextureCopy = device.createTexture({
-        size: {
-          width: args.outputTextures.finalTexture.width,
-          height: args.outputTextures.finalTexture.height,
-        },
-        format: OUTPUT_TEXTURE_FORMAT,
-        usage:
-          GPUTextureUsage.STORAGE_BINDING |
-          GPUTextureUsage.COPY_SRC |
-          GPUTextureUsage.TEXTURE_BINDING,
-        mipLevelCount: 8,
-      });
+      };
+      thresholdTexture = device.createTexture(thresholdDescriptor);
+      thresholdTextureCopy = device.createTexture(thresholdDescriptor);
       thresholdTextureViews = Array.from({ length: 8 }, (_, i) => {
         return thresholdTexture.createView({
           baseMipLevel: i,
           mipLevelCount: 1,
         });
       });
-      thresholdTextureCopyViews = Array.from({ length: 8 }, (_, i) => {
+      thresholdTextureCopyViews = Array.from({ length: 7 }, (_, i) => {
         return thresholdTextureCopy.createView({
           baseMipLevel: i,
           mipLevelCount: 1,
         });
       });
       allMipsView = thresholdTexture.createView();
+      outputCopyTexture = device.createTexture({
+        size: {
+          width: args.outputTextures.finalTexture.width,
+          height: args.outputTextures.finalTexture.height,
+        },
+        format: OUTPUT_TEXTURE_FORMAT,
+        usage:
+          GPUTextureUsage.COPY_SRC |
+          GPUTextureUsage.COPY_DST |
+          GPUTextureUsage.TEXTURE_BINDING,
+      });
+      outputCopyView = outputCopyTexture.createView();
     }
     const commandEncoder = device.createCommandEncoder();
     const computePass = commandEncoder.beginComputePass({
@@ -633,12 +558,12 @@ export const getBloomPass = async (): Promise<RenderPass> => {
 
     commandEncoder.copyTextureToTexture(
       {
-        texture: thresholdTexture,
+        texture: args.outputTextures.finalTexture.texture,
         mipLevel: 0,
         origin: { x: 0, y: 0, z: 0 },
       },
       {
-        texture: args.outputTextures.finalTexture.texture,
+        texture: outputCopyTexture,
         mipLevel: 0,
         origin: { x: 0, y: 0, z: 0 },
       },
@@ -675,17 +600,12 @@ export const getBloomPass = async (): Promise<RenderPass> => {
     return [
       commandEncoder.finish(),
       ...blurs,
-      additveBlend({
+      additiveBlend({
         inputTexture: thresholdTexture,
         inputTextureView: allMipsView,
-        outputTexture: thresholdTextureCopy,
-        outputTextureView: thresholdTextureCopyViews[0],
-      }),
-      upscalePass({
-        inputTexture: thresholdTextureCopy,
-        inputTextureView: thresholdTextureCopyViews[0],
         outputTexture: args.outputTextures.finalTexture.texture,
         outputTextureView: args.outputTextures.finalTexture.view,
+        outputTextureCopyView: outputCopyView,
       }),
     ];
   };

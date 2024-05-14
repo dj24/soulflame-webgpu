@@ -216,22 +216,17 @@ lights = [
   {
     position: [-43.8, 5.5, -36],
     size: 2.2,
-    color: vec3.create(50, 5, 5),
+    color: vec3.create(200, 20, 20),
   },
   {
     position: [-36, 5.5, -36],
     size: 2.2,
-    color: vec3.create(15, 50, 15),
+    color: vec3.create(20, 200, 20),
   },
   {
     position: [-25, 5.5, -36],
     size: 2.2,
-    color: vec3.create(15, 15, 50),
-  },
-  {
-    position: [-55, 5.5, -36],
-    size: 2.2,
-    color: vec3.create(30, 5, 40),
+    color: vec3.create(20, 20, 200),
   },
 ];
 
@@ -586,8 +581,9 @@ const start = async () => {
     getShadowsPass(),
     getSkyPass(),
     getLightsPass(),
+    getFogPass(),
     getBloomPass(),
-    // getFogPass(),
+
     // getTaaPass(),
     // getBoxOutlinePass(),
     getTonemapPass(),
