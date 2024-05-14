@@ -12,6 +12,7 @@ fn rcp(x: f32) -> f32 {
 @group(0) @binding(2) var HistoryWrite : texture_storage_2d<rgba16float, write>;
 @group(0) @binding(3) var HistoryRead : texture_2d<f32>;
 @group(0) @binding(5) var Depth : texture_2d<f32>;
+//@group(0) @binding(6) var linearSampler : sampler;
 
 const DEPTH_THRESHOLD : f32 = 0.01;
 
@@ -19,18 +20,14 @@ const DEPTH_THRESHOLD : f32 = 0.01;
 fn main(
     @builtin(global_invocation_id) id : vec3<u32>
 ) {
-    let texSize = textureDimensions(CurrentColor);
-    let uv = vec2<f32>(id.xy / texSize);
-    let sourceSample: vec3<f32> = textureLoad(CurrentColor, id.xy, 0).rgb;
-
+    let texSize = vec2<f32>(textureDimensions(CurrentColor));
+    let uv = vec2<f32>(id.xy) / texSize;
     let uvVelocity: vec2<f32> = textureLoad(Velocity, id.xy, 0).xy * vec2(0.5, -0.5);
     let previousUv: vec2<f32> = clamp(uv - uvVelocity, vec2(0.0), vec2(1.0));
     let previousPixel: vec2<u32> = vec2<u32>(round(previousUv * vec2<f32>(texSize)));
 
+    var sourceSample: vec3<f32> = textureLoad(CurrentColor, id.xy, 0).rgb;
     var historySample: vec3<f32> = textureLoad(HistoryRead, previousPixel, 0).rgb;
-
-    textureStore(HistoryWrite, id.xy, vec4<f32>(mix(textureLoad(HistoryRead, id.xy, 0).rgb, sourceSample, 0.125), 1.0));
-    return;
 
     // Sample depth from the Depth texture
     let depthSample: f32 = textureLoad(Depth, id.xy, 0).r;
@@ -39,13 +36,14 @@ fn main(
     // Calculate depth difference between source and history samples
     let depthDifference: f32 = abs(depthSample - depthAtPreviousPixel);
 
-    // Apply depth clamping
-//    if (depthDifference > DEPTH_THRESHOLD) {
-//        // Discard or handle the pixel differently
-//        // For example, you can discard the pixel or use a different blending approach.
-//        return;
-//    }
+// Apply depth clamping
+    if (depthDifference > DEPTH_THRESHOLD) {
+        // Discard or handle the pixel differently
+        // For example, you can discard the pixel or use a different blending approach.
+        return;
+    }
 
+// Clamp the history sample to the min and max of the 3x3 neighborhood
     var minCol: vec3<f32> = sourceSample;
     var maxCol: vec3<f32> = sourceSample;
 
@@ -72,7 +70,6 @@ fn main(
 
     let result: vec3<f32> = (sourceSample * sourceWeight + historySample * historyWeight) / max(sourceWeight + historyWeight, 0.0001);
 
-    if(uv.x > 0.5){
-      textureStore(HistoryWrite, id.xy, vec4<f32>(result, 1.0));
-    }
+textureStore(HistoryWrite, id.xy, vec4<f32>(result, 1.0));
+
 }

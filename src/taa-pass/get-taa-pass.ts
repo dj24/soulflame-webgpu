@@ -7,21 +7,7 @@ const downscaleFactor = 1;
 export const getTaaPass = async (): Promise<RenderPass> => {
   let historyTexture: GPUTexture;
   let currentFrameTexture: GPUTexture;
-
-  const createHistoryTextureView = () => {
-    if (!historyTexture) {
-      historyTexture = device.createTexture({
-        label: "TAA History Texture",
-        size: [resolution[0], resolution[1], 1],
-        format: OUTPUT_TEXTURE_FORMAT,
-        usage:
-          GPUTextureUsage.TEXTURE_BINDING |
-          GPUTextureUsage.STORAGE_BINDING |
-          GPUTextureUsage.COPY_DST,
-      });
-    }
-    return historyTexture.createView();
-  };
+  let currentFrameTextureView: GPUTextureView;
 
   const taaPipeline = device.createComputePipeline({
     layout: "auto",
@@ -32,11 +18,26 @@ export const getTaaPass = async (): Promise<RenderPass> => {
       entryPoint: "main",
     },
   });
+
+  let historyTextureView: GPUTextureView;
+
   const render = ({
     commandEncoder,
     timestampWrites,
     outputTextures,
   }: RenderArgs) => {
+    if (!historyTexture) {
+      historyTexture = device.createTexture({
+        label: "TAA History Texture",
+        size: [resolution[0], resolution[1], 1],
+        format: OUTPUT_TEXTURE_FORMAT,
+        usage:
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.STORAGE_BINDING |
+          GPUTextureUsage.COPY_DST,
+      });
+      historyTextureView = historyTexture.createView();
+    }
     if (!currentFrameTexture) {
       currentFrameTexture = device.createTexture({
         size: [resolution[0], resolution[1], 1],
@@ -46,6 +47,7 @@ export const getTaaPass = async (): Promise<RenderPass> => {
           GPUTextureUsage.STORAGE_BINDING |
           GPUTextureUsage.COPY_DST,
       });
+      currentFrameTextureView = currentFrameTexture.createView();
     }
 
     commandEncoder.copyTextureToTexture(
@@ -72,7 +74,7 @@ export const getTaaPass = async (): Promise<RenderPass> => {
       entries: [
         {
           binding: 0,
-          resource: currentFrameTexture.createView(),
+          resource: currentFrameTextureView,
         },
         {
           binding: 1,
@@ -84,12 +86,20 @@ export const getTaaPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 3,
-          resource: createHistoryTextureView(),
+          resource: historyTextureView,
         },
         {
           binding: 5,
           resource: outputTextures.depthTexture.view,
         },
+        // {
+        //   binding: 6,
+        //   resource: device.createSampler({
+        //     magFilter: "nearest",
+        //     minFilter: "nearest",
+        //     mipmapFilter: "nearest",
+        //   }),
+        // },
       ],
     });
 

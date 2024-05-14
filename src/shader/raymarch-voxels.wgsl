@@ -36,6 +36,7 @@ struct VoxelObject {
 struct RayMarchResult {
   palettePosition: f32,
   worldPos: vec3<f32>,
+  objectPos: vec3<f32>,
   normal: vec3<f32>,
   stepsTaken: i32,
   hit: bool,
@@ -108,8 +109,8 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
     let samplePosition = vec3<u32>(currentIndex) + atlasLocation;
     let mipSample0 = textureLoad(voxels, samplePosition / vec3((1u << mipLevel)), mipLevel);
 
-
     if(mipSample0.r > 0.0 && isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
+        output.objectPos = objectPos;
         output.worldPos = (voxelObject.transform *  vec4(objectPos, 1.0)).xyz;
         output.normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(objectNormal));
         output.hit = true;
@@ -222,25 +223,3 @@ const OCTREE_CHILD_OFFSETS = array<vec3<i32>, 8>(
   vec3<i32>(0, 1, 1),
   vec3<i32>(1, 1, 1)
 );
-
-//fn rayMarchStack(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>, startingMipLevel: u32) -> RayMarchResult {
-//  // Create a stack to store the nodes to visit
-//  var stack = stack_new();
-//  var closestIntersection = RayMarchResult();
-//  var stack = stack_new();
-//  var mipLevel = startingMipLevel;
-//  var voxelSize = vec3<f32>(1 << mipLevel);
-//  var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
-//  let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-//
-//  stack_push(&stack, 0);
-//  closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
-//
-//  while (stack.head > 0u && iterations < MAX_STEPS) {
-//    var nodeDistances = array<f32>(8);
-//    for(var i = 0; i < 8; i++){
-//      nodeDistances[i] = FAR_PLANE;
-//    }
-//
-//  }
-//}

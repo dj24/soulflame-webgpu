@@ -36,6 +36,7 @@ import { getClearPass } from "./clear-pass/get-clear-pass";
 import { getTonemapPass } from "./tonemap-pass/get-tonemap-pass";
 import { SKYBOX_TEXTURE_FORMAT } from "./constants";
 import { getBloomPass } from "./bloom-pass/get-bloom-pass";
+import { getMotionBlurPass } from "./motion-blur/motion-blur";
 
 export const debugValues = new DebugValuesStore();
 
@@ -581,10 +582,10 @@ const start = async () => {
     getShadowsPass(),
     getSkyPass(),
     getLightsPass(),
+    getTaaPass(),
+    // getMotionBlurPass(),
     getFogPass(),
     getBloomPass(),
-
-    // getTaaPass(),
     // getBoxOutlinePass(),
     getTonemapPass(),
     fullscreenQuad(device),
