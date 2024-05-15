@@ -95,9 +95,9 @@ export const getTaaPass = async (): Promise<RenderPass> => {
         {
           binding: 6,
           resource: device.createSampler({
-            magFilter: "nearest",
-            minFilter: "nearest",
-            mipmapFilter: "nearest",
+            magFilter: "linear",
+            minFilter: "linear",
+            mipmapFilter: "linear",
           }),
         },
       ],

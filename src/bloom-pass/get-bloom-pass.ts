@@ -479,10 +479,10 @@ export const getBloomPass = async (): Promise<RenderPass> => {
   let thresholdTextureCopyViews: GPUTextureView[];
   let allMipsView: GPUTextureView;
 
-  const horizontalBlur = getHorizontalBlur(3);
-  const verticalBlur = getVerticalBlur(3);
+  const horizontalBlur = getHorizontalBlur(5);
+  const verticalBlur = getVerticalBlur(5);
   const downscalePass = getHalfResDownscalePass();
-  const additiveBlend = getAdditiveBlend(0.1);
+  const additiveBlend = getAdditiveBlend(0.25);
 
   const render = (args: RenderArgs) => {
     if (!thresholdTexture) {

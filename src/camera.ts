@@ -1,8 +1,9 @@
-import { camera, deltaTime, resolution } from "./app";
+import { camera, deltaTime, frameCount, resolution } from "./app";
 import { KeyboardControls } from "./keyboard-controls";
 import { MovableObject } from "./movable-object";
 import { mat4, quat, vec3, Vec3 } from "wgpu-matrix";
 import { UpdatedByRenderLoop } from "./decorators/updated-by-render-loop";
+import { haltonJitter } from "./jitter-view-projection";
 
 const keyboardControls = new KeyboardControls();
 
@@ -40,7 +41,8 @@ export class Camera extends MovableObject {
   }
 
   get viewProjectionMatrix() {
-    return mat4.mul(this.projectionMatrix, this.viewMatrix);
+    const jitteredViewMatrix = haltonJitter(frameCount, this.viewMatrix);
+    return mat4.mul(this.projectionMatrix, jitteredViewMatrix);
   }
 
   get inverseViewProjectionMatrix() {

@@ -37,6 +37,7 @@ import { getTonemapPass } from "./tonemap-pass/get-tonemap-pass";
 import { SKYBOX_TEXTURE_FORMAT } from "./constants";
 import { getBloomPass } from "./bloom-pass/get-bloom-pass";
 import { getMotionBlurPass } from "./motion-blur/motion-blur";
+import { getBoxOutlinePass } from "./box-outline/get-box-outline-pass";
 
 export const debugValues = new DebugValuesStore();
 
@@ -217,17 +218,17 @@ lights = [
   {
     position: [-43.8, 5.5, -36],
     size: 2.2,
-    color: vec3.create(200, 20, 20),
+    color: vec3.create(400, 20, 20),
   },
   {
     position: [-36, 5.5, -36],
     size: 2.2,
-    color: vec3.create(20, 200, 20),
+    color: vec3.create(20, 400, 20),
   },
   {
     position: [-25, 5.5, -36],
     size: 2.2,
-    color: vec3.create(20, 20, 200),
+    color: vec3.create(20, 20, 400),
   },
 ];
 
@@ -358,7 +359,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     // Multiply the existing direction vector by the rotation matrix
     const newDirection = vec3.normalize(
-      vec3.transformMat4(vec3.create(0, 0.6, -0.8), rotationMatrix),
+      vec3.transformMat4(vec3.create(0, 0.4, -0.8), rotationMatrix),
     );
 
     if (sunDirectionBuffer) {
@@ -435,7 +436,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       return;
     }
 
-    UpdatedByRenderLoop.updateAll();
+    UpdatedByRenderLoop.updateAll(frameCount);
     bvh.update(voxelObjects);
 
     const jitteredCameraPosition = mat4.getTranslation(
@@ -564,7 +565,7 @@ const start = async () => {
   skyTexture = device.createTexture({
     label: "sky texture",
     dimension: "2d",
-    size: [768, 768, 6],
+    size: [512, 512, 6],
     format: SKYBOX_TEXTURE_FORMAT,
     usage:
       GPUTextureUsage.COPY_SRC |
@@ -584,10 +585,10 @@ const start = async () => {
     // getLightsPass(),
     getTaaPass(),
     // getMotionBlurPass(),
-    // getFogPass(),
-    // getBloomPass(),
+    getFogPass(),
+    getBloomPass(),
     // getBoxOutlinePass(),
-    // getTonemapPass(),
+    getTonemapPass(),
     fullscreenQuad(device),
   ];
 

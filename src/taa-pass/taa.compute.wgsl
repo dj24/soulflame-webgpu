@@ -37,17 +37,14 @@ fn main(
     // Calculate depth difference between source and history samples
     let depthDifference: f32 = abs(depthSample - depthAtPreviousPixel);
 
-// Apply depth clamping
+    // Apply depth clamping
     if (depthDifference > DEPTH_THRESHOLD) {
-        // Discard or handle the pixel differently
-        // For example, you can discard the pixel or use a different blending approach.
         return;
     }
 
-// Clamp the history sample to the min and max of the 3x3 neighborhood
+    // Clamp the history sample to the min and max of the 3x3 neighborhood
     var minCol: vec3<f32> = sourceSample;
     var maxCol: vec3<f32> = sourceSample;
-
     for (var x: i32 = -1; x <= 1; x = x + 1) {
         for (var y: i32 = -1; y <= 1; y = y + 1) {
             let neighbourPixel = clamp(vec2(i32(id.x) + x, i32(id.y) + y), vec2(0), vec2(i32(texSize.x - 1), i32(texSize.y - 1)));
@@ -58,17 +55,14 @@ fn main(
     }
 
     historySample = clamp(historySample, minCol, maxCol);
-
-    var sourceWeight: f32 = 0.1;
+    var sourceWeight: f32 = clamp(length(uvVelocity), 0.025, 1.0);
     var historyWeight: f32 = 1.0 - sourceWeight;
     let compressedSource: vec3<f32> = sourceSample * rcp(max(max(sourceSample.r, sourceSample.g), sourceSample.b) + 1.0);
     let compressedHistory: vec3<f32> = historySample * rcp(max(max(historySample.r, historySample.g), historySample.b) + 1.0);
     let luminanceSource: f32 = Luminance(compressedSource);
     let luminanceHistory: f32 = Luminance(compressedHistory);
-
     sourceWeight *= 1.0 / (1.0 + luminanceSource);
     historyWeight *= 1.0 / (1.0 + luminanceHistory);
-
     let result: vec3<f32> = (sourceSample * sourceWeight + historySample * historyWeight) / max(sourceWeight + historyWeight, 0.0001);
 
 textureStore(HistoryWrite, id.xy, vec4<f32>(result, 1.0));

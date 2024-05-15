@@ -2,21 +2,12 @@
 const BLUE_NOISE_SIZE = 511;
 const MAX_DISTANCE = 40.0;
 const START_DISTANCE = 0.0;
-const EXTINCTION = vec3(.06, .035, .015);
-const FORWARD_SCATTER = 0.8;
-const STEPS = 16.0;
+const EXTINCTION = vec3(.06, .04, .03);
+const FORWARD_SCATTER = 0.15;
+const STEPS = 8.0;
 const NEAR  = 0.5;
 const FAR = 10000.0;
-const LIGHT_INTENSITY = 6.0;
-
-fn ACESFilm(x: vec3<f32>) -> vec3<f32>{
-    let a = 2.51;
-    let b = 0.03;
-    let c = 2.43;
-    let d = 0.59;
-    let e = 0.14;
-    return (x*(a*x+b))/(x*(c*x+d)+e);
-}
+const LIGHT_INTENSITY = 24.0;
 
 fn henyeyGreenstein(cosTheta: f32, g: f32) -> f32 {
   let g2 = g * g;
@@ -66,15 +57,31 @@ fn main(
   textureStore(outputTex, pixel, vec4<f32>(volColour, 1.0));
 }
 
+const BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS: array<vec3<f32>, 9> = array<vec3<f32>, 9>(
+  vec3<f32>(0.0, 0.0, 4.0 / 16.0),
+  vec3<f32>(1.0, 0.0, 2.0 / 16.0),
+  vec3<f32>(-1.0, 0.0, 2.0 / 16.0),
+  vec3<f32>(0.0, 1.0, 2.0 / 16.0),
+  vec3<f32>(0.0, -1.0, 2.0 / 16.0),
+  vec3<f32>(1.0, 1.0, 1.0 / 16.0),
+  vec3<f32>(-1.0, 1.0, 1.0 / 16.0),
+  vec3<f32>(1.0, -1.0, 1.0 / 16.0),
+  vec3<f32>(-1.0, -1.0, 1.0 / 16.0),
+);
+
 @compute @workgroup_size(8, 8, 1)
 fn composite(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
   let texSize = textureDimensions(outputTex);
-  let shadowSampleUV = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(texSize);
-  var fogAmount = textureSampleLevel(intermediaryTexture, linearSampler, shadowSampleUV, 0.0);
-  let colourSample = textureLoad(inputTex, GlobalInvocationID.xy, 0);
-  let output = (fogAmount + colourSample).rgb;
-//  let output = fogAmount.rgb;
+  let fogTexelSize = 1.0 / vec2<f32>(textureDimensions(intermediaryTexture));
+  let fogSampleUV = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(texSize);
+  let colourSample = textureLoad(inputTex, GlobalInvocationID.xy, 0).rgb;
+  var totalFog = vec3(0.0);
+  for(var i = 0; i < 9; i++){
+    let fogAmount = textureSampleLevel(intermediaryTexture, linearSampler, fogSampleUV + BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS[i].xy * fogTexelSize, 0.0);
+    totalFog += fogAmount.rgb * BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS[i].z;
+  }
+  let output = (totalFog + colourSample).rgb;
   textureStore(outputTex, GlobalInvocationID.xy, vec4(output, 1));
 }

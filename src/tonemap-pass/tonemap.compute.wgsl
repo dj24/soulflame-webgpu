@@ -26,7 +26,7 @@ fn aces(v: vec3<f32>) -> vec3<f32>
 
 fn uncharted2_filmic(v: vec3<f32>) -> vec3<f32>
 {
-    let exposure_bias = 0.5f;
+    let exposure_bias = 0.15f;
     let curr = uncharted2_tonemap_partial(v * exposure_bias);
 
     let W = vec3(11.2f);
@@ -47,6 +47,6 @@ fn main(
 ) {
   let pixel = GlobalInvocationID.xy;
   let inputSample = textureLoad(inputTex, pixel, 0);
-  let toneMapped = reinhard_jodie(inputSample.rgb);
+  let toneMapped = uncharted2_filmic(inputSample.rgb);
   textureStore(outputTex,pixel,vec4(toneMapped,1));
 }

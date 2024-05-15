@@ -1,15 +1,18 @@
 
 
-fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>) -> bool {
-  let rayOrigin = worldPos + shadowRayDirection * 0.5; // To adccount for self occlusion of higher mip
+fn diffuseRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>) -> bool {
+  let rayOrigin = worldPos + shadowRayDirection * 0.33; // To adccount for self occlusion of higher mip
   return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 1).hit;
-//    return rayMarchBVH(worldPos, shadowRayDirection).hit;
+}
+
+fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>) -> bool {
+  let rayOrigin = worldPos + normal * 0.33; // To adccount for self occlusion of higher mip
+  return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 1).hit;
 }
 
 
-const SUN_COLOR = vec3<f32>(0.9);
+const SUN_COLOR = vec3(0.6,0.5,0.4) * 100.0;
 const MOON_COLOR = vec3<f32>(0.5, 0.5, 1.0);
-const SKY_AMBIENT_INTENSITY = 0.1;
 const SUBPIXEL_SAMPLE_POSITIONS: array<vec2<f32>, 8> = array<vec2<f32>, 8>(
   vec2<f32>(0.25, 0.25),
   vec2<f32>(0.75, 0.25),
@@ -24,7 +27,7 @@ const BLUE_NOISE_SIZE = 511;
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const SHADOW_ACNE_OFFSET: f32 = 0.005;
-const SCATTER_AMOUNT: f32 =0.8;
+const SCATTER_AMOUNT: f32 = 0.05;
 const POSITION_SCATTER_AMOUNT: f32 = 0.25;
 
 fn blinnPhong(normal: vec3<f32>, lightDirection: vec3<f32>, viewDirection: vec3<f32>, specularStrength: f32, shininess: f32, lightColour: vec3<f32>) -> vec3<f32> {
@@ -96,15 +99,23 @@ fn main(
   }
   var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
   let sampleWorldPos = worldPos + randomInPlanarUnitDisk(r, normalSample) * POSITION_SCATTER_AMOUNT;
-  var shadowRayDirection = randomInCosineWeightedHemisphere(r, normalSample);
-  shadowRayDirection = mix(sunDirection, shadowRayDirection, SCATTER_AMOUNT);
-  if(shadowRay(sampleWorldPos, shadowRayDirection)){
-      textureStore(outputTex, outputPixel, vec4(0.01));
-      return;
-  } else{
-      let sky = textureSampleLevel(skyCube, linearSampler, shadowRayDirection, 0.0);
-      textureStore(outputTex, outputPixel, clamp(sky, vec4(0.0), vec4(1.0)));
+  var diffuseDirection = randomInCosineWeightedHemisphere(r, normalSample);
+
+  var radiance = vec3(0.01);
+  let shadowRayDirection = sunDirection + randomInCosineWeightedHemisphere(r, sunDirection) * SCATTER_AMOUNT;
+  if(!shadowRay(sampleWorldPos, shadowRayDirection, normalSample)){
+    let viewDirection = normalize(cameraPosition - worldPos);
+    let diffuse = max(dot(normalSample, sunDirection), 0.0);
+    let specular = pow(max(dot(normalSample, normalize(sunDirection + viewDirection)), 0.0), 32.0);
+    let lightIntensity = SUN_COLOR * (diffuse + specular);
+    radiance += lightIntensity;
   }
+  if(!diffuseRay(sampleWorldPos, diffuseDirection, normalSample)){
+      let sky = textureSampleLevel(skyCube, linearSampler, diffuseDirection, 0.0);
+      radiance += clamp(vec3(sky.rgb), vec3(0.0), vec3(32.0));
+  }
+
+  textureStore(outputTex, outputPixel, vec4(radiance, 1.0));
 }
 
 const PI = 3.1415926535897932384626433832795;
@@ -116,57 +127,13 @@ fn polarToCartesian(angle: f32, radius: f32) -> vec2<f32> {
   return vec2<f32>(x, y);
 }
 
-
-
-// 3x3 Gaussian blur kernel, weight in z component
-const BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS: array<vec3<f32>, 9> = array<vec3<f32>, 9>(
-  vec3<f32>(0.0, 0.0, 4.0 / 16.0),
-  vec3<f32>(1.0, 0.0, 2.0 / 16.0),
-  vec3<f32>(-1.0, 0.0, 2.0 / 16.0),
-  vec3<f32>(0.0, 1.0, 2.0 / 16.0),
-  vec3<f32>(0.0, -1.0, 2.0 / 16.0),
-  vec3<f32>(1.0, 1.0, 1.0 / 16.0),
-  vec3<f32>(-1.0, 1.0, 1.0 / 16.0),
-  vec3<f32>(1.0, -1.0, 1.0 / 16.0),
-  vec3<f32>(-1.0, -1.0, 1.0 / 16.0),
-);
-
-// 5x5 Gaussian blur kernel, weight in z component
-const BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS_5x5: array<vec3<f32>, 25> = array<vec3<f32>, 25>(
-  vec3<f32>(0.0, 0.0, 41.0 / 273.0),
-  vec3<f32>(1.0, 0.0, 26.0 / 273.0),
-  vec3<f32>(-1.0, 0.0, 26.0 / 273.0),
-  vec3<f32>(0.0, 1.0, 26.0 / 273.0),
-  vec3<f32>(0.0, -1.0, 26.0 / 273.0),
-  vec3<f32>(1.0, 1.0, 16.0 / 273.0),
-  vec3<f32>(-1.0, 1.0, 16.0 / 273.0),
-  vec3<f32>(1.0, -1.0, 16.0 / 273.0),
-  vec3<f32>(-1.0, -1.0, 16.0 / 273.0),
-  vec3<f32>(2.0, 0.0, 7.0 / 273.0),
-  vec3<f32>(-2.0, 0.0, 7.0 / 273.0),
-  vec3<f32>(0.0, 2.0, 7.0 / 273.0),
-  vec3<f32>(0.0, -2.0, 7.0 / 273.0),
-  vec3<f32>(2.0, 1.0, 4.0 / 273.0),
-  vec3<f32>(-2.0, 1.0, 4.0 / 273.0),
-  vec3<f32>(2.0, -1.0, 4.0 / 273.0),
-  vec3<f32>(-2.0, -1.0, 4.0 / 273.0),
-  vec3<f32>(1.0, 2.0, 4.0 / 273.0),
-  vec3<f32>(-1.0, 2.0, 4.0 / 273.0),
-  vec3<f32>(1.0, -2.0, 4.0 / 273.0),
-  vec3<f32>(-1.0, -2.0, 4.0 / 273.0),
-  vec3<f32>(2.0, 2.0, 1.0 / 273.0),
-  vec3<f32>(-2.0, 2.0, 1.0 / 273.0),
-  vec3<f32>(2.0, -2.0, 1.0 / 273.0),
-  vec3<f32>(-2.0, -2.0, 1.0 / 273.0),
-);
-
-
+const TEMPORAL_DEPTH_THRESHOLD = 0.0001;
 const DEPTH_SENSITIVITY = 100.0;
-const BLUR_RADIUS = 1.5;
+const BLUR_RADIUS = 2.0;
 const GOLDEN_RATIO = 1.61803398875;
 
 @compute @workgroup_size(8, 8, 1)
-fn composite(
+fn denoise(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
   let texSize = textureDimensions(outputTex);
@@ -177,34 +144,74 @@ fn composite(
   let normalRef = textureLoad(normalTex, pixel, 0).rgb;
   let depthRef = textureLoad(depthTex, pixel, 0).r;
   let shadowRef = textureLoad(intermediaryTexture, pixel, 0);
-  textureStore(outputTex, pixel, shadowRef);
 
+  // Temporal sampling
+  let uv = (vec2<f32>(pixel) + vec2(0.5)) / vec2<f32>(texSize);
+  let uvVelocity: vec2<f32> = textureLoad(velocityAndWaterTex, pixel, 0).xy * vec2(0.5, -0.5);
+  let previousUv = uv - uvVelocity;
+  let previousPixel = vec2<i32>(previousUv * vec2<f32>(texSize));
+  var previousShadow = textureSampleLevel(previousTex, nearestSampler, previousUv, 0);
 
+  var previousWeight = clamp(1.0 - length(previousUv), 0.0,0.5);
+
+  // Sample depth from the Depth texture
+  let depthAtPreviousPixel: f32 = textureLoad(depthTex, previousPixel, 0).r;
+
+  // Calculate depth difference between source and history samples
+  let depthDifference: f32 = abs(depthRef - depthAtPreviousPixel);
+
+  // Apply depth clamping
+  if (depthDifference > TEMPORAL_DEPTH_THRESHOLD) {
+      previousWeight = 0.0;
+  }
+
+  // Clamp the history sample to the min and max of the 3x3 neighborhood
+  var minCol = shadowRef;
+  var maxCol = shadowRef;
+  for (var x: i32 = -1; x <= 1; x = x + 1) {
+      for (var y: i32 = -1; y <= 1; y = y + 1) {
+          let neighbourPixel = clamp(vec2(i32(pixel.x) + x, i32(pixel.y) + y), vec2(0), vec2(i32(texSize.x - 1), i32(texSize.y - 1)));
+          let s = textureLoad(intermediaryTexture, neighbourPixel, 0);
+          minCol = min(minCol, s);
+          maxCol = max(maxCol, s);
+      }
+  }
+  previousShadow = clamp(previousShadow, minCol, maxCol);
+
+  // Bilateral blur
   var outputColour = vec4<f32>(0.0);
   var totalWeight = 0.0;
-
   for(var i = 0u; i < 9; i++){
-    let foo = BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS[i];
-    let offset = foo.xy * texelSize;
+    let offset =  SUBPIXEL_SAMPLE_POSITIONS[i] * texelSize;
     let sampleUV = shadowSampleUV + offset * BLUR_RADIUS;
     let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
     let normalSample = textureSampleLevel(normalTex, nearestSampler, sampleUV, 0.0).rgb;
     let depthSample = textureLoad(depthTex, samplePixel, 0).r;
-    let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0);
+    let shadowSample = textureSampleLevel(intermediaryTexture, nearestSampler, sampleUV, 0.0);
 
     let relativeDepthDifference = abs(depthSample - depthRef) / depthRef;
     let depthWeight = clamp(1.0 - relativeDepthDifference * DEPTH_SENSITIVITY, 0,1);
     let normalWeight = dot(normalSample, normalRef);
-    let gaussWeight = foo.z;
 
-    let weight =  depthWeight * normalWeight * gaussWeight;
-
+    let weight =  depthWeight * normalWeight;
     totalWeight += weight;
     outputColour += shadowSample * weight;
   }
 
   outputColour /= totalWeight;
-  textureStore(outputTex, pixel,outputColour);
 
 
+  textureStore(outputTex, pixel, mix(outputColour, previousShadow, previousWeight));
+
+//  textureStore(outputTex, pixel,outputColour);
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn composite(
+  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
+) {
+  let pixel = vec2<i32>(GlobalInvocationID.xy);
+  let shadowRef = textureLoad(intermediaryTexture, pixel, 0);
+  let albedoRef = textureLoad(albedoTex, pixel, 0);
+  textureStore(outputTex, pixel,shadowRef * albedoRef);
 }

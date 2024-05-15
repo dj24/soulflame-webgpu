@@ -1,5 +1,5 @@
 export interface UpdatedByRenderLoop {
-  update(): void;
+  update(frameIndex: number): void;
 }
 
 /**
@@ -10,9 +10,9 @@ export namespace UpdatedByRenderLoop {
   type Constructor = new (...args: any[]) => UpdatedByRenderLoop;
   const instances: UpdatedByRenderLoop[] = [];
 
-  export const updateAll = () => {
+  export const updateAll = (frameIndex: number) => {
     for (const instance of instances) {
-      instance.update();
+      instance.update(frameIndex);
     }
   };
 
