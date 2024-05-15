@@ -581,13 +581,13 @@ const start = async () => {
     // getGBufferPass(),
     getShadowsPass(),
     getSkyPass(),
-    getLightsPass(),
+    // getLightsPass(),
     getTaaPass(),
     // getMotionBlurPass(),
-    getFogPass(),
-    getBloomPass(),
+    // getFogPass(),
+    // getBloomPass(),
     // getBoxOutlinePass(),
-    getTonemapPass(),
+    // getTonemapPass(),
     fullscreenQuad(device),
   ];
 

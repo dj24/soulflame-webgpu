@@ -12,22 +12,23 @@ fn rcp(x: f32) -> f32 {
 @group(0) @binding(2) var HistoryWrite : texture_storage_2d<rgba16float, write>;
 @group(0) @binding(3) var HistoryRead : texture_2d<f32>;
 @group(0) @binding(5) var Depth : texture_2d<f32>;
-//@group(0) @binding(6) var linearSampler : sampler;
+@group(0) @binding(6) var linearSampler : sampler;
 
-const DEPTH_THRESHOLD : f32 = 0.01;
+const DEPTH_THRESHOLD : f32 = 0.0005;
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
     @builtin(global_invocation_id) id : vec3<u32>
 ) {
     let texSize = vec2<f32>(textureDimensions(CurrentColor));
-    let uv = vec2<f32>(id.xy) / texSize;
+    let uv = (vec2<f32>(id.xy) + vec2(0.5)) / texSize;
     let uvVelocity: vec2<f32> = textureLoad(Velocity, id.xy, 0).xy * vec2(0.5, -0.5);
     let pixelVelocity: vec2<f32> = uvVelocity * texSize;
     let previousPixel: vec2<i32> = vec2<i32>(id.xy) -  vec2<i32>(pixelVelocity);
+    let previousUv = uv - uvVelocity;
 
-    var sourceSample: vec3<f32> = textureLoad(CurrentColor, id.xy, 0).rgb;
-    var historySample: vec3<f32> = textureLoad(HistoryRead, previousPixel, 0).rgb;
+    var sourceSample: vec3<f32> = textureSampleLevel(CurrentColor, linearSampler, uv, 0).rgb;
+    var historySample: vec3<f32> = textureSampleLevel(HistoryRead, linearSampler, previousUv, 0).rgb;
 
     // Sample depth from the Depth texture
     let depthSample: f32 = textureLoad(Depth, id.xy, 0).r;

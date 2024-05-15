@@ -1,8 +1,8 @@
 
 
 fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>) -> bool {
-  let rayOrigin = worldPos + shadowRayDirection * 0.66; // To adccount for self occlusion of higher mip
-  return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 2).hit;
+  let rayOrigin = worldPos + shadowRayDirection * 0.5; // To adccount for self occlusion of higher mip
+  return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 1).hit;
 //    return rayMarchBVH(worldPos, shadowRayDirection).hit;
 }
 
@@ -162,7 +162,7 @@ const BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS_5x5: array<vec3<f32>, 25> = arr
 
 
 const DEPTH_SENSITIVITY = 100.0;
-const BLUR_RADIUS = 1.0;
+const BLUR_RADIUS = 1.5;
 const GOLDEN_RATIO = 1.61803398875;
 
 @compute @workgroup_size(8, 8, 1)
@@ -177,33 +177,34 @@ fn composite(
   let normalRef = textureLoad(normalTex, pixel, 0).rgb;
   let depthRef = textureLoad(depthTex, pixel, 0).r;
   let shadowRef = textureLoad(intermediaryTexture, pixel, 0);
-  textureStore(outputTex, pixel, shadowRef * albedoSample);
+  textureStore(outputTex, pixel, shadowRef);
 
-//  var outputColour = vec4<f32>(0.0);
-//  var totalWeight = 0.0;
-//
-//  for(var i = 0u; i < 9; i++){
-//    let foo = BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS[i];
-//    let offset = foo.xy * texelSize;
-//    let sampleUV = shadowSampleUV + offset * BLUR_RADIUS;
-//    let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
-//    let normalSample = textureSampleLevel(normalTex, linearSampler, sampleUV, 0.0).rgb;
-//    let depthSample = textureLoad(depthTex, samplePixel, 0).r;
-//    let shadowSample = normalize(textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0));
-//
-//    let relativeDepthDifference = abs(depthSample - depthRef) / depthRef;
-//    let depthWeight = clamp(1.0 - relativeDepthDifference * DEPTH_SENSITIVITY, 0,1);
-//    let normalWeight = dot(normalSample, normalRef);
-//    let gaussWeight = foo.z;
-//
-//    let weight =  depthWeight * normalWeight * gaussWeight;
-//
-//    totalWeight += weight;
-//    outputColour += shadowSample * weight;
-//  }
-//
-//  outputColour /= totalWeight;
-//  textureStore(outputTex, pixel,outputColour * albedoSample);
+
+  var outputColour = vec4<f32>(0.0);
+  var totalWeight = 0.0;
+
+  for(var i = 0u; i < 9; i++){
+    let foo = BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS[i];
+    let offset = foo.xy * texelSize;
+    let sampleUV = shadowSampleUV + offset * BLUR_RADIUS;
+    let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
+    let normalSample = textureSampleLevel(normalTex, nearestSampler, sampleUV, 0.0).rgb;
+    let depthSample = textureLoad(depthTex, samplePixel, 0).r;
+    let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0);
+
+    let relativeDepthDifference = abs(depthSample - depthRef) / depthRef;
+    let depthWeight = clamp(1.0 - relativeDepthDifference * DEPTH_SENSITIVITY, 0,1);
+    let normalWeight = dot(normalSample, normalRef);
+    let gaussWeight = foo.z;
+
+    let weight =  depthWeight * normalWeight * gaussWeight;
+
+    totalWeight += weight;
+    outputColour += shadowSample * weight;
+  }
+
+  outputColour /= totalWeight;
+  textureStore(outputTex, pixel,outputColour);
 
 
 }

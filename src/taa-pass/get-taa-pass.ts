@@ -92,14 +92,14 @@ export const getTaaPass = async (): Promise<RenderPass> => {
           binding: 5,
           resource: outputTextures.depthTexture.view,
         },
-        // {
-        //   binding: 6,
-        //   resource: device.createSampler({
-        //     magFilter: "nearest",
-        //     minFilter: "nearest",
-        //     mipmapFilter: "nearest",
-        //   }),
-        // },
+        {
+          binding: 6,
+          resource: device.createSampler({
+            magFilter: "nearest",
+            minFilter: "nearest",
+            mipmapFilter: "nearest",
+          }),
+        },
       ],
     });
 
