@@ -38,6 +38,7 @@ import { SKYBOX_TEXTURE_FORMAT } from "./constants";
 import { getBloomPass } from "./bloom-pass/get-bloom-pass";
 import { getMotionBlurPass } from "./motion-blur/motion-blur";
 import { getBoxOutlinePass } from "./box-outline/get-box-outline-pass";
+import { getLutPass } from "./get-lut-pass/get-lut-pass";
 
 export const debugValues = new DebugValuesStore();
 
@@ -589,6 +590,7 @@ const start = async () => {
     getBloomPass(),
     // getBoxOutlinePass(),
     getTonemapPass(),
+    getLutPass(),
     fullscreenQuad(device),
   ];
 
