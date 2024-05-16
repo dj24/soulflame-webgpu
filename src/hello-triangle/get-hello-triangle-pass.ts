@@ -294,8 +294,6 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     //     depthOrArrayLayers: 1, // Copy one layer (z-axis slice)
     //   },
     // );
-
-    return [commandEncoder.finish()];
   };
 
   return { render, label: "hello triangle" };

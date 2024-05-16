@@ -16,7 +16,7 @@ export const fullscreenQuad = async (device: GPUDevice) => {
       targets: [{ format: navigator.gpu.getPreferredCanvasFormat() }],
     },
   });
-  const render = (args: RenderArgs): [GPUCommandBuffer] => {
+  const render = (args: RenderArgs) => {
     const renderPass = args.commandEncoder.beginRenderPass({
       timestampWrites: args.timestampWrites,
       colorAttachments: [
@@ -42,7 +42,6 @@ export const fullscreenQuad = async (device: GPUDevice) => {
     renderPass.setBindGroup(0, bindGroup);
     renderPass.draw(6);
     renderPass.end();
-    return [args.commandEncoder.finish()];
   };
 
   return { render, label: "fullscreen quad" };

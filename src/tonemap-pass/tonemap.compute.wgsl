@@ -48,5 +48,6 @@ fn main(
   let pixel = GlobalInvocationID.xy;
   let inputSample = textureLoad(inputTex, pixel, 0);
   let toneMapped = uncharted2_filmic(inputSample.rgb);
+//  let gammaCorrected = pow(toneMapped, vec3(1.0f / 0.3f));
   textureStore(outputTex,pixel,vec4(toneMapped,1));
 }

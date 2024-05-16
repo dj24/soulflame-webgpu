@@ -1,4 +1,4 @@
-const TARGET_DELTA_TIME: f32 = 8.33;
+const TARGET_DELTA_TIME: f32 = 6;
 const MAX_SAMPLES: i32 = 8;
 
 @compute @workgroup_size(8, 8, 1)
@@ -16,13 +16,12 @@ fn main(
   var validSamples = 0.0;
   var result = vec4<f32>(0.0);
   for (var i = 0; i < samples; i++) {
-    let clampedVelocity = sign(scaledVelocity) * max(abs(scaledVelocity), vec2(0.0001));
-    var offset = clampedVelocity * (f32(i) / f32(samples - 1) - 0.5);
+    var offset = scaledVelocity * (f32(i) / f32(samples - 1) - 0.5);
     let offsetUv = uv + offset;
     let textureSample = textureSampleLevel(inputTex, nearestSampler, offsetUv, 0.0);
     result += textureSample;
     validSamples += 1.0;
   }
   result /= validSamples;
-;  textureStore(outputTex, pixel, result);
+  textureStore(outputTex, pixel, result);
 }

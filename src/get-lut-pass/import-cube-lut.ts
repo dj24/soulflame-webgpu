@@ -33,6 +33,20 @@ export const importCubeLut = async (device: GPUDevice, path: string) => {
     dimension: "2d",
     mipLevelCount: 1,
   });
+  const lutVolume = device.createTexture({
+    size: {
+      width: lutTextureHeight,
+      height: lutTextureHeight,
+      depthOrArrayLayers: lutTextureHeight,
+    },
+    format: "rgba8unorm",
+    usage:
+      GPUTextureUsage.COPY_DST |
+      GPUTextureUsage.COPY_SRC |
+      GPUTextureUsage.TEXTURE_BINDING,
+    dimension: "3d",
+    mipLevelCount: 1,
+  });
   rgb.forEach(([r, g, b, a], index) => {
     const data = new Uint8Array([r, g, b, a]);
     device.queue.writeBuffer(lutBuffer, BUFFER_STRIDE * index, data);
@@ -46,6 +60,24 @@ export const importCubeLut = async (device: GPUDevice, path: string) => {
     { texture: lutTexture },
     [lutTextureWidth, lutTextureHeight, 1],
   );
+  for (let z = 0; z < lutVolume.depthOrArrayLayers; z++) {
+    commandEncoder.copyTextureToTexture(
+      {
+        texture: lutTexture,
+        mipLevel: 0,
+        origin: { x: z * lutVolume.width, y: 0 },
+      },
+      {
+        texture: lutVolume,
+        mipLevel: 0,
+        origin: { x: 0, y: 0, z },
+      },
+      {
+        width: lutVolume.width,
+        height: lutVolume.height,
+      },
+    );
+  }
   device.queue.submit([commandEncoder.finish()]);
   await device.queue.onSubmittedWorkDone();
   writeTextureToCanvas(
@@ -54,5 +86,5 @@ export const importCubeLut = async (device: GPUDevice, path: string) => {
     lutTexture,
     lutTexture.createView(),
   );
-  return lutTexture;
+  return lutVolume;
 };

@@ -380,8 +380,6 @@ export const getVoxelLatticePass = async (): Promise<RenderPass> => {
     // );
     //
     // blitRender(commandEncoder, solidColourTexture, outputTextures.finalTexture);
-
-    return [commandEncoder.finish()];
   };
 
   return { render, label: "lattice" };

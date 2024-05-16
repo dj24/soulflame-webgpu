@@ -8,9 +8,3 @@ fn calculateRayDirection(uv: vec2<f32>, inverseProjection: mat4x4<f32>) -> vec3<
 fn normaliseValue(min: f32, max: f32, value: f32) -> f32 {
   return (value - min) / (max - min);
 }
-
-fn reconstructWorldPosition(uv: vec2<f32>, cameraPos:vec3<f32>, linearDepth: f32, inverseProjection: mat4x4<f32>) -> vec3<f32> {
-  let rayDirection = calculateRayDirection(uv, inverseProjection);
-  let distanceToCamera = normaliseValue(0.5, 10000.0, linearDepth);
-  return cameraPos + rayDirection * distanceToCamera;
-}

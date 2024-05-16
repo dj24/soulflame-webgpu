@@ -195,6 +195,7 @@ export const getSkyPass = async (): Promise<RenderPass> => {
   });
 
   const render = ({
+    commandEncoder,
     outputTextures,
     timestampWrites,
     viewProjectionMatricesBuffer,
@@ -213,7 +214,6 @@ export const getSkyPass = async (): Promise<RenderPass> => {
         usage: defaultUsage,
       });
     }
-    const commandEncoder = device.createCommandEncoder();
     commandEncoder.copyTextureToTexture(
       {
         texture: outputTextures.finalTexture.texture, // TODO: pass texture as well as view
@@ -352,8 +352,6 @@ export const getSkyPass = async (): Promise<RenderPass> => {
         depthOrArrayLayers: outputTextures.skyTexture.depthOrArrayLayers,
       },
     );
-
-    return [commandEncoder.finish()];
   };
   return { render, label: "sky" };
 };

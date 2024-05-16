@@ -3,11 +3,11 @@ const BLUE_NOISE_SIZE = 511;
 const MAX_DISTANCE = 40.0;
 const START_DISTANCE = 0.0;
 const EXTINCTION = vec3(.06, .04, .03);
-const FORWARD_SCATTER = 0.15;
+const FORWARD_SCATTER = 0.5;
 const STEPS = 8.0;
 const NEAR  = 0.5;
 const FAR = 10000.0;
-const LIGHT_INTENSITY = 24.0;
+const LIGHT_INTENSITY = 8.0;
 
 fn henyeyGreenstein(cosTheta: f32, g: f32) -> f32 {
   let g2 = g * g;

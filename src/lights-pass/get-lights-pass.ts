@@ -543,8 +543,6 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     // });
 
     passEncoder.end();
-
-    return [commandEncoder.finish()];
   };
 
   return { render, label: "lights" };

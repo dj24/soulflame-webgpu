@@ -344,8 +344,7 @@ fn main(
     let sky = spiralBlurCubeSample(rayDirection).rgb;
 
     var color = sky;
-    let depthSample = textureLoad(depth, pixel, 0).r;
-    let distanceToCamera = depthSample * (FAR - NEAR) + NEAR;
+    let distanceToCamera = textureLoad(depth, pixel, 0).r;
 
     if(distanceToCamera > 9999.0){
       let output = vec4(color, 1);

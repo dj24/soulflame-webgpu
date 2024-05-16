@@ -32,7 +32,7 @@ export const getClearPass = async (): Promise<RenderPass> => {
       targets: [{ format: OUTPUT_TEXTURE_FORMAT }],
     },
   });
-  const render = (args: RenderArgs): [GPUCommandBuffer] => {
+  const render = (args: RenderArgs) => {
     const renderPass = args.commandEncoder.beginRenderPass({
       label: label,
       timestampWrites: args.timestampWrites,
@@ -49,7 +49,6 @@ export const getClearPass = async (): Promise<RenderPass> => {
     renderPass.setPipeline(renderPipeline);
     renderPass.draw(6);
     renderPass.end();
-    return [args.commandEncoder.finish()];
   };
 
   return { render, label: label };

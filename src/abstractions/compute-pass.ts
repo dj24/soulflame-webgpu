@@ -92,6 +92,7 @@ ${shaderCode}`;
   });
 
   const render = ({
+    commandEncoder,
     outputTextures,
     timestampWrites,
     viewProjectionMatricesBuffer,
@@ -115,7 +116,6 @@ ${shaderCode}`;
       });
     }
 
-    const commandEncoder = device.createCommandEncoder();
     commandEncoder.copyTextureToTexture(
       {
         texture: outputTextures.finalTexture.texture, // TODO: pass texture as well as view
@@ -239,7 +239,6 @@ ${shaderCode}`;
     );
 
     computePass.end();
-    return [commandEncoder.finish()];
   };
   return { render, label };
 };

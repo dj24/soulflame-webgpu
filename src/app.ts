@@ -89,7 +89,7 @@ export type RenderArgs = {
 };
 
 export type RenderPass = {
-  render: (args: RenderArgs) => GPUCommandBuffer[];
+  render: (args: RenderArgs) => void;
   label?: string;
 };
 
@@ -418,10 +418,11 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   }, 500);
 
   const frame = (now: number) => {
+    const commandEncoder = device.createCommandEncoder();
     if (startTime === 0) {
       startTime = now;
     }
-
+    commandEncoder.pushDebugGroup("frame");
     const newElapsedTime = now - startTime;
     deltaTime = newElapsedTime - elapsedTime;
     frameTimeTracker.addSample("frame time", deltaTime);
@@ -465,8 +466,6 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       resolution[1],
     );
 
-    let commandBuffers: GPUCommandBuffer[] = [];
-
     voxelTextureView = volumeAtlas.atlasTextureView;
     if (!voxelTextureView) {
       animationFrameId = requestAnimationFrame(frame);
@@ -481,7 +480,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       ) {
         return;
       }
-      const commandEncoder = device.createCommandEncoder();
+
       if (device.features.has("timestamp-query")) {
         commandEncoder.clearBuffer(timestampQueryBuffer);
       }
@@ -496,6 +495,9 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
       bvh.update(voxelObjects);
 
+      if (label) {
+        commandEncoder.pushDebugGroup(label);
+      }
       render({
         commandEncoder,
         resolutionBuffer,
@@ -518,11 +520,13 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         blueNoiseTexture,
         bvhBuffer: bvh.gpuBuffer,
         lights,
-      }).forEach((commandBuffer) => {
-        commandBuffers.push(commandBuffer);
       });
+      if (label) {
+        commandEncoder.popDebugGroup();
+      }
     });
-
+    commandEncoder.popDebugGroup();
+    const commandBuffers = [commandEncoder.finish()];
     if (device.features.has("timestamp-query")) {
       resolveTimestampQueries(
         computePasses,
@@ -531,7 +535,6 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         commandBuffers,
       );
     }
-
     device.queue.submit(commandBuffers);
     animationFrameId = requestAnimationFrame(frame);
     previousInverseViewProjectionMatrix = camera.inverseViewProjectionMatrix;
@@ -579,18 +582,18 @@ const start = async () => {
 
   const computePassPromises: Promise<RenderPass>[] = [
     getClearPass(),
-    getHelloTrianglePass(),
-    // getGBufferPass(),
+    // getHelloTrianglePass(),
+    getGBufferPass(),
     getShadowsPass(),
     getSkyPass(),
     // getLightsPass(),
     getTaaPass(),
-    // getMotionBlurPass(),
     getFogPass(),
     getBloomPass(),
+    getMotionBlurPass(),
     // getBoxOutlinePass(),
     getTonemapPass(),
-    getLutPass(),
+    getLutPass("luts/Lenox 340.CUBE"),
     fullscreenQuad(device),
   ];
 

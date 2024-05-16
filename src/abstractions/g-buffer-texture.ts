@@ -1,5 +1,5 @@
 import { Singleton } from "../decorators/singleton";
-import { OUTPUT_TEXTURE_FORMAT } from "../constants";
+import { DEPTH_FORMAT, OUTPUT_TEXTURE_FORMAT } from "../constants";
 
 export const defaultUsage =
   GPUTextureUsage.TEXTURE_BINDING |
@@ -65,10 +65,11 @@ export const AlbedoTexture = gBufferTextureFactory("albedo", "rgba8unorm");
 export const NormalTexture = gBufferTextureFactory("normal", "rgba16float");
 export const DepthTexture = gBufferTextureFactory(
   "depth",
-  "depth32float",
+  DEPTH_FORMAT,
   GPUTextureUsage.TEXTURE_BINDING |
     GPUTextureUsage.RENDER_ATTACHMENT |
-    GPUTextureUsage.COPY_SRC,
+    GPUTextureUsage.COPY_SRC |
+    GPUTextureUsage.STORAGE_BINDING,
   // defaultUsage & ~GPUTextureUsage.STORAGE_BINDING,
 );
 export const VelocityTexture = gBufferTextureFactory("velocity", "rgba16float");

@@ -7,46 +7,27 @@ struct ViewProjectionMatrices {
   inverseProjection: mat4x4<f32>
 };
 
-@group(0) @binding(0) var voxels : texture_3d<f32>;
-@group(0) @binding(2) var<uniform> cameraPosition : vec3<f32>;
-@group(0) @binding(3) var<storage> voxelObjects : array<VoxelObject>;
-// TODO: maybe make a G-Buffer bind group to resuse across shaders
-@group(0) @binding(4) var normalTex : texture_storage_2d<rgba16float, write>;
-@group(0) @binding(5) var albedoTex : texture_storage_2d<rgba8unorm, write>;
-//@group(0) @binding(6) var depthRead : texture_2d<f32>;
-@group(0) @binding(6) var depthWrite : texture_storage_2d<rgba32float, write>;
-@group(0) @binding(7) var velocityTex : texture_storage_2d<rgba16float, write>;
-@group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;
-@group(0) @binding(9) var<uniform> sunDirection : vec3<f32>;
-@group(0) @binding(11) var worldPosTex : texture_storage_2d<rgba32float, write>;
-@group(0) @binding(12) var paletteTex : texture_3d<f32>;
-
-
 
 fn plainIntersect(ro: vec3<f32>, rd: vec3<f32>, p: vec4<f32>) -> f32 {
     return -(dot(ro, p.xyz) + p.w) / dot(rd, p.xyz);
 }
 
-fn getVelocity(rayMarchResult: RayMarchResult, viewProjections: ViewProjectionMatrices) -> vec3<f32> {
-  return vec3<f32>(0.0);
-//  let vp = viewProjections.viewProjection;
-//    let previousVp = viewProjections.previousViewProjection;
-//    let modelMatrix = rayMarchResult.modelMatrix;
-//    let previousModelMatrix = rayMarchResult.previousModelMatrix;
-//
-//    // Get current object space position of the current pixel
-//    let objectPos = rayMarchResult.objectPos.xyz;
-//    let objectClipSpace = vp * modelMatrix * vec4(objectPos.xyz, 1.0);
-//    let objectNDC = objectClipSpace.xyz / objectClipSpace.w;
-//
-//    // Get previous position of the current object space position
-//    let previousObjectClipSpace = previousVp * previousModelMatrix * vec4(objectPos.xyz, 1.0);
-//    let previousObjectNDC = previousObjectClipSpace.xyz / previousObjectClipSpace.w;
-//
-//    // Get velocity based on the difference between the current and previous positions
-//    var velocity = objectNDC - previousObjectNDC;
-//    velocity.y = -velocity.y;
-//  return velocity;
+fn getVelocity(objectPos: vec3<f32>, modelMatrix: mat4x4<f32>, previousModelMatrix: mat4x4<f32>, viewProjections: ViewProjectionMatrices) -> vec3<f32> {
+  let vp = viewProjections.viewProjection;
+  let previousVp = viewProjections.previousViewProjection;
+
+  // Get current object space position of the current pixel
+  let objectClipSpace = vp * modelMatrix * vec4(objectPos.xyz, 1.0);
+  let objectNDC = objectClipSpace.xyz / objectClipSpace.w;
+
+  // Get previous position of the current object space position
+  let previousObjectClipSpace = previousVp * previousModelMatrix * vec4(objectPos.xyz, 1.0);
+  let previousObjectNDC = previousObjectClipSpace.xyz / previousObjectClipSpace.w;
+
+  // Get velocity based on the difference between the current and previous positions
+  var velocity = previousObjectNDC - objectNDC;
+  velocity.y = -velocity.y;
+  return velocity;
 }
 
 fn getLeftChildIndex(index: i32) -> i32 {
@@ -131,46 +112,43 @@ const KERNEL_CORNER_OFFSETS = array<vec2<u32>, SPATIAL_SAMPLE_COUNT>(
   vec2(4,4)
 );
 
+fn tracePixel(pixel: vec2<u32>){
+   let resolution = textureDimensions(albedoTex);
+   var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
+   let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
+    var rayOrigin = cameraPosition;
+    var closestIntersection = RayMarchResult();
 
-const GROUPS_X = 8;
-const GROUPS_Y = 8;
+    let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
+    if(!bvhResult.hit){
+      textureStore(albedoTex, pixel, vec4(0));
+      textureStore(normalTex, pixel, vec4(0));
+      textureStore(velocityTex, pixel, vec4(0));
+      textureStore(depthWrite, pixel, vec4(FAR_PLANE, 0, 0, 0));
+      return;
+    }
+    closestIntersection = bvhResult;
 
-@compute @workgroup_size(GROUPS_X, GROUPS_Y, 1)
+    let voxelObject = voxelObjects[closestIntersection.voxelObjectIndex];
+    let paletteX = i32(closestIntersection.palettePosition * 255.0);
+    let paletteY = i32(voxelObject.paletteIndex);
+    let albedo = textureLoad(paletteTex, vec2(paletteX, paletteY), 0).rgb;
+    let normal = closestIntersection.normal;
+    let velocity = getVelocity(closestIntersection.objectPos, voxelObject.transform, voxelObject.previousTransform, viewProjections);
+    let worldPos = closestIntersection.worldPos;
+    let depth = distance(cameraPosition, worldPos);
+
+    textureStore(albedoTex, pixel, vec4(albedo, 1));
+    textureStore(normalTex, pixel, vec4(normal,1));
+    textureStore(velocityTex, pixel, vec4(velocity ,0));
+    textureStore(depthWrite, pixel, vec4(depth, 0, 0, 0));
+}
+
+@compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(local_invocation_index) LocalInvocationIndex : u32,
   @builtin(workgroup_id) WorkgroupID : vec3<u32>,
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
 ) {
-  let resolution = textureDimensions(albedoTex);
-  let pixel = GlobalInvocationID.xy;
-  var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
-  let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
-  var rayOrigin = cameraPosition;
-  var closestIntersection = RayMarchResult();
-
-  let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
-  if(!bvhResult.hit){
-    textureStore(albedoTex, pixel, vec4(0));
-    textureStore(normalTex, pixel, vec4(0));
-    textureStore(velocityTex, pixel, vec4(0));
-    let farPlaneWorldPos = rayOrigin + rayDirection * FAR_PLANE;
-    textureStore(worldPosTex, pixel, vec4(farPlaneWorldPos,1));
-    return;
-  }
-  closestIntersection = bvhResult;
-
-
-  let normal = closestIntersection.normal;
-//  let depth = distance(cameraPosition, closestIntersection.worldPos);
-//  let albedo = closestIntersection.colour;
-//  let albedo = vec3(f32(closestIntersection.stepsTaken)) * 0.02;
-//let albedo = abs(closestIntersection.worldPos * 0.25) % 1.0;
-let albedo = vec3<f32>(0.75);
-  let velocity = getVelocity(closestIntersection, viewProjections);
-  let worldPos = closestIntersection.worldPos;
-
-  textureStore(albedoTex, pixel, vec4(albedo, 1));
-  textureStore(normalTex, pixel, vec4(normal,1));
-  textureStore(velocityTex, pixel, vec4(velocity ,0));
-  textureStore(worldPosTex, pixel, vec4(worldPos, 1));
+  tracePixel(GlobalInvocationID.xy);
 }

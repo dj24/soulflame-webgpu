@@ -13,6 +13,7 @@ import {
   RenderArgs,
 } from "../app";
 import { GBufferTexture } from "../abstractions/g-buffer-texture";
+import { DEPTH_FORMAT } from "../constants";
 
 export type OutputTextures = {
   finalTexture: GBufferTexture;
@@ -55,16 +56,8 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     binding: 6,
     visibility: GPUShaderStage.COMPUTE,
     storageTexture: {
-      format: "rgba32float",
+      format: DEPTH_FORMAT,
       viewDimension: "2d",
-    },
-  };
-
-  const sunDirectionEntry: GPUBindGroupLayoutEntry = {
-    binding: 9,
-    visibility: GPUShaderStage.COMPUTE,
-    buffer: {
-      type: "uniform",
     },
   };
 
@@ -122,7 +115,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       matricesBufferEntry,
       normalEntry,
       albedoEntry,
-      // depthEntry,
+      depthEntry,
       velocityEntry,
       {
         binding: 8,
@@ -131,10 +124,36 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           type: "uniform",
         },
       },
-      sunDirectionEntry,
       bvhBufferEntry,
-      worldPosTextureEntry,
       paletteTextureEntry,
+    ],
+  });
+
+  const worldPosReconstructionBindGroupLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "unfilterable-float",
+          viewDimension: "2d",
+        },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
+      { ...worldPosTextureEntry, binding: 2 },
+      {
+        binding: 3,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
     ],
   });
 
@@ -149,7 +168,17 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           struct IndirectArgs {
             count: atomic<u32>
           };
+          @group(0) @binding(0) var voxels : texture_3d<f32>;
+          @group(0) @binding(2) var<uniform> cameraPosition : vec3<f32>;
+          @group(0) @binding(3) var<storage> voxelObjects : array<VoxelObject>;
+          @group(0) @binding(4) var normalTex : texture_storage_2d<rgba16float, write>;
+          @group(0) @binding(5) var albedoTex : texture_storage_2d<rgba8unorm, write>;
+          @group(0) @binding(6) var depthWrite : texture_storage_2d<${DEPTH_FORMAT}, write>;
+          @group(0) @binding(7) var velocityTex : texture_storage_2d<rgba16float, write>;
+          @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;
           @group(0) @binding(10) var<storage> bvhNodes: array<BVHNode>;
+          @group(0) @binding(11) var worldPosTex : texture_storage_2d<rgba32float, write>;
+          @group(0) @binding(12) var paletteTex : texture_2d<f32>;
           ${getRayDirection}
           ${boxIntersection}
           ${raymarchVoxels}
@@ -159,6 +188,50 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       entryPoint: "main",
     },
   });
+
+  const reconstructWorldPosPipeline = await device.createComputePipelineAsync({
+    label: "reconstruct world position",
+    layout: device.createPipelineLayout({
+      bindGroupLayouts: [worldPosReconstructionBindGroupLayout],
+    }),
+    compute: {
+      module: device.createShaderModule({
+        code: `
+          ${getRayDirection}
+          struct ViewProjectionMatrices {
+            viewProjection : mat4x4<f32>,
+            previousViewProjection : mat4x4<f32>,
+            inverseViewProjection : mat4x4<f32>,
+            projection : mat4x4<f32>,
+            inverseProjection: mat4x4<f32>
+          };
+          
+          @group(0) @binding(0) var depthTex : texture_2d<f32>;
+          @group(0) @binding(1) var<uniform> viewProjections : ViewProjectionMatrices;
+          @group(0) @binding(2) var worldPosTex : texture_storage_2d<rgba32float, write>;
+          @group(0) @binding(3) var<uniform> cameraPosition : vec3<f32>;
+        
+          const NEAR = 0.5;
+          const FAR = 10000.0;
+          
+          @compute @workgroup_size(8, 8, 1)
+          fn main(
+            @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
+          ) {
+            let resolution = textureDimensions(worldPosTex);
+            let pixel = GlobalInvocationID.xy;
+            var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
+            let depth = textureLoad(depthTex, pixel, 0).r;
+            let rayDirection = calculateRayDirection(uv, viewProjections.inverseViewProjection);
+            let worldPos = cameraPosition + rayDirection * depth;
+            textureStore(worldPosTex, pixel, vec4(worldPos, 1));
+          }
+`,
+      }),
+      entryPoint: "main",
+    },
+  });
+
   const render = ({
     commandEncoder,
     outputTextures,
@@ -167,7 +240,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     transformationMatrixBuffer,
     viewProjectionMatricesBuffer,
     timestampWrites,
-    sunDirectionBuffer,
     bvhBuffer,
   }: RenderArgs) => {
     let computePass = commandEncoder.beginComputePass({ timestampWrites });
@@ -199,10 +271,10 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           binding: 5,
           resource: outputTextures.albedoTexture.view,
         },
-        // {
-        //   binding: 6,
-        //   resource: outputTextures.depthTexture.view,
-        // },
+        {
+          binding: 6,
+          resource: outputTextures.depthTexture.view,
+        },
         {
           binding: 7,
           resource: outputTextures.velocityTexture.view,
@@ -214,20 +286,10 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           },
         },
         {
-          binding: 9,
-          resource: {
-            buffer: sunDirectionBuffer,
-          },
-        },
-        {
           binding: 10,
           resource: {
             buffer: bvhBuffer,
           },
-        },
-        {
-          binding: 11,
-          resource: outputTextures.worldPositionTexture.view,
         },
         {
           binding: 12,
@@ -236,30 +298,49 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       ],
     });
 
+    const reconstructWorldPosBindGroup = device.createBindGroup({
+      layout: worldPosReconstructionBindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: outputTextures.depthTexture.view,
+        },
+        {
+          binding: 1,
+          resource: {
+            buffer: viewProjectionMatricesBuffer,
+          },
+        },
+        {
+          binding: 2,
+          resource: outputTextures.worldPositionTexture.view,
+        },
+        {
+          binding: 3,
+          resource: {
+            buffer: cameraPositionBuffer,
+          },
+        },
+      ],
+    });
+
     // Raymarch the scene
-    const tileSize = 17;
-    const workGroupsX = Math.ceil(resolution[0] / 8);
-    const workGroupsY = Math.ceil(resolution[1] / 8);
     computePass.setPipeline(pipeline);
     computePass.setBindGroup(0, computeBindGroup);
-    computePass.dispatchWorkgroups(workGroupsX, workGroupsY);
+    computePass.dispatchWorkgroups(
+      Math.ceil(resolution[0] / 8),
+      Math.ceil(resolution[1] / 8),
+    );
+
+    // Reconstruct world position
+    computePass.setPipeline(reconstructWorldPosPipeline);
+    computePass.setBindGroup(0, reconstructWorldPosBindGroup);
+    computePass.dispatchWorkgroups(
+      Math.ceil(resolution[0] / 8),
+      Math.ceil(resolution[1] / 8),
+    );
+
     computePass.end();
-
-    // commandEncoder.copyTextureToTexture(
-    //   {
-    //     texture: outputTextures.albedoTexture.texture, // TODO: pass texture as well as view
-    //   },
-    //   {
-    //     texture: outputTextures.finalTexture.texture,
-    //   },
-    //   {
-    //     width: outputTextures.finalTexture.width,
-    //     height: outputTextures.finalTexture.height,
-    //     depthOrArrayLayers: 1, // Copy one layer (z-axis slice)
-    //   },
-    // );
-
-    return [commandEncoder.finish()];
   };
 
   return { render, label: "raymarched g-buffer" };

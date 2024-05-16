@@ -34,9 +34,13 @@ fn main(
     // Sample depth from the Depth texture
     let depthSample: f32 = textureLoad(Depth, id.xy, 0).r;
     let depthAtPreviousPixel: f32 = textureLoad(Depth, previousPixel, 0).r;
+    let near: f32 = 0.5;
+    let far: f32 = 10000.0;
+    let linearDepth: f32 = (2.0 * near) / (far + near - depthSample * (far - near));
+    let linearDepthPrevious: f32 = (2.0 * near) / (far + near - depthAtPreviousPixel * (far - near));
 
     // Calculate depth difference between source and history samples
-    let depthDifference: f32 = abs(depthSample - depthAtPreviousPixel);
+    let depthDifference: f32 = abs(linearDepth - linearDepthPrevious);
 
     // Apply depth clamping
     if (depthDifference > DEPTH_THRESHOLD) {

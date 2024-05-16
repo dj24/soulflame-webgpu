@@ -34,6 +34,7 @@ struct VoxelObject {
 }
 
 struct RayMarchResult {
+  voxelObjectIndex: i32,
   palettePosition: f32,
   worldPos: vec3<f32>,
   objectPos: vec3<f32>,

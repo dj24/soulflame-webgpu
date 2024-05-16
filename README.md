@@ -4,6 +4,8 @@
 
 [Docs](https://dj24.github.io/soulflame-webgpu/docs/)
 
+![Image](test-scene.png)
+
 ## Getting Started
 
 After cloning the repo run `npm install`, followed by `npm run serve` to start the development server on `localhost:8080`.

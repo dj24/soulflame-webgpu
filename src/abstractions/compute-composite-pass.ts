@@ -488,7 +488,6 @@ ${shaderCode}`;
     );
 
     computePass.end();
-    return [commandEncoder.finish()];
   };
   return { render, label };
 };

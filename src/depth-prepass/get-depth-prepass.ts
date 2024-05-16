@@ -134,7 +134,6 @@ export const getDepthPrepass = async (): Promise<RenderPass> => {
     );
 
     computePass.end();
-    return [commandEncoder.finish()];
   };
 
   return { render, label: "depth prepass" };
