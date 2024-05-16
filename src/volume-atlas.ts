@@ -232,7 +232,12 @@ export class VolumeAtlas {
       this.#atlasTexture,
     );
 
-    writeTextureToCanvas(this.#device, "debug-canvas", this.#paletteTexture);
+    // writeTextureToCanvas(
+    //   this.#device,
+    //   "debug-canvas",
+    //   this.#paletteTexture,
+    //   this.paletteTextureView,
+    // );
 
     //TODO: adjust to use render pipeline to support 8 bit format
     // const zSliceTexture = await flipTexture(

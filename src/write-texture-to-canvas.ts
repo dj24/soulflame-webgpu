@@ -5,6 +5,7 @@ export const writeTextureToCanvas = async (
   device: GPUDevice,
   canvasId: string,
   texture: GPUTexture,
+  textureView: GPUTextureView,
 ) => {
   const canvas = document.getElementById(canvasId) as HTMLCanvasElement;
   canvas.style.imageRendering = "pixelated";

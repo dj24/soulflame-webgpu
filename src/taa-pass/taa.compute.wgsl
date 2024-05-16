@@ -14,7 +14,8 @@ fn rcp(x: f32) -> f32 {
 @group(0) @binding(5) var Depth : texture_2d<f32>;
 @group(0) @binding(6) var linearSampler : sampler;
 
-const DEPTH_THRESHOLD : f32 = 0.0005;
+const DEPTH_THRESHOLD : f32 = 0.001;
+const MIN_SOURCE_BLEND = 0.05;
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
@@ -55,7 +56,7 @@ fn main(
     }
 
     historySample = clamp(historySample, minCol, maxCol);
-    var sourceWeight: f32 = clamp(length(uvVelocity), 0.025, 1.0);
+    var sourceWeight: f32 = clamp(length(uvVelocity), MIN_SOURCE_BLEND, 1.0);
     var historyWeight: f32 = 1.0 - sourceWeight;
     let compressedSource: vec3<f32> = sourceSample * rcp(max(max(sourceSample.r, sourceSample.g), sourceSample.b) + 1.0);
     let compressedHistory: vec3<f32> = historySample * rcp(max(max(historySample.r, historySample.g), historySample.b) + 1.0);

@@ -37,5 +37,7 @@ export const createPaletteTextureFromVoxels = async (
   );
 
   device.queue.submit([commandEncoder.finish()]);
+  await device.queue.onSubmittedWorkDone();
+
   return texture;
 };
