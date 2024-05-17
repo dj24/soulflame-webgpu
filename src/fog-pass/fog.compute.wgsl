@@ -7,7 +7,7 @@ const FORWARD_SCATTER = 0.5;
 const STEPS = 8.0;
 const NEAR  = 0.5;
 const FAR = 10000.0;
-const LIGHT_INTENSITY = 8.0;
+const LIGHT_INTENSITY = 16.0;
 
 fn henyeyGreenstein(cosTheta: f32, g: f32) -> f32 {
   let g2 = g * g;

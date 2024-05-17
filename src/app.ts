@@ -39,6 +39,7 @@ import { getBloomPass } from "./bloom-pass/get-bloom-pass";
 import { getMotionBlurPass } from "./motion-blur/motion-blur";
 import { getBoxOutlinePass } from "./box-outline/get-box-outline-pass";
 import { getLutPass } from "./get-lut-pass/get-lut-pass";
+import { haltonJitter } from "./jitter-view-projection";
 
 export const debugValues = new DebugValuesStore();
 
@@ -259,6 +260,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
   let bvh: BVH;
   let previousInverseViewProjectionMatrix = mat4.create();
+  let previousViewMatrix = mat4.create();
   let previousViewProjectionMatrix = mat4.create();
   let timestampQuerySet: GPUQuerySet;
   let timestampQueryBuffer: GPUBuffer;
@@ -334,11 +336,33 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   };
 
   const getMatricesBuffer = () => {
+    const jitteredViewMatrix = haltonJitter(frameCount, camera.viewMatrix);
+    const previousJitteredViewMatrix = haltonJitter(
+      frameCount - 1,
+      previousViewMatrix,
+    );
+
+    const jitteredViewProjectionMatrix = mat4.mul(
+      camera.projectionMatrix,
+      jitteredViewMatrix,
+    );
+    const previousJitteredViewProjectionMatrix = mat4.mul(
+      camera.projectionMatrix,
+      previousJitteredViewMatrix,
+    );
+
+    const jitteredInverseViewProjectionMatrix = mat4.invert(
+      jitteredViewProjectionMatrix,
+    );
+    const previousJitteredInverseViewProjectionMatrix = mat4.invert(
+      previousJitteredViewProjectionMatrix,
+    );
+
     const bufferContents = [
-      ...camera.viewProjectionMatrix,
-      ...previousViewProjectionMatrix,
-      ...camera.inverseViewProjectionMatrix,
-      ...previousInverseViewProjectionMatrix,
+      ...jitteredViewProjectionMatrix,
+      ...previousJitteredViewProjectionMatrix,
+      ...jitteredInverseViewProjectionMatrix,
+      ...previousJitteredInverseViewProjectionMatrix,
       ...camera.projectionMatrix,
       ...camera.inverseProjectionMatrix,
     ];
@@ -351,6 +375,14 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         "view matrices buffer",
       );
     }
+
+    const jitteredCameraPosition = mat4.getTranslation(
+      mat4.invert(jitteredViewMatrix),
+    );
+    writeToFloatUniformBuffer(
+      cameraPositionBuffer,
+      jitteredCameraPosition as number[],
+    );
   };
 
   const getSunDirectionBuffer = () => {
@@ -441,19 +473,11 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     UpdatedByRenderLoop.updateAll(frameCount);
     bvh.update(voxelObjects);
 
-    const jitteredCameraPosition = mat4.getTranslation(
-      camera.inverseViewMatrix,
-    );
-
     document.getElementById("resolution").innerHTML = resolution.join(" x ");
 
     getTimeBuffer();
     getResolutionBuffer();
     getSunDirectionBuffer();
-    writeToFloatUniformBuffer(
-      cameraPositionBuffer,
-      jitteredCameraPosition as number[],
-    );
 
     albedoTexture = new AlbedoTexture(device, resolution[0], resolution[1]);
     normalTexture = new NormalTexture(device, resolution[0], resolution[1]);
@@ -537,6 +561,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     }
     device.queue.submit(commandBuffers);
     animationFrameId = requestAnimationFrame(frame);
+    previousViewMatrix = camera.viewMatrix;
     previousInverseViewProjectionMatrix = camera.inverseViewProjectionMatrix;
     previousViewProjectionMatrix = camera.viewProjectionMatrix;
   };
@@ -593,7 +618,7 @@ const start = async () => {
     getMotionBlurPass(),
     // getBoxOutlinePass(),
     getTonemapPass(),
-    getLutPass("luts/Lenox 340.CUBE"),
+    getLutPass("luts/Clouseau 54.CUBE"),
     fullscreenQuad(device),
   ];
 

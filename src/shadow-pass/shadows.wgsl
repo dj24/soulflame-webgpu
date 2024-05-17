@@ -11,7 +11,7 @@ fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f3
 }
 
 
-const SUN_COLOR = vec3(0.6,0.5,0.4) * 100.0;
+const SUN_COLOR = vec3(0.6,0.5,0.4) * 200.0;
 const MOON_COLOR = vec3<f32>(0.5, 0.5, 1.0);
 const SUBPIXEL_SAMPLE_POSITIONS: array<vec2<f32>, 8> = array<vec2<f32>, 8>(
   vec2<f32>(0.25, 0.25),

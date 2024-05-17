@@ -41,8 +41,7 @@ export class Camera extends MovableObject {
   }
 
   get viewProjectionMatrix() {
-    const jitteredViewMatrix = haltonJitter(frameCount, this.viewMatrix);
-    return mat4.mul(this.projectionMatrix, jitteredViewMatrix);
+    return mat4.mul(this.projectionMatrix, this.viewMatrix);
   }
 
   get inverseViewProjectionMatrix() {
