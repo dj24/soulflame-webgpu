@@ -3,7 +3,7 @@ import { resolution } from "./app";
 import { Mat4, mat4, vec3 } from "wgpu-matrix";
 
 export const haltonJitter = (frameNumber: number, viewMatrix: Mat4): Mat4 => {
-  const jitterIndex = frameNumber % 16;
+  const jitterIndex = frameNumber % 8;
   const haltonX = 2 * haltonSequence(jitterIndex + 1, 2) - 1;
   const haltonY = 2 * haltonSequence(jitterIndex + 1, 3) - 1;
   const jitterX = haltonX / resolution[0];

@@ -262,6 +262,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let previousInverseViewProjectionMatrix = mat4.create();
   let previousViewMatrix = mat4.create();
   let previousViewProjectionMatrix = mat4.create();
+  let previousJitteredViewProjectionMatrix = mat4.create();
   let timestampQuerySet: GPUQuerySet;
   let timestampQueryBuffer: GPUBuffer;
 
@@ -336,21 +337,14 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   };
 
   const getMatricesBuffer = () => {
-    const jitteredViewMatrix = haltonJitter(frameCount, camera.viewMatrix);
-    const previousJitteredViewMatrix = haltonJitter(
-      frameCount - 1,
-      previousViewMatrix,
+    const jitteredProjectionMatrix = haltonJitter(
+      frameCount,
+      camera.projectionMatrix,
     );
-
     const jitteredViewProjectionMatrix = mat4.mul(
-      camera.projectionMatrix,
-      jitteredViewMatrix,
+      jitteredProjectionMatrix,
+      camera.viewMatrix,
     );
-    const previousJitteredViewProjectionMatrix = mat4.mul(
-      camera.projectionMatrix,
-      previousJitteredViewMatrix,
-    );
-
     const jitteredInverseViewProjectionMatrix = mat4.invert(
       jitteredViewProjectionMatrix,
     );
@@ -363,8 +357,8 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       ...previousJitteredViewProjectionMatrix,
       ...jitteredInverseViewProjectionMatrix,
       ...previousJitteredInverseViewProjectionMatrix,
-      ...camera.projectionMatrix,
-      ...camera.inverseProjectionMatrix,
+      ...jitteredProjectionMatrix,
+      ...mat4.invert(jitteredProjectionMatrix),
     ];
     if (viewProjectionMatricesBuffer) {
       writeToFloatUniformBuffer(viewProjectionMatricesBuffer, bufferContents);
@@ -376,13 +370,20 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       );
     }
 
-    const jitteredCameraPosition = mat4.getTranslation(
-      mat4.invert(jitteredViewMatrix),
+    const jitteredViewMatrix = mat4.mul(
+      camera.inverseProjectionMatrix,
+      jitteredViewProjectionMatrix,
     );
+
+    const cameraWorldMatrix = mat4.invert(jitteredViewMatrix);
+
+    const jitteredCameraPosition = mat4.getTranslation(cameraWorldMatrix);
+
     writeToFloatUniformBuffer(
       cameraPositionBuffer,
       jitteredCameraPosition as number[],
     );
+    previousJitteredViewProjectionMatrix = jitteredViewProjectionMatrix;
   };
 
   const getSunDirectionBuffer = () => {
@@ -392,7 +393,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     // Multiply the existing direction vector by the rotation matrix
     const newDirection = vec3.normalize(
-      vec3.transformMat4(vec3.create(0, 0.4, -0.8), rotationMatrix),
+      vec3.transformMat4(vec3.create(0, 1.0, -0.8), rotationMatrix),
     );
 
     if (sunDirectionBuffer) {
@@ -615,10 +616,10 @@ const start = async () => {
     getTaaPass(),
     getFogPass(),
     getBloomPass(),
-    getMotionBlurPass(),
+    // getMotionBlurPass(),
     // getBoxOutlinePass(),
     getTonemapPass(),
-    getLutPass("luts/Clouseau 54.CUBE"),
+    getLutPass("luts/Azrael 93.CUBE"),
     fullscreenQuad(device),
   ];
 

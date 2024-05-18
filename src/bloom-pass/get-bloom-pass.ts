@@ -350,7 +350,7 @@ const getAdditiveBlend = (blendAmount = 1) => {
             total /= 7.0;
             total *= ${blendAmount};
             let current = textureLoad(outputTexCopy, GlobalInvocationID.xy, 0);
-            textureStore(outputTex, GlobalInvocationID.xy, total + current);
+            textureStore(outputTex, GlobalInvocationID.xy, total);
         }
         `,
       }),
