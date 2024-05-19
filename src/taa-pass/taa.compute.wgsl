@@ -108,11 +108,10 @@ fn main(
         }
     }
 
-    let velocity = textureLoad(Velocity, closestDepthPixel, 0).xyz;
-    var uvVelocity: vec2<f32> = velocity.xy * vec2(0.5, -0.5);
-    let pixelVelocity: vec2<f32> = uvVelocity * texSize;
+    let velocity = textureLoad(Velocity, closestDepthPixel, 0).xy;
+    let pixelVelocity: vec2<f32> = velocity * texSize;
     let previousPixel: vec2<i32> = vec2<i32>(id.xy) -  vec2<i32>(pixelVelocity);
-    let previousUv = uv - uvVelocity;
+    let previousUv = uv - velocity;
 
     let worldPos = textureLoad(worldPosTex, id.xy, 0).xyz;
     let worldPosPrev = textureLoad(worldPosTex, previousPixel, 0).xyz;
@@ -144,7 +143,7 @@ fn main(
     }
     historySample = clamp(historySample, minCol, maxCol);
 
-    var sourceWeight: f32 = clamp(length(uvVelocity), MIN_SOURCE_BLEND, 1.0);
+    var sourceWeight: f32 = clamp(length(velocity), MIN_SOURCE_BLEND, 1.0);
     var historyWeight: f32 = 1.0 - sourceWeight;
     let compressedSource: vec3<f32> = sourceSample * rcp(max(max(sourceSample.r, sourceSample.g), sourceSample.b) + 1.0);
     let compressedHistory: vec3<f32> = historySample * rcp(max(max(historySample.r, historySample.g), historySample.b) + 1.0);

@@ -12,7 +12,24 @@ fn plainIntersect(ro: vec3<f32>, rd: vec3<f32>, p: vec4<f32>) -> f32 {
     return -(dot(ro, p.xyz) + p.w) / dot(rd, p.xyz);
 }
 
-fn getVelocity(objectPos: vec3<f32>, modelMatrix: mat4x4<f32>, previousModelMatrix: mat4x4<f32>, viewProjections: ViewProjectionMatrices) -> vec3<f32> {
+fn getVelocityStatic(worldPos: vec3<f32>, viewProjections:ViewProjectionMatrices) -> vec2<f32>{
+  let vp = viewProjections.viewProjection;
+  let previousVp = viewProjections.previousViewProjection;
+
+  let clipSpace = vp * vec4(worldPos.xyz, 1.0);
+  let previousClipSpace = previousVp * vec4(worldPos.xyz, 1.0);
+
+  let ndc = clipSpace.xyz / clipSpace.w;
+  let previousNdc = previousClipSpace.xyz / previousClipSpace.w;
+
+  var uv = ndc.xy * 0.5 + 0.5;
+  var previousUv = previousNdc.xy * 0.5 + 0.5;
+
+  var velocity = previousUv - uv;
+  return velocity;
+}
+
+fn getVelocity(objectPos: vec3<f32>, modelMatrix: mat4x4<f32>, previousModelMatrix: mat4x4<f32>, viewProjections: ViewProjectionMatrices) -> vec2<f32> {
   let vp = viewProjections.viewProjection;
   let previousVp = viewProjections.previousViewProjection;
 
@@ -24,9 +41,14 @@ fn getVelocity(objectPos: vec3<f32>, modelMatrix: mat4x4<f32>, previousModelMatr
   let previousObjectClipSpace = previousVp * previousModelMatrix * vec4(objectPos.xyz, 1.0);
   let previousObjectNDC = previousObjectClipSpace.xyz / previousObjectClipSpace.w;
 
+  // UV
+  var uv = objectNDC.xy * 0.5 + 0.5;
+  var previousUv = previousObjectNDC.xy * 0.5 + 0.5;
+  uv.y = 1.0 - uv.y;
+  previousUv.y = 1.0 - previousUv.y;
+
   // Get velocity based on the difference between the current and previous positions
-  var velocity = previousObjectNDC - objectNDC;
-  velocity.y = -velocity.y;
+  var velocity = previousUv - uv;
   return velocity;
 }
 
@@ -185,13 +207,14 @@ fn tracePixel(pixel: vec2<u32>){
     let paletteY = i32(voxelObject.paletteIndex);
     let albedo = textureLoad(paletteTex, vec2(paletteX, paletteY), 0).rgb;
     let normal = closestIntersection.normal;
-    let velocity = getVelocity(closestIntersection.objectPos, voxelObject.transform, voxelObject.previousTransform, viewProjections);
     let worldPos = closestIntersection.worldPos;
-    let depth = distance(cameraPosition, worldPos);
+//    let velocity = getVelocity(closestIntersection.objectPos, voxelObject.transform, voxelObject.previousTransform, viewProjections);
+    let velocity = getVelocityStatic(worldPos, viewProjections);
 
+    let depth = distance(cameraPosition, worldPos);
     textureStore(albedoTex, pixel, vec4(albedo, 1));
     textureStore(normalTex, pixel, vec4(normal,1));
-    textureStore(velocityTex, pixel, vec4(velocity ,0));
+    textureStore(velocityTex, pixel, vec4(velocity,0,0));
     textureStore(depthWrite, pixel, vec4(depth, 0, 0, 0));
 }
 
