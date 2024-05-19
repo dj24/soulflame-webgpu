@@ -7,7 +7,7 @@ const FORWARD_SCATTER = 0.5;
 const STEPS = 8.0;
 const NEAR  = 0.5;
 const FAR = 10000.0;
-const LIGHT_INTENSITY = 16.0;
+const LIGHT_INTENSITY = 32.0;
 
 fn henyeyGreenstein(cosTheta: f32, g: f32) -> f32 {
   let g2 = g * g;
@@ -32,7 +32,7 @@ fn main(
   let gBufferPixel = pixel * DOWNSCALE;
   let depthSample = textureLoad(depthTex, gBufferPixel, 0).r;
   let normalSample = textureLoad(normalTex, gBufferPixel, 0).xyz;
-  let distanceFromCamera = min(depthSample * (FAR - NEAR) + NEAR, MAX_DISTANCE);
+  let distanceFromCamera = min(depthSample, MAX_DISTANCE);
   var stepLength = distanceFromCamera / STEPS;
   let rayDir = calculateRayDirection(uv,viewProjections.inverseViewProjection);
   var blueNoisePixel = (vec2<i32>(pixel)) % BLUE_NOISE_SIZE;

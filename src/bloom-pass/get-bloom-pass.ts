@@ -350,7 +350,8 @@ const getAdditiveBlend = (blendAmount = 1) => {
             total /= 7.0;
             total *= ${blendAmount};
             let current = textureLoad(outputTexCopy, GlobalInvocationID.xy, 0);
-            textureStore(outputTex, GlobalInvocationID.xy, total);
+            //textureStore(outputTex, GlobalInvocationID.xy, total);
+            textureStore(outputTex, GlobalInvocationID.xy, vec4(1,0,0,1);
         }
         `,
       }),
@@ -444,10 +445,8 @@ export const getBloomPass = async (): Promise<RenderPass> => {
             let gBufferPixel = vec2<i32>(GlobalInvocationID.xy) * DOWNSCALE_FACTOR;
             let bloomPixel = vec2<i32>(GlobalInvocationID.xy);
             let color = textureLoad(inputTex, gBufferPixel, 0);
-
             let luminance = dot(color.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
-           
-            let threshold = 16.0;
+            let threshold = 1.0;
             let smoothedLuminance = smoothstep(threshold - 1.0, threshold, luminance);
             let thresholded = mix(vec4<f32>(0.0), color, smoothedLuminance);
             textureStore(outputTex,bloomPixel, thresholded);
@@ -469,7 +468,7 @@ export const getBloomPass = async (): Promise<RenderPass> => {
   const horizontalBlur = getHorizontalBlur(5);
   const verticalBlur = getVerticalBlur(5);
   const downscalePass = getHalfResDownscalePass();
-  const additiveBlend = getAdditiveBlend(0.25);
+  const additiveBlend = getAdditiveBlend(1.0);
 
   const render = (args: RenderArgs) => {
     if (!thresholdTexture) {

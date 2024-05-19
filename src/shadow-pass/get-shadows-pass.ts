@@ -214,7 +214,7 @@ type ComputeCompositePassArgs = {
   workgroupSizeFactor?: [number, number, number];
 };
 
-const workgroupSizeFactor = [1, 2, 1];
+const workgroupSizeFactor = [1, 1, 1];
 
 export const getShadowsPass = async (): Promise<RenderPass> => {
   const bindGroupLayout = device.createBindGroupLayout({

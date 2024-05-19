@@ -40,6 +40,7 @@ import { getMotionBlurPass } from "./motion-blur/motion-blur";
 import { getBoxOutlinePass } from "./box-outline/get-box-outline-pass";
 import { getLutPass } from "./get-lut-pass/get-lut-pass";
 import { generateJitter, jitterProjectionMatrix } from "./halton-sequence";
+import { getVignettePass } from "./get-vignette-pass/get-vignette-pass";
 
 export const debugValues = new DebugValuesStore();
 
@@ -401,7 +402,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     // Multiply the existing direction vector by the rotation matrix
     const newDirection = vec3.normalize(
-      vec3.transformMat4(vec3.create(0, 1.0, -0.8), rotationMatrix),
+      vec3.transformMat4(vec3.create(0, 0.2, -0.8), rotationMatrix),
     );
 
     if (sunDirectionBuffer) {
@@ -624,10 +625,11 @@ const start = async () => {
     getTaaPass(),
     getFogPass(),
     getBloomPass(),
-    // getMotionBlurPass(),
-    // getBoxOutlinePass(),
+    getMotionBlurPass(),
     getTonemapPass(),
     getLutPass("luts/Korben 214.CUBE"),
+    getVignettePass(15.0),
+    // getBoxOutlinePass(),
     fullscreenQuad(device),
   ];
 

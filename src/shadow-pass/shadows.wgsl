@@ -78,12 +78,13 @@ const SAMPLE_OFFSETS: array<vec2<i32>, 4> = array<vec2<i32>, 4>(
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
-  let checkerboardIndex = i32(GlobalInvocationID.x % 2);
-  let frameIndex = i32(time.frame % 2);
-  let offset = vec2<i32>(checkerboardIndex);
-  var pixel = vec2<i32>(i32(GlobalInvocationID.x), i32(GlobalInvocationID.y) * 2);
-  pixel.y += checkerboardIndex;
-  pixel.x += frameIndex;
+//  let checkerboardIndex = i32(GlobalInvocationID.x % 2);
+//  let frameIndex = i32(time.frame % 2);
+//  let offset = vec2<i32>(checkerboardIndex);
+//  var pixel = vec2<i32>(i32(GlobalInvocationID.x), i32(GlobalInvocationID.y) * 2);
+//  pixel.y += checkerboardIndex;
+//  pixel.x += frameIndex;
+  let pixel = vec2<i32>(GlobalInvocationID.xy);
   let outputPixel = pixel;
   var normalSample = textureLoad(normalTex, pixel, 0).rgb;
   var worldPos = textureLoad(worldPosTex, pixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
@@ -146,13 +147,20 @@ fn calculateVariance(neighborhood: array<vec3<f32>, 9>) -> f32 {
     return variance / 9.0;
 }
 
+const NEAR = 0.5;
+const FAR = 10000.0;
+
+fn normaliseDepth(depth:f32) -> f32 {
+    return (2.0 * NEAR) / (FAR + NEAR - depth * (FAR - NEAR));
+}
+
 fn calculateVarianceDepth(neighborhood: array<f32, 9>) -> f32 {
     var mean: f32 = 0.0;
     var variance: f32 = 0.0;
 
     // Calculate the mean
     for (var i = 0; i < 9; i = i + 1) {
-        mean = mean + neighborhood[i];
+        mean = mean + normaliseDepth(neighborhood[i]);
     }
     mean = mean / 9.0;
 
@@ -201,7 +209,7 @@ fn denoise(
   let previousPixel = vec2<i32>(previousUv * vec2<f32>(texSize));
   var previousShadow = textureSampleLevel(previousTex, nearestSampler, previousUv, 0);
 
-  var previousWeight = clamp(1.0 - length(previousUv), 0.0,0.9);
+  var previousWeight = clamp(1.0 - length(previousUv), 0.0,0.5);
 
   // Sample depth from the Depth texture
   let depthAtPreviousPixel: f32 = textureLoad(depthTex, previousPixel, 0).r;
@@ -240,20 +248,33 @@ fn denoise(
     textureLoad(normalTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[7], 0).rgb
   );
 
+  let depthNeighbourhood = array<f32, 9>(
+    depthRef,
+    textureLoad(depthTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[0], 0).r,
+    textureLoad(depthTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[1], 0).r,
+    textureLoad(depthTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[2], 0).r,
+    textureLoad(depthTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[3], 0).r,
+    textureLoad(depthTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[4], 0).r,
+    textureLoad(depthTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[5], 0).r,
+    textureLoad(depthTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[6], 0).r,
+    textureLoad(depthTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[7], 0).r
+  );
+
+  let depthVariance = calculateVarianceDepth(depthNeighbourhood);
   let normalVariance = calculateVariance(normalNeighbourhood);
-  let normalisedNormalVariance = normalVariance / (normalVariance + 0.0001);
+  let normalisedNormalVariance = normalVariance * 0.5 + 0.5;
+  let variance = mix(normalisedNormalVariance, depthVariance, 0.25);
 
   // Bilateral blur
-  var outputColour = vec4<f32>(0.0);
-  var totalWeight = 0.0;
+  var outputColour = shadowRef;
+  var totalWeight = 1.0;
   let golden_angle = 137.5; // The golden angle in degrees
-  let taps = i32(pow(1.0 - normalVariance, 3.0) * 8.0);
+  let taps = clamp(i32(exp(1.0 - variance) * 16.0), 0, 16);
 
   for(var i = 0; i <= taps; i++){
-      let angle = (golden_angle * f32(i)) % 360.0;
-      let radius = f32(i) * 0.5 * GOLDEN_RATIO;
-      let samplePixel = vec2<i32>(pixel) + vec2<i32>(polarToCartesian(f32(angle), radius));
-      let sampleUV = (vec2<f32>(samplePixel)) / vec2<f32>(texSize);
+      let angle = (golden_angle * f32(i + 1)) % 360.0;
+      let radius = pow(GOLDEN_RATIO, f32(i + 1));
+      let sampleUV = polarToCartesian(angle, radius) * texelSize + shadowSampleUV;
       let normalSample = textureSampleLevel(normalTex, nearestSampler, sampleUV, 0.0).rgb;
       let shadowSample = textureSampleLevel(intermediaryTexture, nearestSampler, sampleUV, 0.0);
       let normalWeight = dot(normalSample, normalRef);

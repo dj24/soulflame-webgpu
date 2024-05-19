@@ -194,10 +194,9 @@ fn tracePixel(pixel: vec2<u32>){
       textureStore(albedoTex, pixel, vec4(0));
       textureStore(normalTex, pixel, vec4(0));
       textureStore(depthWrite, pixel, vec4(FAR_PLANE));
-      let worldPos = skyDomeIntersection(rayOrigin, rayDirection) * rayDirection + rayOrigin;
-      let previousWorldPos = reprojectWorldPos(worldPos, viewProjections);
-      let velocity = worldPos - previousWorldPos;
-      textureStore(velocityTex, pixel, vec4(velocity, 0));
+      let worldPos = rayOrigin + skyDomeIntersection(rayOrigin, rayDirection) * rayDirection;
+      let velocity = getVelocityStatic(worldPos, viewProjections);
+      textureStore(velocityTex, pixel, vec4(velocity,0, 0));
       return;
     }
     closestIntersection = bvhResult;

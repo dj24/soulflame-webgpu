@@ -49,7 +49,7 @@ export class Camera extends MovableObject {
 
   update() {
     const rotationSpeed = 0.005 * deltaTime;
-    const speed = 0.04 * deltaTime;
+    const speed = 0.03 * deltaTime;
     let direction = vec3.zero();
     if (keyboardControls.pressed.a) {
       direction = vec3.add(direction, camera.left);
