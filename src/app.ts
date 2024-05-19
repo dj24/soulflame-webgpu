@@ -39,7 +39,7 @@ import { getBloomPass } from "./bloom-pass/get-bloom-pass";
 import { getMotionBlurPass } from "./motion-blur/motion-blur";
 import { getBoxOutlinePass } from "./box-outline/get-box-outline-pass";
 import { getLutPass } from "./get-lut-pass/get-lut-pass";
-import { haltonJitter } from "./jitter-view-projection";
+import { generateJitter, jitterProjectionMatrix } from "./halton-sequence";
 
 export const debugValues = new DebugValuesStore();
 
@@ -337,9 +337,17 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   };
 
   const getMatricesBuffer = () => {
-    const jitteredProjectionMatrix = haltonJitter(
+    const jitter = generateJitter(
       frameCount,
+      resolution[0],
+      resolution[1],
+      camera.fieldOfView,
+      resolution[0] / resolution[1],
+      0.1,
+    );
+    const jitteredProjectionMatrix = jitterProjectionMatrix(
       camera.projectionMatrix,
+      jitter,
     );
     const jitteredViewProjectionMatrix = mat4.mul(
       jitteredProjectionMatrix,
@@ -619,7 +627,7 @@ const start = async () => {
     // getMotionBlurPass(),
     // getBoxOutlinePass(),
     getTonemapPass(),
-    getLutPass("luts/Azrael 93.CUBE"),
+    getLutPass("luts/Korben 214.CUBE"),
     fullscreenQuad(device),
   ];
 

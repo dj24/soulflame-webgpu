@@ -3,7 +3,6 @@ import { KeyboardControls } from "./keyboard-controls";
 import { MovableObject } from "./movable-object";
 import { mat4, quat, vec3, Vec3 } from "wgpu-matrix";
 import { UpdatedByRenderLoop } from "./decorators/updated-by-render-loop";
-import { haltonJitter } from "./jitter-view-projection";
 
 const keyboardControls = new KeyboardControls();
 

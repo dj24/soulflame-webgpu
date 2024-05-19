@@ -112,6 +112,54 @@ const KERNEL_CORNER_OFFSETS = array<vec2<u32>, SPATIAL_SAMPLE_COUNT>(
   vec2(4,4)
 );
 
+const IDENTITY_MATRIX = mat4x4<f32>(
+  vec4<f32>(1.0, 0.0, 0.0, 0.0),
+  vec4<f32>(0.0, 1.0, 0.0, 0.0),
+  vec4<f32>(0.0, 0.0, 1.0, 0.0),
+  vec4<f32>(0.0, 0.0, 0.0, 1.0)
+);
+
+fn intersectSphere(origin: vec3<f32>, dir: vec3<f32>, spherePos: vec3<f32>, sphereRad: f32) -> f32
+{
+	let oc = origin - spherePos;
+	let b = 2.0 * dot(dir, oc);
+	let c = dot(oc, oc) - sphereRad*sphereRad;
+	let disc = b * b - 4.0 * c;
+	if (disc < 0.0)
+	{
+	  return -1.0;
+	}
+
+//    float q = (-b + ((b < 0.0) ? -sqrt(disc) : sqrt(disc))) / 2.0;
+  let q = (-b + select(sqrt(disc), -sqrt(disc), b < 0.0)) / 2.0;
+	var t0 = q;
+	var t1 = c / q;
+	if (t0 > t1) {
+		var temp = t0;
+		t0 = t1;
+		t1 = temp;
+	}
+	if (t1 < 0.0){
+	  return -1.0;
+	}
+
+  return select(t0, t1, t0 < 0.0);
+}
+
+fn skyDomeIntersection(ro: vec3<f32>, rd: vec3<f32>) -> f32 {
+    return intersectSphere(ro, rd, vec3<f32>(0.0, 0.0, 0.0), 100.0);
+}
+
+fn reprojectWorldPos(worldPos: vec3<f32>, viewProjections: ViewProjectionMatrices) -> vec3<f32> {
+  let clipSpace = viewProjections.previousViewProjection * vec4(worldPos.xyz, 1.0);
+  return 0.5 * (clipSpace.xyz / clipSpace.w) + 0.5;
+}
+
+fn reprojectObjectWorldPos(worldPos: vec3<f32>, previousModelMatrix: mat4x4<f32>, viewProjections: ViewProjectionMatrices) -> vec3<f32> {
+  let clipSpace = viewProjections.previousViewProjection * previousModelMatrix * vec4(worldPos.xyz, 1.0);
+  return 0.5 * (clipSpace.xyz / clipSpace.w) + 0.5;
+}
+
 fn tracePixel(pixel: vec2<u32>){
    let resolution = textureDimensions(albedoTex);
    var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
@@ -123,8 +171,11 @@ fn tracePixel(pixel: vec2<u32>){
     if(!bvhResult.hit){
       textureStore(albedoTex, pixel, vec4(0));
       textureStore(normalTex, pixel, vec4(0));
-      textureStore(velocityTex, pixel, vec4(0));
-      textureStore(depthWrite, pixel, vec4(FAR_PLANE, 0, 0, 0));
+      textureStore(depthWrite, pixel, vec4(FAR_PLANE));
+      let worldPos = skyDomeIntersection(rayOrigin, rayDirection) * rayDirection + rayOrigin;
+      let previousWorldPos = reprojectWorldPos(worldPos, viewProjections);
+      let velocity = worldPos - previousWorldPos;
+      textureStore(velocityTex, pixel, vec4(velocity, 0));
       return;
     }
     closestIntersection = bvhResult;

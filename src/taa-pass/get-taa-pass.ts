@@ -25,6 +25,7 @@ export const getTaaPass = async (): Promise<RenderPass> => {
     commandEncoder,
     timestampWrites,
     outputTextures,
+    viewProjectionMatricesBuffer,
   }: RenderArgs) => {
     if (!historyTexture) {
       historyTexture = device.createTexture({
@@ -100,6 +101,24 @@ export const getTaaPass = async (): Promise<RenderPass> => {
             mipmapFilter: "linear",
           }),
         },
+        {
+          binding: 7,
+          resource: device.createSampler({
+            magFilter: "nearest",
+            minFilter: "nearest",
+            mipmapFilter: "nearest",
+          }),
+        },
+        {
+          binding: 8,
+          resource: outputTextures.worldPositionTexture.view,
+        },
+        // {
+        //   binding: 9,
+        //   resource: {
+        //     buffer: viewProjectionMatricesBuffer,
+        //   },
+        // },
       ],
     });
 
