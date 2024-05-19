@@ -621,7 +621,7 @@ const start = async () => {
     getShadowsPass(),
     getSkyPass(),
     // getLightsPass(),
-    // getTaaPass(),
+    getTaaPass(),
     getFogPass(),
     getBloomPass(),
     // getMotionBlurPass(),

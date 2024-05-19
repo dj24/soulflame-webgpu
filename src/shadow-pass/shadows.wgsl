@@ -101,7 +101,7 @@ fn main(
   let sampleWorldPos = worldPos + randomInPlanarUnitDisk(r, normalSample) * POSITION_SCATTER_AMOUNT;
   var diffuseDirection = randomInCosineWeightedHemisphere(r, normalSample);
 
-  var radiance = vec3(0.01);
+  var radiance = vec3(0.1);
   let shadowRayDirection = sunDirection + randomInCosineWeightedHemisphere(r, sunDirection) * SCATTER_AMOUNT;
   if(!shadowRay(sampleWorldPos, shadowRayDirection, normalSample)){
     let viewDirection = normalize(cameraPosition - worldPos);
@@ -126,6 +126,55 @@ fn polarToCartesian(angle: f32, radius: f32) -> vec2<f32> {
   let y = radius * sin(radians);
   return vec2<f32>(x, y);
 }
+
+fn calculateVariance(neighborhood: array<vec3<f32>, 9>) -> f32 {
+    var mean: vec3<f32> = vec3<f32>(0.0);
+    var variance: f32 = 0.0;
+
+    // Calculate the mean
+    for (var i = 0; i < 9; i = i + 1) {
+        mean = mean + neighborhood[i];
+    }
+    mean = mean / 9.0;
+
+    // Calculate the variance
+    for (var i = 0; i < 9; i = i + 1) {
+        let diff: vec3<f32> = neighborhood[i] - mean;
+        variance = variance + dot(diff, diff);
+    }
+
+    return variance / 9.0;
+}
+
+fn calculateVarianceDepth(neighborhood: array<f32, 9>) -> f32 {
+    var mean: f32 = 0.0;
+    var variance: f32 = 0.0;
+
+    // Calculate the mean
+    for (var i = 0; i < 9; i = i + 1) {
+        mean = mean + neighborhood[i];
+    }
+    mean = mean / 9.0;
+
+    // Calculate the variance
+    for (var i = 0; i < 9; i = i + 1) {
+        let diff: f32 = neighborhood[i] - mean;
+        variance = variance + diff * diff;
+    }
+
+    return variance / 9.0;
+}
+
+const NEIGHBORHOOD_SAMPLE_POSITIONS = array<vec2<i32>, 8>(
+    vec2<i32>(-1, -1),
+    vec2<i32>(0, -1),
+    vec2<i32>(1, -1),
+    vec2<i32>(-1, 0),
+    vec2<i32>(1, 0),
+    vec2<i32>(-1, 1),
+    vec2<i32>(0, 1),
+    vec2<i32>(1, 1)
+);
 
 const TEMPORAL_DEPTH_THRESHOLD =4.0;
 const DEPTH_SENSITIVITY = 50.0;
@@ -178,40 +227,35 @@ fn denoise(
   }
   previousShadow = clamp(previousShadow, minCol, maxCol);
 
-  // Get variance
-  var normalTotal = vec3<f32>(0.0);
-  var depthTotal = 0.0;
-  var albedoTotal = vec3<f32>(0.0);
-  for(var i = 0; i <= 8; i++){
-      let samplePixel = vec2<i32>(pixel) + SAMPLE_OFFSETS[i];
-      let sampleUV = (vec2<f32>(samplePixel)) / vec2<f32>(texSize);
-      normalTotal += textureSampleLevel(normalTex, nearestSampler, sampleUV, 0.0).rgb;
-      albedoTotal += textureSampleLevel(albedoTex, nearestSampler, sampleUV, 0.0).rgb;
-      depthTotal += textureSampleLevel(depthTex, nearestSampler, sampleUV, 0.0).r;
-  }
-  let normalMean = normalTotal / 9.0;
-  let albedoMean = albedoTotal / 9.0;
-  let depthMean = depthTotal / 9.0;
+  // Get variance of the 3x3 neighborhood
+  let normalNeighbourhood = array<vec3<f32>, 9>(
+    normalRef,
+    textureLoad(normalTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[0], 0).rgb,
+    textureLoad(normalTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[1], 0).rgb,
+    textureLoad(normalTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[2], 0).rgb,
+    textureLoad(normalTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[3], 0).rgb,
+    textureLoad(normalTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[4], 0).rgb,
+    textureLoad(normalTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[5], 0).rgb,
+    textureLoad(normalTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[6], 0).rgb,
+    textureLoad(normalTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[7], 0).rgb
+  );
 
-  var normalVariance = vec3<f32>(0.0);
-  var depthVariance = 0.0;
-  var albedoVariance = vec3<f32>(0.0);
-  // TODO GET Variance
-
-
+  let normalVariance = calculateVariance(normalNeighbourhood);
+  let normalisedNormalVariance = normalVariance / (normalVariance + 0.0001);
 
   // Bilateral blur
   var outputColour = vec4<f32>(0.0);
   var totalWeight = 0.0;
   let golden_angle = 137.5; // The golden angle in degrees
+  let taps = i32(pow(1.0 - normalVariance, 3.0) * 8.0);
 
-  for(var i = 0; i <= 12; i++){
+  for(var i = 0; i <= taps; i++){
       let angle = (golden_angle * f32(i)) % 360.0;
-      let radius = (f32(i) / 3.0) * GOLDEN_RATIO;
+      let radius = f32(i) * 0.5 * GOLDEN_RATIO;
       let samplePixel = vec2<i32>(pixel) + vec2<i32>(polarToCartesian(f32(angle), radius));
       let sampleUV = (vec2<f32>(samplePixel)) / vec2<f32>(texSize);
       let normalSample = textureSampleLevel(normalTex, nearestSampler, sampleUV, 0.0).rgb;
-      let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0);
+      let shadowSample = textureSampleLevel(intermediaryTexture, nearestSampler, sampleUV, 0.0);
       let normalWeight = dot(normalSample, normalRef);
 
       let weight =  normalWeight;
