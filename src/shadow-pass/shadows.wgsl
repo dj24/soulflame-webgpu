@@ -276,7 +276,7 @@ fn denoise(
       let radius = pow(GOLDEN_RATIO, f32(i + 1));
       let sampleUV = polarToCartesian(angle, radius) * texelSize + shadowSampleUV;
       let normalSample = textureSampleLevel(normalTex, nearestSampler, sampleUV, 0.0).rgb;
-      let shadowSample = textureSampleLevel(intermediaryTexture, nearestSampler, sampleUV, 0.0);
+      let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0);
       let normalWeight = dot(normalSample, normalRef);
 
       let weight =  normalWeight;
