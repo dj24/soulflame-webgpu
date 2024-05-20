@@ -221,17 +221,17 @@ lights = [
   {
     position: [-43.8, 5.5, -36],
     size: 2.2,
-    color: vec3.create(400, 20, 20),
+    color: vec3.create(800, 20, 20),
   },
   {
     position: [-36, 5.5, -36],
     size: 2.2,
-    color: vec3.create(20, 400, 20),
+    color: vec3.create(20, 800, 20),
   },
   {
     position: [-25, 5.5, -36],
     size: 2.2,
-    color: vec3.create(20, 20, 400),
+    color: vec3.create(20, 20, 800),
   },
 ];
 
@@ -402,7 +402,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     // Multiply the existing direction vector by the rotation matrix
     const newDirection = vec3.normalize(
-      vec3.transformMat4(vec3.create(0, 0.2, -0.8), rotationMatrix),
+      vec3.transformMat4(vec3.create(0, 0.9, -0.8), rotationMatrix),
     );
 
     if (sunDirectionBuffer) {
@@ -604,7 +604,7 @@ const start = async () => {
   skyTexture = device.createTexture({
     label: "sky texture",
     dimension: "2d",
-    size: [512, 512, 6],
+    size: [640, 640, 6],
     format: SKYBOX_TEXTURE_FORMAT,
     usage:
       GPUTextureUsage.COPY_SRC |
@@ -621,13 +621,13 @@ const start = async () => {
     getGBufferPass(),
     getShadowsPass(),
     getSkyPass(),
-    // getLightsPass(),
+    getLightsPass(),
     getTaaPass(),
     getFogPass(),
     getBloomPass(),
     getMotionBlurPass(),
     getTonemapPass(),
-    getLutPass("luts/Korben 214.CUBE"),
+    getLutPass("luts/Reeve 38.CUBE"),
     getVignettePass(15.0),
     // getBoxOutlinePass(),
     fullscreenQuad(device),

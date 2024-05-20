@@ -100,21 +100,44 @@ fn main(
   }
   var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
   let sampleWorldPos = worldPos + randomInPlanarUnitDisk(r, normalSample) * POSITION_SCATTER_AMOUNT;
-  var diffuseDirection = randomInCosineWeightedHemisphere(r, normalSample);
 
   var radiance = vec3(0.1);
-  let shadowRayDirection = sunDirection + randomInCosineWeightedHemisphere(r, sunDirection) * SCATTER_AMOUNT;
-  if(!shadowRay(sampleWorldPos, shadowRayDirection, normalSample)){
-    let viewDirection = normalize(cameraPosition - worldPos);
-    let diffuse = max(dot(normalSample, sunDirection), 0.0);
-    let specular = pow(max(dot(normalSample, normalize(sunDirection + viewDirection)), 0.0), 32.0);
-    let lightIntensity = SUN_COLOR * (diffuse + specular);
-    radiance += lightIntensity;
+
+  // Calculate the probability of sampling the sun
+  let sunProbability = max(dot(normalSample, sunDirection), 0.0);
+  // Calculate the probability of sampling the diffuse light
+  let diffuseProbability = 1.0 - sunProbability;
+
+  if(r.x < sunProbability){
+    let shadowRayDirection = sunDirection + randomInCosineWeightedHemisphere(r, sunDirection) * SCATTER_AMOUNT;
+    if(!shadowRay(sampleWorldPos, shadowRayDirection, normalSample)){
+      let viewDirection = normalize(cameraPosition - worldPos);
+      let diffuse = max(dot(normalSample, sunDirection), 0.0);
+      let specular = pow(max(dot(normalSample, normalize(sunDirection + viewDirection)), 0.0), 32.0);
+      let lightIntensity = SUN_COLOR * (diffuse + specular);
+      radiance += lightIntensity;
+    }
+  } else{
+     var diffuseDirection = randomInCosineWeightedHemisphere(r, normalSample);
+     if(!diffuseRay(sampleWorldPos, diffuseDirection, normalSample)){
+          let sky = textureSampleLevel(skyCube, linearSampler, diffuseDirection, 0.0);
+          radiance += clamp(vec3(sky.rgb), vec3(0.0), vec3(32.0));
+      }
   }
-  if(!diffuseRay(sampleWorldPos, diffuseDirection, normalSample)){
-      let sky = textureSampleLevel(skyCube, linearSampler, diffuseDirection, 0.0);
-      radiance += clamp(vec3(sky.rgb), vec3(0.0), vec3(32.0));
-  }
+
+//  let shadowRayDirection = sunDirection + randomInCosineWeightedHemisphere(r, sunDirection) * SCATTER_AMOUNT;
+//  if(!shadowRay(sampleWorldPos, shadowRayDirection, normalSample)){
+//    let viewDirection = normalize(cameraPosition - worldPos);
+//    let diffuse = max(dot(normalSample, sunDirection), 0.0);
+//    let specular = pow(max(dot(normalSample, normalize(sunDirection + viewDirection)), 0.0), 32.0);
+//    let lightIntensity = SUN_COLOR * (diffuse + specular);
+//    radiance += lightIntensity;
+//  }
+//  let diffuseDirection = randomInCosineWeightedHemisphere(r, normalSample);
+//  if(!diffuseRay(sampleWorldPos, diffuseDirection, normalSample)){
+//      let sky = textureSampleLevel(skyCube, linearSampler, diffuseDirection, 0.0);
+//      radiance += clamp(vec3(sky.rgb), vec3(0.0), vec3(32.0));
+//  }
 
   textureStore(outputTex, outputPixel, vec4(radiance, 1.0));
 }

@@ -60,13 +60,13 @@ const getHorizontalBlur = (radius: number) => {
   });
 
   const enqueuePass = (args: {
+    commandEncoder: GPUCommandEncoder;
     inputTexture: GPUTexture;
     outputTexture: GPUTexture;
     inputTextureView: GPUTextureView;
     outputTextureView: GPUTextureView;
   }) => {
-    const commandEncoder = device.createCommandEncoder();
-    const computePass = commandEncoder.beginComputePass();
+    const computePass = args.commandEncoder.beginComputePass();
     const bindGroup = device.createBindGroup({
       layout: bindGroupLayout,
       entries: [
@@ -155,13 +155,13 @@ const getVerticalBlur = (radius: number) => {
   });
 
   const enqueuePass = (args: {
+    commandEncoder: GPUCommandEncoder;
     inputTexture: GPUTexture;
     outputTexture: GPUTexture;
     inputTextureView: GPUTextureView;
     outputTextureView: GPUTextureView;
   }) => {
-    const commandEncoder = device.createCommandEncoder();
-    const computePass = commandEncoder.beginComputePass();
+    const computePass = args.commandEncoder.beginComputePass();
     const bindGroup = device.createBindGroup({
       layout: bindGroupLayout,
       entries: [
@@ -251,13 +251,13 @@ const getHalfResDownscalePass = () => {
   });
 
   const enqueuePass = (args: {
+    commandEncoder: GPUCommandEncoder;
     inputTexture: GPUTexture;
     outputTexture: GPUTexture;
     inputTextureView: GPUTextureView;
     outputTextureView: GPUTextureView;
   }) => {
-    const commandEncoder = device.createCommandEncoder();
-    const computePass = commandEncoder.beginComputePass();
+    const computePass = args.commandEncoder.beginComputePass();
     const bindGroup = device.createBindGroup({
       layout: bindGroupLayout,
       entries: [
@@ -350,8 +350,7 @@ const getAdditiveBlend = (blendAmount = 1) => {
             total /= 7.0;
             total *= ${blendAmount};
             let current = textureLoad(outputTexCopy, GlobalInvocationID.xy, 0);
-            //textureStore(outputTex, GlobalInvocationID.xy, total);
-            textureStore(outputTex, GlobalInvocationID.xy, vec4(1,0,0,1);
+            textureStore(outputTex, GlobalInvocationID.xy, total + current);
         }
         `,
       }),
@@ -360,14 +359,14 @@ const getAdditiveBlend = (blendAmount = 1) => {
   });
 
   const enqueuePass = (args: {
+    commandEncoder: GPUCommandEncoder;
     inputTexture: GPUTexture;
     outputTexture: GPUTexture;
     inputTextureView: GPUTextureView;
     outputTextureView: GPUTextureView;
     outputTextureCopyView: GPUTextureView;
   }) => {
-    const commandEncoder = device.createCommandEncoder();
-    const computePass = commandEncoder.beginComputePass();
+    const computePass = args.commandEncoder.beginComputePass();
     const bindGroup = device.createBindGroup({
       layout: bindGroupLayout,
       entries: [
@@ -446,7 +445,7 @@ export const getBloomPass = async (): Promise<RenderPass> => {
             let bloomPixel = vec2<i32>(GlobalInvocationID.xy);
             let color = textureLoad(inputTex, gBufferPixel, 0);
             let luminance = dot(color.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
-            let threshold = 1.0;
+            let threshold = 64.0;
             let smoothedLuminance = smoothstep(threshold - 1.0, threshold, luminance);
             let thresholded = mix(vec4<f32>(0.0), color, smoothedLuminance);
             textureStore(outputTex,bloomPixel, thresholded);
@@ -465,10 +464,10 @@ export const getBloomPass = async (): Promise<RenderPass> => {
   let thresholdTextureCopyViews: GPUTextureView[];
   let allMipsView: GPUTextureView;
 
-  const horizontalBlur = getHorizontalBlur(5);
-  const verticalBlur = getVerticalBlur(5);
+  const horizontalBlur = getHorizontalBlur(1);
+  const verticalBlur = getVerticalBlur(1);
   const downscalePass = getHalfResDownscalePass();
-  const additiveBlend = getAdditiveBlend(1.0);
+  const additiveBlend = getAdditiveBlend(0.5);
 
   const render = (args: RenderArgs) => {
     if (!thresholdTexture) {
@@ -500,6 +499,7 @@ export const getBloomPass = async (): Promise<RenderPass> => {
       });
       allMipsView = thresholdTexture.createView();
       outputCopyTexture = device.createTexture({
+        label: "output copy texture",
         size: {
           width: args.outputTextures.finalTexture.width,
           height: args.outputTextures.finalTexture.height,
@@ -508,11 +508,32 @@ export const getBloomPass = async (): Promise<RenderPass> => {
         usage:
           GPUTextureUsage.COPY_SRC |
           GPUTextureUsage.COPY_DST |
-          GPUTextureUsage.TEXTURE_BINDING,
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.STORAGE_BINDING,
       });
       outputCopyView = outputCopyTexture.createView();
     }
+
     const { commandEncoder } = args;
+
+    commandEncoder.copyTextureToTexture(
+      {
+        texture: args.outputTextures.finalTexture.texture,
+        mipLevel: 0,
+        origin: { x: 0, y: 0, z: 0 },
+      },
+      {
+        texture: outputCopyTexture,
+        mipLevel: 0,
+        origin: { x: 0, y: 0, z: 0 },
+      },
+      {
+        width: args.outputTextures.finalTexture.width,
+        height: args.outputTextures.finalTexture.height,
+        depthOrArrayLayers: 1,
+      },
+    );
+
     const computePass = commandEncoder.beginComputePass({
       timestampWrites: args.timestampWrites,
     });
@@ -538,39 +559,24 @@ export const getBloomPass = async (): Promise<RenderPass> => {
     );
     computePass.end();
 
-    commandEncoder.copyTextureToTexture(
-      {
-        texture: args.outputTextures.finalTexture.texture,
-        mipLevel: 0,
-        origin: { x: 0, y: 0, z: 0 },
-      },
-      {
-        texture: outputCopyTexture,
-        mipLevel: 0,
-        origin: { x: 0, y: 0, z: 0 },
-      },
-      {
-        width: args.outputTextures.finalTexture.width,
-        height: args.outputTextures.finalTexture.height,
-        depthOrArrayLayers: 1,
-      },
-    );
-
     Array.from({ length: 6 }, (_, i) => {
       return [
         horizontalBlur({
+          commandEncoder,
           inputTexture: thresholdTexture,
           inputTextureView: thresholdTextureViews[i],
           outputTexture: thresholdTextureCopy,
           outputTextureView: thresholdTextureCopyViews[i],
         }),
         verticalBlur({
+          commandEncoder,
           inputTexture: thresholdTextureCopy,
           inputTextureView: thresholdTextureCopyViews[i],
           outputTexture: thresholdTexture,
           outputTextureView: thresholdTextureViews[i],
         }),
         downscalePass({
+          commandEncoder,
           inputTexture: thresholdTexture,
           inputTextureView: thresholdTextureViews[i],
           outputTexture: thresholdTexture,
@@ -580,6 +586,7 @@ export const getBloomPass = async (): Promise<RenderPass> => {
     }).flat();
 
     additiveBlend({
+      commandEncoder,
       inputTexture: thresholdTexture,
       inputTextureView: allMipsView,
       outputTexture: args.outputTextures.finalTexture.texture,

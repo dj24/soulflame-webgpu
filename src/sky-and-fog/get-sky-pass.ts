@@ -189,7 +189,7 @@ export const getSkyPass = async (): Promise<RenderPass> => {
   );
 
   const lastSkyTexture = device.createTexture({
-    size: [512, 512, 6],
+    size: [640, 640, 6],
     format: SKYBOX_TEXTURE_FORMAT,
     usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
   });

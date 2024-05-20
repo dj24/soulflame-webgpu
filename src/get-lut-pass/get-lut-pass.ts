@@ -61,7 +61,9 @@ export const getLutPass = async (path: string): Promise<RenderPass> => {
            let inputColour = textureLoad(inputTex, pixel, 0);
            // x = r, y = b, z = g
            let lutUV = vec3<f32>(inputColour.r, inputColour.b, inputColour.g);
-           let lutColour = textureSampleLevel(lutTex, linearSampler, lutUV, 0).rgb;
+           var lutColour = textureSampleLevel(lutTex, linearSampler, lutUV, 0).rgb;
+           let strength = 0.5;
+           lutColour = mix(inputColour.rgb, lutColour, strength);
            textureStore(outputTex, GlobalInvocationID.xy, vec4(lutColour, 1.));
         }
         `,

@@ -214,8 +214,6 @@ type ComputeCompositePassArgs = {
   workgroupSizeFactor?: [number, number, number];
 };
 
-const workgroupSizeFactor = [1, 1, 1];
-
 export const getShadowsPass = async (): Promise<RenderPass> => {
   const bindGroupLayout = device.createBindGroupLayout({
     entries: baseBindGroupLayoutEntries,
@@ -532,12 +530,8 @@ ${shadows}`;
     computePass.setPipeline(effectPipeline);
     computePass.setBindGroup(0, bindGroup);
     computePass.dispatchWorkgroups(
-      Math.ceil(
-        intermediaryTexture.width / NUM_THREADS_X / workgroupSizeFactor[0],
-      ),
-      Math.ceil(
-        intermediaryTexture.height / NUM_THREADS_Y / workgroupSizeFactor[1],
-      ),
+      Math.ceil(intermediaryTexture.width / NUM_THREADS_X),
+      Math.ceil(intermediaryTexture.height / NUM_THREADS_Y),
     );
 
     //Denoise
