@@ -85,8 +85,8 @@ const NEIGHBORHOOD_SAMPLE_POSITIONS = array<vec2<i32>, 8>(
 @group(0) @binding(8) var worldPosTex : texture_2d<f32>;
 //@group(0) @binding(9) var<uniform> viewProjectionMatrices : ViewProjectionMatrices;
 
-const DEPTH_THRESHOLD : f32 = 1.0;
-const MIN_SOURCE_BLEND = 0.1;
+const DEPTH_THRESHOLD : f32 = 4.0;
+const MIN_SOURCE_BLEND = 0.05;
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
