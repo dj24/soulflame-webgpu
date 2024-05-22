@@ -77,6 +77,8 @@ export const getLutPass = async (path: string): Promise<RenderPass> => {
     magFilter: "linear",
   });
 
+  let bindGroup: GPUBindGroup;
+
   const render = ({ commandEncoder, outputTextures }: RenderArgs) => {
     if (!copyTexture) {
       copyTexture = device.createTexture({
@@ -103,27 +105,29 @@ export const getLutPass = async (path: string): Promise<RenderPass> => {
       },
     );
 
-    const bindGroup = device.createBindGroup({
-      layout: bindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: lutVolumeView,
-        },
-        {
-          binding: 1,
-          resource: outputTextures.finalTexture.view,
-        },
-        {
-          binding: 2,
-          resource: linearSampler,
-        },
-        {
-          binding: 3,
-          resource: copyTextureView,
-        },
-      ],
-    });
+    if (!bindGroup) {
+      bindGroup = device.createBindGroup({
+        layout: bindGroupLayout,
+        entries: [
+          {
+            binding: 0,
+            resource: lutVolumeView,
+          },
+          {
+            binding: 1,
+            resource: outputTextures.finalTexture.view,
+          },
+          {
+            binding: 2,
+            resource: linearSampler,
+          },
+          {
+            binding: 3,
+            resource: copyTextureView,
+          },
+        ],
+      });
+    }
 
     const passEncoder = commandEncoder.beginComputePass();
     passEncoder.setPipeline(computePipeline);

@@ -50,7 +50,7 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.create(4, 4);
-let downscale = 1.0;
+let downscale = 4.0;
 let startTime = 0;
 export let elapsedTime = startTime;
 export let deltaTime = 0;
@@ -74,24 +74,44 @@ let voxelTextureView: GPUTextureView;
 let skyTexture: GPUTexture;
 
 export type RenderArgs = {
+  /** Whether the pass should be executed */
   enabled?: boolean;
+  /** The command encoder to record commands into */
   commandEncoder: GPUCommandEncoder;
+  /** The resolution of the canvas in pixels, an integer for width and height */
   resolutionBuffer: GPUBuffer;
+  /** The GBuffers to render to */
   outputTextures: OutputTextures;
+  /** The buffer containing the camera position in 3 floats (x,y,z) */
   cameraPositionBuffer: GPUBuffer;
+  /** Buffer containing the transformation matrices of the voxel objects */
   transformationMatrixBuffer: GPUBuffer;
+  /** Buffer containing the frameTime (deltaTime) and the elapsed frameCount */
   timeBuffer: GPUBuffer;
+  /** Buffer containing the view and projection matrices */
   viewProjectionMatricesBuffer?: GPUBuffer;
+  /** The timestamp query set to write to for debugging purposes */
   timestampWrites?: GPUComputePassTimestampWrites;
+  /** Buffer containing the sun direction in 3 floats (x,y,z) */
   sunDirectionBuffer?: GPUBuffer;
-  blueNoiseTexture?: GPUTexture;
+  /** The blue noise texture to use for dithering */
+  blueNoiseTextureView?: GPUTextureView;
+  /** Buffer containing the BVH acceleration structure */
   bvhBuffer: GPUBuffer;
+  /** The lights to render */
   lights: Light[];
+  /** The 3D texture atlas */
   volumeAtlas: VolumeAtlas;
+  /** Texture sampler for linear filtering */
+  linearSampler: GPUSampler;
+  /** Texture sampler for nearest filtering */
+  nearestSampler: GPUSampler;
 };
 
 export type RenderPass = {
+  /** The function to execute the pass */
   render: (args: RenderArgs) => void;
+  /** The label for the pass */
   label?: string;
 };
 
@@ -143,7 +163,8 @@ const torchPositions: Light["position"][] = [
 //   };
 // });
 
-const resolveTimestampQueries = (
+const resolveTimestampQueries = async (
+  gpuReadBuffer: GPUBuffer,
   computePasses: RenderPass[],
   timestampQuerySet: GPUQuerySet,
   timestampQueryBuffer: GPUBuffer,
@@ -159,11 +180,6 @@ const resolveTimestampQueries = (
   );
   commandBuffers.push(commandEncoder.finish());
   const size = timestampQueryBuffer.size;
-  const gpuReadBuffer = device.createBuffer({
-    size,
-    label: "gpu read buffer",
-    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-  });
   const copyEncoder = device.createCommandEncoder();
   copyEncoder.copyBufferToBuffer(
     timestampQueryBuffer,
@@ -251,7 +267,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let depthTexture: GBufferTexture;
   let velocityTexture: GBufferTexture;
   let worldPositionTexture: GBufferTexture;
-  let blueNoiseTexture: GPUTexture;
+  let blueNoiseTextureView: GPUTextureView;
 
   let timeBuffer: GPUBuffer;
   let resolutionBuffer: GPUBuffer;
@@ -266,6 +282,17 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let previousJitteredViewProjectionMatrix = mat4.create();
   let timestampQuerySet: GPUQuerySet;
   let timestampQueryBuffer: GPUBuffer;
+  let gpuReadBuffer: GPUBuffer;
+
+  const linearSampler = device.createSampler({
+    magFilter: "linear",
+    minFilter: "linear",
+  });
+
+  const nearestSampler = device.createSampler({
+    magFilter: "nearest",
+    minFilter: "nearest",
+  });
 
   if (device.features.has("timestamp-query")) {
     timestampQuerySet = device.createQuerySet({
@@ -280,6 +307,11 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         GPUBufferUsage.STORAGE |
         GPUBufferUsage.COPY_SRC |
         GPUBufferUsage.COPY_DST,
+    });
+    gpuReadBuffer = device.createBuffer({
+      size: timestampQueryBuffer.size,
+      label: "gpu read buffer",
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
     });
   }
 
@@ -326,15 +358,14 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   };
 
   const createBlueNoiseTexture = async () => {
-    if (!blueNoiseTexture) {
-      blueNoiseTexture = await createTextureFromImage(
-        device,
-        "blue-noise-rg.png",
-        {
-          usage: GPUTextureUsage.COPY_SRC,
-        },
-      );
-    }
+    const blueNoiseTexture = await createTextureFromImage(
+      device,
+      "blue-noise-rg.png",
+      {
+        usage: GPUTextureUsage.COPY_SRC,
+      },
+    );
+    blueNoiseTextureView = blueNoiseTexture.createView();
   };
 
   const getMatricesBuffer = () => {
@@ -475,7 +506,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     getVoxelObjectsBuffer();
 
     //TODO: handle loading this more gracefully
-    if (!transformationMatrixBuffer || !blueNoiseTexture) {
+    if (!transformationMatrixBuffer || !blueNoiseTextureView) {
       animationFrameId = requestAnimationFrame(frame);
       return;
     }
@@ -551,9 +582,11 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         viewProjectionMatricesBuffer,
         timestampWrites,
         sunDirectionBuffer,
-        blueNoiseTexture,
+        blueNoiseTextureView,
         bvhBuffer: bvh.gpuBuffer,
         lights,
+        linearSampler,
+        nearestSampler,
       });
       if (label) {
         commandEncoder.popDebugGroup();
@@ -562,12 +595,13 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     commandEncoder.popDebugGroup();
     const commandBuffers = [commandEncoder.finish()];
     if (device.features.has("timestamp-query")) {
-      resolveTimestampQueries(
-        computePasses,
-        timestampQuerySet,
-        timestampQueryBuffer,
-        commandBuffers,
-      );
+      // resolveTimestampQueries(
+      //   gpuReadBuffer,
+      //   computePasses,
+      //   timestampQuerySet,
+      //   timestampQueryBuffer,
+      //   commandBuffers,
+      // );
     }
     device.queue.submit(commandBuffers);
     animationFrameId = requestAnimationFrame(frame);
@@ -619,16 +653,16 @@ const start = async () => {
     getClearPass(),
     // getHelloTrianglePass(),
     getGBufferPass(),
-    getShadowsPass(),
-    getSkyPass(),
+    // getShadowsPass(),
+    // getSkyPass(),
     // getLightsPass(),
     // getTaaPass(),
     // getFogPass(),
-    getBloomPass(),
+    // getBloomPass(),
     // getMotionBlurPass(),
-    getTonemapPass(),
-    getLutPass("luts/Reeve 38.CUBE"),
-    getVignettePass(15.0),
+    // getTonemapPass(),
+    // getLutPass("luts/Reeve 38.CUBE"),
+    // getVignettePass(15.0),
     // getBoxOutlinePass(),
     fullscreenQuad(device),
   ];

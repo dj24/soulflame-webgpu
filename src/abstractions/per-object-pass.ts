@@ -201,7 +201,7 @@ ${shaderCode}`;
     cameraPositionBuffer,
     transformationMatrixBuffer,
     sunDirectionBuffer,
-    blueNoiseTexture,
+    blueNoiseTextureView,
     timeBuffer,
   }: RenderArgs) => {
     if (!copyOutputTexture) {
@@ -282,7 +282,7 @@ ${shaderCode}`;
       },
       {
         binding: 10,
-        resource: blueNoiseTexture.createView(),
+        resource: blueNoiseTextureView,
       },
       {
         binding: 11,

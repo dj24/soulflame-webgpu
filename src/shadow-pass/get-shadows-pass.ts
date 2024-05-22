@@ -327,7 +327,7 @@ ${shadows}`;
     cameraPositionBuffer,
     transformationMatrixBuffer,
     sunDirectionBuffer,
-    blueNoiseTexture,
+    blueNoiseTextureView,
     timeBuffer,
     bvhBuffer,
     commandEncoder,
@@ -430,7 +430,7 @@ ${shadows}`;
       },
       {
         binding: 11,
-        resource: blueNoiseTexture.createView(),
+        resource: blueNoiseTextureView,
       },
       {
         binding: 12,

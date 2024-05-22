@@ -59,6 +59,13 @@ const getHorizontalBlur = (radius: number) => {
     },
   });
 
+  const linearSampler = device.createSampler({
+    magFilter: "linear",
+    minFilter: "linear",
+  });
+
+  let bindGroup: GPUBindGroup;
+
   const enqueuePass = (args: {
     computePass: GPUComputePassEncoder;
     inputTexture: GPUTexture;
@@ -67,26 +74,25 @@ const getHorizontalBlur = (radius: number) => {
     outputTextureView: GPUTextureView;
   }) => {
     const { computePass } = args;
-    const bindGroup = device.createBindGroup({
-      layout: bindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: args.inputTextureView,
-        },
-        {
-          binding: 1,
-          resource: args.outputTextureView,
-        },
-        {
-          binding: 2,
-          resource: device.createSampler({
-            magFilter: "linear",
-            minFilter: "linear",
-          }),
-        },
-      ],
-    });
+    if (!bindGroup) {
+      bindGroup = device.createBindGroup({
+        layout: bindGroupLayout,
+        entries: [
+          {
+            binding: 0,
+            resource: args.inputTextureView,
+          },
+          {
+            binding: 1,
+            resource: args.outputTextureView,
+          },
+          {
+            binding: 2,
+            resource: linearSampler,
+          },
+        ],
+      });
+    }
     computePass.setPipeline(horizontalBlurComputePipeline);
     computePass.setBindGroup(0, bindGroup);
     computePass.dispatchWorkgroups(
@@ -153,6 +159,13 @@ const getVerticalBlur = (radius: number) => {
     },
   });
 
+  const linearSampler = device.createSampler({
+    magFilter: "linear",
+    minFilter: "linear",
+  });
+
+  let bindGroup: GPUBindGroup;
+
   const enqueuePass = (args: {
     computePass: GPUComputePassEncoder;
     inputTexture: GPUTexture;
@@ -161,26 +174,25 @@ const getVerticalBlur = (radius: number) => {
     outputTextureView: GPUTextureView;
   }) => {
     const { computePass } = args;
-    const bindGroup = device.createBindGroup({
-      layout: bindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: args.inputTextureView,
-        },
-        {
-          binding: 1,
-          resource: args.outputTextureView,
-        },
-        {
-          binding: 2,
-          resource: device.createSampler({
-            magFilter: "linear",
-            minFilter: "linear",
-          }),
-        },
-      ],
-    });
+    if (!bindGroup) {
+      bindGroup = device.createBindGroup({
+        layout: bindGroupLayout,
+        entries: [
+          {
+            binding: 0,
+            resource: args.inputTextureView,
+          },
+          {
+            binding: 1,
+            resource: args.outputTextureView,
+          },
+          {
+            binding: 2,
+            resource: linearSampler,
+          },
+        ],
+      });
+    }
     computePass.setPipeline(verticalBlurComputePipeline);
     computePass.setBindGroup(0, bindGroup);
     computePass.dispatchWorkgroups(
@@ -248,6 +260,13 @@ const getHalfResDownscalePass = () => {
     },
   });
 
+  const linearSampler = device.createSampler({
+    magFilter: "linear",
+    minFilter: "linear",
+  });
+
+  let bindGroup: GPUBindGroup;
+
   const enqueuePass = (args: {
     computePass: GPUComputePassEncoder;
     inputTexture: GPUTexture;
@@ -256,26 +275,25 @@ const getHalfResDownscalePass = () => {
     outputTextureView: GPUTextureView;
   }) => {
     const { computePass } = args;
-    const bindGroup = device.createBindGroup({
-      layout: bindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: args.inputTextureView,
-        },
-        {
-          binding: 1,
-          resource: args.outputTextureView,
-        },
-        {
-          binding: 2,
-          resource: device.createSampler({
-            magFilter: "linear",
-            minFilter: "linear",
-          }),
-        },
-      ],
-    });
+    if (!bindGroup) {
+      bindGroup = device.createBindGroup({
+        layout: bindGroupLayout,
+        entries: [
+          {
+            binding: 0,
+            resource: args.inputTextureView,
+          },
+          {
+            binding: 1,
+            resource: args.outputTextureView,
+          },
+          {
+            binding: 2,
+            resource: linearSampler,
+          },
+        ],
+      });
+    }
     computePass.setPipeline(downscaleComputePipeline);
     computePass.setBindGroup(0, bindGroup);
     // TODO: dispatch correct number of workgroups for mip level
@@ -355,6 +373,13 @@ const getAdditiveBlend = (blendAmount = 1) => {
     },
   });
 
+  const linearSampler = device.createSampler({
+    magFilter: "linear",
+    minFilter: "linear",
+  });
+
+  let bindGroup: GPUBindGroup;
+
   const enqueuePass = (args: {
     computePass: GPUComputePassEncoder;
     inputTexture: GPUTexture;
@@ -364,30 +389,29 @@ const getAdditiveBlend = (blendAmount = 1) => {
     outputTextureCopyView: GPUTextureView;
   }) => {
     const { computePass } = args;
-    const bindGroup = device.createBindGroup({
-      layout: bindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: args.inputTextureView,
-        },
-        {
-          binding: 1,
-          resource: args.outputTextureView,
-        },
-        {
-          binding: 2,
-          resource: device.createSampler({
-            magFilter: "linear",
-            minFilter: "linear",
-          }),
-        },
-        {
-          binding: 3,
-          resource: args.outputTextureCopyView,
-        },
-      ],
-    });
+    if (!bindGroup) {
+      bindGroup = device.createBindGroup({
+        layout: bindGroupLayout,
+        entries: [
+          {
+            binding: 0,
+            resource: args.inputTextureView,
+          },
+          {
+            binding: 1,
+            resource: args.outputTextureView,
+          },
+          {
+            binding: 2,
+            resource: linearSampler,
+          },
+          {
+            binding: 3,
+            resource: args.outputTextureCopyView,
+          },
+        ],
+      });
+    }
     computePass.setPipeline(blendComputePipeline);
     computePass.setBindGroup(0, bindGroup);
     computePass.dispatchWorkgroups(
@@ -465,6 +489,8 @@ export const getBloomPass = async (): Promise<RenderPass> => {
   const downscalePass = getHalfResDownscalePass();
   const additiveBlend = getAdditiveBlend(0.5);
 
+  let bindGroup: GPUBindGroup;
+
   const render = (args: RenderArgs) => {
     if (!thresholdTexture) {
       const thresholdDescriptor = {
@@ -533,19 +559,22 @@ export const getBloomPass = async (): Promise<RenderPass> => {
     const computePass = commandEncoder.beginComputePass({
       timestampWrites: args.timestampWrites,
     });
-    const bindGroup = device.createBindGroup({
-      layout: bindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: args.outputTextures.finalTexture.view,
-        },
-        {
-          binding: 1,
-          resource: thresholdTextureViews[0],
-        },
-      ],
-    });
+
+    if (!bindGroup) {
+      bindGroup = device.createBindGroup({
+        layout: bindGroupLayout,
+        entries: [
+          {
+            binding: 0,
+            resource: args.outputTextures.finalTexture.view,
+          },
+          {
+            binding: 1,
+            resource: thresholdTextureViews[0],
+          },
+        ],
+      });
+    }
     computePass.setPipeline(thresholdComputePipeline);
     computePass.setBindGroup(0, bindGroup);
     computePass.dispatchWorkgroups(

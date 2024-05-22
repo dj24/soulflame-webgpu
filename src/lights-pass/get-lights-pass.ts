@@ -355,7 +355,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     timestampWrites,
     bvhBuffer,
     lights,
-    blueNoiseTexture,
+    blueNoiseTextureView,
     timeBuffer,
   }: RenderArgs) => {
     let bindGroups = [];
@@ -381,6 +381,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
+    //TODO: find way to not create groups every frame
     for (let i = 0; i < lights.length; i++) {
       const light = lights[i];
       const vertices = getSphereVertices(light.size);
@@ -472,7 +473,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
           },
           {
             binding: 11,
-            resource: blueNoiseTexture.createView(),
+            resource: blueNoiseTextureView,
           },
           {
             binding: 12,

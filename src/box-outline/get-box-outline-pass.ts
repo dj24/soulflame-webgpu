@@ -154,6 +154,7 @@ export const getBoxOutlinePass = async (): Promise<RenderPass> => {
         vertices.buffer,
         vertices.byteOffset,
       );
+      // TODO: stop creating groups each frame
       const bindGroup = device.createBindGroup({
         layout: bindGroupLayout,
         entries: [

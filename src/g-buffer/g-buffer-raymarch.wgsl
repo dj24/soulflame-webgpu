@@ -178,10 +178,3 @@ fn main(
   let pixel = workdGroupOrigin + LocalInvocationID.xy * 4;
   tracePixel(pixel);
 }
-
-@compute @workgroup_size(16, 8, 1)
-fn interpolate(
-  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
-) {
-  let pixel = GlobalInvocationID.xy;
-}

@@ -284,7 +284,9 @@ ${shaderCode}`;
   });
 
   let copyOutputTexture: GPUTexture;
+  let copyOutputTextureView: GPUTextureView;
   let intermediaryTexture: GPUTexture;
+  let intermediaryTextureView: GPUTextureView;
 
   let nearestSampler = device.createSampler({
     magFilter: "nearest",
@@ -296,6 +298,9 @@ ${shaderCode}`;
     minFilter: "linear",
   });
 
+  let bindGroup: GPUBindGroup;
+  let compositeBindGroup: GPUBindGroup;
+
   const render = ({
     outputTextures,
     timestampWrites,
@@ -304,7 +309,7 @@ ${shaderCode}`;
     cameraPositionBuffer,
     transformationMatrixBuffer,
     sunDirectionBuffer,
-    blueNoiseTexture,
+    blueNoiseTextureView,
     timeBuffer,
     bvhBuffer,
     commandEncoder,
@@ -319,6 +324,7 @@ ${shaderCode}`;
         format: outputTextures.finalTexture.format,
         usage: outputTextures.finalTexture.usage,
       });
+      copyOutputTextureView = copyOutputTexture.createView();
     }
     if (!intermediaryTexture) {
       intermediaryTexture = device.createTexture({
@@ -331,6 +337,7 @@ ${shaderCode}`;
         usage:
           GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
       });
+      intermediaryTextureView = intermediaryTexture.createView();
     }
     // const commandEncoder = device.createCommandEncoder();
     commandEncoder.copyTextureToTexture(
@@ -347,121 +354,121 @@ ${shaderCode}`;
       },
     );
 
-    const baseEntries = [
-      {
-        binding: 0,
-        resource: outputTextures.depthTexture.view,
-      },
-      {
-        binding: 1,
-        resource: copyOutputTexture.createView(),
-      },
-      {
-        binding: 3,
-        resource: {
-          buffer: viewProjectionMatricesBuffer,
-        },
-      },
-      {
-        binding: 4,
-        resource: volumeAtlas.atlasTextureView,
-      },
-      {
-        binding: 5,
-        resource: {
-          buffer: cameraPositionBuffer,
-        },
-      },
-      {
-        binding: 6,
-        resource: {
-          buffer: transformationMatrixBuffer,
-        },
-      },
-      {
-        binding: 7,
-        resource: {
-          buffer: sunDirectionBuffer,
-        },
-      },
-      {
-        binding: 8,
-        resource: linearSampler,
-      },
-      {
-        binding: 10,
-        resource: outputTextures.normalTexture.view,
-      },
-      {
-        binding: 11,
-        resource: blueNoiseTexture.createView(),
-      },
-      {
-        binding: 12,
-        resource: {
-          buffer: timeBuffer,
-        },
-      },
-      {
-        binding: 13,
-        resource: nearestSampler,
-      },
-      {
-        binding: 14,
-        resource: outputTextures.velocityTexture.view,
-      },
-      {
-        binding: 15,
-        resource: {
-          buffer: bvhBuffer,
-        },
-      },
-      {
-        binding: 16,
-        resource: outputTextures.worldPositionTexture.view,
-      },
-      {
-        binding: 17,
-        resource: outputTextures.albedoTexture.view,
-      },
-      {
-        binding: 18,
-        resource: outputTextures.skyTexture.createView({
-          dimension: "cube",
-        }),
-      },
-    ];
-
-    const bindGroupDescriptor: GPUBindGroupDescriptor = {
-      layout: bindGroupLayout,
-      entries: [
-        ...baseEntries,
+    if (!bindGroup) {
+      const baseEntries = [
         {
-          binding: 2,
-          resource: intermediaryTexture.createView(),
-        },
-      ],
-    };
-
-    const compositeBindGroupDescriptor: GPUBindGroupDescriptor = {
-      layout: compositeBindGroupLayout,
-      entries: [
-        ...baseEntries,
-        {
-          binding: 2,
-          resource: outputTextures.finalTexture.view,
+          binding: 0,
+          resource: outputTextures.depthTexture.view,
         },
         {
-          binding: 9,
-          resource: intermediaryTexture.createView(),
+          binding: 1,
+          resource: copyOutputTextureView,
         },
-      ],
-    };
+        {
+          binding: 3,
+          resource: {
+            buffer: viewProjectionMatricesBuffer,
+          },
+        },
+        {
+          binding: 4,
+          resource: volumeAtlas.atlasTextureView,
+        },
+        {
+          binding: 5,
+          resource: {
+            buffer: cameraPositionBuffer,
+          },
+        },
+        {
+          binding: 6,
+          resource: {
+            buffer: transformationMatrixBuffer,
+          },
+        },
+        {
+          binding: 7,
+          resource: {
+            buffer: sunDirectionBuffer,
+          },
+        },
+        {
+          binding: 8,
+          resource: linearSampler,
+        },
+        {
+          binding: 10,
+          resource: outputTextures.normalTexture.view,
+        },
+        {
+          binding: 11,
+          resource: blueNoiseTextureView,
+        },
+        {
+          binding: 12,
+          resource: {
+            buffer: timeBuffer,
+          },
+        },
+        {
+          binding: 13,
+          resource: nearestSampler,
+        },
+        {
+          binding: 14,
+          resource: outputTextures.velocityTexture.view,
+        },
+        {
+          binding: 15,
+          resource: {
+            buffer: bvhBuffer,
+          },
+        },
+        {
+          binding: 16,
+          resource: outputTextures.worldPositionTexture.view,
+        },
+        {
+          binding: 17,
+          resource: outputTextures.albedoTexture.view,
+        },
+        {
+          binding: 18,
+          resource: outputTextures.skyTexture.createView({
+            dimension: "cube",
+          }),
+        },
+      ];
 
-    const bindGroup = device.createBindGroup(bindGroupDescriptor);
-    const compositeBindGroup = device.createBindGroup(
-      compositeBindGroupDescriptor,
-    );
+      const bindGroupDescriptor: GPUBindGroupDescriptor = {
+        layout: bindGroupLayout,
+        entries: [
+          ...baseEntries,
+          {
+            binding: 2,
+            resource: intermediaryTextureView,
+          },
+        ],
+      };
+
+      const compositeBindGroupDescriptor: GPUBindGroupDescriptor = {
+        layout: compositeBindGroupLayout,
+        entries: [
+          ...baseEntries,
+          {
+            binding: 2,
+            resource: outputTextures.finalTexture.view,
+          },
+          {
+            binding: 9,
+            resource: intermediaryTextureView,
+          },
+        ],
+      };
+
+      bindGroup = device.createBindGroup(bindGroupDescriptor);
+      compositeBindGroup = device.createBindGroup(compositeBindGroupDescriptor);
+    }
 
     const computePass = commandEncoder.beginComputePass({
       timestampWrites,
