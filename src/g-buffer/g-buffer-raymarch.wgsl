@@ -86,54 +86,6 @@ fn customNormalize(value: f32, min: f32, max: f32) -> f32 {
     return (value - min) / (max - min);
 }
 
-fn catmullRomSpline(t: f32, p0: f32, p1: f32, p2: f32, p3: f32) -> f32 {
-  let t2 = t * t;
-  let t3 = t2 * t;
-  return 0.5 * (
-    (2.0 * p1) +
-    (-p0 + p2) * t +
-    (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 +
-    (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3
-  );
-}
-
-/*
-
-x o x
-o x o
-x o x
-
-x o x o x
-o x o x o
-x o x o x
-o x o x o
-x o x o x
-
-Incremental sampling pattern
-1 o o o 2 o o o 1
-o o o o o o o o o
-o o 2 o o o 2 o o
-o o o o o o o o o
-2 o o o 1 o o o 2
-o o o o o o o o o
-o o 2 o o o 2 o o
-o o o o o o o o o
-1 o o o 2 o o o 1
-
-*/
-
-const SPATIAL_KERNEL_SIZE = 9;
-const SPATIAL_SAMPLE_COUNT = 5;
-
-const KERNEL_CORNER_OFFSETS = array<vec2<u32>, SPATIAL_SAMPLE_COUNT>(
-  // First set
-  vec2(0,0),
-  vec2(8,0),
-  vec2(0,8),
-  vec2(8,8),
-  vec2(4,4)
-);
-
 const IDENTITY_MATRIX = mat4x4<f32>(
   vec4<f32>(1.0, 0.0, 0.0, 0.0),
   vec4<f32>(0.0, 1.0, 0.0, 0.0),
@@ -217,11 +169,19 @@ fn tracePixel(pixel: vec2<u32>){
     textureStore(depthWrite, pixel, vec4(depth, 0, 0, 0));
 }
 
-@compute @workgroup_size(8, 8, 1)
+@compute @workgroup_size(16, 8, 1)
 fn main(
-  @builtin(local_invocation_index) LocalInvocationIndex : u32,
+  @builtin(local_invocation_id) LocalInvocationID : vec3<u32>,
   @builtin(workgroup_id) WorkgroupID : vec3<u32>,
+) {
+  let workdGroupOrigin = WorkgroupID.xy * vec2<u32>(64, 32);
+  let pixel = workdGroupOrigin + LocalInvocationID.xy * 4;
+  tracePixel(pixel);
+}
+
+@compute @workgroup_size(16, 8, 1)
+fn interpolate(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
 ) {
-  tracePixel(GlobalInvocationID.xy);
+  let pixel = GlobalInvocationID.xy;
 }

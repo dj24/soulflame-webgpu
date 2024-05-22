@@ -60,13 +60,13 @@ const getHorizontalBlur = (radius: number) => {
   });
 
   const enqueuePass = (args: {
-    commandEncoder: GPUCommandEncoder;
+    computePass: GPUComputePassEncoder;
     inputTexture: GPUTexture;
     outputTexture: GPUTexture;
     inputTextureView: GPUTextureView;
     outputTextureView: GPUTextureView;
   }) => {
-    const computePass = args.commandEncoder.beginComputePass();
+    const { computePass } = args;
     const bindGroup = device.createBindGroup({
       layout: bindGroupLayout,
       entries: [
@@ -94,7 +94,6 @@ const getHorizontalBlur = (radius: number) => {
       Math.ceil(args.inputTexture.height / 8),
       1,
     );
-    computePass.end();
   };
 
   return enqueuePass;
@@ -155,13 +154,13 @@ const getVerticalBlur = (radius: number) => {
   });
 
   const enqueuePass = (args: {
-    commandEncoder: GPUCommandEncoder;
+    computePass: GPUComputePassEncoder;
     inputTexture: GPUTexture;
     outputTexture: GPUTexture;
     inputTextureView: GPUTextureView;
     outputTextureView: GPUTextureView;
   }) => {
-    const computePass = args.commandEncoder.beginComputePass();
+    const { computePass } = args;
     const bindGroup = device.createBindGroup({
       layout: bindGroupLayout,
       entries: [
@@ -189,7 +188,6 @@ const getVerticalBlur = (radius: number) => {
       Math.ceil(args.inputTexture.height / 8),
       1,
     );
-    computePass.end();
   };
 
   return enqueuePass;
@@ -251,13 +249,13 @@ const getHalfResDownscalePass = () => {
   });
 
   const enqueuePass = (args: {
-    commandEncoder: GPUCommandEncoder;
+    computePass: GPUComputePassEncoder;
     inputTexture: GPUTexture;
     outputTexture: GPUTexture;
     inputTextureView: GPUTextureView;
     outputTextureView: GPUTextureView;
   }) => {
-    const computePass = args.commandEncoder.beginComputePass();
+    const { computePass } = args;
     const bindGroup = device.createBindGroup({
       layout: bindGroupLayout,
       entries: [
@@ -286,7 +284,6 @@ const getHalfResDownscalePass = () => {
       Math.ceil(args.outputTexture.height / 8),
       1,
     );
-    computePass.end();
   };
 
   return enqueuePass;
@@ -359,14 +356,14 @@ const getAdditiveBlend = (blendAmount = 1) => {
   });
 
   const enqueuePass = (args: {
-    commandEncoder: GPUCommandEncoder;
+    computePass: GPUComputePassEncoder;
     inputTexture: GPUTexture;
     outputTexture: GPUTexture;
     inputTextureView: GPUTextureView;
     outputTextureView: GPUTextureView;
     outputTextureCopyView: GPUTextureView;
   }) => {
-    const computePass = args.commandEncoder.beginComputePass();
+    const { computePass } = args;
     const bindGroup = device.createBindGroup({
       layout: bindGroupLayout,
       entries: [
@@ -398,7 +395,6 @@ const getAdditiveBlend = (blendAmount = 1) => {
       Math.ceil(args.outputTexture.height / 8),
       1,
     );
-    computePass.end();
   };
 
   return enqueuePass;
@@ -557,26 +553,25 @@ export const getBloomPass = async (): Promise<RenderPass> => {
       Math.ceil(args.outputTextures.finalTexture.height / 8),
       1,
     );
-    computePass.end();
 
-    Array.from({ length: 6 }, (_, i) => {
+    Array.from({ length: 7 }, (_, i) => {
       return [
         horizontalBlur({
-          commandEncoder,
+          computePass,
           inputTexture: thresholdTexture,
           inputTextureView: thresholdTextureViews[i],
           outputTexture: thresholdTextureCopy,
           outputTextureView: thresholdTextureCopyViews[i],
         }),
         verticalBlur({
-          commandEncoder,
+          computePass,
           inputTexture: thresholdTextureCopy,
           inputTextureView: thresholdTextureCopyViews[i],
           outputTexture: thresholdTexture,
           outputTextureView: thresholdTextureViews[i],
         }),
         downscalePass({
-          commandEncoder,
+          computePass,
           inputTexture: thresholdTexture,
           inputTextureView: thresholdTextureViews[i],
           outputTexture: thresholdTexture,
@@ -586,13 +581,14 @@ export const getBloomPass = async (): Promise<RenderPass> => {
     }).flat();
 
     additiveBlend({
-      commandEncoder,
+      computePass,
       inputTexture: thresholdTexture,
       inputTextureView: allMipsView,
       outputTexture: args.outputTextures.finalTexture.texture,
       outputTextureView: args.outputTextures.finalTexture.view,
       outputTextureCopyView: outputCopyView,
     });
+    computePass.end();
   };
 
   return {

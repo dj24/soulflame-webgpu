@@ -219,12 +219,42 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
             @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
           ) {
             let resolution = textureDimensions(worldPosTex);
-            let pixel = GlobalInvocationID.xy;
+            let pixel = vec2<i32>(GlobalInvocationID.xy);
             var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
             let depth = textureLoad(depthTex, pixel, 0).r;
-            let rayDirection = calculateRayDirection(uv, viewProjections.inverseViewProjection);
-            let worldPos = cameraPosition + rayDirection * depth;
-            textureStore(worldPosTex, pixel, vec4(worldPos, 1));
+            var rayDirection = calculateRayDirection(uv, viewProjections.inverseViewProjection);
+            var worldPos = cameraPosition + rayDirection * depth;
+            if(depth > 0.0) {
+              textureStore(worldPosTex, pixel, vec4(worldPos, 1));
+            }
+            else {
+                let surroundingPixels = array<vec2<i32>, 8>(
+                    vec2<i32>(0, 0),
+                    vec2<i32>(0, 4),
+                    vec2<i32>(4, 0),
+                    vec2<i32>(4, 4),
+                    vec2<i32>(0, -4),
+                    vec2<i32>(-4, 0),
+                    vec2<i32>(-4, -4),
+                    vec2<i32>(4, -4)
+                );
+                var count = 0.;
+                var averageDepth = depth;
+                for(var i = 0u; i < 8u; i = i + 1u) {
+                    let surroundingPixel = (pixel / 4) * 4 + surroundingPixels[i];
+                    let surroundingUV = vec2<f32>(surroundingPixel) / vec2<f32>(resolution);
+                    let surroundingDepth = textureLoad(depthTex, surroundingPixel, 0).r;
+                    let distanceWeight = f32(1.0) / f32(1.0 + f32(i));
+                    if(surroundingDepth > 0.0) {
+                        count += distanceWeight;
+                        averageDepth += surroundingDepth * distanceWeight;
+                    }
+                }
+                averageDepth = averageDepth / count;
+                var rayDirection = calculateRayDirection(uv, viewProjections.inverseViewProjection);
+                worldPos = cameraPosition + rayDirection * averageDepth;
+                textureStore(worldPosTex, pixel, vec4(worldPos, 1));
+            }
           }
 `,
       }),
@@ -327,9 +357,10 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     // Raymarch the scene
     computePass.setPipeline(pipeline);
     computePass.setBindGroup(0, computeBindGroup);
+    const totalPixels = resolution[0] * resolution[1];
     computePass.dispatchWorkgroups(
-      Math.ceil(resolution[0] / 8),
-      Math.ceil(resolution[1] / 8),
+      Math.ceil(resolution[0] / 64),
+      Math.ceil(resolution[1] / 32),
     );
 
     // Reconstruct world position
