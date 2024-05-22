@@ -159,7 +159,6 @@ fn tracePixel(pixel: vec2<u32>){
     let albedo = textureLoad(paletteTex, vec2(paletteX, paletteY), 0).rgb;
     let normal = closestIntersection.normal;
     let worldPos = closestIntersection.worldPos;
-//    let velocity = getVelocity(closestIntersection.objectPos, voxelObject.transform, voxelObject.previousTransform, viewProjections);
     let velocity = getVelocityStatic(worldPos, viewProjections);
 
     let depth = distance(cameraPosition, worldPos);

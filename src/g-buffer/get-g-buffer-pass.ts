@@ -3,15 +3,9 @@ import boxIntersection from "../shader/box-intersection.wgsl";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import bvh from "../shader/bvh.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
+import gBufferInterpolate from "./interpolate.compute.wgsl";
 
-import {
-  camera,
-  device,
-  debugValues,
-  resolution,
-  RenderPass,
-  RenderArgs,
-} from "../app";
+import { device, resolution, RenderPass, RenderArgs } from "../app";
 import { GBufferTexture } from "../abstractions/g-buffer-texture";
 import { DEPTH_FORMAT } from "../constants";
 
@@ -132,7 +126,25 @@ const getWorldPosReconstructionPipeline = async () => {
     });
   };
 
-  return { pipeline, getBindGroup };
+  let bindGroup: GPUBindGroup;
+
+  const enqueuePass = (
+    computePass: GPUComputePassEncoder,
+    renderArgs: RenderArgs,
+  ) => {
+    if (!bindGroup) {
+      bindGroup = getBindGroup(renderArgs);
+    }
+    // Reconstruct world position
+    computePass.setPipeline(pipeline);
+    computePass.setBindGroup(0, bindGroup);
+    computePass.dispatchWorkgroups(
+      Math.ceil(resolution[0] / 8),
+      Math.ceil(resolution[1] / 8),
+    );
+  };
+
+  return enqueuePass;
 };
 
 const getRaymarchPipeline = async () => {
@@ -318,45 +330,152 @@ const getRaymarchPipeline = async () => {
     });
   };
 
-  return { pipeline, getBindGroup };
-};
+  let bindGroup: GPUBindGroup;
 
-export const getGBufferPass = async (): Promise<RenderPass> => {
-  const worldPosReconstruct = await getWorldPosReconstructionPipeline();
-
-  const rayMarch = await getRaymarchPipeline();
-
-  let computeBindGroup: GPUBindGroup;
-  let reconstructWorldPosBindGroup: GPUBindGroup;
-
-  const render = (renderArgs: RenderArgs) => {
-    const { commandEncoder, timestampWrites } = renderArgs;
-    const computePass = commandEncoder.beginComputePass({ timestampWrites });
-    if (!computeBindGroup) {
-      computeBindGroup = rayMarch.getBindGroup(renderArgs);
+  const enqueuePass = (
+    computePass: GPUComputePassEncoder,
+    renderArgs: RenderArgs,
+  ) => {
+    if (!bindGroup) {
+      bindGroup = getBindGroup(renderArgs);
     }
-    if (!reconstructWorldPosBindGroup) {
-      reconstructWorldPosBindGroup =
-        worldPosReconstruct.getBindGroup(renderArgs);
-    }
-
     // Raymarch the scene
-    computePass.setPipeline(rayMarch.pipeline);
-    computePass.setBindGroup(0, computeBindGroup);
-    const totalPixels = resolution[0] * resolution[1];
+    computePass.setPipeline(pipeline);
+    computePass.setBindGroup(0, bindGroup);
     computePass.dispatchWorkgroups(
       Math.ceil(resolution[0] / 64),
       Math.ceil(resolution[1] / 32),
     );
+  };
 
-    // Reconstruct world position
-    computePass.setPipeline(worldPosReconstruct.pipeline);
-    computePass.setBindGroup(0, reconstructWorldPosBindGroup);
+  return enqueuePass;
+};
+
+const getInterpolatePipeline = async () => {
+  const bindGroupLayout = device.createBindGroupLayout({
+    entries: [
+      // Albedo
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        storageTexture: {
+          format: "rgba8unorm",
+          viewDimension: "2d",
+        },
+      },
+      // Copy of albedo
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+          viewDimension: "2d",
+        },
+      },
+    ],
+  });
+
+  const pipeline = await device.createComputePipelineAsync({
+    label: "interpolate g-buffer",
+    layout: device.createPipelineLayout({
+      bindGroupLayouts: [bindGroupLayout],
+    }),
+    compute: {
+      module: device.createShaderModule({
+        code: `
+        @group(0) @binding(0) var albedoTex : texture_storage_2d<rgba8unorm, write>;
+        @group(0) @binding(1) var albedoCopyTex : texture_2d<f32>;
+        ${gBufferInterpolate}
+        `,
+      }),
+      entryPoint: "main",
+    },
+  });
+
+  const getBindGroup = (
+    renderArgs: RenderArgs,
+    copyAlbedoTextureView: GPUTextureView,
+  ) => {
+    return device.createBindGroup({
+      layout: bindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: renderArgs.outputTextures.albedoTexture.view,
+        },
+        {
+          binding: 1,
+          resource: copyAlbedoTextureView,
+        },
+      ],
+    });
+  };
+
+  let bindGroup: GPUBindGroup;
+
+  const enqueuePass = (
+    computePass: GPUComputePassEncoder,
+    renderArgs: RenderArgs,
+    copyAlbedoTextureView: GPUTextureView,
+  ) => {
+    if (!bindGroup) {
+      bindGroup = getBindGroup(renderArgs, copyAlbedoTextureView);
+    }
+    // Interpolate g-buffer
+    computePass.setPipeline(pipeline);
+    computePass.setBindGroup(0, bindGroup);
     computePass.dispatchWorkgroups(
       Math.ceil(resolution[0] / 8),
       Math.ceil(resolution[1] / 8),
     );
+  };
 
+  return enqueuePass;
+};
+
+export const getGBufferPass = async (): Promise<RenderPass> => {
+  const worldPosReconstruct = await getWorldPosReconstructionPipeline();
+  const rayMarch = await getRaymarchPipeline();
+  const interpolate = await getInterpolatePipeline();
+  let copyAlbedoTexture: GPUTexture;
+  let copyAlbedoTextureView: GPUTextureView;
+  const render = (renderArgs: RenderArgs) => {
+    if (!copyAlbedoTexture) {
+      copyAlbedoTexture = device.createTexture({
+        format: renderArgs.outputTextures.albedoTexture.texture.format,
+        size: [
+          renderArgs.outputTextures.albedoTexture.texture.width,
+          renderArgs.outputTextures.albedoTexture.texture.height,
+        ],
+        usage:
+          GPUTextureUsage.COPY_SRC |
+          GPUTextureUsage.COPY_DST |
+          GPUTextureUsage.TEXTURE_BINDING,
+      });
+      copyAlbedoTextureView = copyAlbedoTexture.createView();
+    }
+
+    const { commandEncoder, timestampWrites } = renderArgs;
+
+    let computePass = commandEncoder.beginComputePass({ timestampWrites });
+    rayMarch(computePass, renderArgs);
+    computePass.end();
+    commandEncoder.copyTextureToTexture(
+      {
+        texture: renderArgs.outputTextures.albedoTexture.texture,
+      },
+      {
+        texture: copyAlbedoTexture,
+      },
+      {
+        width: renderArgs.outputTextures.albedoTexture.width,
+        height: renderArgs.outputTextures.albedoTexture.height,
+        depthOrArrayLayers: 1,
+      },
+    );
+    computePass = commandEncoder.beginComputePass({ timestampWrites });
+    interpolate(computePass, renderArgs, copyAlbedoTextureView);
+    worldPosReconstruct(computePass, renderArgs);
     computePass.end();
   };
 
