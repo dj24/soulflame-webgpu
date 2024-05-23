@@ -20,10 +20,6 @@ struct GBufferOutput {
   @builtin(frag_depth) depth : f32,
 }
 
-fn normaliseValue(min: f32, max: f32, value: f32) -> f32 {
-  return (value - min) / (max - min);
-}
-
 @fragment
 fn main(
   @location(0) objectPos : vec3f,

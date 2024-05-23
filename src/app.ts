@@ -41,6 +41,7 @@ import { getBoxOutlinePass } from "./box-outline/get-box-outline-pass";
 import { getLutPass } from "./get-lut-pass/get-lut-pass";
 import { generateJitter, jitterProjectionMatrix } from "./halton-sequence";
 import { getVignettePass } from "./get-vignette-pass/get-vignette-pass";
+import { getVoxelLatticePass } from "./voxel-lattice/get-voxel-lattice-pass";
 
 export const debugValues = new DebugValuesStore();
 
@@ -50,7 +51,7 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.create(4, 4);
-let downscale = 4.0;
+let downscale = 1.0;
 let startTime = 0;
 export let elapsedTime = startTime;
 export let deltaTime = 0;
@@ -164,7 +165,6 @@ const torchPositions: Light["position"][] = [
 // });
 
 const resolveTimestampQueries = async (
-  gpuReadBuffer: GPUBuffer,
   computePasses: RenderPass[],
   timestampQuerySet: GPUQuerySet,
   timestampQueryBuffer: GPUBuffer,
@@ -180,6 +180,11 @@ const resolveTimestampQueries = async (
   );
   commandBuffers.push(commandEncoder.finish());
   const size = timestampQueryBuffer.size;
+  const gpuReadBuffer = device.createBuffer({
+    size,
+    label: "gpu read buffer",
+    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+  });
   const copyEncoder = device.createCommandEncoder();
   copyEncoder.copyBufferToBuffer(
     timestampQueryBuffer,
@@ -220,6 +225,7 @@ const resolveTimestampQueries = async (
           frameTimeTracker.clearEntry(label);
         }
       });
+      gpuReadBuffer.destroy();
     });
 };
 
@@ -595,13 +601,12 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     commandEncoder.popDebugGroup();
     const commandBuffers = [commandEncoder.finish()];
     if (device.features.has("timestamp-query")) {
-      // resolveTimestampQueries(
-      //   gpuReadBuffer,
-      //   computePasses,
-      //   timestampQuerySet,
-      //   timestampQueryBuffer,
-      //   commandBuffers,
-      // );
+      resolveTimestampQueries(
+        computePasses,
+        timestampQuerySet,
+        timestampQueryBuffer,
+        commandBuffers,
+      );
     }
     device.queue.submit(commandBuffers);
     animationFrameId = requestAnimationFrame(frame);

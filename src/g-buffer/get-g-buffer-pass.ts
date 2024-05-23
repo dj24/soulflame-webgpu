@@ -372,17 +372,108 @@ const getInterpolatePipeline = async () => {
           viewDimension: "2d",
         },
       },
+      // Velocity
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        storageTexture: {
+          format: "rgba16float",
+          viewDimension: "2d",
+        },
+      },
+      // Copy of velocity
+      {
+        binding: 3,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+          viewDimension: "2d",
+        },
+      },
+      // Depth
+      {
+        binding: 4,
+        visibility: GPUShaderStage.COMPUTE,
+        storageTexture: {
+          format: DEPTH_FORMAT,
+          viewDimension: "2d",
+        },
+      },
+      // Copy of depth
+      {
+        binding: 5,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "unfilterable-float",
+          viewDimension: "2d",
+        },
+      },
+      // Normal
+      {
+        binding: 6,
+        visibility: GPUShaderStage.COMPUTE,
+        storageTexture: {
+          format: "rgba16float",
+          viewDimension: "2d",
+        },
+      },
+      // Copy of normal
+      {
+        binding: 7,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+          viewDimension: "2d",
+        },
+      },
+    ],
+  });
+  const cameraBindGroupLayout = device.createBindGroupLayout({
+    entries: [
+      // Camera position
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
+      // Matrices
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
+    ],
+  });
+
+  const voxelObjectsBindGroupLayout = device.createBindGroupLayout({
+    entries: [
+      // Voxel objects buffer
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "read-only-storage",
+        },
+      },
     ],
   });
 
   const pipeline = await device.createComputePipelineAsync({
     label: "interpolate g-buffer",
     layout: device.createPipelineLayout({
-      bindGroupLayouts: [bindGroupLayout],
+      bindGroupLayouts: [
+        bindGroupLayout,
+        cameraBindGroupLayout,
+        voxelObjectsBindGroupLayout,
+      ],
     }),
     compute: {
       module: device.createShaderModule({
-        code: gBufferInterpolate,
+        code: `${getRayDirection}${gBufferInterpolate}`,
       }),
       entryPoint: "main",
     },
@@ -391,6 +482,9 @@ const getInterpolatePipeline = async () => {
   const getBindGroup = (
     renderArgs: RenderArgs,
     copyAlbedoTextureView: GPUTextureView,
+    copyVelocityTextureView: GPUTextureView,
+    copyDepthTextureView: GPUTextureView,
+    copyNormalTextureView: GPUTextureView,
   ) => {
     return device.createBindGroup({
       layout: bindGroupLayout,
@@ -403,23 +497,100 @@ const getInterpolatePipeline = async () => {
           binding: 1,
           resource: copyAlbedoTextureView,
         },
+        {
+          binding: 2,
+          resource: renderArgs.outputTextures.velocityTexture.view,
+        },
+        {
+          binding: 3,
+          resource: copyVelocityTextureView,
+        },
+        {
+          binding: 4,
+          resource: renderArgs.outputTextures.depthTexture.view,
+        },
+        {
+          binding: 5,
+          resource: copyDepthTextureView,
+        },
+        {
+          binding: 6,
+          resource: renderArgs.outputTextures.normalTexture.view,
+        },
+        {
+          binding: 7,
+          resource: copyNormalTextureView,
+        },
+      ],
+    });
+  };
+
+  const getCameraBindGroup = (renderArgs: RenderArgs) => {
+    return device.createBindGroup({
+      layout: cameraBindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: {
+            buffer: renderArgs.cameraPositionBuffer,
+          },
+        },
+        {
+          binding: 1,
+          resource: {
+            buffer: renderArgs.viewProjectionMatricesBuffer,
+          },
+        },
+      ],
+    });
+  };
+
+  const getVoxelObjectsBindGroup = (renderArgs: RenderArgs) => {
+    return device.createBindGroup({
+      layout: voxelObjectsBindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: {
+            buffer: renderArgs.transformationMatrixBuffer,
+          },
+        },
       ],
     });
   };
 
   let bindGroup: GPUBindGroup;
+  let cameraBindGroup: GPUBindGroup;
+  let voxelObjectsBindGroup: GPUBindGroup;
 
   const enqueuePass = (
     computePass: GPUComputePassEncoder,
     renderArgs: RenderArgs,
     copyAlbedoTextureView: GPUTextureView,
+    copyVelocityTextureView: GPUTextureView,
+    copyDepthTextureView: GPUTextureView,
+    copyNormalTextureView: GPUTextureView,
   ) => {
     if (!bindGroup) {
-      bindGroup = getBindGroup(renderArgs, copyAlbedoTextureView);
+      bindGroup = getBindGroup(
+        renderArgs,
+        copyAlbedoTextureView,
+        copyVelocityTextureView,
+        copyDepthTextureView,
+        copyNormalTextureView,
+      );
+    }
+    if (!cameraBindGroup) {
+      cameraBindGroup = getCameraBindGroup(renderArgs);
+    }
+    if (!voxelObjectsBindGroup) {
+      voxelObjectsBindGroup = getVoxelObjectsBindGroup(renderArgs);
     }
     // Interpolate g-buffer
     computePass.setPipeline(pipeline);
     computePass.setBindGroup(0, bindGroup);
+    computePass.setBindGroup(1, cameraBindGroup);
+    computePass.setBindGroup(2, voxelObjectsBindGroup);
     computePass.dispatchWorkgroups(
       Math.ceil(resolution[0] / 16),
       Math.ceil(resolution[1] / 8),
@@ -435,6 +606,12 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
   const interpolate = await getInterpolatePipeline();
   let copyAlbedoTexture: GPUTexture;
   let copyAlbedoTextureView: GPUTextureView;
+  let copyVelocityTexture: GPUTexture;
+  let copyVelocityTextureView: GPUTextureView;
+  let copyDepthTexture: GPUTexture;
+  let copyDepthTextureView: GPUTextureView;
+  let copyNormalTexture: GPUTexture;
+  let copyNormalTextureView: GPUTextureView;
   const render = (renderArgs: RenderArgs) => {
     if (!copyAlbedoTexture) {
       copyAlbedoTexture = device.createTexture({
@@ -450,11 +627,54 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       });
       copyAlbedoTextureView = copyAlbedoTexture.createView();
     }
+    if (!copyVelocityTexture) {
+      copyVelocityTexture = device.createTexture({
+        format: renderArgs.outputTextures.velocityTexture.texture.format,
+        size: [
+          renderArgs.outputTextures.velocityTexture.texture.width,
+          renderArgs.outputTextures.velocityTexture.texture.height,
+        ],
+        usage:
+          GPUTextureUsage.COPY_SRC |
+          GPUTextureUsage.COPY_DST |
+          GPUTextureUsage.TEXTURE_BINDING,
+      });
+      copyVelocityTextureView = copyVelocityTexture.createView();
+    }
+    if (!copyDepthTexture) {
+      copyDepthTexture = device.createTexture({
+        format: renderArgs.outputTextures.depthTexture.texture.format,
+        size: [
+          renderArgs.outputTextures.depthTexture.texture.width,
+          renderArgs.outputTextures.depthTexture.texture.height,
+        ],
+        usage:
+          GPUTextureUsage.COPY_SRC |
+          GPUTextureUsage.COPY_DST |
+          GPUTextureUsage.TEXTURE_BINDING,
+      });
+      copyDepthTextureView = copyDepthTexture.createView();
+    }
+    if (!copyNormalTexture) {
+      copyNormalTexture = device.createTexture({
+        format: renderArgs.outputTextures.normalTexture.texture.format,
+        size: [
+          renderArgs.outputTextures.normalTexture.texture.width,
+          renderArgs.outputTextures.normalTexture.texture.height,
+        ],
+        usage:
+          GPUTextureUsage.COPY_SRC |
+          GPUTextureUsage.COPY_DST |
+          GPUTextureUsage.TEXTURE_BINDING,
+      });
+      copyNormalTextureView = copyNormalTexture.createView();
+    }
 
     const { commandEncoder, timestampWrites } = renderArgs;
     let computePass = commandEncoder.beginComputePass({ timestampWrites });
     rayMarch(computePass, renderArgs);
     computePass.end();
+    // Copy albedo texture
     commandEncoder.copyTextureToTexture(
       {
         texture: renderArgs.outputTextures.albedoTexture.texture,
@@ -468,8 +688,57 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         depthOrArrayLayers: 1,
       },
     );
-    computePass = commandEncoder.beginComputePass({ timestampWrites });
-    interpolate(computePass, renderArgs, copyAlbedoTextureView);
+    // Copy velocity
+    commandEncoder.copyTextureToTexture(
+      {
+        texture: renderArgs.outputTextures.velocityTexture.texture,
+      },
+      {
+        texture: copyVelocityTexture,
+      },
+      {
+        width: renderArgs.outputTextures.velocityTexture.width,
+        height: renderArgs.outputTextures.velocityTexture.height,
+        depthOrArrayLayers: 1,
+      },
+    );
+    // Copy depth texture
+    commandEncoder.copyTextureToTexture(
+      {
+        texture: renderArgs.outputTextures.depthTexture.texture,
+      },
+      {
+        texture: copyDepthTexture,
+      },
+      {
+        width: renderArgs.outputTextures.depthTexture.width,
+        height: renderArgs.outputTextures.depthTexture.height,
+        depthOrArrayLayers: 1,
+      },
+    );
+    // Copy normal texture
+    commandEncoder.copyTextureToTexture(
+      {
+        texture: renderArgs.outputTextures.normalTexture.texture,
+      },
+      {
+        texture: copyNormalTexture,
+      },
+      {
+        width: renderArgs.outputTextures.normalTexture.width,
+        height: renderArgs.outputTextures.normalTexture.height,
+        depthOrArrayLayers: 1,
+      },
+    );
+    computePass = commandEncoder.beginComputePass();
+    interpolate(
+      computePass,
+      renderArgs,
+      copyAlbedoTextureView,
+      copyVelocityTextureView,
+      copyDepthTextureView,
+      copyNormalTextureView,
+    );
     // worldPosReconstruct(computePass, renderArgs);
     computePass.end();
   };
