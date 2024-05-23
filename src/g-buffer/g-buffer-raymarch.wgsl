@@ -170,10 +170,8 @@ fn tracePixel(pixel: vec2<u32>){
 
 @compute @workgroup_size(16, 8, 1)
 fn main(
-  @builtin(local_invocation_id) LocalInvocationID : vec3<u32>,
-  @builtin(workgroup_id) WorkgroupID : vec3<u32>,
+   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
 ) {
-  let workdGroupOrigin = WorkgroupID.xy * vec2<u32>(64, 32);
-  let pixel = workdGroupOrigin + LocalInvocationID.xy * 4;
+  let pixel = GlobalInvocationID.xy * 4;
   tracePixel(pixel);
 }

@@ -382,11 +382,7 @@ const getInterpolatePipeline = async () => {
     }),
     compute: {
       module: device.createShaderModule({
-        code: `
-        @group(0) @binding(0) var albedoTex : texture_storage_2d<rgba8unorm, write>;
-        @group(0) @binding(1) var albedoCopyTex : texture_2d<f32>;
-        ${gBufferInterpolate}
-        `,
+        code: gBufferInterpolate,
       }),
       entryPoint: "main",
     },
@@ -425,7 +421,7 @@ const getInterpolatePipeline = async () => {
     computePass.setPipeline(pipeline);
     computePass.setBindGroup(0, bindGroup);
     computePass.dispatchWorkgroups(
-      Math.ceil(resolution[0] / 8),
+      Math.ceil(resolution[0] / 16),
       Math.ceil(resolution[1] / 8),
     );
   };
@@ -456,7 +452,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     }
 
     const { commandEncoder, timestampWrites } = renderArgs;
-
     let computePass = commandEncoder.beginComputePass({ timestampWrites });
     rayMarch(computePass, renderArgs);
     computePass.end();
@@ -475,7 +470,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     );
     computePass = commandEncoder.beginComputePass({ timestampWrites });
     interpolate(computePass, renderArgs, copyAlbedoTextureView);
-    worldPosReconstruct(computePass, renderArgs);
+    // worldPosReconstruct(computePass, renderArgs);
     computePass.end();
   };
 
