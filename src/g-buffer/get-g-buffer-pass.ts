@@ -459,6 +459,24 @@ const getInterpolatePipeline = async () => {
           type: "read-only-storage",
         },
       },
+      // Volume atlas
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+          viewDimension: "3d",
+        },
+      },
+      // Palette
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+          viewDimension: "2d",
+        },
+      },
     ],
   });
 
@@ -554,6 +572,14 @@ const getInterpolatePipeline = async () => {
           resource: {
             buffer: renderArgs.transformationMatrixBuffer,
           },
+        },
+        {
+          binding: 1,
+          resource: renderArgs.volumeAtlas.atlasTextureView,
+        },
+        {
+          binding: 2,
+          resource: renderArgs.volumeAtlas.paletteTextureView,
         },
       ],
     });
@@ -739,7 +765,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       copyDepthTextureView,
       copyNormalTextureView,
     );
-    // worldPosReconstruct(computePass, renderArgs);
+    worldPosReconstruct(computePass, renderArgs);
     computePass.end();
   };
 
