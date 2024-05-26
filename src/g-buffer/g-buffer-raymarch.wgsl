@@ -172,6 +172,6 @@ fn tracePixel(pixel: vec2<u32>){
 fn main(
    @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
 ) {
-  let pixel = GlobalInvocationID.xy * 4;
+  let pixel = GlobalInvocationID.xy * 3;
   tracePixel(pixel);
 }

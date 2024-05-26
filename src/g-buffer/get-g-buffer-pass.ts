@@ -174,6 +174,7 @@ const getRaymarchPipeline = async () => {
       viewDimension: "2d",
     },
   };
+
   const depthEntry: GPUBindGroupLayoutEntry = {
     binding: 6,
     visibility: GPUShaderStage.COMPUTE,
@@ -343,8 +344,8 @@ const getRaymarchPipeline = async () => {
     computePass.setPipeline(pipeline);
     computePass.setBindGroup(0, bindGroup);
     computePass.dispatchWorkgroups(
-      Math.ceil(resolution[0] / 64),
-      Math.ceil(resolution[1] / 32),
+      Math.ceil(resolution[0] / 16 / 3),
+      Math.ceil(resolution[1] / 8 / 3),
     );
   };
 

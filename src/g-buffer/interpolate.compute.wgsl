@@ -38,9 +38,9 @@ struct VoxelObject {
 
 const neighborOffsets = array<vec2<i32>, 4>(
   vec2<i32>(0, 0),
-  vec2<i32>(4, 0),
-  vec2<i32>(0, 4),
-  vec2<i32>(4, 4)
+  vec2<i32>(3, 0),
+  vec2<i32>(0, 3),
+  vec2<i32>(3, 3)
 );
 
 // Normal is in voxel (object) space, so will only have 1 or -1 values on one axis
@@ -71,7 +71,7 @@ fn checkSharedPlane(
 ) {
   let texSize = textureDimensions(albedoCopyTex);
   let pixel = vec2<i32>(GlobalInvocationID.xy);
-  let nearestFilledPixel = (pixel / 4) * 4;
+  let nearestFilledPixel = (pixel / 3) * 3;
   let nearestUV = vec2<f32>(nearestFilledPixel) / vec2<f32>(texSize);
 
   let velocityRef = textureLoad(velocityCopyTex, nearestFilledPixel, 0);
@@ -83,7 +83,7 @@ fn checkSharedPlane(
     if(objectIndex != velocityRef.a) {
       textureStore(velocityTex, pixel, vec4(velocityRef.xyz, -1.0));
      //TODO: march more rays instead
-     textureStore(albedoTex, pixel, vec4(1.0, 0.0, 0.0, 1.0));
+     textureStore(albedoTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
       return;
     }
     if(objectIndex != -1.0) {
@@ -93,7 +93,7 @@ fn checkSharedPlane(
   if(!hasFoundObject) {
     textureStore(velocityTex, pixel, vec4(velocityRef.xyz, -1.0));
     //TODO: march more rays instead
-    textureStore(albedoTex, pixel, vec4(0.0, 1.0, 0.0, 1.0));
+    textureStore(albedoTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
     textureStore(normalTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
     textureStore(depthTex, pixel, vec4(10000.0));
     return;
@@ -122,7 +122,7 @@ fn checkSharedPlane(
     if(!checkSharedPlane(localNormal, voxelPosRef, neighborVoxelPos, neighborLocalNormal)) {
       textureStore(velocityTex, pixel, vec4(velocityRef.xyz, -1.0));
       //TODO: march more rays instead
-      textureStore(albedoTex, pixel, vec4(0.0, 0.0, 1.0, 1.0));
+      textureStore(albedoTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
       textureStore(normalTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
       textureStore(depthTex, pixel, vec4(10000.0));
       return;
@@ -153,15 +153,17 @@ fn checkSharedPlane(
   textureStore(depthTex, pixel, vec4(depth));
   textureStore(normalTex, pixel, vec4(normal, 1.0));
 
-//  let worldPos = cameraPosition + calculateRayDirection(uv, viewProjections.inverseViewProjection) * depth;
-//  let localPos = (voxelObject.inverseTransform * vec4(worldPos, 1.0)).xyz;
-//  let voxelPos = floor(localPos);
-//  let atlasSamplePos = vec3<i32>(voxelObject.atlasLocation + voxelPos / voxelObject.size);
-//  let palettePos = textureLoad(volumeAtlasTex, atlasSamplePos, 0).r;
-//  let paletteX = i32(palettePos* 255.0);
-//  let paletteY = i32(voxelObject.paletteIndex);
-//  let albedo = textureLoad(paletteTex, vec2(paletteX, paletteY), 0).rgb;
+  let worldPos = cameraPosition + calculateRayDirection(uv, viewProjections.inverseViewProjection) * depth;
+  let localPos = (voxelObject.inverseTransform * vec4(worldPos, 1.0)).xyz;
+  let voxelPos = floor(localPos);
+  let atlasSamplePos = vec3<i32>(voxelObject.atlasLocation + voxelPos);
+  let palettePos = textureLoad(volumeAtlasTex, atlasSamplePos, 0).r;
+  let paletteX = i32(palettePos* 255.0);
+  let paletteY = i32(voxelObject.paletteIndex);
+  let albedo = textureLoad(paletteTex, vec2(paletteX, paletteY), 0).rgb;
 
+  textureStore(albedoTex, pixel, vec4(albedo, 1));
+//  textureStore(albedoTex, pixel, vec4(voxelPos / voxelObject.size, 1));
 //  textureStore(albedoTex, pixel, vec4(localPos / voxelObject.size, 1));
-  //  textureStore(albedoTex, pixel, vec4(fract(localPos), 1));
+//  textureStore(albedoTex, pixel, vec4(fract(localPos), 1));
 }
