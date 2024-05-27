@@ -33,6 +33,14 @@ module.exports = () => {
           test: /\.(css)$/,
           use: [MiniCssExtractPlugin.loader, "css-loader"],
         },
+        {
+          test: /\.c$/,
+          use: [
+            {
+              loader: path.resolve(__dirname, "c-loader.js"),
+            },
+          ],
+        },
       ],
     },
     plugins: [
@@ -48,6 +56,7 @@ module.exports = () => {
     ],
     experiments: {
       topLevelAwait: true, // Enable top-level await
+      asyncWebAssembly: true, // Enable async WebAssembly
     },
   };
 };

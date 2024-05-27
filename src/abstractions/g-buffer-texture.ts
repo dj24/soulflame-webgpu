@@ -8,7 +8,7 @@ export const defaultUsage =
   GPUTextureUsage.STORAGE_BINDING |
   GPUTextureUsage.RENDER_ATTACHMENT;
 
-const gBufferTextureFactory = (
+export const gBufferTextureFactory = (
   label: string,
   format: GPUTextureFormat,
   usage = defaultUsage,
@@ -21,6 +21,7 @@ const gBufferTextureFactory = (
     readonly #height: number;
     readonly #format = format;
     readonly #usage = usage;
+    readonly #label = label;
     constructor(device: GPUDevice, width: number, height: number) {
       this.#texture = device.createTexture({
         label,
@@ -52,6 +53,9 @@ const gBufferTextureFactory = (
     get usage() {
       return this.#usage;
     }
+    get label() {
+      return this.#label;
+    }
   }
 
   return GBufferTexture;
@@ -69,8 +73,8 @@ export const DepthTexture = gBufferTextureFactory(
   GPUTextureUsage.TEXTURE_BINDING |
     GPUTextureUsage.RENDER_ATTACHMENT |
     GPUTextureUsage.COPY_SRC |
-    GPUTextureUsage.STORAGE_BINDING,
-  // defaultUsage & ~GPUTextureUsage.STORAGE_BINDING,
+    GPUTextureUsage.STORAGE_BINDING |
+    GPUTextureUsage.COPY_DST,
 );
 export const VelocityTexture = gBufferTextureFactory("velocity", "rgba16float");
 export const WorldPositionTexture = gBufferTextureFactory(

@@ -11,3 +11,8 @@ declare module "*.worker.ts" {
   // export = WebpackWorker;
   export default WebpackWorker;
 }
+
+declare module "*.c" {
+  const module: () => Promise<EmscriptenModule>;
+  export default module;
+}
