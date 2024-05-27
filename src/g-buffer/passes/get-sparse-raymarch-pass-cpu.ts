@@ -1,15 +1,6 @@
 import { device, frameCount, frameTimeTracker, RenderArgs } from "../../app";
 import getWasmModule from "./foo.c";
-
-const workers = Array.from({ length: navigator.hardwareConcurrency }).map(
-  () => new Worker(new URL("./sparse-raymarch.worker.ts", import.meta.url)),
-);
-
-workers[0].addEventListener("message", (event: MessageEvent<any>) => {
-  console.log({ MAIN: event.data });
-});
-
-workers[0].postMessage("HELLO");
+import { SparseRaymarchWorkerMessage } from "./sparse-raymarch.worker";
 
 const ceilToNearestMultipleOf = (n: number, multiple: number) => {
   return Math.ceil(n / multiple) * multiple;
@@ -86,11 +77,19 @@ export const writeBufferToTextureCompute = () => {
 };
 
 export const getSparseRaymarchPassCPU = async () => {
+  const workers = Array.from({ length: navigator.hardwareConcurrency }).map(
+    () => new Worker(new URL("./sparse-raymarch.worker.ts", import.meta.url)),
+  );
   let testBuffer: GPUBuffer;
   let ptr: any;
+
   const wasmModule = await getWasmModule();
+
   const writeBufferToTexture = await writeBufferToTextureCompute();
 
+  workers[0].addEventListener("message", (event) => {
+    console.log("message from worker", event.data);
+  });
   const enqueuePass = (
     commandEncoder: GPUCommandEncoder,
     renderArgs: RenderArgs,
@@ -112,13 +111,20 @@ export const getSparseRaymarchPassCPU = async () => {
       ptr = wasmModule._malloc(totalBytes);
     }
 
-    const start = performance.now();
-    wasmModule.ccall(
-      "populate",
-      null,
-      ["uint8_t*", "uint32_t", "uint32_t"],
-      [ptr, totalBytes, frameCount],
+    const sharedHeap = new Uint8Array(
+      wasmModule.HEAPU8.buffer,
+      ptr,
+      totalBytes,
     );
+    wasmModule.HEAPU8.set(sharedHeap);
+
+    const start = performance.now();
+    const message: SparseRaymarchWorkerMessage = {
+      ptr,
+      totalBytes,
+      frameCount,
+    };
+    workers[0].postMessage(message);
     const end = performance.now();
     frameTimeTracker.addSample("CPU Raymarch", end - start);
 

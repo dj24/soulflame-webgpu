@@ -227,7 +227,7 @@ export const convertVxm = (arrayBuffer: ArrayBuffer): TVoxels => {
   });
 
   const trimmedSize = vec3.sub(bounds.max, bounds.min);
-  console.log({ bounds, trimmedSize });
+
   console.timeEnd("convert vxm");
 
   return {
