@@ -1,20 +1,19 @@
 #include <stdint.h>
 #include <stdio.h>
-#include <emscripten/emscripten.h>
-
-#ifdef __cplusplus
-#define EXTERN extern "C"
-#else
+#include <emscripten.h>
+#include <math.h>
+#include <wasm_simd128.h>
 #define EXTERN
-#endif
 
 EXTERN EMSCRIPTEN_KEEPALIVE
-void populate(uint8_t* array, uint32_t length) {
-    printf("Populating array of length %d\n", length);
-    for (uint32_t i = 0; i < length; i += 4) {
-        array[i] = 255;     // R
-        array[i + 1] = 0;   // G
-        array[i + 2] = 0;   // B
-        array[i + 3] = 255; // A
+void populate(uint8_t* array, uint32_t length, uint32_t frameIndex) {
+     for (uint32_t i = 0; i < length; i += 16) {
+        uint8_t r = (uint8_t)(255 * (sin(frameIndex / 50.0) * 0.5 + 0.5));     // R
+        uint8_t g = (uint8_t)(255 * (sin(frameIndex / 100.0) * 0.5 + 0.5));   // G
+        uint8_t b = (uint8_t)(255 * (cos(frameIndex / 50.0) * 0.5 + 0.5));   // B
+        uint8_t a = 255; // A
+
+        v128_t color = wasm_i8x16_make(r, g, b, a, r, g, b, a, r, g, b, a, r, g, b, a);
+        wasm_v128_store(array + i, color);
     }
 }
