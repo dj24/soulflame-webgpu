@@ -90,6 +90,7 @@ export const getSparseRaymarchPassCPU = async () => {
   workers[0].addEventListener("message", (event) => {
     console.log("message from worker", event.data);
   });
+
   const enqueuePass = (
     commandEncoder: GPUCommandEncoder,
     renderArgs: RenderArgs,
@@ -109,14 +110,13 @@ export const getSparseRaymarchPassCPU = async () => {
           GPUBufferUsage.STORAGE,
       });
       ptr = wasmModule._malloc(totalBytes);
+      const sharedHeapBuffer = new SharedArrayBuffer(totalBytes);
+      workers.forEach((worker) => {
+        worker.postMessage({ heapBuffer: sharedHeapBuffer }, [
+          sharedHeapBuffer,
+        ]);
+      });
     }
-
-    const sharedHeap = new Uint8Array(
-      wasmModule.HEAPU8.buffer,
-      ptr,
-      totalBytes,
-    );
-    wasmModule.HEAPU8.set(sharedHeap);
 
     const start = performance.now();
     const message: SparseRaymarchWorkerMessage = {
