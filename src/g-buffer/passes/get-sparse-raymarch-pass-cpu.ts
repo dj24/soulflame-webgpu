@@ -1,11 +1,15 @@
-import {
-  device,
-  frameCount,
-  frameTimeTracker,
-  RenderArgs,
-  resolution,
-} from "../../app";
+import { device, frameCount, frameTimeTracker, RenderArgs } from "../../app";
 import getWasmModule from "./foo.c";
+
+const workers = Array.from({ length: navigator.hardwareConcurrency }).map(
+  () => new Worker(new URL("./sparse-raymarch.worker.ts", import.meta.url)),
+);
+
+workers[0].addEventListener("message", (event: MessageEvent<any>) => {
+  console.log({ MAIN: event.data });
+});
+
+workers[0].postMessage("HELLO");
 
 const ceilToNearestMultipleOf = (n: number, multiple: number) => {
   return Math.ceil(n / multiple) * multiple;
