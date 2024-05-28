@@ -1,4 +1,10 @@
-import { device, frameCount, frameTimeTracker, RenderArgs } from "../../app";
+import {
+  device,
+  frameCount,
+  frameTimeTracker,
+  RenderArgs,
+  resolution,
+} from "../../app";
 import getWasmModule from "./foo.c";
 import { SparseRaymarchWorkerMessage } from "./sparse-raymarch.worker";
 
@@ -77,19 +83,11 @@ export const writeBufferToTextureCompute = () => {
 };
 
 export const getSparseRaymarchPassCPU = async () => {
-  const workers = Array.from({ length: navigator.hardwareConcurrency }).map(
-    () => new Worker(new URL("./sparse-raymarch.worker.ts", import.meta.url)),
-  );
   let testBuffer: GPUBuffer;
   let ptr: any;
 
   const wasmModule = await getWasmModule();
-
-  const writeBufferToTexture = await writeBufferToTextureCompute();
-
-  workers[0].addEventListener("message", (event) => {
-    console.log("message from worker", event.data);
-  });
+  const writeBufferToTexture = writeBufferToTextureCompute();
 
   const enqueuePass = (
     commandEncoder: GPUCommandEncoder,
@@ -100,7 +98,6 @@ export const getSparseRaymarchPassCPU = async () => {
     const height = Math.ceil(albedoTexture.height / 3);
     const bytesPerRow = ceilToNearestMultipleOf(width * 4, 256);
     const totalBytes = bytesPerRow * height;
-
     if (!testBuffer) {
       testBuffer = device.createBuffer({
         size: totalBytes,
@@ -110,39 +107,21 @@ export const getSparseRaymarchPassCPU = async () => {
           GPUBufferUsage.STORAGE,
       });
       ptr = wasmModule._malloc(totalBytes);
-      const sharedHeapBuffer = new SharedArrayBuffer(totalBytes);
-      workers.forEach((worker) => {
-        worker.postMessage({ heapBuffer: sharedHeapBuffer }, [
-          sharedHeapBuffer,
-        ]);
-      });
     }
-
-    const start = performance.now();
-    const message: SparseRaymarchWorkerMessage = {
+    wasmModule.ccall(
+      "populate",
+      null,
+      ["uint8_t*", "uint32_t", "uint32_t"],
+      [ptr, totalBytes, frameCount, resolution[0] / 3, resolution[1] / 3],
+    );
+    device.queue.writeBuffer(
+      testBuffer,
+      0,
+      wasmModule.HEAPU8.buffer,
       ptr,
       totalBytes,
-      frameCount,
-    };
-    workers[0].postMessage(message);
-    const end = performance.now();
-    frameTimeTracker.addSample("CPU Raymarch", end - start);
-
-    device.queue.writeBuffer(testBuffer, 0, wasmModule.HEAPU8, ptr, totalBytes);
-
+    );
     writeBufferToTexture(commandEncoder, renderArgs, testBuffer);
-
-    // commandEncoder.copyBufferToTexture(
-    //   {
-    //     buffer: testBuffer,
-    //     offset: 0,
-    //     bytesPerRow,
-    //   },
-    //   {
-    //     texture: albedoTexture,
-    //   },
-    //   [width, height, 1],
-    // );
   };
   return enqueuePass;
 };
