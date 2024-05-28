@@ -32,6 +32,15 @@ typedef struct {
     float m[4][4];
 } mat4x4_f32;
 
+typedef struct {
+  mat4x4_f32 viewProjection;
+  mat4x4_f32 previousViewProjection;
+  mat4x4_f32 inverseViewProjection;
+  mat4x4_f32 previousInverseViewProjection;
+  mat4x4_f32 projection;
+  mat4x4_f32 inverseProjection;
+} camera_matrices;
+
 vec2_u32 convert1DTo2D(vec2_u32 size, uint32_t index) {
     vec2_u32 result;
     result.x = index % size.x;
@@ -39,12 +48,13 @@ vec2_u32 convert1DTo2D(vec2_u32 size, uint32_t index) {
     return result;
 }
 
+// column major
 vec4_f32 matrixMul(mat4x4_f32 m, vec4_f32 v) {
     vec4_f32 result;
-    result.x = m.m[0][0] * v.x + m.m[0][1] * v.y + m.m[0][2] * v.z + m.m[0][3] * v.w;
-    result.y = m.m[1][0] * v.x + m.m[1][1] * v.y + m.m[1][2] * v.z + m.m[1][3] * v.w;
-    result.z = m.m[2][0] * v.x + m.m[2][1] * v.y + m.m[2][2] * v.z + m.m[2][3] * v.w;
-    result.w = m.m[3][0] * v.x + m.m[3][1] * v.y + m.m[3][2] * v.z + m.m[3][3] * v.w;
+    result.x = m.m[0][0] * v.x + m.m[1][0] * v.y + m.m[2][0] * v.z + m.m[3][0] * v.w;
+    result.y = m.m[0][1] * v.x + m.m[1][1] * v.y + m.m[2][1] * v.z + m.m[3][1] * v.w;
+    result.z = m.m[0][2] * v.x + m.m[1][2] * v.y + m.m[2][2] * v.z + m.m[3][2] * v.w;
+    result.w = m.m[0][3] * v.x + m.m[1][3] * v.y + m.m[2][3] * v.z + m.m[3][3] * v.w;
     return result;
 }
 
@@ -137,6 +147,13 @@ vec2_f32 vec2f(float x, float y) {
     return result;
 }
 
+vec2_u32 vec2u(uint32_t x, uint32_t y) {
+    vec2_u32 result;
+    result.x = x;
+    result.y = y;
+    return result;
+}
+
 vec3_f32 vec3f(float x, float y, float z) {
     vec3_f32 result;
     result.x = x;
@@ -154,23 +171,24 @@ vec4_f32 vec4f(float x, float y, float z, float w) {
     return result;
 }
 
-vec3_f32 calculateRayDirection(vec2_f32 uv, mat4x4_f32 inverseProjection) {
+
+vec3_f32 calculateRayDirection(vec2_f32 uv, mat4x4_f32 inverseViewProjection) {
   vec2_f32 clipSpace = sub2(mulScalar2(vec2f(1.0 - uv.x, 1.0 - uv.y),2.0),vec2f(1.0, 1.0));
   vec3_f32 viewRay = vec3f(clipSpace.x, clipSpace.y, 1.0);
-  vec4_f32 viewRayView = matrixMul(inverseProjection, vec4f(viewRay.x, viewRay.y, viewRay.z, 1.0));
+  vec4_f32 viewRayView = matrixMul(inverseViewProjection, vec4f(viewRay.x, viewRay.y, viewRay.z, 1.0));
   return normalize3(vec3f(viewRayView.x, viewRayView.y, viewRayView.z));
 }
 
 EXTERN EMSCRIPTEN_KEEPALIVE
-void populate(uint8_t* array, uint32_t length, uint32_t frameIndex, uint32_t resolutionX, uint32_t resolutionY) {
+void populate(uint8_t* array, uint32_t length, uint32_t frameIndex, vec2_u32* resolution, camera_matrices* cameraMatrices) {
      for (uint32_t byteIndex = 0; byteIndex < length; byteIndex += 4) {
         uint32_t index = byteIndex / 4;
-        vec2_u32 resolution = { resolutionX, resolutionY };
-        vec2_u32 pixel = convert1DTo2D(resolution, index);
-        vec2_f32 uv = { (float)pixel.x / (float)resolution.x, (float)pixel.y / (float)resolution.y };
+        vec2_u32 pixel = convert1DTo2D(vec2u(resolution->x, resolution->y), index);
+        vec2_f32 uv = { (float)pixel.x / (float)resolution->x, (float)pixel.y / (float)resolution->y };
+        //vec3_f32 rayDirection = calculateRayDirection(uv, cameraMatrices->inverseViewProjection);
         uint8_t r = (uint8_t)(uv.x * 255.0);
         uint8_t g = (uint8_t)(uv.y * 255.0);
-        uint8_t b = 0;
+        uint8_t b = (uint8_t)(0.0 * 255.0);
         uint8_t a = 255;
 
         v128_t color = wasm_i8x16_make(r, g, b, a, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);

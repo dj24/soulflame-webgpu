@@ -51,7 +51,7 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.create(4, 4);
-let downscale = 2.0;
+let downscale = 1.0;
 let startTime = 0;
 export let elapsedTime = startTime;
 export let deltaTime = 0;
@@ -91,6 +91,8 @@ export type RenderArgs = {
   timeBuffer: GPUBuffer;
   /** Buffer containing the view and projection matrices */
   viewProjectionMatricesBuffer?: GPUBuffer;
+  /** Float32Array containing the view and projection matrices */
+  viewProjectionMatricesArray?: Float32Array;
   /** The timestamp query set to write to for debugging purposes */
   timestampWrites?: GPUComputePassTimestampWrites;
   /** Buffer containing the sun direction in 3 floats (x,y,z) */
@@ -281,6 +283,9 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let viewProjectionMatricesBuffer: GPUBuffer;
   let sunDirectionBuffer: GPUBuffer;
 
+  let viewProjectionMatricesArray: Float32Array;
+  let cameraPositionFloatArray: Float32Array;
+
   let bvh: BVH;
   let previousInverseViewProjectionMatrix = mat4.create();
   let previousViewMatrix = mat4.create();
@@ -391,43 +396,46 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       jitteredProjectionMatrix,
       camera.viewMatrix,
     );
-    const jitteredInverseViewProjectionMatrix = mat4.invert(
-      jitteredViewProjectionMatrix,
-    );
-    const previousJitteredInverseViewProjectionMatrix = mat4.invert(
-      previousJitteredViewProjectionMatrix,
-    );
 
-    const bufferContents = [
+    // Update the view projection matrices buffer
+    viewProjectionMatricesArray = new Float32Array([
       ...jitteredViewProjectionMatrix,
       ...previousJitteredViewProjectionMatrix,
-      ...jitteredInverseViewProjectionMatrix,
-      ...previousJitteredInverseViewProjectionMatrix,
+      ...mat4.invert(jitteredViewProjectionMatrix),
+      ...mat4.invert(previousJitteredViewProjectionMatrix),
       ...jitteredProjectionMatrix,
       ...mat4.invert(jitteredProjectionMatrix),
-    ];
-    if (viewProjectionMatricesBuffer) {
-      writeToFloatUniformBuffer(viewProjectionMatricesBuffer, bufferContents);
-    } else {
-      viewProjectionMatricesBuffer = createFloatUniformBuffer(
-        device,
-        bufferContents,
-        "view matrices buffer",
-      );
+    ]);
+    if (!viewProjectionMatricesBuffer) {
+      viewProjectionMatricesBuffer = device.createBuffer({
+        size: viewProjectionMatricesArray.byteLength,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        label: "view matrices buffer",
+      });
     }
+    device.queue.writeBuffer(
+      viewProjectionMatricesBuffer,
+      0, // offset
+      viewProjectionMatricesArray.buffer,
+      0, // data offset
+      viewProjectionMatricesArray.length * Float32Array.BYTES_PER_ELEMENT,
+    );
 
+    // Update the camera position buffer
     const jitteredViewMatrix = mat4.mul(
       camera.inverseProjectionMatrix,
       jitteredViewProjectionMatrix,
     );
-
     const cameraWorldMatrix = mat4.invert(jitteredViewMatrix);
-
-    const jitteredCameraPosition = mat4.getTranslation(cameraWorldMatrix);
-
-    writeToFloatUniformBuffer(
+    cameraPositionFloatArray = new Float32Array(
+      mat4.getTranslation(cameraWorldMatrix),
+    );
+    device.queue.writeBuffer(
       cameraPositionBuffer,
-      jitteredCameraPosition as number[],
+      0, // offset
+      cameraPositionFloatArray.buffer,
+      0, // data offset
+      cameraPositionFloatArray.length * Float32Array.BYTES_PER_ELEMENT,
     );
     previousJitteredViewProjectionMatrix = jitteredViewProjectionMatrix;
   };
@@ -585,6 +593,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         cameraPositionBuffer,
         volumeAtlas,
         transformationMatrixBuffer,
+        viewProjectionMatricesArray,
         viewProjectionMatricesBuffer,
         timestampWrites,
         sunDirectionBuffer,

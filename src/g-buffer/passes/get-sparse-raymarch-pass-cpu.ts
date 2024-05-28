@@ -84,7 +84,9 @@ export const writeBufferToTextureCompute = () => {
 
 export const getSparseRaymarchPassCPU = async () => {
   let testBuffer: GPUBuffer;
-  let ptr: any;
+  let outputPtr: number;
+  let resolutionPtr: number;
+  let cameraMatricesPtr: number;
 
   const wasmModule = await getWasmModule();
   const writeBufferToTexture = writeBufferToTextureCompute();
@@ -106,19 +108,40 @@ export const getSparseRaymarchPassCPU = async () => {
           GPUBufferUsage.COPY_SRC |
           GPUBufferUsage.STORAGE,
       });
-      ptr = wasmModule._malloc(totalBytes);
+      outputPtr = wasmModule._malloc(totalBytes);
+      resolutionPtr = wasmModule._malloc(Uint32Array.BYTES_PER_ELEMENT * 2);
+      cameraMatricesPtr = wasmModule._malloc(
+        Float32Array.BYTES_PER_ELEMENT * 16,
+      );
     }
+
+    // Write the resolution to the wasm memory
+    new Uint32Array(wasmModule.HEAPU32.buffer, resolutionPtr, 2).set([
+      resolution[0] / 3,
+      resolution[1] / 3,
+    ]);
+
+    // Write the camera matrices to the wasm memory
+    new Float32Array(
+      wasmModule.HEAPF32.buffer,
+      cameraMatricesPtr,
+      renderArgs.viewProjectionMatricesArray.length,
+    ).set(renderArgs.viewProjectionMatricesArray);
+
+    const start = performance.now();
     wasmModule.ccall(
       "populate",
       null,
-      ["uint8_t*", "uint32_t", "uint32_t"],
-      [ptr, totalBytes, frameCount, resolution[0] / 3, resolution[1] / 3],
+      ["uint8_t*", "uint32_t", "uint32_t", "vec2_u32*", "camera_matrices*"],
+      [outputPtr, totalBytes, frameCount, resolutionPtr, cameraMatricesPtr],
     );
+    const end = performance.now();
+    frameTimeTracker.addSample("wasm raymarch", end - start);
     device.queue.writeBuffer(
       testBuffer,
       0,
       wasmModule.HEAPU8.buffer,
-      ptr,
+      outputPtr,
       totalBytes,
     );
     writeBufferToTexture(commandEncoder, renderArgs, testBuffer);
