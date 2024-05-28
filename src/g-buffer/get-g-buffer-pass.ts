@@ -44,7 +44,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
 
     const { commandEncoder, timestampWrites } = renderArgs;
     let computePass = commandEncoder.beginComputePass({ timestampWrites });
-    rayMarch(computePass, renderArgs);
+    // rayMarch(computePass, renderArgs);
     computePass.end();
 
     Object.keys(copyTextures).forEach((key: keyof OutputTextures) => {
