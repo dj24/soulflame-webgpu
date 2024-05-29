@@ -100,7 +100,6 @@ export const getInterpolatePipeline = async () => {
       },
     ],
   });
-
   const voxelObjectsBindGroupLayout = device.createBindGroupLayout({
     entries: [
       // Voxel objects buffer
@@ -131,6 +130,26 @@ export const getInterpolatePipeline = async () => {
       },
     ],
   });
+  const screenRayBindGroupLayout = device.createBindGroupLayout({
+    entries: [
+      // Indirect buffer
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "storage",
+        },
+      },
+      // Screen rays
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "storage",
+        },
+      },
+    ],
+  });
 
   const pipeline = await device.createComputePipelineAsync({
     label: "interpolate g-buffer",
@@ -139,6 +158,7 @@ export const getInterpolatePipeline = async () => {
         bindGroupLayout,
         cameraBindGroupLayout,
         voxelObjectsBindGroupLayout,
+        screenRayBindGroupLayout,
       ],
     }),
     compute: {
@@ -195,6 +215,29 @@ export const getInterpolatePipeline = async () => {
     });
   };
 
+  const getScreenRayBindGroup = (
+    indirectArgsBuffer: GPUBuffer,
+    screenRaysBuffer: GPUBuffer,
+  ) => {
+    return device.createBindGroup({
+      layout: screenRayBindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: {
+            buffer: indirectArgsBuffer,
+          },
+        },
+        {
+          binding: 1,
+          resource: {
+            buffer: screenRaysBuffer,
+          },
+        },
+      ],
+    });
+  };
+
   const getCameraBindGroup = (renderArgs: RenderArgs) => {
     return device.createBindGroup({
       layout: cameraBindGroupLayout,
@@ -240,6 +283,7 @@ export const getInterpolatePipeline = async () => {
   let bindGroup: GPUBindGroup;
   let cameraBindGroup: GPUBindGroup;
   let voxelObjectsBindGroup: GPUBindGroup;
+  let screenRayBindGroup: GPUBindGroup;
 
   const enqueuePass = (
     computePass: GPUComputePassEncoder,
@@ -248,6 +292,8 @@ export const getInterpolatePipeline = async () => {
     copyVelocityTextureView: GPUTextureView,
     copyDepthTextureView: GPUTextureView,
     copyNormalTextureView: GPUTextureView,
+    indirectBuffer: GPUBuffer,
+    screenRayBuffer: GPUBuffer,
   ) => {
     if (!bindGroup) {
       bindGroup = getBindGroup(
@@ -264,11 +310,19 @@ export const getInterpolatePipeline = async () => {
     if (!voxelObjectsBindGroup) {
       voxelObjectsBindGroup = getVoxelObjectsBindGroup(renderArgs);
     }
+    if (!screenRayBindGroup) {
+      screenRayBindGroup = getScreenRayBindGroup(
+        indirectBuffer,
+        screenRayBuffer,
+      );
+    }
+
     // Interpolate g-buffer
     computePass.setPipeline(pipeline);
     computePass.setBindGroup(0, bindGroup);
     computePass.setBindGroup(1, cameraBindGroup);
     computePass.setBindGroup(2, voxelObjectsBindGroup);
+    computePass.setBindGroup(3, screenRayBindGroup);
     computePass.dispatchWorkgroups(
       Math.ceil(resolution[0] / 16),
       Math.ceil(resolution[1] / 8),

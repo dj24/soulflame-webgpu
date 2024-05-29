@@ -36,6 +36,14 @@ struct VoxelObject {
 @group(2) @binding(1) var volumeAtlasTex : texture_3d<f32>;
 @group(2) @binding(2) var paletteTex : texture_2d<f32>;
 
+// Screen Rays
+struct ScreenRay {
+  direction : vec3<f32>,
+  pixel : vec2<u32>,
+};
+@group(3) @binding(0) var<storage, read_write> indirectArgs : array<atomic<u32>>;
+@group(3) @binding(1) var<storage, read_write> screenRays : array<ScreenRay>;
+
 const neighborOffsets = array<vec2<i32>, 4>(
   vec2<i32>(0, 0),
   vec2<i32>(3, 0),
@@ -65,6 +73,33 @@ fn checkSharedPlane(
   return false;
 }
 
+const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
+  vec2<u32>(0,1),
+  vec2<u32>(1,0),
+  vec2<u32>(1,1),
+  vec2<u32>(2,0),
+  vec2<u32>(2,1),
+  vec2<u32>(0,2),
+  vec2<u32>(1,2),
+  vec2<u32>(2,2)
+);
+
+// Store the remaining 8 rays in the 3x3 kernel (we already have the 0,0 ray)
+fn populateRemainingRaysInKernel(pixel: vec2<u32>, inverseViewProjection: mat4x4<f32>) {
+  let texSize = textureDimensions(albedoCopyTex);
+  for(var i = 0; i < 8; i = i + 1) {
+    // Increment the counter
+     atomicAdd(&indirectArgs[0], 1);
+     let count = atomicLoad(&indirectArgs[0]);
+     let offsetPixel = pixel + REMAINING_RAY_OFFSETS[i];
+     let uv = vec2<f32>(offsetPixel) / vec2<f32>(texSize);
+     let rayDirection = calculateRayDirection(uv, inverseViewProjection);
+     // Add the ray to the end of the array
+     screenRays[count].pixel = offsetPixel;
+     screenRays[count].direction = rayDirection;
+  }
+}
+
 @compute @workgroup_size(16, 8, 1)
  fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
@@ -92,8 +127,8 @@ fn checkSharedPlane(
   }
   if(!hasFoundObject) {
     textureStore(velocityTex, pixel, vec4(velocityRef.xyz, -1.0));
-    //TODO: march more rays instead
-    textureStore(albedoTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
+    // Dont march any more rays - we have hit the sky
+    textureStore(albedoTex, pixel, vec4(1.0, 0.0, 0.0, 1.0));
     textureStore(normalTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
     textureStore(depthTex, pixel, vec4(10000.0));
     return;
@@ -125,6 +160,7 @@ fn checkSharedPlane(
       textureStore(albedoTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
       textureStore(normalTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
       textureStore(depthTex, pixel, vec4(10000.0));
+      populateRemainingRaysInKernel(vec2<u32>(nearestFilledPixel), viewProjections.inverseViewProjection);
       return;
     }
   }

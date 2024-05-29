@@ -21,9 +21,8 @@ export type OutputTextures = {
 
 export const getGBufferPass = async (): Promise<RenderPass> => {
   const worldPosReconstruct = await getWorldPosReconstructionPipeline();
-  const rayMarch = await getSparseRaymarchPipeline();
+  const sparserayMarch = await getSparseRaymarchPipeline();
   const interpolate = await getInterpolatePipeline();
-  const cpuRayMarch = await getSparseRaymarchPassCPU();
 
   let copyTextures: Partial<
     Record<keyof OutputTextures, GBufferTexture | null>
@@ -34,7 +33,46 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     normalTexture: null,
   };
 
+  let indirectBuffer: GPUBuffer;
+  let indirectBufferCopy: GPUBuffer;
+  let screenRayBuffer: GPUBuffer;
+
+  setInterval(() => {
+    if (indirectBufferCopy) {
+      const copyCommandEncoder = device.createCommandEncoder();
+
+      indirectBufferCopy
+        .mapAsync(GPUMapMode.READ)
+        .then(() => {
+          console.log(new Uint32Array(indirectBufferCopy.getMappedRange())[0]);
+          indirectBufferCopy.unmap();
+        })
+        .catch();
+    }
+  }, 500);
+
   const render = (renderArgs: RenderArgs) => {
+    if (!indirectBuffer) {
+      indirectBuffer = device.createBuffer({
+        size: 3 * 4,
+        usage:
+          GPUBufferUsage.INDIRECT |
+          GPUBufferUsage.STORAGE |
+          GPUBufferUsage.COPY_SRC |
+          GPUBufferUsage.COPY_DST,
+      });
+      indirectBufferCopy = device.createBuffer({
+        size: 3 * 4,
+        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+      });
+      const { width, height } = renderArgs.outputTextures.finalTexture;
+      const maxScreenRays = width * height;
+      screenRayBuffer = device.createBuffer({
+        size: maxScreenRays * 4 * 2,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      });
+    }
+
     Object.keys(copyTextures).forEach((key: keyof OutputTextures) => {
       const source = renderArgs.outputTextures[key] as GBufferTexture;
       if (copyTextures[key] === null) {
@@ -43,8 +81,12 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     });
 
     const { commandEncoder, timestampWrites } = renderArgs;
+
+    commandEncoder.clearBuffer(indirectBuffer);
+    commandEncoder.clearBuffer(screenRayBuffer);
+
     let computePass = commandEncoder.beginComputePass({ timestampWrites });
-    rayMarch(computePass, renderArgs);
+    sparserayMarch(computePass, renderArgs);
     computePass.end();
 
     Object.keys(copyTextures).forEach((key: keyof OutputTextures) => {
@@ -61,10 +103,19 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       copyTextures.velocityTexture.view,
       copyTextures.depthTexture.view,
       copyTextures.normalTexture.view,
+      indirectBuffer,
+      screenRayBuffer,
     );
     worldPosReconstruct(computePass, renderArgs);
     computePass.end();
-    cpuRayMarch(commandEncoder, renderArgs);
+
+    commandEncoder.copyBufferToBuffer(
+      indirectBuffer,
+      0,
+      indirectBufferCopy,
+      0,
+      3 * 4,
+    );
   };
 
   return { render, label: "raymarched g-buffer" };
