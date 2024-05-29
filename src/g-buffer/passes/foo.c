@@ -29,8 +29,71 @@ typedef struct {
 } vec4_f32;
 
 typedef struct {
+  uint8_t r;
+  uint8_t g;
+  uint8_t b;
+  uint8_t a;
+} colour;
+
+typedef struct {
     float m[4][4];
 } mat4x4_f32;
+
+typedef struct {
+  v128_t data;
+} vec4_f32_simd;
+
+vec4_f32_simd vec4f_simd(float x, float y, float z, float w) {
+    vec4_f32_simd result;
+    result.data = wasm_f32x4_make(x, y, z, w);
+    return result;
+}
+
+vec4_f32_simd mulScalar_simd(vec4_f32_simd a, float b) {
+    vec4_f32_simd result;
+    result.data = wasm_f32x4_mul(a.data, wasm_f32x4_splat(b));
+    return result;
+}
+
+vec4_f32_simd add_simd(vec4_f32_simd a, vec4_f32_simd b) {
+    vec4_f32_simd result;
+    result.data = wasm_f32x4_add(a.data, b.data);
+    return result;
+}
+
+vec4_f32_simd sub_simd(vec4_f32_simd a, vec4_f32_simd b) {
+    vec4_f32_simd result;
+    result.data = wasm_f32x4_sub(a.data, b.data);
+    return result;
+}
+
+vec4_f32_simd divScalar_simd(vec4_f32_simd a, float b) {
+    vec4_f32_simd result;
+    result.data = wasm_f32x4_div(a.data, wasm_f32x4_splat(b));
+    return result;
+}
+
+vec4_f32_simd normalize_simd(vec4_f32_simd a) {
+    float length = sqrtf(a.data[0] * a.data[0] + a.data[1] * a.data[1] + a.data[2] * a.data[2]);
+    vec4_f32_simd result;
+    result.data = wasm_f32x4_div(a.data, wasm_f32x4_splat(length));
+    return result;
+}
+
+vec4_f32_simd cross_simd(vec4_f32_simd a, vec4_f32_simd b) {
+    vec4_f32_simd result;
+    result.data = wasm_f32x4_make(
+        a.data[1] * b.data[2] - a.data[2] * b.data[1],
+        a.data[2] * b.data[0] - a.data[0] * b.data[2],
+        a.data[0] * b.data[1] - a.data[1] * b.data[0],
+        0.0
+    );
+    return result;
+}
+
+float dot_simd(vec4_f32_simd a, vec4_f32_simd b) {
+    return a.data[0] * b.data[0] + a.data[1] * b.data[1] + a.data[2] * b.data[2];
+}
 
 typedef struct {
   mat4x4_f32 viewProjection;
@@ -179,19 +242,41 @@ vec3_f32 calculateRayDirection(vec2_f32 uv, mat4x4_f32 inverseViewProjection) {
   return normalize3(vec3f(viewRayView.x, viewRayView.y, viewRayView.z));
 }
 
+
+
 EXTERN EMSCRIPTEN_KEEPALIVE
 void populate(uint8_t* array, uint32_t length, uint32_t frameIndex, vec2_u32* resolution, camera_matrices* cameraMatrices) {
-     for (uint32_t byteIndex = 0; byteIndex < length; byteIndex += 4) {
-        uint32_t index = byteIndex / 4;
-        vec2_u32 pixel = convert1DTo2D(vec2u(resolution->x, resolution->y), index);
-        vec2_f32 uv = { (float)pixel.x / (float)resolution->x, (float)pixel.y / (float)resolution->y };
-        //vec3_f32 rayDirection = calculateRayDirection(uv, cameraMatrices->inverseViewProjection);
-        uint8_t r = (uint8_t)(uv.x * 255.0);
-        uint8_t g = (uint8_t)(uv.y * 255.0);
-        uint8_t b = (uint8_t)(0.0 * 255.0);
-        uint8_t a = 255;
+    vec2_f32 uvReciprocal = vec2f(1.0 / (float)resolution->x, 1.0 / (float)resolution->y);
+    vec3_f32 rayDirectionBottomLeft = calculateRayDirection(vec2f(0.0, 0.0), cameraMatrices->inverseViewProjection);
+    vec3_f32 rayDirectionTopRight = calculateRayDirection(vec2f(1.0, 1.0), cameraMatrices->inverseViewProjection);
+    vec3_f32 rayDirectionTopLeft = calculateRayDirection(vec2f(0.0, 0.0), cameraMatrices->inverseViewProjection);
+    vec3_f32 rayDirectionBottomRight = calculateRayDirection(vec2f(1.0, 0.0), cameraMatrices->inverseViewProjection);
 
-        v128_t color = wasm_i8x16_make(r, g, b, a, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+     for (uint32_t byteIndex = 0; byteIndex < length; byteIndex += 16) {
+        colour colours[4];
+        for(uint32_t laneIndex = 0; laneIndex < 16; laneIndex+= 4) {
+            uint32_t index = (byteIndex + laneIndex) / 4;
+            vec2_u32 pixel = convert1DTo2D(vec2u(resolution->x, resolution->y), index);
+            vec2_f32 uv = mul2(vec2f((float)pixel.x, (float)pixel.y), uvReciprocal);
+            uint8_t r = (uint8_t)(1.0 * 255.0);
+            uint8_t g = (uint8_t)(0.0 * 255.0);
+            uint8_t b = (uint8_t)(0.0 * 255.0);
+            uint8_t a = 255;
+            colour c;
+            c.r = r;
+            c.g = g;
+            c.b = b;
+            c.a = a;
+            colours[laneIndex] = c;
+        }
+
+        v128_t color = wasm_i8x16_make(
+          colours[0].r, colours[0].g, colours[0].b, colours[0].a,
+          colours[1].r, colours[1].g, colours[1].b, colours[1].a,
+          colours[2].r, colours[2].g, colours[2].b, colours[2].a,
+          colours[3].r, colours[3].g, colours[3].b, colours[3].a
+        );
         wasm_v128_store(array + byteIndex, color);
     }
 }
