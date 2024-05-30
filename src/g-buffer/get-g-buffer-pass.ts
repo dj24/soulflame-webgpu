@@ -38,20 +38,20 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
   let indirectBuffer: GPUBuffer;
   let screenRayBufferCopy: GPUBuffer;
   let screenRayBuffer: GPUBuffer;
-
-  setInterval(() => {
-    if (screenRayBufferCopy) {
-      screenRayBufferCopy
-        .mapAsync(GPUMapMode.READ)
-        .then(() => {
-          console.log(
-            new Uint32Array(screenRayBufferCopy.getMappedRange(0, 3200)),
-          );
-          screenRayBufferCopy.unmap();
-        })
-        .catch();
-    }
-  }, 500);
+  //
+  // setInterval(() => {
+  //   if (screenRayBufferCopy) {
+  //     screenRayBufferCopy
+  //       .mapAsync(GPUMapMode.READ)
+  //       .then(() => {
+  //         console.log(
+  //           new Uint32Array(screenRayBufferCopy.getMappedRange(0, 3200))[0],
+  //         );
+  //         screenRayBufferCopy.unmap();
+  //       })
+  //       .catch();
+  //   }
+  // }, 500);
 
   const render = (renderArgs: RenderArgs) => {
     if (!indirectBuffer) {
@@ -118,16 +118,16 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     bufferMarch(computePass, renderArgs, screenRayBuffer, indirectBuffer);
     computePass.end();
 
-    computePass = commandEncoder.beginComputePass({ timestampWrites });
+    computePass = commandEncoder.beginComputePass();
     worldPosReconstruct(computePass, renderArgs);
     computePass.end();
 
     commandEncoder.copyBufferToBuffer(
-      screenRayBuffer,
+      indirectBuffer,
       0,
       screenRayBufferCopy,
       0,
-      screenRayBuffer.size,
+      indirectBuffer.size,
     );
   };
 

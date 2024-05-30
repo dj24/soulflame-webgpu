@@ -102,7 +102,7 @@ export const getBufferRaymarchPipeline = async () => {
     ],
   });
 
-  const screenRayBufferBindGroup = device.createBindGroupLayout({
+  const screenRayBufferBindGroupLayout = device.createBindGroupLayout({
     entries: [
       {
         binding: 0,
@@ -115,14 +115,13 @@ export const getBufferRaymarchPipeline = async () => {
   });
 
   const pipeline = await device.createComputePipelineAsync({
-    label: "raymarch g-buffer",
+    label: "raymarch g-buffer indirect",
     layout: device.createPipelineLayout({
-      bindGroupLayouts: [bindGroupLayout],
+      bindGroupLayouts: [bindGroupLayout, screenRayBufferBindGroupLayout],
     }),
     compute: {
       module: device.createShaderModule({
         code: `
-         
           @group(0) @binding(0) var voxels : texture_3d<f32>;
           @group(0) @binding(2) var<uniform> cameraPosition : vec3<f32>;
           @group(0) @binding(3) var<storage> voxelObjects : array<VoxelObject>;
@@ -140,7 +139,7 @@ export const getBufferRaymarchPipeline = async () => {
           ${bvh}
           ${gBufferRaymarch}`,
       }),
-      entryPoint: "main",
+      entryPoint: "bufferMarch",
     },
   });
 
@@ -202,7 +201,7 @@ export const getBufferRaymarchPipeline = async () => {
 
   const getScreenRayBindGroup = (screenRayBuffer: GPUBuffer) => {
     return device.createBindGroup({
-      layout: screenRayBufferBindGroup,
+      layout: screenRayBufferBindGroupLayout,
       entries: [
         {
           binding: 0,
@@ -231,8 +230,8 @@ export const getBufferRaymarchPipeline = async () => {
     computePass.setPipeline(pipeline);
     computePass.setBindGroup(0, bindGroup);
     computePass.setBindGroup(1, screenRayBindGroup);
-    computePass.dispatchWorkgroups(4000);
-    // computePass.dispatchWorkgroupsIndirect(indirectBuffer, 0);
+    // computePass.dispatchWorkgroups(65000);
+    computePass.dispatchWorkgroupsIndirect(indirectBuffer, 0);
   };
 
   return enqueuePass;

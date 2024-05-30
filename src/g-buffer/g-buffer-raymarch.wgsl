@@ -183,11 +183,11 @@ struct ScreenRay {
 
 @group(1) @binding(0) var<storage, read> screenRayBuffer : array<ScreenRay>;
 
-@compute @workgroup_size(1, 1, 1)
+@compute @workgroup_size(64, 1, 1)
 fn bufferMarch(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
 ) {
   let ray = screenRayBuffer[GlobalInvocationID.x];
-  textureStore(albedoTex, ray.pixel, vec4(1,0,0,1));
-//  tracePixel(ray.pixel);
+//  textureStore(albedoTex, ray.pixel, vec4(1,0,0,1));
+  tracePixel(ray.pixel);
 }

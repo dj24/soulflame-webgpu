@@ -664,7 +664,7 @@ const start = async () => {
   await createTavern(device, volumeAtlas);
 
   const computePassPromises: Promise<RenderPass>[] = [
-    // getClearPass(),
+    getClearPass(),
     // getHelloTrianglePass(),
     getGBufferPass(),
     // getShadowsPass(),
