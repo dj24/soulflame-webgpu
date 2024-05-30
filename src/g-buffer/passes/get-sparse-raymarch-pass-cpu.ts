@@ -6,7 +6,6 @@ import {
   resolution,
 } from "../../app";
 import getWasmModule from "./foo.c";
-import { SparseRaymarchWorkerMessage } from "./sparse-raymarch.worker";
 
 const ceilToNearestMultipleOf = (n: number, multiple: number) => {
   return Math.ceil(n / multiple) * multiple;

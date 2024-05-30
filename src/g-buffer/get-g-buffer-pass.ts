@@ -8,6 +8,7 @@ import {
   createCopyOfGBufferTexture,
 } from "../abstractions/copy-g-buffer-texture";
 import { getSparseRaymarchPassCPU } from "./passes/get-sparse-raymarch-pass-cpu";
+import { getBufferRaymarchPipeline } from "./passes/get-buffer-raymarch-pass";
 
 export type OutputTextures = {
   finalTexture: GBufferTexture;
@@ -23,6 +24,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
   const worldPosReconstruct = await getWorldPosReconstructionPipeline();
   const sparserayMarch = await getSparseRaymarchPipeline();
   const interpolate = await getInterpolatePipeline();
+  const bufferMarch = await getBufferRaymarchPipeline();
 
   let copyTextures: Partial<
     Record<keyof OutputTextures, GBufferTexture | null>
@@ -34,18 +36,18 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
   };
 
   let indirectBuffer: GPUBuffer;
-  let indirectBufferCopy: GPUBuffer;
+  let screenRayBufferCopy: GPUBuffer;
   let screenRayBuffer: GPUBuffer;
 
   setInterval(() => {
-    if (indirectBufferCopy) {
-      const copyCommandEncoder = device.createCommandEncoder();
-
-      indirectBufferCopy
+    if (screenRayBufferCopy) {
+      screenRayBufferCopy
         .mapAsync(GPUMapMode.READ)
         .then(() => {
-          console.log(new Uint32Array(indirectBufferCopy.getMappedRange())[0]);
-          indirectBufferCopy.unmap();
+          console.log(
+            new Uint32Array(screenRayBufferCopy.getMappedRange(0, 3200)),
+          );
+          screenRayBufferCopy.unmap();
         })
         .catch();
     }
@@ -61,15 +63,19 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           GPUBufferUsage.COPY_SRC |
           GPUBufferUsage.COPY_DST,
       });
-      indirectBufferCopy = device.createBuffer({
-        size: 3 * 4,
-        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-      });
+
       const { width, height } = renderArgs.outputTextures.finalTexture;
       const maxScreenRays = width * height;
       screenRayBuffer = device.createBuffer({
         size: maxScreenRays * 4 * 2,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        usage:
+          GPUBufferUsage.STORAGE |
+          GPUBufferUsage.COPY_DST |
+          GPUBufferUsage.COPY_SRC,
+      });
+      screenRayBufferCopy = device.createBuffer({
+        size: screenRayBuffer.size,
+        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
       });
     }
 
@@ -95,7 +101,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       copyGBufferTexture(commandEncoder, source, destination);
     });
 
-    computePass = commandEncoder.beginComputePass();
+    computePass = commandEncoder.beginComputePass({ timestampWrites });
     interpolate(
       computePass,
       renderArgs,
@@ -106,15 +112,22 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       indirectBuffer,
       screenRayBuffer,
     );
+    computePass.end();
+
+    computePass = commandEncoder.beginComputePass({ timestampWrites });
+    bufferMarch(computePass, renderArgs, screenRayBuffer, indirectBuffer);
+    computePass.end();
+
+    computePass = commandEncoder.beginComputePass({ timestampWrites });
     worldPosReconstruct(computePass, renderArgs);
     computePass.end();
 
     commandEncoder.copyBufferToBuffer(
-      indirectBuffer,
+      screenRayBuffer,
       0,
-      indirectBufferCopy,
+      screenRayBufferCopy,
       0,
-      3 * 4,
+      screenRayBuffer.size,
     );
   };
 

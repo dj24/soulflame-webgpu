@@ -1,4 +1,4 @@
-![Image](logo.png)
+npm![Image](logo.png)
 
 [Deployed Demo](https://dj24.github.io/soulflame-webgpu/)
 

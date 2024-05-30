@@ -175,3 +175,19 @@ fn main(
   let pixel = GlobalInvocationID.xy * 3;
   tracePixel(pixel);
 }
+
+struct ScreenRay {
+  direction : vec3<f32>,
+  pixel : vec2<u32>,
+};
+
+@group(1) @binding(0) var<storage, read> screenRayBuffer : array<ScreenRay>;
+
+@compute @workgroup_size(1, 1, 1)
+fn bufferMarch(
+  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
+) {
+  let ray = screenRayBuffer[GlobalInvocationID.x];
+  textureStore(albedoTex, ray.pixel, vec4(1,0,0,1));
+//  tracePixel(ray.pixel);
+}

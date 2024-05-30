@@ -87,17 +87,18 @@ const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
 // Store the remaining 8 rays in the 3x3 kernel (we already have the 0,0 ray)
 fn populateRemainingRaysInKernel(pixel: vec2<u32>, inverseViewProjection: mat4x4<f32>) {
   let texSize = textureDimensions(albedoCopyTex);
+  var count = atomicLoad(&indirectArgs[0]);
   for(var i = 0; i < 8; i = i + 1) {
     // Increment the counter
-     atomicAdd(&indirectArgs[0], 1);
-     let count = atomicLoad(&indirectArgs[0]);
      let offsetPixel = pixel + REMAINING_RAY_OFFSETS[i];
      let uv = vec2<f32>(offsetPixel) / vec2<f32>(texSize);
      let rayDirection = calculateRayDirection(uv, inverseViewProjection);
      // Add the ray to the end of the array
      screenRays[count].pixel = offsetPixel;
      screenRays[count].direction = rayDirection;
+     count += 1;
   }
+  atomicStore(&indirectArgs[0], count);
 }
 
 @compute @workgroup_size(16, 8, 1)
@@ -117,8 +118,7 @@ fn populateRemainingRaysInKernel(pixel: vec2<u32>, inverseViewProjection: mat4x4
     let objectIndex = textureLoad(velocityCopyTex, nearestFilledPixel + neighborOffsets[i], 0).a;
     if(objectIndex != velocityRef.a) {
       textureStore(velocityTex, pixel, vec4(velocityRef.xyz, -1.0));
-     //TODO: march more rays instead
-     textureStore(albedoTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
+     populateRemainingRaysInKernel(vec2<u32>(nearestFilledPixel), viewProjections.inverseViewProjection);
       return;
     }
     if(objectIndex != -1.0) {
@@ -128,8 +128,6 @@ fn populateRemainingRaysInKernel(pixel: vec2<u32>, inverseViewProjection: mat4x4
   if(!hasFoundObject) {
     textureStore(velocityTex, pixel, vec4(velocityRef.xyz, -1.0));
     // Dont march any more rays - we have hit the sky
-    textureStore(albedoTex, pixel, vec4(1.0, 0.0, 0.0, 1.0));
-    textureStore(normalTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
     textureStore(depthTex, pixel, vec4(10000.0));
     return;
   }
@@ -156,10 +154,6 @@ fn populateRemainingRaysInKernel(pixel: vec2<u32>, inverseViewProjection: mat4x4
 
     if(!checkSharedPlane(localNormal, voxelPosRef, neighborVoxelPos, neighborLocalNormal)) {
       textureStore(velocityTex, pixel, vec4(velocityRef.xyz, -1.0));
-      //TODO: march more rays instead
-      textureStore(albedoTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
-      textureStore(normalTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
-      textureStore(depthTex, pixel, vec4(10000.0));
       populateRemainingRaysInKernel(vec2<u32>(nearestFilledPixel), viewProjections.inverseViewProjection);
       return;
     }
