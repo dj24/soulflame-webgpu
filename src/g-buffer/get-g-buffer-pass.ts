@@ -1,4 +1,4 @@
-import { device, RenderPass, RenderArgs } from "../app";
+import { device, RenderPass, RenderArgs, resolution } from "../app";
 import { GBufferTexture } from "../abstractions/g-buffer-texture";
 import { getWorldPosReconstructionPipeline } from "./passes/get-world-pos-reconstruction-pass";
 import { getInterpolatePipeline } from "./passes/get-interpolation-pass";
@@ -39,19 +39,20 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
   let screenRayBufferCopy: GPUBuffer;
   let screenRayBuffer: GPUBuffer;
   //
-  // setInterval(() => {
-  //   if (screenRayBufferCopy) {
-  //     screenRayBufferCopy
-  //       .mapAsync(GPUMapMode.READ)
-  //       .then(() => {
-  //         console.log(
-  //           new Uint32Array(screenRayBufferCopy.getMappedRange(0, 3200))[0],
-  //         );
-  //         screenRayBufferCopy.unmap();
-  //       })
-  //       .catch();
-  //   }
-  // }, 500);
+  setInterval(() => {
+    if (screenRayBufferCopy) {
+      screenRayBufferCopy
+        .mapAsync(GPUMapMode.READ)
+        .then(() => {
+          console.log(
+            new Uint32Array(screenRayBufferCopy.getMappedRange(0, 3200)),
+          );
+          console.log(resolution[0] * resolution[1]);
+          screenRayBufferCopy.unmap();
+        })
+        .catch();
+    }
+  }, 500);
 
   const render = (renderArgs: RenderArgs) => {
     if (!indirectBuffer) {
@@ -63,6 +64,12 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           GPUBufferUsage.COPY_SRC |
           GPUBufferUsage.COPY_DST,
       });
+      const uint32 = new Uint32Array(3);
+      uint32[0] = 1; // The X value
+      uint32[1] = 1; // The Y value
+      uint32[2] = 1; // The Z value
+      // Write values into a GPUBuffer
+      device.queue.writeBuffer(indirectBuffer, 0, uint32, 0, uint32.length);
 
       const { width, height } = renderArgs.outputTextures.finalTexture;
       const maxScreenRays = width * height;
@@ -88,7 +95,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
 
     const { commandEncoder, timestampWrites } = renderArgs;
 
-    commandEncoder.clearBuffer(indirectBuffer);
+    commandEncoder.clearBuffer(indirectBuffer, 0, 4);
     commandEncoder.clearBuffer(screenRayBuffer);
 
     let computePass = commandEncoder.beginComputePass({ timestampWrites });

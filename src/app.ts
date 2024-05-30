@@ -641,6 +641,7 @@ const start = async () => {
         requiredFeatures: ["timestamp-query"],
         requiredLimits: { maxColorAttachmentBytesPerSample: 64 },
       });
+      console.log(device.limits);
     } catch (e) {
       console.warn(
         "Timestamp query or 64 byte colour attachment not supported, falling back",
