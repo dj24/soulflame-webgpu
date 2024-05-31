@@ -20,6 +20,10 @@ export type OutputTextures = {
   skyTexture?: GPUTexture;
 };
 
+const ceilToNearestMultipleOf = (n: number, multiple: number) => {
+  return Math.ceil(n / multiple) * multiple;
+};
+
 export const getGBufferPass = async (): Promise<RenderPass> => {
   const worldPosReconstruct = await getWorldPosReconstructionPipeline();
   const sparserayMarch = await getSparseRaymarchPipeline();
@@ -44,10 +48,16 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       screenRayBufferCopy
         .mapAsync(GPUMapMode.READ)
         .then(() => {
-          console.log(
-            new Uint32Array(screenRayBufferCopy.getMappedRange(0, 3200)),
+          const mapped = new Uint32Array(
+            screenRayBufferCopy.getMappedRange(0, 640),
           );
-          console.log(resolution[0] * resolution[1]);
+          const pixels: number[][] = [];
+          mapped.forEach((value, index) => {
+            if (index % 4 == 0) {
+              pixels.push([value, mapped[index + 1]]);
+            }
+          });
+          console.log(pixels);
           screenRayBufferCopy.unmap();
         })
         .catch();
@@ -72,9 +82,11 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       device.queue.writeBuffer(indirectBuffer, 0, uint32, 0, uint32.length);
 
       const { width, height } = renderArgs.outputTextures.finalTexture;
-      const maxScreenRays = width * height;
+      const maxScreenRays = (width / 3) * (height / 3);
+      const bufferSizeBytes = ceilToNearestMultipleOf(maxScreenRays * 4, 4);
+      console.log({ maxScreenRays, bufferSizeBytes });
       screenRayBuffer = device.createBuffer({
-        size: maxScreenRays * 4 * 2,
+        size: bufferSizeBytes,
         usage:
           GPUBufferUsage.STORAGE |
           GPUBufferUsage.COPY_DST |
@@ -130,11 +142,11 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     computePass.end();
 
     commandEncoder.copyBufferToBuffer(
-      indirectBuffer,
+      screenRayBuffer,
       0,
       screenRayBufferCopy,
       0,
-      indirectBuffer.size,
+      screenRayBuffer.size,
     );
   };
 

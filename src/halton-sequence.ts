@@ -29,7 +29,8 @@ export function generateJitter(
   const jitterX = (halton(frameIndex, 2) - 0.5) * jitterScaleX * frustumWidth;
   const jitterY = (halton(frameIndex, 3) - 0.5) * jitterScaleY * frustumHeight;
 
-  return [jitterX, jitterY];
+  return [0, 0];
+  // return [jitterX, jitterY];
 }
 
 export function jitterProjectionMatrix(

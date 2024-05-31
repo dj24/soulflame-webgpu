@@ -251,8 +251,8 @@ export const getBufferRaymarchPipeline = async () => {
     computePass.setPipeline(pipeline);
     computePass.setBindGroup(0, bindGroup);
     computePass.setBindGroup(1, screenRayBindGroup);
-    computePass.dispatchWorkgroups(65000);
-    // computePass.dispatchWorkgroupsIndirect(indirectBuffer, 0);
+    // computePass.dispatchWorkgroups(3000);
+    computePass.dispatchWorkgroupsIndirect(indirectBuffer, 0);
   };
 
   return enqueuePass;

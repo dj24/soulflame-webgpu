@@ -92,6 +92,7 @@ const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
   let pixel = vec2<i32>(GlobalInvocationID.xy);
   let nearestFilledPixel = (pixel / 3) * 3;
   let isOriginPixel = all(pixel == nearestFilledPixel);
+  let isCornerPixel = all(pixel == nearestFilledPixel + vec2(2));
 
   let nearestUV = vec2<f32>(nearestFilledPixel) / vec2<f32>(texSize);
 
@@ -103,15 +104,16 @@ const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
     let objectIndex = textureLoad(velocityCopyTex, nearestFilledPixel + neighborOffsets[i], 0).a;
     if(objectIndex != velocityRef.a) {
        textureStore(velocityTex, pixel, vec4(velocityRef.xyz, -1.0));
-       if(isOriginPixel){
-         // Add to ray buffer
-         screenRays[atomicLoad(&indirectArgs[0])].pixel = vec2<u32>(pixel);
-         atomicAdd(&indirectArgs[0], 1);
-       }
-
        textureStore(depthTex, pixel, vec4(10000.0));
        textureStore(normalTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
        textureStore(albedoTex, pixel, vec4(0.0, 0.0, 1.0, 1.0));
+       if(isOriginPixel){
+         // Add to ray buffer
+         let count = atomicAdd(&indirectArgs[0], 1);
+         screenRays[count].pixel = vec2<u32>(pixel);
+       }
+
+
        return;
     }
     if(objectIndex != -1.0) {
@@ -149,16 +151,17 @@ const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
 
     if(!checkSharedPlane(localNormal, voxelPosRef, neighborVoxelPos, neighborLocalNormal)) {
       textureStore(velocityTex, pixel, vec4(velocityRef.xyz, -1.0));
-
-      if(isOriginPixel){
-        // Add to ray buffer
-        screenRays[atomicLoad(&indirectArgs[0])].pixel = vec2<u32>(pixel);
-        atomicAdd(&indirectArgs[0], 1);
-      }
-
       textureStore(depthTex, pixel, vec4(10000.0));
       textureStore(normalTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
       textureStore(albedoTex, pixel, vec4(0.0, 1.0, 0.0, 1.0));
+
+      if(isOriginPixel){
+        // Add to ray buffer
+        let count = atomicAdd(&indirectArgs[0], 1);
+        screenRays[count].pixel = vec2<u32>(pixel);
+      }
+
+
       return;
     }
   }
