@@ -110,9 +110,6 @@ export const getSparseRaymarchPipeline = async () => {
     compute: {
       module: device.createShaderModule({
         code: `
-          struct IndirectArgs {
-            count: atomic<u32>
-          };
           @group(0) @binding(0) var voxels : texture_3d<f32>;
           @group(0) @binding(2) var<uniform> cameraPosition : vec3<f32>;
           @group(0) @binding(3) var<storage> voxelObjects : array<VoxelObject>;

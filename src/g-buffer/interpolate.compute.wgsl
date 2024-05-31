@@ -112,8 +112,6 @@ const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
          let count = atomicAdd(&indirectArgs[0], 1);
          screenRays[count].pixel = vec2<u32>(pixel);
        }
-
-
        return;
     }
     if(objectIndex != -1.0) {
