@@ -176,13 +176,7 @@ fn main(
   tracePixel(pixel);
 }
 
-struct ScreenRay {
-  direction : vec3<f32>,
-  pixel : vec2<u32>,
-};
-
-@group(1) @binding(0) var<storage, read> screenRayBuffer : array<ScreenRay>;
-
+@group(1) @binding(0) var<storage, read> screenRayBuffer : array<vec2<u32>>;
 
 const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
   vec2<u32>(0,1),
@@ -201,8 +195,8 @@ fn bufferMarch(
   @builtin(local_invocation_id) LocalInvocationID : vec3<u32>,
   @builtin(workgroup_id) WorkGroupID : vec3<u32>,
 ) {
-  let ray = screenRayBuffer[WorkGroupID.x];
-  let offsetPixel = ray.pixel + REMAINING_RAY_OFFSETS[LocalInvocationID.x];
+  let pixel = screenRayBuffer[WorkGroupID.x];
+  let offsetPixel = pixel + REMAINING_RAY_OFFSETS[LocalInvocationID.x];
 //  textureStore(albedoTex, offsetPixel, vec4(1,0,0,1));
   tracePixel(offsetPixel);
 }

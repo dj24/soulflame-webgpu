@@ -174,7 +174,7 @@ const NEAR = 0.5;
 const FAR = 10000.0;
 
 fn normaliseDepth(depth:f32) -> f32 {
-    return (2.0 * NEAR) / (FAR + NEAR - depth * (FAR - NEAR));
+    return normaliseValue(NEAR, FAR, depth);
 }
 
 fn calculateVarianceDepth(neighborhood: array<f32, 9>) -> f32 {
@@ -221,7 +221,7 @@ fn denoise(
   let uv = (vec2<f32>(pixel) + vec2(0.5)) / vec2<f32>(texSize);
   let albedoSample = textureLoad(albedoTex, pixel, 0);
   let normalRef = textureLoad(normalTex, pixel, 0).rgb;
-  let depthRef = textureLoad(depthTex, pixel, 0).r;
+  let depthRef = normaliseDepth(textureLoad(depthTex, pixel, 0).r);
   let shadowRef = textureLoad(intermediaryTexture, pixel, 0);
 
   // Temporal sampling
@@ -273,31 +273,36 @@ fn denoise(
   let depthVariance = calculateVarianceDepth(depthNeighbourhood);
   let normalVariance = calculateVariance(normalNeighbourhood);
   let normalisedNormalVariance = normalVariance * 0.5 + 0.5;
-  let variance = mix(normalisedNormalVariance, depthVariance, 0.25);
+
+  let normalisedDepthVariance = normaliseDepth(depthVariance);
+  let variance = normalisedNormalVariance * normalisedDepthVariance;
 
   // Bilateral blur
   var outputColour = shadowRef;
   var totalWeight = 1.0;
   let golden_angle = 137.5; // The golden angle in degrees
-  let taps = clamp(i32(pow(1.0 - variance, 2)), 0, 32);
+  let taps = clamp(i32(1.0 / sqrt(variance)), 0, 24);
+//  let taps = 64;
 
   for(var i = 0; i <= taps; i++){
-      let angle = (golden_angle * f32(i) * 0.5) % 360.0;
-      let radius = f32(i + 1) * 0.33;
+      let angle = (golden_angle * f32(i)) % 360.0;
+      let radius = f32(i) * 0.33;
       let sampleUV = polarToCartesian(angle, radius) * texelSize + uv;
       let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
       let normalSample = textureSampleLevel(normalTex, nearestSampler, sampleUV, 0.0).rgb;
-      let depthLoad = textureLoad(depthTex, samplePixel, 0).r;
+      let depthLoad = normaliseDepth(textureLoad(depthTex, samplePixel, 0).r);
       let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0);
       let normalWeight = dot(normalSample, normalRef);
-      let depthWeight = clamp(1.0 - abs(depthRef - depthLoad) * DEPTH_SENSITIVITY, 0.0, 1.0);
+      let depthWeight = clamp((depthRef - depthLoad)/depthRef, 0.0, 1.0);
 
-      let weight =  normalWeight * depthWeight;
+      let weight = depthWeight;
       totalWeight += weight;
       outputColour += shadowSample * weight;
   }
   outputColour /= totalWeight;
-  textureStore(outputTex, pixel, mix(outputColour, previousShadow, previousWeight));
+  textureStore(outputTex, pixel, mix(outputColour, previousShadow, 0.5));
+//  textureStore(outputTex, pixel, vec4(f32(taps) / 16.0));
+  textureStore(outputTex, pixel, vec4(totalWeight / f32(taps)));
 }
 
 @compute @workgroup_size(8, 8, 1)
@@ -308,7 +313,7 @@ fn composite(
   let texelSize = 1.0 / vec2<f32>(texSize);
   let pixel = vec2<i32>(GlobalInvocationID.xy);
   let shadowRef = textureLoad(intermediaryTexture, pixel, 0);
-  let depthRef = textureLoad(depthTex, pixel, 0).r;
+  let depthRef = normaliseDepth(textureLoad(depthTex, pixel, 0).r);
   let normalRef = textureLoad(normalTex, pixel, 0).rgb;
   let uv = (vec2<f32>(pixel) + vec2(0.5)) / vec2<f32>(texSize);
 
@@ -316,18 +321,18 @@ fn composite(
   var outputColour = shadowRef;
   var totalWeight = 1.0;
   let golden_angle = 137.5; // The golden angle in degrees
-  let taps = 8;
+  let taps = 1;
 
    for(var i = 0; i <= taps; i++){
-        let angle = (golden_angle * f32(i) * 0.5) % 360.0;
-        let radius = f32(i + 1) * 0.33;
+        let angle = (golden_angle * f32(i)) % 360.0;
+        let radius = f32(i + 1);
         let sampleUV = polarToCartesian(angle, radius) * texelSize + uv;
         let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
         let normalSample = textureSampleLevel(normalTex, nearestSampler, sampleUV, 0.0).rgb;
-        let depthLoad = textureLoad(depthTex, samplePixel, 0).r;
+        let depthLoad = normaliseDepth(textureLoad(depthTex, samplePixel, 0).r);
         let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0);
         let normalWeight = dot(normalSample, normalRef);
-        let depthWeight = clamp(1.0 - abs(depthRef - depthLoad) * DEPTH_SENSITIVITY, 0.0, 1.0);
+        let depthWeight = clamp(1.0 - abs(depthRef - depthLoad), 0.0, 1.0);
 
         let weight =  normalWeight * depthWeight;
         totalWeight += weight;
@@ -336,5 +341,5 @@ fn composite(
     outputColour /= totalWeight;
 
   let albedoRef = textureLoad(albedoTex, pixel, 0);
-  textureStore(outputTex, pixel,outputColour * albedoRef);
+  textureStore(outputTex, pixel,shadowRef);
 }

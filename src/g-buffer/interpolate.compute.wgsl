@@ -38,7 +38,6 @@ struct VoxelObject {
 
 // Screen Rays
 struct ScreenRay {
-  direction : vec3<f32>,
   pixel : vec2<u32>,
 };
 @group(3) @binding(0) var<storage, read_write> indirectArgs : array<atomic<u32>>;
@@ -103,14 +102,17 @@ const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
   for(var i = 1; i < 4; i = i + 1) {
     let objectIndex = textureLoad(velocityCopyTex, nearestFilledPixel + neighborOffsets[i], 0).a;
     if(objectIndex != velocityRef.a) {
-       textureStore(velocityTex, pixel, vec4(velocityRef.xyz, -1.0));
-       textureStore(depthTex, pixel, vec4(10000.0));
-       textureStore(normalTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
-       textureStore(albedoTex, pixel, vec4(0.0, 0.0, 1.0, 1.0));
+
+
        if(isOriginPixel){
          // Add to ray buffer
          let count = atomicAdd(&indirectArgs[0], 1);
          screenRays[count].pixel = vec2<u32>(pixel);
+       }else{
+//        textureStore(albedoTex, pixel, vec4(0.0, 0.0, 1.0, 1.0));
+        textureStore(velocityTex, pixel, vec4(velocityRef.xyz, -1.0));
+         textureStore(depthTex, pixel, vec4(10000.0));
+         textureStore(normalTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
        }
        return;
     }
@@ -123,7 +125,7 @@ const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
     // Dont march any more rays - we have hit the sky
     textureStore(depthTex, pixel, vec4(10000.0));
     textureStore(normalTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
-    textureStore(albedoTex, pixel, vec4(0.0, 0.0, 0.2, 1.0));
+    textureStore(albedoTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
     return;
   }
   let voxelObject = voxelObjects[i32(velocityRef.a)];
@@ -148,17 +150,16 @@ const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
     let neighborVoxelPos = floor(neighborLocalPos);
 
     if(!checkSharedPlane(localNormal, voxelPosRef, neighborVoxelPos, neighborLocalNormal)) {
-      textureStore(velocityTex, pixel, vec4(velocityRef.xyz, -1.0));
-      textureStore(depthTex, pixel, vec4(10000.0));
-      textureStore(normalTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
-      textureStore(albedoTex, pixel, vec4(0.0, 1.0, 0.0, 1.0));
-
       if(isOriginPixel){
         // Add to ray buffer
         let count = atomicAdd(&indirectArgs[0], 1);
         screenRays[count].pixel = vec2<u32>(pixel);
+      }else{
+        textureStore(albedoTex, pixel, vec4(0.0, 1.0, 0.0, 1.0));
+        textureStore(normalTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
+        textureStore(velocityTex, pixel, vec4(velocityRef.xyz, -1.0));
+        textureStore(depthTex, pixel, vec4(10000.0));
       }
-
 
       return;
     }
