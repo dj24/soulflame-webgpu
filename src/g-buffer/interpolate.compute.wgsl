@@ -42,6 +42,7 @@ struct ScreenRay {
 };
 @group(3) @binding(0) var<storage, read_write> indirectArgs : array<atomic<u32>>;
 @group(3) @binding(1) var<storage, read_write> screenRays : array<ScreenRay>;
+@group(3) @binding(2) var<storage, read_write> counter : array<atomic<u32>>;
 
 const neighborOffsets = array<vec2<i32>, 4>(
   vec2<i32>(0, 0),
@@ -106,8 +107,11 @@ const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
 
        if(isOriginPixel){
          // Add to ray buffer
-         let count = atomicAdd(&indirectArgs[0], 1);
+         let count = atomicAdd(&counter[0], 1);
          screenRays[count].pixel = vec2<u32>(pixel);
+         if(count % 8 == 0){
+          atomicAdd(&indirectArgs[0], 1);
+         }
        }else{
 //        textureStore(albedoTex, pixel, vec4(0.0, 0.0, 1.0, 1.0));
         textureStore(velocityTex, pixel, vec4(velocityRef.xyz, -1.0));
@@ -152,8 +156,11 @@ const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
     if(!checkSharedPlane(localNormal, voxelPosRef, neighborVoxelPos, neighborLocalNormal)) {
       if(isOriginPixel){
         // Add to ray buffer
-        let count = atomicAdd(&indirectArgs[0], 1);
+        let count = atomicAdd(&counter[0], 1);
         screenRays[count].pixel = vec2<u32>(pixel);
+        if(count % 8 == 0){
+          atomicAdd(&indirectArgs[0], 1);
+        }
       }else{
         textureStore(albedoTex, pixel, vec4(0.0, 1.0, 0.0, 1.0));
         textureStore(normalTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));

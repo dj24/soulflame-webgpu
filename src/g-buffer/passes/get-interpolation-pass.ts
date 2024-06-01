@@ -148,6 +148,14 @@ export const getInterpolatePipeline = async () => {
           type: "storage",
         },
       },
+      // Counter buffer
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "storage",
+        },
+      },
     ],
   });
 
@@ -218,6 +226,7 @@ export const getInterpolatePipeline = async () => {
   const getScreenRayBindGroup = (
     indirectArgsBuffer: GPUBuffer,
     screenRaysBuffer: GPUBuffer,
+    counterBuffer: GPUBuffer,
   ) => {
     return device.createBindGroup({
       layout: screenRayBindGroupLayout,
@@ -232,6 +241,12 @@ export const getInterpolatePipeline = async () => {
           binding: 1,
           resource: {
             buffer: screenRaysBuffer,
+          },
+        },
+        {
+          binding: 2,
+          resource: {
+            buffer: counterBuffer,
           },
         },
       ],
@@ -294,6 +309,7 @@ export const getInterpolatePipeline = async () => {
     copyNormalTextureView: GPUTextureView,
     indirectBuffer: GPUBuffer,
     screenRayBuffer: GPUBuffer,
+    counterBuffer: GPUBuffer,
   ) => {
     if (!bindGroup) {
       bindGroup = getBindGroup(
@@ -314,6 +330,7 @@ export const getInterpolatePipeline = async () => {
       screenRayBindGroup = getScreenRayBindGroup(
         indirectBuffer,
         screenRayBuffer,
+        counterBuffer,
       );
     }
 

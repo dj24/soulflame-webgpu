@@ -189,14 +189,16 @@ const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
   vec2<u32>(2,2)
 );
 
-@compute @workgroup_size(8, 1, 1)
+@compute @workgroup_size(64, 1, 1)
 fn bufferMarch(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
   @builtin(local_invocation_id) LocalInvocationID : vec3<u32>,
   @builtin(workgroup_id) WorkGroupID : vec3<u32>,
 ) {
-  let pixel = screenRayBuffer[WorkGroupID.x];
-  let offsetPixel = pixel + REMAINING_RAY_OFFSETS[LocalInvocationID.x];
+  let bufferIndex = GlobalInvocationID.x / 8;
+  let localRayIndex = GlobalInvocationID.x % 8;
+  let pixel = screenRayBuffer[bufferIndex];
+  let offsetPixel = pixel + REMAINING_RAY_OFFSETS[localRayIndex];
 //  textureStore(albedoTex, offsetPixel, vec4(1,0,0,1));
   tracePixel(offsetPixel);
 }

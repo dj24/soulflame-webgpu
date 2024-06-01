@@ -226,26 +226,6 @@ export const getBufferRaymarchPipeline = async () => {
     if (!bindGroup) {
       bindGroup = getBindGroup(renderArgs);
       screenRayBindGroup = getScreenRayBindGroup(screenRayBuffer);
-      indirectDebugBuffer = device.createBuffer({
-        size: 3 * 4,
-        usage:
-          GPUBufferUsage.INDIRECT |
-          GPUBufferUsage.STORAGE |
-          GPUBufferUsage.COPY_SRC |
-          GPUBufferUsage.COPY_DST,
-      });
-      const uint32 = new Uint32Array(3);
-      uint32[0] = 65000; // The X value
-      uint32[1] = 1; // The Y value
-      uint32[2] = 1; // The Z value
-      // Write values into a GPUBuffer
-      device.queue.writeBuffer(
-        indirectDebugBuffer,
-        0,
-        uint32,
-        0,
-        uint32.length,
-      );
     }
     // Raymarch the scene
     computePass.setPipeline(pipeline);

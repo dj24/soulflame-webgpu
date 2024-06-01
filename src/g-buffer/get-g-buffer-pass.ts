@@ -39,6 +39,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     normalTexture: null,
   };
 
+  let counterBuffer: GPUBuffer;
   let indirectBuffer: GPUBuffer;
   let screenRayBufferCopy: GPUBuffer;
   let screenRayBuffer: GPUBuffer;
@@ -67,6 +68,10 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           GPUBufferUsage.STORAGE |
           GPUBufferUsage.COPY_SRC |
           GPUBufferUsage.COPY_DST,
+      });
+      counterBuffer = device.createBuffer({
+        size: 4,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       });
       const uint32 = new Uint32Array(3);
       uint32[0] = 1; // The X value
@@ -102,6 +107,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     const { commandEncoder, timestampWrites } = renderArgs;
 
     commandEncoder.clearBuffer(indirectBuffer, 0, 4);
+    commandEncoder.clearBuffer(counterBuffer, 0, 4);
     commandEncoder.clearBuffer(screenRayBuffer);
 
     let computePass = commandEncoder.beginComputePass({ timestampWrites });
@@ -124,14 +130,9 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       copyTextures.normalTexture.view,
       indirectBuffer,
       screenRayBuffer,
+      counterBuffer,
     );
-    computePass.end();
-
-    computePass = commandEncoder.beginComputePass();
     bufferMarch(computePass, renderArgs, screenRayBuffer, indirectBuffer);
-    computePass.end();
-
-    computePass = commandEncoder.beginComputePass();
     worldPosReconstruct(computePass, renderArgs);
     computePass.end();
 
