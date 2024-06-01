@@ -84,6 +84,21 @@ const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
   vec2<u32>(2,2)
 );
 
+// Increment the count of the ray buffers, and only increment the dispatch indirect args every 8 rays, due to the 64x1x1 workgroup size (8 ray groups, 8 rays per group)
+fn incrementCounters() -> u32{
+  let count = atomicAdd(&counter[0], 1);
+  if(count % 8 == 0){
+   atomicAdd(&indirectArgs[0], 1);
+  }
+  return count;
+}
+
+/**
+  * Interpolate the depth, normal and uv of the pixel from the 4 nearest neighbors
+  * if not valid for interpolation, add to a ray buffer for use in the next pass
+  * Ray buffer is a list of pixel groups that need to be re-marched at full resolution
+  * The stored value is the origin of the group ([0,0] in a [3x3] kernel)
+  */
 @compute @workgroup_size(16, 8, 1)
  fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
@@ -93,9 +108,7 @@ const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
   let nearestFilledPixel = (pixel / 3) * 3;
   let isOriginPixel = all(pixel == nearestFilledPixel);
   let isCornerPixel = all(pixel == nearestFilledPixel + vec2(2));
-
   let nearestUV = vec2<f32>(nearestFilledPixel) / vec2<f32>(texSize);
-
   let velocityRef = textureLoad(velocityCopyTex, nearestFilledPixel, 0);
 
   var hasFoundObject = false;
@@ -103,20 +116,10 @@ const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
   for(var i = 1; i < 4; i = i + 1) {
     let objectIndex = textureLoad(velocityCopyTex, nearestFilledPixel + neighborOffsets[i], 0).a;
     if(objectIndex != velocityRef.a) {
-
-
        if(isOriginPixel){
          // Add to ray buffer
-         let count = atomicAdd(&counter[0], 1);
+         let count = incrementCounters();
          screenRays[count].pixel = vec2<u32>(pixel);
-         if(count % 8 == 0){
-          atomicAdd(&indirectArgs[0], 1);
-         }
-       }else{
-//        textureStore(albedoTex, pixel, vec4(0.0, 0.0, 1.0, 1.0));
-        textureStore(velocityTex, pixel, vec4(velocityRef.xyz, -1.0));
-         textureStore(depthTex, pixel, vec4(10000.0));
-         textureStore(normalTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
        }
        return;
     }
@@ -125,8 +128,8 @@ const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
     }
   }
   if(!hasFoundObject) {
-    textureStore(velocityTex, pixel, vec4(velocityRef.xyz, -1.0));
     // Dont march any more rays - we have hit the sky
+    textureStore(velocityTex, pixel, vec4(velocityRef.xyz, -1.0));
     textureStore(depthTex, pixel, vec4(10000.0));
     textureStore(normalTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
     textureStore(albedoTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
@@ -156,23 +159,17 @@ const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
     if(!checkSharedPlane(localNormal, voxelPosRef, neighborVoxelPos, neighborLocalNormal)) {
       if(isOriginPixel){
         // Add to ray buffer
-        let count = atomicAdd(&counter[0], 1);
+        let count = incrementCounters();
         screenRays[count].pixel = vec2<u32>(pixel);
-        if(count % 8 == 0){
-          atomicAdd(&indirectArgs[0], 1);
-        }
       }else{
         textureStore(albedoTex, pixel, vec4(0.0, 1.0, 0.0, 1.0));
         textureStore(normalTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
         textureStore(velocityTex, pixel, vec4(velocityRef.xyz, -1.0));
         textureStore(depthTex, pixel, vec4(10000.0));
       }
-
       return;
     }
   }
-
-  textureStore(velocityTex, pixel, velocityRef);
 
   // Interpolate
   var depth = 0.0;
@@ -193,9 +190,6 @@ const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
   normal /= totalWeight;
   uv /= totalWeight;
 
-  textureStore(depthTex, pixel, vec4(depth));
-  textureStore(normalTex, pixel, vec4(normal, 1.0));
-
   let worldPos = cameraPosition + calculateRayDirection(uv, viewProjections.inverseViewProjection) * depth;
   let localPos = (voxelObject.inverseTransform * vec4(worldPos, 1.0)).xyz;
   let voxelPos = floor(localPos);
@@ -205,8 +199,8 @@ const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
   let paletteY = i32(voxelObject.paletteIndex);
   let albedo = textureLoad(paletteTex, vec2(paletteX, paletteY), 0).rgb;
 
+  textureStore(velocityTex, pixel, velocityRef);
+  textureStore(depthTex, pixel, vec4(depth));
+  textureStore(normalTex, pixel, vec4(normal, 1.0));
   textureStore(albedoTex, pixel, vec4(albedo, 1));
-//  textureStore(albedoTex, pixel, vec4(voxelPos / voxelObject.size, 1));
-//  textureStore(albedoTex, pixel, vec4(localPos / voxelObject.size, 1));
-//  textureStore(albedoTex, pixel, vec4(fract(localPos), 1));
 }

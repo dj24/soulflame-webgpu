@@ -42,11 +42,12 @@ import { getLutPass } from "./get-lut-pass/get-lut-pass";
 import { generateJitter, jitterProjectionMatrix } from "./halton-sequence";
 import { getVignettePass } from "./get-vignette-pass/get-vignette-pass";
 import { getVoxelLatticePass } from "./voxel-lattice/get-voxel-lattice-pass";
+import { resolveTimestampQueries } from "./abstractions/resolve-timestamp-queries";
+import { createSkyTexture } from "./abstractions/create-sky-texture";
+import { getGpuDevice } from "./abstractions/get-gpu-device";
+import { setupDebugControls } from "./abstractions/setup-debug-controls";
 
 export const debugValues = new DebugValuesStore();
-
-let animationFrameId: number;
-
 export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
@@ -56,12 +57,10 @@ let startTime = 0;
 export let elapsedTime = startTime;
 export let deltaTime = 0;
 export let frameCount = 0;
-
 export let volumeAtlas: VolumeAtlas;
 
-const startingCameraFieldOfView = 90 * (Math.PI / 180);
 export let camera = new Camera({
-  fieldOfView: startingCameraFieldOfView,
+  fieldOfView: 90 * (Math.PI / 180),
   position: vec3.create(-31, 6, -50),
   direction: vec3.create(0.0, 0, -0.5),
 });
@@ -166,71 +165,6 @@ const torchPositions: Light["position"][] = [
 //   };
 // });
 
-const resolveTimestampQueries = async (
-  computePasses: RenderPass[],
-  timestampQuerySet: GPUQuerySet,
-  timestampQueryBuffer: GPUBuffer,
-  commandBuffers: GPUCommandBuffer[],
-) => {
-  const commandEncoder = device.createCommandEncoder();
-  commandEncoder.resolveQuerySet(
-    timestampQuerySet,
-    0,
-    timestampQuerySet.count,
-    timestampQueryBuffer,
-    0,
-  );
-  commandBuffers.push(commandEncoder.finish());
-  const size = timestampQueryBuffer.size;
-  const gpuReadBuffer = device.createBuffer({
-    size,
-    label: "gpu read buffer",
-    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-  });
-  const copyEncoder = device.createCommandEncoder();
-  copyEncoder.copyBufferToBuffer(
-    timestampQueryBuffer,
-    0,
-    gpuReadBuffer,
-    0,
-    size,
-  );
-  const copyCommands = copyEncoder.finish();
-  device.queue.submit([copyCommands]);
-  gpuReadBuffer
-    .mapAsync(GPUMapMode.READ)
-    .then(() => gpuReadBuffer.getMappedRange())
-    .then((arrayBuffer) => {
-      const timingsNanoseconds = new BigInt64Array(arrayBuffer);
-      const timingsMilliseconds: number[] = [];
-      timingsNanoseconds.forEach((nanoseconds) => {
-        timingsMilliseconds.push(Number(nanoseconds) / 1e6);
-      });
-      const computePassExecutionTimes = timingsMilliseconds.reduce(
-        (acc, val, index) => {
-          if (index % 2 === 0) {
-            acc.push(timingsMilliseconds[index + 1] - val);
-          }
-          return acc;
-        },
-        [],
-      );
-      computePassExecutionTimes.forEach((time, index) => {
-        const label = computePasses[index].label;
-        const inputId = `flag-${label}`;
-        const isPassEnabled = (
-          document.getElementById(inputId) as HTMLInputElement
-        )?.checked;
-        if (label && isPassEnabled) {
-          frameTimeTracker.addSample(label, time);
-        } else {
-          frameTimeTracker.clearEntry(label);
-        }
-      });
-      gpuReadBuffer.destroy();
-    });
-};
-
 let lights: Light[] = Array.from({ length: 200 }).map(() => {
   return {
     position: [Math.random() * -80, Math.random() * 50, Math.random() * -200],
@@ -287,13 +221,9 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   let cameraPositionFloatArray: Float32Array;
 
   let bvh: BVH;
-  let previousInverseViewProjectionMatrix = mat4.create();
-  let previousViewMatrix = mat4.create();
-  let previousViewProjectionMatrix = mat4.create();
   let previousJitteredViewProjectionMatrix = mat4.create();
   let timestampQuerySet: GPUQuerySet;
   let timestampQueryBuffer: GPUBuffer;
-  let gpuReadBuffer: GPUBuffer;
 
   const linearSampler = device.createSampler({
     magFilter: "linear",
@@ -318,11 +248,6 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         GPUBufferUsage.STORAGE |
         GPUBufferUsage.COPY_SRC |
         GPUBufferUsage.COPY_DST,
-    });
-    gpuReadBuffer = device.createBuffer({
-      size: timestampQueryBuffer.size,
-      label: "gpu read buffer",
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
     });
   }
 
@@ -521,7 +446,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     //TODO: handle loading this more gracefully
     if (!transformationMatrixBuffer || !blueNoiseTextureView) {
-      animationFrameId = requestAnimationFrame(frame);
+      requestAnimationFrame(frame);
       return;
     }
 
@@ -547,7 +472,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     voxelTextureView = volumeAtlas.atlasTextureView;
     if (!voxelTextureView) {
-      animationFrameId = requestAnimationFrame(frame);
+      requestAnimationFrame(frame);
       return;
     }
 
@@ -608,101 +533,45 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       }
     });
     commandEncoder.popDebugGroup();
-    const commandBuffers = [commandEncoder.finish()];
     if (device.features.has("timestamp-query")) {
       resolveTimestampQueries(
         computePasses,
         timestampQuerySet,
         timestampQueryBuffer,
-        commandBuffers,
       );
     }
-    device.queue.submit(commandBuffers);
-    animationFrameId = requestAnimationFrame(frame);
-    previousViewMatrix = camera.viewMatrix;
-    previousInverseViewProjectionMatrix = camera.inverseViewProjectionMatrix;
-    previousViewProjectionMatrix = camera.viewProjectionMatrix;
+    device.queue.submit([commandEncoder.finish()]);
+    requestAnimationFrame(frame);
   };
 
   init();
-  window.onresize = init;
-  animationFrameId = requestAnimationFrame(frame);
+  requestAnimationFrame(frame);
 };
 
-const start = async () => {
-  if (!navigator.gpu) {
-    console.error("WebGPU not supported");
-    return;
-  }
-  const adapter = await navigator.gpu.requestAdapter();
-  if (!device) {
-    try {
-      device = await adapter.requestDevice({
-        requiredFeatures: ["timestamp-query"],
-        requiredLimits: { maxColorAttachmentBytesPerSample: 64 },
-      });
-      console.log(device.limits);
-    } catch (e) {
-      console.warn(
-        "Timestamp query or 64 byte colour attachment not supported, falling back",
-      );
-      device = await adapter.requestDevice();
-    }
-  }
+if (!navigator.gpu) {
+  throw new Error("WebGPU not supported");
+}
 
-  skyTexture = device.createTexture({
-    label: "sky texture",
-    dimension: "2d",
-    size: [640, 640, 6],
-    format: SKYBOX_TEXTURE_FORMAT,
-    usage:
-      GPUTextureUsage.COPY_SRC |
-      GPUTextureUsage.TEXTURE_BINDING |
-      GPUTextureUsage.STORAGE_BINDING,
-  });
-
-  volumeAtlas = new VolumeAtlas(device);
-  await createTavern(device, volumeAtlas);
-
-  const computePassPromises: Promise<RenderPass>[] = [
-    getClearPass(),
-    // getHelloTrianglePass(),
-    getGBufferPass(),
-    getShadowsPass(),
-    getSkyPass(),
-    // getLightsPass(),
-    getTaaPass(),
-    getFogPass(),
-    getBloomPass(),
-    getMotionBlurPass(),
-    getTonemapPass(),
-    getLutPass("luts/Reeve 38.CUBE"),
-    getVignettePass(15.0),
-    // getBoxOutlinePass(),
-    fullscreenQuad(device),
-  ];
-
-  const computePasses = await Promise.all(computePassPromises);
-
-  beginRenderLoop(device, await Promise.all(computePasses));
-
-  document.getElementById("flags").innerHTML = computePasses.reduce(
-    (acc, pass) => {
-      if (!pass.label) {
-        return acc;
-      }
-      const id = `flag-${pass.label}`;
-      return `${acc}<div class="debug-row">
-                    <label for="${id}">
-                        ${pass.label}
-                    </label>
-                    <div>
-                        <input id="${id}" type="checkbox" checked>
-                   </div>
-                </div>`;
-    },
-    "",
-  );
-};
-
-start();
+device = await getGpuDevice();
+skyTexture = createSkyTexture(device);
+volumeAtlas = new VolumeAtlas(device);
+await createTavern(device, volumeAtlas);
+const computePasses = await Promise.all([
+  getClearPass(),
+  // getHelloTrianglePass(),
+  getGBufferPass(),
+  getShadowsPass(),
+  getSkyPass(),
+  // getLightsPass(),
+  getTaaPass(),
+  getFogPass(),
+  getBloomPass(),
+  getMotionBlurPass(),
+  getTonemapPass(),
+  getLutPass("luts/Reeve 38.CUBE"),
+  getVignettePass(15.0),
+  // getBoxOutlinePass(),
+  fullscreenQuad(device),
+]);
+beginRenderLoop(device, await Promise.all(computePasses));
+setupDebugControls(computePasses);

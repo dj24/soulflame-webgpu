@@ -7,7 +7,6 @@ import {
   copyGBufferTexture,
   createCopyOfGBufferTexture,
 } from "../abstractions/copy-g-buffer-texture";
-import { getSparseRaymarchPassCPU } from "./passes/get-sparse-raymarch-pass-cpu";
 import { getBufferRaymarchPipeline } from "./passes/get-buffer-raymarch-pass";
 
 export type OutputTextures = {
@@ -41,23 +40,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
 
   let counterBuffer: GPUBuffer;
   let indirectBuffer: GPUBuffer;
-  let screenRayBufferCopy: GPUBuffer;
   let screenRayBuffer: GPUBuffer;
-  //
-  // setInterval(() => {
-  //   if (screenRayBufferCopy) {
-  //     screenRayBufferCopy
-  //       .mapAsync(GPUMapMode.READ)
-  //       .then(() => {
-  //         const mapped = new Uint32Array(
-  //           screenRayBufferCopy.getMappedRange(0, 640),
-  //         );
-  //         console.log(mapped[0]);
-  //         screenRayBufferCopy.unmap();
-  //       })
-  //       .catch();
-  //   }
-  // }, 500);
 
   const render = (renderArgs: RenderArgs) => {
     if (!indirectBuffer) {
@@ -83,17 +66,12 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       const { width, height } = renderArgs.outputTextures.finalTexture;
       const maxScreenRays = (width / 3) * (height / 3);
       const bufferSizeBytes = ceilToNearestMultipleOf(maxScreenRays * 4, 4);
-      console.log({ maxScreenRays, bufferSizeBytes });
       screenRayBuffer = device.createBuffer({
         size: bufferSizeBytes,
         usage:
           GPUBufferUsage.STORAGE |
           GPUBufferUsage.COPY_DST |
           GPUBufferUsage.COPY_SRC,
-      });
-      screenRayBufferCopy = device.createBuffer({
-        size: screenRayBuffer.size,
-        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
       });
     }
 
@@ -135,14 +113,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     bufferMarch(computePass, renderArgs, screenRayBuffer, indirectBuffer);
     worldPosReconstruct(computePass, renderArgs);
     computePass.end();
-
-    // commandEncoder.copyBufferToBuffer(
-    //   indirectBuffer,
-    //   0,
-    //   screenRayBufferCopy,
-    //   0,
-    //   indirectBuffer.size,
-    // );
   };
 
   return { render, label: "raymarched g-buffer" };
