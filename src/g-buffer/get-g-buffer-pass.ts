@@ -98,7 +98,14 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       copyGBufferTexture(commandEncoder, source, destination);
     });
 
-    computePass = commandEncoder.beginComputePass({ timestampWrites });
+    computePass = commandEncoder.beginComputePass({
+      timestampWrites: {
+        querySet: timestampWrites.querySet,
+        beginningOfPassWriteIndex:
+          timestampWrites.beginningOfPassWriteIndex + 2,
+        endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 2,
+      },
+    });
     interpolate(
       computePass,
       renderArgs,
@@ -118,6 +125,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
   return {
     render,
     label: "primary rays",
-    timestampWritesLabels: ["primary rays 1/3", "primary rays full"],
+    timestampWriteSize: 4,
   };
 };

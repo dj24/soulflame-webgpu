@@ -74,7 +74,6 @@ let voxelTextureView: GPUTextureView;
 let skyTexture: GPUTexture;
 
 export type RenderArgs = {
-  beginningOfPassWriteIndex?: GPUComputePassTimestampWrites["beginningOfPassWriteIndex"];
   /** Whether the pass should be executed */
   enabled?: boolean;
   /** The command encoder to record commands into */
@@ -111,20 +110,14 @@ export type RenderArgs = {
   nearestSampler: GPUSampler;
 };
 
-/** Some passes may write timestamps for debugging purposes, and may have multiple timestamp writes in a single pass.
- */
-type RenderResult = Pick<
-  GPUComputePassTimestampWrites | GPURenderPassTimestampWrites,
-  "endOfPassWriteIndex"
->;
-
 //TODO: use RenderResult as return type for render functions
 export type RenderPass = {
-  /** The function to execute the pass */
+  /** The function to execute the pass, optionally can return the timestamp query size */
   render: (args: RenderArgs) => void;
   /** The label for the pass */
   label?: string;
-  timestampWritesLabels?: string[];
+  /** The size of the timestamp query writes for this pass, optional, will use a size of 2 by default (start and end) */
+  timestampWriteSize?: number;
 };
 
 const torchPositions: Light["position"][] = [
@@ -248,7 +241,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   if (device.features.has("timestamp-query")) {
     timestampQuerySet = device.createQuerySet({
       type: "timestamp",
-      count: computePasses.length * 2, //start and end of each pass
+      count: 100, //start and end of each pass
     });
     timestampQueryBuffer = device.createBuffer({
       label: "timestamp query",
@@ -486,16 +479,10 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       return;
     }
 
-    // If the pass has multiple compute passes, we need to use the label of the timestampWritesLabels
-    // const timestampLabels = computePasses.reduce((acc, pass) => {
-    //   if (pass.timestampWritesLabels && pass.timestampWritesLabels.length > 0) {
-    //     return [...acc, ...pass.timestampWritesLabels];
-    //   }
-    //   return [...acc, pass.label];
-    // }, [] as string[]);
+    let beginningOfPassWriteIndex = 0;
 
     computePasses.forEach((computePass, index) => {
-      const { render, label } = computePass;
+      const { render, label, timestampWriteSize } = computePass;
       if (
         (document.getElementById(`flag-${label}`) as HTMLInputElement)
           ?.checked === false
@@ -510,18 +497,16 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       if (device.features.has("timestamp-query")) {
         timestampWrites = {
           querySet: timestampQuerySet,
-          beginningOfPassWriteIndex: index * 2,
-          endOfPassWriteIndex: index * 2 + 1,
+          beginningOfPassWriteIndex: beginningOfPassWriteIndex,
+          endOfPassWriteIndex: beginningOfPassWriteIndex + 1,
         };
       }
-
       bvh.update(voxelObjects);
 
       if (label) {
         commandEncoder.pushDebugGroup(label);
       }
       render({
-        beginningOfPassWriteIndex: 0,
         commandEncoder,
         resolutionBuffer,
         timeBuffer,
@@ -547,6 +532,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         linearSampler,
         nearestSampler,
       });
+      beginningOfPassWriteIndex += timestampWriteSize || 2;
       if (label) {
         commandEncoder.popDebugGroup();
       }

@@ -294,7 +294,7 @@ fn denoise(
   }
   outputColour /= totalWeight;
 //  textureStore(outputTex, pixel, shadowRef);
-  textureStore(outputTex, pixel, mix(outputColour, previousShadow, 0.8));
+  textureStore(outputTex, pixel, mix(outputColour, previousShadow, 0.5));
 //  textureStore(outputTex, pixel, vec4(f32(taps)));
 //  textureStore(outputTex, pixel, vec4(totalWeight / f32(taps)));
 //  textureStore(outputTex, pixel, vec4(shadowVariance * 32.0));
