@@ -125,6 +125,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
   return {
     render,
     label: "primary rays",
-    timestampWriteSize: 4,
+    timestampLabels: ["sparse raymarch", "full raymarch"],
   };
 };

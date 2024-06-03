@@ -52,7 +52,7 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.create(4, 4);
-let downscale = 1.0;
+let downscale = 1.5;
 let startTime = 0;
 export let elapsedTime = startTime;
 export let deltaTime = 0;
@@ -117,7 +117,7 @@ export type RenderPass = {
   /** The label for the pass */
   label?: string;
   /** The size of the timestamp query writes for this pass, optional, will use a size of 2 by default (start and end) */
-  timestampWriteSize?: number;
+  timestampLabels?: string[];
 };
 
 const torchPositions: Light["position"][] = [
@@ -482,7 +482,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     let beginningOfPassWriteIndex = 0;
 
     computePasses.forEach((computePass, index) => {
-      const { render, label, timestampWriteSize } = computePass;
+      const { render, label, timestampLabels } = computePass;
       if (
         (document.getElementById(`flag-${label}`) as HTMLInputElement)
           ?.checked === false
@@ -532,15 +532,27 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         linearSampler,
         nearestSampler,
       });
-      beginningOfPassWriteIndex += timestampWriteSize || 2;
+      if (timestampLabels?.length > 0) {
+        beginningOfPassWriteIndex += timestampLabels.length * 2;
+      } else {
+        beginningOfPassWriteIndex += 2;
+      }
       if (label) {
         commandEncoder.popDebugGroup();
       }
     });
     commandEncoder.popDebugGroup();
+    const timestampLabels = computePasses.reduce((acc, val) => {
+      if (val.timestampLabels) {
+        return acc.concat(val.timestampLabels);
+      }
+      return acc.concat(val.label);
+    }, []);
+
+    // console.log(timestampLabels);
     if (device.features.has("timestamp-query")) {
       resolveTimestampQueries(
-        computePasses.map((pass) => pass.label).filter((label) => label),
+        timestampLabels,
         timestampQuerySet,
         timestampQueryBuffer,
       );

@@ -99,6 +99,7 @@ const MAX_SHADOW_BVH_VISITS = 8;
 fn rayMarchBVHShadows(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, mipLevel: u32) -> RayMarchResult {
    var closestIntersection = RayMarchResult();
    closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
+   closestIntersection.t = FAR_PLANE;
 
    // Create a stack to store the nodes to visit
    var stack = stack_new();
@@ -150,10 +151,11 @@ fn rayMarchBVHShadows(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, mipLevel: u
          let worldPos = rayOrigin + rayDirection * distanceToLeaf;
          let voxelObject = voxelObjects[node.leftIndex];
          var rayMarchResult = rayMarchTransformed(voxelObject, rayDirection, worldPos, mipLevel);
+//           var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, worldPos, 3);
          rayMarchResult.voxelObjectIndex = node.leftIndex;
-//         let rayMarchResult = rayMarchOctree(voxelObject, rayDirection, worldPos, 3);
-         if(rayMarchResult.hit){
-           return rayMarchResult;
+//
+         if(rayMarchResult.hit && rayMarchResult.t < closestIntersection.t  - EPSILON){
+           closestIntersection = rayMarchResult;
          }
 
          nodeIndex = stack_pop(&stack);
