@@ -339,7 +339,6 @@ ${shaderCode}`;
       });
       intermediaryTextureView = intermediaryTexture.createView();
     }
-    // const commandEncoder = device.createCommandEncoder();
     commandEncoder.copyTextureToTexture(
       {
         texture: outputTextures.finalTexture.texture, // TODO: pass texture as well as view

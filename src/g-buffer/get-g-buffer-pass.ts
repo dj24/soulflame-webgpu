@@ -115,5 +115,9 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     computePass.end();
   };
 
-  return { render, label: "raymarched g-buffer" };
+  return {
+    render,
+    label: "primary rays",
+    timestampWritesLabels: ["primary rays 1/3", "primary rays full"],
+  };
 };

@@ -74,6 +74,7 @@ let voxelTextureView: GPUTextureView;
 let skyTexture: GPUTexture;
 
 export type RenderArgs = {
+  beginningOfPassWriteIndex?: GPUComputePassTimestampWrites["beginningOfPassWriteIndex"];
   /** Whether the pass should be executed */
   enabled?: boolean;
   /** The command encoder to record commands into */
@@ -110,11 +111,20 @@ export type RenderArgs = {
   nearestSampler: GPUSampler;
 };
 
+/** Some passes may write timestamps for debugging purposes, and may have multiple timestamp writes in a single pass.
+ */
+type RenderResult = Pick<
+  GPUComputePassTimestampWrites | GPURenderPassTimestampWrites,
+  "endOfPassWriteIndex"
+>;
+
+//TODO: use RenderResult as return type for render functions
 export type RenderPass = {
   /** The function to execute the pass */
   render: (args: RenderArgs) => void;
   /** The label for the pass */
   label?: string;
+  timestampWritesLabels?: string[];
 };
 
 const torchPositions: Light["position"][] = [
@@ -476,6 +486,14 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
       return;
     }
 
+    // If the pass has multiple compute passes, we need to use the label of the timestampWritesLabels
+    // const timestampLabels = computePasses.reduce((acc, pass) => {
+    //   if (pass.timestampWritesLabels && pass.timestampWritesLabels.length > 0) {
+    //     return [...acc, ...pass.timestampWritesLabels];
+    //   }
+    //   return [...acc, pass.label];
+    // }, [] as string[]);
+
     computePasses.forEach((computePass, index) => {
       const { render, label } = computePass;
       if (
@@ -503,6 +521,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         commandEncoder.pushDebugGroup(label);
       }
       render({
+        beginningOfPassWriteIndex: 0,
         commandEncoder,
         resolutionBuffer,
         timeBuffer,
@@ -535,7 +554,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     commandEncoder.popDebugGroup();
     if (device.features.has("timestamp-query")) {
       resolveTimestampQueries(
-        computePasses,
+        computePasses.map((pass) => pass.label).filter((label) => label),
         timestampQuerySet,
         timestampQueryBuffer,
       );

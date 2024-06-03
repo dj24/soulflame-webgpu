@@ -4,7 +4,7 @@ let gpuReadBuffer: GPUBuffer;
 let isMapPending = false;
 
 export const resolveTimestampQueries = async (
-  computePasses: RenderPass[],
+  labels: string[],
   timestampQuerySet: GPUQuerySet,
   timestampQueryBuffer: GPUBuffer,
 ) => {
@@ -56,17 +56,9 @@ export const resolveTimestampQueries = async (
     },
     [],
   );
-  console.log(computePassExecutionTimes.length);
+
   computePassExecutionTimes.forEach((time, index) => {
-    const label = computePasses[index].label;
-    const inputId = `flag-${label}`;
-    const isPassEnabled = (document.getElementById(inputId) as HTMLInputElement)
-      ?.checked;
-    if (label && isPassEnabled) {
-      frameTimeTracker.addSample(label, time);
-    } else {
-      frameTimeTracker.clearEntry(label);
-    }
+    frameTimeTracker.addSample(labels[index], time);
   });
   gpuReadBuffer.unmap();
 };
