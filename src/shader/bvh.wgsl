@@ -27,7 +27,6 @@ fn getDistanceToNode(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, node: BVHNod
 fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult {
   var closestIntersection = RayMarchResult();
   closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
-  closestIntersection.t = FAR_PLANE;
 
   // Create a stack to store the nodes to visit
   var stack = stack_new();
@@ -35,6 +34,7 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
 
   var iterations = 0;
   var nodeIndex = 0;
+  var closestRayMarchDistance = FAR_PLANE;
 
   while (stack.head > 0u && iterations < MAX_STEPS) {
     let node = bvhNodes[nodeIndex];
@@ -72,7 +72,7 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
     // valid leaf, raymarch it
     else if(node.objectCount == 1){
         let distanceToLeaf = getDistanceToNode(rayOrigin, rayDirection, node);
-        if(distanceToLeaf > closestIntersection.t){
+        if(distanceToLeaf > closestRayMarchDistance){
           nodeIndex = stack_pop(&stack);
           continue;
         }
@@ -81,8 +81,11 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
 //          let rayMarchResult = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);
         var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, worldPos, 3);
         rayMarchResult.voxelObjectIndex = node.leftIndex;
-        if(rayMarchResult.hit && rayMarchResult.t < closestIntersection.t  - EPSILON){
+
+        let totalDistance = distance(rayOrigin, rayMarchResult.worldPos);
+        if(rayMarchResult.hit && totalDistance < closestRayMarchDistance){
           closestIntersection = rayMarchResult;
+          closestRayMarchDistance = totalDistance;
         }
 
         nodeIndex = stack_pop(&stack);

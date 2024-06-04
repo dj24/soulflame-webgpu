@@ -99,7 +99,7 @@ fn main(
   var radiance = vec3(0.1);
 
   // Calculate the probability of sampling the sun
-  let sunProbability = clamp(dot(normalSample, sunDirection), 0.0, 1.0) * 0.5;
+  let sunProbability = clamp(dot(normalSample, sunDirection), 0.0, 1.0) * 0.25;
 //  let sunProbability = 0.0;
   // Calculate the probability of sampling the diffuse light
   let diffuseProbability = 1.0 - sunProbability;
