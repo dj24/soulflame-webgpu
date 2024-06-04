@@ -1,12 +1,14 @@
 
 
-fn diffuseRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>) -> bool {
-  let rayOrigin = worldPos + normal * 0.166 + shadowRayDirection * 0.166; // To adccount for self occlusion of higher mip
+fn diffuseRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>, voxelObjectSize: f32) -> bool {
+  let selfOcclusionOffset = 0.33 * voxelObjectSize; // To adccount for self occlusion of higher mip
+  let rayOrigin = worldPos + normal * selfOcclusionOffset + shadowRayDirection * selfOcclusionOffset;
   return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 1).hit;
 }
 
-fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>) -> bool {
-  let rayOrigin = worldPos  + normal * 0.166 + shadowRayDirection * 0.166; // To adccount for self occlusion of higher mip
+fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>, voxelObjectSize: f32) -> bool {
+  let selfOcclusionOffset = 0.33 * voxelObjectSize; // To adccount for self occlusion of higher mip
+  let rayOrigin = worldPos  + normal * selfOcclusionOffset + shadowRayDirection * selfOcclusionOffset; // To adccount for self occlusion of higher mip
   return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 1).hit;
 }
 
@@ -66,14 +68,10 @@ const SAMPLE_OFFSETS: array<vec2<i32>, 4> = array<vec2<i32>, 4>(
   vec2<i32>(1, 0),
 );
 
-/** alternate frame checkerboard pattern
-  0,1
-  1,0
+fn getScaleFromMatrix(transform: mat4x4<f32>) -> vec3<f32> {
+  return vec3<f32>(length(transform[0].xyz), length(transform[1].xyz), length(transform[2].xyz));
+}
 
-  then
-  1,0
-  0,1
-*/
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
@@ -81,7 +79,10 @@ fn main(
   let pixel = vec2<i32>(GlobalInvocationID.xy);
   let outputPixel = pixel;
   var normalSample = textureLoad(normalTex, pixel, 0).rgb;
-  var worldPos = textureLoad(worldPosTex, pixel, 0).rgb + normalSample * SHADOW_ACNE_OFFSET;
+  let worldPosSample = textureLoad(worldPosTex, pixel, 0);
+  var worldPos = worldPosSample.rgb + normalSample * SHADOW_ACNE_OFFSET;
+  let voxelObject = voxelObjects[i32(worldPosSample.a)];
+  let voxelObjectScale = length(getScaleFromMatrix(voxelObject.transform));
   var samplePixel = outputPixel;
   samplePixel.x += i32(time.frame) * 32;
   samplePixel.y += i32(time.frame) * 16;
@@ -105,7 +106,7 @@ fn main(
 
   if(r.x < sunProbability){
     let shadowRayDirection = sunDirection + randomInCosineWeightedHemisphere(r, sunDirection) * SCATTER_AMOUNT;
-    if(!shadowRay(sampleWorldPos, shadowRayDirection, normalSample)){
+    if(!shadowRay(sampleWorldPos, shadowRayDirection, normalSample, voxelObjectScale)){
       let viewDirection = normalize(cameraPosition - worldPos);
       let diffuse = max(dot(normalSample, sunDirection), 0.0);
       let specular = pow(max(dot(normalSample, normalize(sunDirection + viewDirection)), 0.0), 32.0);
@@ -114,7 +115,7 @@ fn main(
     }
   } else{
      var diffuseDirection = randomInCosineWeightedHemisphere(r, normalSample);
-     if(!diffuseRay(sampleWorldPos, diffuseDirection, normalSample)){
+     if(!diffuseRay(sampleWorldPos, diffuseDirection, normalSample, voxelObjectScale)){
           let sky = textureSampleLevel(skyCube, linearSampler, diffuseDirection, 0.0);
           radiance += clamp(vec3(sky.rgb), vec3(0.0), vec3(32.0));
       }

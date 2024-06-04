@@ -162,7 +162,9 @@ fn tracePixel(pixel: vec2<u32>){
     let velocity = getVelocityStatic(worldPos, viewProjections);
 
     let depth = distance(cameraPosition, worldPos);
-    textureStore(albedoTex, pixel, vec4(albedo, 1));
+//    textureStore(albedoTex, pixel, vec4(albedo, 1));
+    let scale = vec3<f32>(length(voxelObject.transform[0].xyz), length(voxelObject.transform[1].xyz), length(voxelObject.transform[2].xyz));
+    textureStore(albedoTex, pixel, vec4(scale, 1));
     textureStore(normalTex, pixel, vec4(normal,1));
     textureStore(velocityTex, pixel, vec4(velocity,0,f32(closestIntersection.voxelObjectIndex)));
     textureStore(depthWrite, pixel, vec4(depth, 0, 0, 0));
@@ -199,7 +201,8 @@ fn bufferMarch(
   let localRayIndex = GlobalInvocationID.x % 8;
   let pixel = screenRayBuffer[bufferIndex];
   let offsetPixel = pixel + REMAINING_RAY_OFFSETS[localRayIndex];
-//  textureStore(albedoTex, offsetPixel, vec4(1,0,0,1));
+
 //  textureStore(depthWrite, offsetPixel, vec4(0,0,0,0));
   tracePixel(offsetPixel);
+   textureStore(albedoTex, offsetPixel, vec4(1,0,0,1));
 }
