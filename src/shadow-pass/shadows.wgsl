@@ -3,13 +3,13 @@
 fn diffuseRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>, voxelObjectSize: f32) -> bool {
   let selfOcclusionOffset = 5.0 * voxelObjectSize; // To adccount for self occlusion of higher mip
   let rayOrigin = worldPos + normal * selfOcclusionOffset + shadowRayDirection * selfOcclusionOffset;
-  return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 1).hit;
+  return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 0).hit;
 }
 
 fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>, voxelObjectSize: f32) -> bool {
-  let selfOcclusionOffset =  500.0 * voxelObjectSize; // To adccount for self occlusion of higher mip
-  let rayOrigin = worldPos + normal * selfOcclusionOffset;
-  return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 1).hit;
+  let selfOcclusionOffset =  5.0 * voxelObjectSize; // To adccount for self occlusion of higher mip
+  let rayOrigin = worldPos + normal * selfOcclusionOffset + shadowRayDirection * selfOcclusionOffset;
+  return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 0).hit;
 }
 
 
@@ -29,10 +29,10 @@ const BLUE_NOISE_SIZE = 511;
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const SHADOW_ACNE_OFFSET: f32 = 0.005;
-//const SCATTER_AMOUNT: f32 = 0.05;
-const SCATTER_AMOUNT: f32 = 0.00;
-//const POSITION_SCATTER_AMOUNT: f32 = 0.25;
-const POSITION_SCATTER_AMOUNT: f32 = 0.00;
+const SCATTER_AMOUNT: f32 = 0.05;
+//const SCATTER_AMOUNT: f32 = 0.00;
+const POSITION_SCATTER_AMOUNT: f32 = 0.25;
+//const POSITION_SCATTER_AMOUNT: f32 = 0.00;
 
 fn blinnPhong(normal: vec3<f32>, lightDirection: vec3<f32>, viewDirection: vec3<f32>, specularStrength: f32, shininess: f32, lightColour: vec3<f32>) -> vec3<f32> {
   let halfDirection = normalize(lightDirection + viewDirection);

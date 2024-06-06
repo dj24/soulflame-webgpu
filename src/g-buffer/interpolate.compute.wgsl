@@ -105,6 +105,7 @@ fn incrementCounters() -> u32{
 ) {
   let texSize = textureDimensions(albedoCopyTex);
   let pixel = vec2<i32>(GlobalInvocationID.xy);
+  let uv = vec2<f32>(pixel) / vec2<f32>(texSize);
   let nearestFilledPixel = (pixel / 3) * 3;
   let isOriginPixel = all(pixel == nearestFilledPixel);
   let isCornerPixel = all(pixel == nearestFilledPixel + vec2(2));
@@ -171,24 +172,32 @@ fn incrementCounters() -> u32{
     }
   }
 
+  let pixel0 = nearestFilledPixel;
+  let pixel1 = nearestFilledPixel + vec2<i32>(3, 0);
+  let pixel2 = nearestFilledPixel + vec2<i32>(0, 3);
+  let pixel3 = nearestFilledPixel + vec2<i32>(3, 3);
+
   // Interpolate
-  var depth = 0.0;
-  var uv = vec2(0.0);
-  var totalWeight = 0.0;
-  var normal = vec3(0.0);
-  for(var i = 0; i < 4; i = i + 1) {
-    let neighbor = nearestFilledPixel + neighborOffsets[i];
-    let neighborUV = vec2<f32>(neighbor) / vec2<f32>(texSize);
-    let distanceToPixel = vec2<f32>(pixel - neighbor);
-    let weight = 1.0 / (1.0 + dot(distanceToPixel, distanceToPixel));
-    normal += textureLoad(normalCopyTex, neighbor, 0).xyz * weight;
-    depth += textureLoad(depthCopyTex, neighbor, 0).r * weight;
-    uv += neighborUV * weight;
-    totalWeight += weight;
-  }
-  depth /= totalWeight;
-  normal /= totalWeight;
-  uv /= totalWeight;
+  let normal0 = normalRef;
+  let normal1 = textureLoad(normalCopyTex, pixel1, 0).xyz;
+  let normal2 = textureLoad(normalCopyTex, pixel2, 0).xyz;
+  let normal3 = textureLoad(normalCopyTex, pixel3, 0).xyz;
+
+  let depth0 = depthRef;
+  let depth1 = textureLoad(depthCopyTex, pixel1, 0).r;
+  let depth2 = textureLoad(depthCopyTex, pixel2, 0).r;
+  let depth3 = textureLoad(depthCopyTex, pixel3, 0).r;
+
+  let xInterp = f32(pixel.x) % 3.0 / 3.0;
+  let yInterp = f32(pixel.y) % 3.0 / 3.0;
+
+  let depthBottom = mix(depth0, depth1, xInterp);
+  let depthTop = mix(depth2, depth3, xInterp);
+  let depth = mix(depthBottom, depthTop, yInterp);
+
+  let normalTop = mix(normal0, normal1, xInterp);
+  let normalBottom = mix(normal2, normal3, xInterp);
+  let normal = mix(normalTop, normalBottom, yInterp);
 
   let worldPos = cameraPosition + calculateRayDirection(uv, viewProjections.inverseViewProjection) * depth;
   let localPos = (voxelObject.inverseTransform * vec4(worldPos, 1.0)).xyz;
@@ -198,9 +207,9 @@ fn incrementCounters() -> u32{
   let paletteX = i32(palettePos* 255.0);
   let paletteY = i32(voxelObject.paletteIndex);
   let albedo = textureLoad(paletteTex, vec2(paletteX, paletteY), 0).rgb;
+//  let albedo = vec3(vec2<f32>(pixel) % 3.0, 0.0) * 0.33;
+//  let albedo = vec3(uv, 0.0);
 
-  let scale = vec3<f32>(length(voxelObject.transform[0].xyz), length(voxelObject.transform[1].xyz), length(voxelObject.transform[2].xyz));
-//  textureStore(albedoTex, pixel, vec4(scale, 1));
   textureStore(albedoTex, pixel, vec4(albedo, 1));
   textureStore(velocityTex, pixel, velocityRef);
   textureStore(depthTex, pixel, vec4(depth));

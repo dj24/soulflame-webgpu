@@ -200,6 +200,9 @@ fn bufferMarch(
   let bufferIndex = GlobalInvocationID.x / 8;
   let localRayIndex = GlobalInvocationID.x % 8;
   let pixel = screenRayBuffer[bufferIndex];
+  if(pixel.x % 6 == 0 || pixel.y % 6 == 0){
+//    return;
+  }
   let offsetPixel = pixel + REMAINING_RAY_OFFSETS[localRayIndex];
 
 //  textureStore(depthWrite, offsetPixel, vec4(0,0,0,0));
