@@ -199,8 +199,11 @@ fn incrementCounters() -> u32{
   let paletteY = i32(voxelObject.paletteIndex);
   let albedo = textureLoad(paletteTex, vec2(paletteX, paletteY), 0).rgb;
 
+  let scale = vec3<f32>(length(voxelObject.transform[0].xyz), length(voxelObject.transform[1].xyz), length(voxelObject.transform[2].xyz));
+//  textureStore(albedoTex, pixel, vec4(scale, 1));
+  textureStore(albedoTex, pixel, vec4(albedo, 1));
   textureStore(velocityTex, pixel, velocityRef);
   textureStore(depthTex, pixel, vec4(depth));
   textureStore(normalTex, pixel, vec4(normal, 1.0));
-  textureStore(albedoTex, pixel, vec4(albedo, 1));
+
 }
