@@ -117,7 +117,26 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       screenRayBuffer,
       counterBuffer,
     );
+    computePass.end();
+
+    computePass = commandEncoder.beginComputePass({
+      timestampWrites: {
+        querySet: timestampWrites.querySet,
+        beginningOfPassWriteIndex:
+          timestampWrites.beginningOfPassWriteIndex + 4,
+        endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 4,
+      },
+    });
     bufferMarch(computePass, renderArgs, screenRayBuffer, indirectBuffer);
+    computePass.end();
+    computePass = commandEncoder.beginComputePass({
+      timestampWrites: {
+        querySet: timestampWrites.querySet,
+        beginningOfPassWriteIndex:
+          timestampWrites.beginningOfPassWriteIndex + 6,
+        endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 6,
+      },
+    });
     worldPosReconstruct(computePass, renderArgs);
     computePass.end();
   };
@@ -125,6 +144,11 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
   return {
     render,
     label: "primary rays",
-    timestampLabels: ["sparse raymarch", "full raymarch"],
+    timestampLabels: [
+      "sparse raymarch",
+      "interpolate",
+      "full raymarch",
+      "world pos reconstruct",
+    ],
   };
 };

@@ -108,6 +108,7 @@ fn incrementCounters() -> u32{
   let uv = vec2<f32>(pixel) / vec2<f32>(texSize);
   let nearestFilledPixel = (pixel / 3) * 3;
   let isOriginPixel = all(pixel == nearestFilledPixel);
+
   let isCornerPixel = all(pixel == nearestFilledPixel + vec2(2));
   let nearestUV = vec2<f32>(nearestFilledPixel) / vec2<f32>(texSize);
   let velocityRef = textureLoad(velocityCopyTex, nearestFilledPixel, 0);

@@ -205,7 +205,8 @@ fn bufferMarch(
   }
   let offsetPixel = pixel + REMAINING_RAY_OFFSETS[localRayIndex];
 
-//  textureStore(depthWrite, offsetPixel, vec4(0,0,0,0));
+
   tracePixel(offsetPixel);
+//  textureStore(depthWrite, offsetPixel, vec4(0,0,0,0));
 //   textureStore(albedoTex, offsetPixel, vec4(1,0,0,1));
 }

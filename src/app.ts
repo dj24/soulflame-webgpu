@@ -52,7 +52,7 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.create(4, 4);
-let downscale = 8.0;
+let downscale = 4.0;
 let startTime = 0;
 export let elapsedTime = startTime;
 export let deltaTime = 0;
