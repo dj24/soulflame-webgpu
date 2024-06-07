@@ -529,10 +529,13 @@ ${shadows}`;
     // Get Effect
     computePass.setPipeline(effectPipeline);
     computePass.setBindGroup(0, bindGroup);
-    computePass.dispatchWorkgroups(
-      Math.ceil(intermediaryTexture.width / NUM_THREADS_X),
-      Math.ceil(intermediaryTexture.height / NUM_THREADS_Y),
+    const groupsX = Math.ceil(
+      outputTextures.finalTexture.width / NUM_THREADS_X / 3,
     );
+    const groupsY = Math.ceil(
+      outputTextures.finalTexture.height / NUM_THREADS_Y / 3,
+    );
+    computePass.dispatchWorkgroups(groupsX, groupsY);
 
     //Denoise
     computePass.setPipeline(denoisePipeline);

@@ -52,7 +52,7 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.create(4, 4);
-let downscale = 4.0;
+let downscale = 1.0;
 let startTime = 0;
 export let elapsedTime = startTime;
 export let deltaTime = 0;
@@ -577,12 +577,12 @@ const computePasses = await Promise.all([
   getClearPass(),
   // getHelloTrianglePass(),
   getGBufferPass(),
-  // getShadowsPass(),
-  // getSkyPass(),
+  getShadowsPass(),
+  getSkyPass(),
   // getLightsPass(),
   // getTaaPass(),
   // getFogPass(),
-  // getBloomPass(),
+  getBloomPass(),
   getMotionBlurPass(),
   getTonemapPass(),
   // getLutPass("luts/Reeve 38.CUBE"),

@@ -1,14 +1,14 @@
 
 
 fn diffuseRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>, voxelObjectSize: f32) -> bool {
-  let selfOcclusionOffset = 5.0 * voxelObjectSize; // To adccount for self occlusion of higher mip
-  let rayOrigin = worldPos + normal * selfOcclusionOffset + shadowRayDirection * selfOcclusionOffset;
+  let selfOcclusionOffset = 1.0 * length(voxelObjectSize); // To adccount for self occlusion of higher mip
+  let rayOrigin = worldPos + normal * selfOcclusionOffset;
   return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 0).hit;
 }
 
 fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>, voxelObjectSize: f32) -> bool {
-  let selfOcclusionOffset =  5.0 * voxelObjectSize; // To adccount for self occlusion of higher mip
-  let rayOrigin = worldPos + normal * selfOcclusionOffset + shadowRayDirection * selfOcclusionOffset;
+  let selfOcclusionOffset =  1.0 * length(voxelObjectSize); // To adccount for self occlusion of higher mip
+  let rayOrigin = worldPos + shadowRayDirection * selfOcclusionOffset;
   return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 0).hit;
 }
 
@@ -29,9 +29,9 @@ const BLUE_NOISE_SIZE = 511;
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const SHADOW_ACNE_OFFSET: f32 = 0.005;
-const SCATTER_AMOUNT: f32 = 0.05;
+const SCATTER_AMOUNT: f32 = 0.1;
 //const SCATTER_AMOUNT: f32 = 0.00;
-const POSITION_SCATTER_AMOUNT: f32 = 0.25;
+const POSITION_SCATTER_AMOUNT: f32 = 0.1;
 //const POSITION_SCATTER_AMOUNT: f32 = 0.00;
 
 fn blinnPhong(normal: vec3<f32>, lightDirection: vec3<f32>, viewDirection: vec3<f32>, specularStrength: f32, shininess: f32, lightColour: vec3<f32>) -> vec3<f32> {
@@ -78,14 +78,14 @@ fn getScaleFromMatrix(transform: mat4x4<f32>) -> vec3<f32> {
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
-  let pixel = vec2<i32>(GlobalInvocationID.xy);
+  let pixel = vec2<i32>(GlobalInvocationID.xy) * 3;
   let outputPixel = pixel;
   var normalSample = textureLoad(normalTex, pixel, 0).rgb;
   let worldPosSample = textureLoad(worldPosTex, pixel, 0);
   let voxelObject = voxelObjects[i32(worldPosSample.a)];
   let axisScales = getScaleFromMatrix(voxelObject.transform);
   let voxelObjectScale = axisScales.x * axisScales.y * axisScales.z;
-  var worldPos = worldPosSample.rgb + normalSample * SHADOW_ACNE_OFFSET * voxelObjectScale;
+  var worldPos = worldPosSample.rgb;
 
 
   var samplePixel = outputPixel;
@@ -104,8 +104,8 @@ fn main(
   var radiance = vec3(0.1);
 
   // Calculate the probability of sampling the sun
-//  let sunProbability = clamp(dot(normalSample, sunDirection), 0.0, 1.0) * 0.25;
-  let sunProbability = 1.0;
+  let sunProbability = clamp(dot(normalSample, sunDirection) * 0.5, 0.0, 1.0);
+//  let sunProbability = 0.0;
   // Calculate the probability of sampling the diffuse light
   let diffuseProbability = 1.0 - sunProbability;
 
@@ -299,8 +299,8 @@ fn denoise(
       outputColour += shadowSample * weight;
   }
   outputColour /= totalWeight;
-//  textureStore(outputTex, pixel, shadowRef);
-  textureStore(outputTex, pixel, mix(outputColour, previousShadow, 0.5));
+  textureStore(outputTex, pixel, shadowRef);
+//  textureStore(outputTex, pixel, mix(outputColour, previousShadow, 0.5));
 //  textureStore(outputTex, pixel, vec4(f32(taps)));
 //  textureStore(outputTex, pixel, vec4(totalWeight / f32(taps)));
 //  textureStore(outputTex, pixel, vec4(shadowVariance * 32.0));
