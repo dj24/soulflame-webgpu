@@ -8,6 +8,8 @@ import getRayDirection from "../shader/get-ray-direction.wgsl";
 import randomCommon from "../random-common.wgsl";
 import matrices from "../shader/matrices.wgsl";
 import { OUTPUT_TEXTURE_FORMAT } from "../constants";
+import { getDenoisePass } from "./passes/get-denoise-pass";
+import { getCompositePass } from "./passes/get-composite-pass";
 
 // export const getShadowsPass = async (): Promise<RenderPass> => {
 //   return createComputeCompositePass({
@@ -91,14 +93,6 @@ const linearSamplerEntry: GPUBindGroupLayoutEntry = {
   sampler: {},
 };
 
-const intermediaryTextureEntry: GPUBindGroupLayoutEntry = {
-  binding: 9,
-  visibility: GPUShaderStage.COMPUTE,
-  texture: {
-    sampleType: "float",
-  },
-};
-
 const normalTextureEntry: GPUBindGroupLayoutEntry = {
   binding: 10,
   visibility: GPUShaderStage.COMPUTE,
@@ -180,7 +174,7 @@ const previousIntermediaryTextureEntry: GPUBindGroupLayoutEntry = {
 
 const label = "diffuse";
 
-const baseBindGroupLayoutEntries = [
+export const baseBindGroupLayoutEntries = [
   depthEntry,
   inputTextureEntry,
   outputTextureEntry,
@@ -202,28 +196,7 @@ const baseBindGroupLayoutEntries = [
   previousIntermediaryTextureEntry,
 ];
 
-const NUM_THREADS_X = 8;
-const NUM_THREADS_Y = 8;
-
-type ComputeCompositePassArgs = {
-  shaderCode: string;
-  effectEntryPoint: string;
-  compositeEntryPoint: string;
-  downscale: number;
-  label: string;
-  workgroupSizeFactor?: [number, number, number];
-};
-
-export const getShadowsPass = async (): Promise<RenderPass> => {
-  const bindGroupLayout = device.createBindGroupLayout({
-    entries: baseBindGroupLayoutEntries,
-  });
-
-  const compositeBindGroupLayout = device.createBindGroupLayout({
-    entries: [...baseBindGroupLayoutEntries, intermediaryTextureEntry],
-  });
-
-  const code = `
+export const code = `
 struct Time {
   frame: u32,
   deltaTime: f32,
@@ -261,6 +234,14 @@ ${bvh}
 ${bvhCoarse}
 ${shadows}`;
 
+const NUM_THREADS_X = 16;
+const NUM_THREADS_Y = 8;
+
+export const getShadowsPass = async (): Promise<RenderPass> => {
+  const bindGroupLayout = device.createBindGroupLayout({
+    entries: baseBindGroupLayoutEntries,
+  });
+
   const effectPipeline = device.createComputePipeline({
     label,
     layout: device.createPipelineLayout({
@@ -271,32 +252,6 @@ ${shadows}`;
         code,
       }),
       entryPoint: "main",
-    },
-  });
-
-  const compositePipeline = device.createComputePipeline({
-    label: `${label} - composite`,
-    layout: device.createPipelineLayout({
-      bindGroupLayouts: [compositeBindGroupLayout],
-    }),
-    compute: {
-      module: device.createShaderModule({
-        code,
-      }),
-      entryPoint: "composite",
-    },
-  });
-
-  const denoisePipeline = device.createComputePipeline({
-    label: `${label} - denoise`,
-    layout: device.createPipelineLayout({
-      bindGroupLayouts: [compositeBindGroupLayout],
-    }),
-    compute: {
-      module: device.createShaderModule({
-        code,
-      }),
-      entryPoint: "denoise",
     },
   });
 
@@ -318,6 +273,9 @@ ${shadows}`;
     magFilter: "linear",
     minFilter: "linear",
   });
+
+  const denoisePass = await getDenoisePass();
+  const compositePass = await getCompositePass();
 
   const render = ({
     outputTextures,
@@ -484,43 +442,7 @@ ${shadows}`;
       ],
     };
 
-    // Denoise with the previous frame
-    const denoiseBindGroupDescriptor: GPUBindGroupDescriptor = {
-      layout: compositeBindGroupLayout,
-      entries: [
-        ...baseEntries,
-        {
-          binding: 2, // output texture
-          resource: copyIntermediaryTextureView,
-        },
-        {
-          binding: 9, // sampled texture
-          resource: intermediaryTextureView,
-        },
-      ],
-    };
-
-    // Composite into final image
-    const compositeBindGroupDescriptor: GPUBindGroupDescriptor = {
-      layout: compositeBindGroupLayout,
-      entries: [
-        ...baseEntries,
-        {
-          binding: 2, // output texture
-          resource: outputTextures.finalTexture.view,
-        },
-        {
-          binding: 9, // sampled texture
-          resource: copyIntermediaryTextureView,
-        },
-      ],
-    };
-
     const bindGroup = device.createBindGroup(bindGroupDescriptor);
-    const compositeBindGroup = device.createBindGroup(
-      compositeBindGroupDescriptor,
-    );
-    const denoiseBindGroup = device.createBindGroup(denoiseBindGroupDescriptor);
 
     const computePass = commandEncoder.beginComputePass({
       timestampWrites,
@@ -538,22 +460,22 @@ ${shadows}`;
     computePass.dispatchWorkgroups(groupsX, groupsY);
 
     //Denoise
-    computePass.setPipeline(denoisePipeline);
-    computePass.setBindGroup(0, denoiseBindGroup);
-    computePass.dispatchWorkgroups(
-      Math.ceil(intermediaryTexture.width / NUM_THREADS_X),
-      Math.ceil(intermediaryTexture.height / NUM_THREADS_Y),
+    denoisePass(
+      computePass,
+      baseEntries,
+      intermediaryTexture,
+      intermediaryTextureView,
+      copyIntermediaryTextureView,
     );
 
     // Composite into image
-    computePass.setPipeline(compositePipeline);
-    computePass.setBindGroup(0, compositeBindGroup);
-    computePass.dispatchWorkgroups(
-      Math.ceil(outputTextures.finalTexture.width / NUM_THREADS_X),
-      Math.ceil(outputTextures.finalTexture.height / NUM_THREADS_Y),
+    compositePass(
+      computePass,
+      baseEntries,
+      outputTextures.finalTexture.texture,
+      outputTextures.finalTexture.view,
+      copyIntermediaryTextureView,
     );
-
-    computePass.end();
 
     // Last texture in the ping-pong was the copy texture, so we use it as our history texture
     commandEncoder.copyTextureToTexture(

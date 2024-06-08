@@ -1,85 +1,62 @@
-import { camera, canvas, debugValues } from "./app";
+import { camera, canvas, debugValues, RenderPass } from "./app";
+import GUI from "lil-gui";
+import { TimingEntries } from "./frametime-tracker";
 
 export class DebugUI {
-  logElement;
-  isMouseDown = false;
+  gui: GUI;
+  timingsFolder: GUI;
+  passesFolder: GUI;
+
   constructor() {
-    document.getElementById("reset").addEventListener("click", (event) => {
-      window.dispatchEvent(new CustomEvent(`resetcamera`));
-      document.getElementById("captures").innerHTML = "";
-    });
-    document.getElementById("capture").addEventListener("click", (event) => {
-      const image = new Image();
-      image.id = performance.now().toString();
-      image.src = canvas.toDataURL();
-      const imageElement = document
-        .getElementById("captures")
-        .appendChild(image);
-      imageElement.addEventListener("click", (event) => {
-        const img = event.target as HTMLImageElement;
-        console.log(event.target);
-      });
-    });
     document.addEventListener("wheel", (event) => {
       camera.fieldOfView += event.deltaY * 0.001;
       camera.fieldOfView = Math.max(Math.min(camera.fieldOfView, 2), 0.1);
     });
-    ["fov", "scale", "translate", "sun"].forEach((id) => {
-      document.getElementById(id).addEventListener("input", (event) => {
-        const input = event.target as HTMLInputElement;
-        window.dispatchEvent(
-          new CustomEvent(`change${id}`, { detail: input.value }),
-        );
-      });
-    });
-    this.logElement = document.getElementById("log");
 
-    const handleFovChange = (event: CustomEvent) => {
-      camera.fieldOfView = parseFloat(event.detail);
-    };
-    window.addEventListener("changefov", handleFovChange);
-    const handleTranslateChange = (event: CustomEvent) => {
-      debugValues.targetTranslateX = parseFloat(event.detail) * 0.01;
-    };
-    const handleSunChange = (event: CustomEvent) => {
-      debugValues.targetSunRotateY = parseFloat(event.detail);
-    };
+    this.gui = new GUI();
 
-    window.addEventListener("changetranslate", handleTranslateChange);
-    window.addEventListener("changesun", handleSunChange);
-    const handleScaleChange = (event: CustomEvent) => {
-      debugValues.targetScale = parseFloat(event.detail);
-    };
-    window.addEventListener("changescale", handleScaleChange);
-    window.addEventListener("resetcamera", () => {
-      debugValues.targetTranslateX = 0;
-      debugValues.targetScale = 1;
-      debugValues.targetRotateY = 0;
-    });
+    this.gui
+      .add(debugValues, "targetSunRotateY", -3, 3)
+      .onChange((value: number) => {
+        debugValues.targetSunRotateY = value;
+      })
+      .listen();
 
-    document
-      .getElementById("webgpu-canvas")
-      .addEventListener("mousedown", () => {
-        this.isMouseDown = true;
-      });
-    document.getElementById("webgpu-canvas").addEventListener("mouseup", () => {
-      this.isMouseDown = false;
-    });
-    document
-      .getElementById("webgpu-canvas")
-      .addEventListener("mouseleave", () => {
-        this.isMouseDown = false;
-      });
-    window.addEventListener("mousemove", (event) => {
-      if (!this.isMouseDown) {
-        return;
+    this.gui
+      .add(camera, "fieldOfView", 0.1, 2)
+      .onChange((value: number) => {
+        camera.fieldOfView = value;
+      })
+      .listen();
+
+    this.timingsFolder = this.gui.addFolder("timings");
+    this.passesFolder = this.gui.addFolder("passes");
+  }
+
+  log(timings: Record<string, number>) {
+    Object.keys(timings).forEach((key) => {
+      const currentController = this.timingsFolder.controllers.find(
+        (controller) => controller.property === key,
+      );
+      if (currentController) {
+        currentController.setValue(timings[key].toFixed(2));
+      } else {
+        this.timingsFolder.add(timings, key);
       }
-      debugValues.targetRotateY -= event.movementX * 0.005;
-      // console.log(event.movementX, event.movementY);
     });
   }
 
-  log(text: string) {
-    this.logElement.innerHTML = text;
+  setupDebugControls(computePasses: RenderPass[]) {
+    const passStates = computePasses.reduce(
+      (acc, pass) => {
+        acc[pass.label] = true;
+        return acc;
+      },
+      {} as Record<string, boolean>,
+    );
+
+    computePasses.forEach((pass) => {
+      this.passesFolder.add(passStates, pass.label);
+    });
   }
 }

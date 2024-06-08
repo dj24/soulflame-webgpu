@@ -45,7 +45,6 @@ import { getVoxelLatticePass } from "./voxel-lattice/get-voxel-lattice-pass";
 import { resolveTimestampQueries } from "./abstractions/resolve-timestamp-queries";
 import { createSkyTexture } from "./abstractions/create-sky-texture";
 import { getGpuDevice } from "./abstractions/get-gpu-device";
-import { setupDebugControls } from "./abstractions/setup-debug-controls";
 
 export const debugValues = new DebugValuesStore();
 export let device: GPUDevice;
@@ -404,9 +403,6 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   const getVoxelObjectsBuffer = () => {
     const voxelObjectsInFrustrum = voxelObjects;
 
-    document.getElementById("objectcount").innerHTML =
-      `Objects: ${voxelObjectsInFrustrum.length} / ${voxelObjects.length} in view`;
-
     const voxelObjectsArray = voxelObjectsInFrustrum.flatMap((voxelObject) =>
       voxelObject.toArray(),
     );
@@ -429,7 +425,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   };
 
   setInterval(() => {
-    debugUI.log(frameTimeTracker.toHTML());
+    debugUI.log(frameTimeTracker.getAverages());
   }, 500);
 
   const frame = (now: number) => {
@@ -455,8 +451,6 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     UpdatedByRenderLoop.updateAll(frameCount);
     bvh.update(voxelObjects);
-
-    document.getElementById("resolution").innerHTML = resolution.join(" x ");
 
     getTimeBuffer();
     getResolutionBuffer();
@@ -484,8 +478,9 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     computePasses.forEach((computePass, index) => {
       const { render, label, timestampLabels } = computePass;
       if (
-        (document.getElementById(`flag-${label}`) as HTMLInputElement)
-          ?.checked === false
+        debugUI.passesFolder.controllers
+          .find((controller) => controller.property === label)
+          ?.getValue() === false
       ) {
         return;
       }
@@ -507,6 +502,8 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         commandEncoder.pushDebugGroup(label);
       }
       render({
+        enabled: (document.getElementById(`flag-${label}`) as HTMLInputElement)
+          ?.checked,
         commandEncoder,
         resolutionBuffer,
         timeBuffer,
@@ -591,4 +588,4 @@ const computePasses = await Promise.all([
   fullscreenQuad(device),
 ]);
 beginRenderLoop(device, await Promise.all(computePasses));
-setupDebugControls(computePasses);
+debugUI.setupDebugControls(computePasses);

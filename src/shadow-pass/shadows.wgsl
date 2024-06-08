@@ -74,11 +74,14 @@ fn getScaleFromMatrix(transform: mat4x4<f32>) -> vec3<f32> {
   return vec3<f32>(length(transform[0].xyz), length(transform[1].xyz), length(transform[2].xyz));
 }
 
-@compute @workgroup_size(8, 8, 1)
+@compute @workgroup_size(16, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
   let pixel = vec2<i32>(GlobalInvocationID.xy) * 3;
+
+  let uv = (vec2<f32>(pixel) + vec2(0.5)) / vec2<f32>(textureDimensions(outputTex));
+
   let outputPixel = pixel;
   var normalSample = textureLoad(normalTex, pixel, 0).rgb;
   let worldPosSample = textureLoad(worldPosTex, pixel, 0);
@@ -86,7 +89,6 @@ fn main(
   let axisScales = getScaleFromMatrix(voxelObject.transform);
   let voxelObjectScale = axisScales.x * axisScales.y * axisScales.z;
   var worldPos = worldPosSample.rgb;
-
 
   var samplePixel = outputPixel;
   samplePixel.x += i32(time.frame) * 32;
@@ -109,6 +111,7 @@ fn main(
   // Calculate the probability of sampling the diffuse light
   let diffuseProbability = 1.0 - sunProbability;
 
+// TODO: push to buffer instead and evaluate in a separate pass
   if(r.x < sunProbability){
     let shadowRayDirection = sunDirection + randomInCosineWeightedHemisphere(r, sunDirection) * SCATTER_AMOUNT;
     if(!shadowRay(sampleWorldPos, shadowRayDirection, normalSample, voxelObjectScale)){
@@ -198,7 +201,7 @@ const DEPTH_SENSITIVITY = 50000.0;
 const BLUR_RADIUS = 2.0;
 const GOLDEN_RATIO = 1.61803398875;
 
-@compute @workgroup_size(8, 8, 1)
+@compute @workgroup_size(16, 8, 1)
 fn denoise(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
@@ -306,7 +309,7 @@ fn denoise(
 //  textureStore(outputTex, pixel, vec4(shadowVariance * 32.0));
 }
 
-@compute @workgroup_size(8, 8, 1)
+@compute @workgroup_size(16, 8, 1)
 fn composite(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {

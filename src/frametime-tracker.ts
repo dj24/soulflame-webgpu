@@ -1,4 +1,4 @@
-type TimingEntries = {
+export type TimingEntries = {
   [key: string]: number[];
 };
 
@@ -30,6 +30,16 @@ export const getFrameTimeTracker = () => {
     return samples.reduce((a, b) => a + b) / samples.length;
   };
 
+  const getAverages = () => {
+    return Object.keys(timings).reduce(
+      (acc, key) => {
+        acc[key] = getAverage(key);
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+  };
+
   const toString = () => {
     return Object.keys(timings)
       .map((key) => {
@@ -58,5 +68,6 @@ export const getFrameTimeTracker = () => {
     clearEntry,
     toString,
     toHTML,
+    getAverages,
   };
 };

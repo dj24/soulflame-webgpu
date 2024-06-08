@@ -31,6 +31,7 @@
     "webpack-dev-server": "^5.0.2"
   },
   "dependencies": {
+    "lil-gui": "^0.19.2",
     "motion": "^10.17.0",
     "webgpu-utils": "^1.5.1",
     "wgpu-matrix": "^2.5.1"
