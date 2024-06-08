@@ -38,7 +38,7 @@ export const getWorldPosReconstructionPipeline = async () => {
   });
 
   const pipeline = await device.createComputePipelineAsync({
-    label: "reconstruct world position",
+    label: "reconstruct world pos",
     layout: device.createPipelineLayout({
       bindGroupLayouts: [bindGroupLayout],
     }),
