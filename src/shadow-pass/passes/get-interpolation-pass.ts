@@ -69,6 +69,14 @@ export const getInterpolatePass = async () => {
           viewDimension: "2d",
         },
       },
+      // Time
+      {
+        binding: 7,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
     ],
   });
 
@@ -206,6 +214,12 @@ export const getInterpolatePass = async () => {
         {
           binding: 6,
           resource: renderArgs.blueNoiseTextureView,
+        },
+        {
+          binding: 7,
+          resource: {
+            buffer: renderArgs.timeBuffer,
+          },
         },
       ],
     });

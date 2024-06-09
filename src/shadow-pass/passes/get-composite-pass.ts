@@ -70,8 +70,6 @@ export const getCompositePass = async () => {
       Math.ceil(finalTexture.width / 16),
       Math.ceil(finalTexture.height / 8),
     );
-
-    computePass.end();
   };
 
   return enqueuePass;

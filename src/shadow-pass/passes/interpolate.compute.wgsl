@@ -17,6 +17,12 @@ struct VoxelObject {
   paletteIndex : f32,
 }
 
+struct Time {
+  frame: u32,
+  deltaTime: f32,
+  elapsed: f32
+};
+
 // Textures
 @group(0) @binding(0) var albedoTex : texture_2d<f32>;
 @group(0) @binding(1) var velocityTex : texture_2d<f32>;
@@ -25,6 +31,7 @@ struct VoxelObject {
 @group(0) @binding(4) var shadowTex : texture_storage_2d<rgba16float, write>;
 @group(0) @binding(5) var shadowCopyTex : texture_2d<f32>;
 @group(0) @binding(6) var blueNoiseTex : texture_2d<f32>;
+@group(0) @binding(7) var<uniform> time : Time;
 
 // Camera
 @group(1) @binding(0) var<uniform> cameraPosition : vec3<f32>;
@@ -82,6 +89,8 @@ fn checkSharedPlane(
 //  return count;
 //}
 
+const BLUE_NOISE_SIZE = 512;
+
 /**
   * Interpolate the depth, normal and uv of the pixel from the 4 nearest neighbors
   * if not valid for interpolation, add to a ray buffer for use in the next pass
@@ -93,12 +102,23 @@ fn checkSharedPlane(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
 ) {
   let texSize = textureDimensions(albedoTex);
-  var r = textureLoad(blueNoiseTex, GlobalInvocationID.xy % 511, 0).rg;
-  let pixel = vec2<i32>(GlobalInvocationID.xy) + vec2<i32>(r * 3.0 - vec2(1.5));
-  let nearestFilledPixel = (vec2<i32>(GlobalInvocationID.xy) / 3) * 3;
+
+  var blueNoisePixel = vec2<i32>(GlobalInvocationID.xy);
+  blueNoisePixel.x += i32(time.frame) * 32;
+  blueNoisePixel.y += i32(time.frame) * 16;
+  blueNoisePixel = blueNoisePixel % BLUE_NOISE_SIZE;
+  if(time.frame % 2 == 0){
+    blueNoisePixel.y = BLUE_NOISE_SIZE - blueNoisePixel.y;
+  }
+  if(time.frame % 3 == 0){
+    blueNoisePixel.x = BLUE_NOISE_SIZE - blueNoisePixel.x;
+  }
+
+  var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
+  let pixel = vec2<i32>(GlobalInvocationID.xy) + vec2<i32>(r * 6.0 - vec2(3.0));
+  let nearestFilledPixel = (pixel / 3) * 3;
   let isOriginPixel = all(pixel == nearestFilledPixel);
 
-  let isCornerPixel = all(pixel == nearestFilledPixel + vec2(2));
   let nearestUV = vec2<f32>(nearestFilledPixel) / vec2<f32>(texSize);
   let velocityRef = textureLoad(velocityTex, nearestFilledPixel, 0);
 
@@ -113,7 +133,7 @@ fn checkSharedPlane(
 //         screenRays[count].pixel = vec2<u32>(pixel);
        }
        else {
-       textureStore(shadowTex, pixel, vec4(0.0));
+        textureStore(shadowTex, pixel, vec4(0.0));
        }
        return;
     }

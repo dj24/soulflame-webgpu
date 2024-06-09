@@ -445,13 +445,11 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
       ],
     };
 
-    const bindGroup = device.createBindGroup(bindGroupDescriptor);
-
-    const computePass = commandEncoder.beginComputePass({
+    // Trace
+    let computePass = commandEncoder.beginComputePass({
       timestampWrites,
     });
-
-    // Get Effect
+    const bindGroup = device.createBindGroup(bindGroupDescriptor); // TODO: dont create every frame
     computePass.setPipeline(effectPipeline);
     computePass.setBindGroup(0, bindGroup);
     const groupsX = Math.ceil(
@@ -461,37 +459,71 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
       outputTextures.finalTexture.height / NUM_THREADS_Y / 3,
     );
     computePass.dispatchWorkgroups(groupsX, groupsY);
+    computePass.end();
 
     // Interpolate
-    interpolatePass(
-      computePass,
-      renderArgs,
-      copyIntermediaryTextureView,
-      intermediaryTextureView,
-    );
+    {
+      computePass = commandEncoder.beginComputePass({
+        timestampWrites: {
+          querySet: timestampWrites.querySet,
+          beginningOfPassWriteIndex:
+            timestampWrites.beginningOfPassWriteIndex + 2,
+          endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 2,
+        },
+      });
+      interpolatePass(
+        computePass,
+        renderArgs,
+        copyIntermediaryTextureView,
+        intermediaryTextureView,
+      );
+      computePass.end();
+    }
 
     //Denoise
-    denoisePass(
-      computePass,
-      baseEntries,
-      copyIntermediaryTexture,
-      copyIntermediaryTextureView,
-      intermediaryTextureView,
-    );
+    {
+      computePass = commandEncoder.beginComputePass({
+        timestampWrites: {
+          querySet: timestampWrites.querySet,
+          beginningOfPassWriteIndex:
+            timestampWrites.beginningOfPassWriteIndex + 4,
+          endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 4,
+        },
+      });
+      denoisePass(
+        computePass,
+        baseEntries,
+        copyIntermediaryTexture,
+        copyIntermediaryTextureView,
+        intermediaryTextureView,
+      );
+      computePass.end();
+    }
 
     // Composite into image
-    compositePass(
-      computePass,
-      baseEntries,
-      outputTextures.finalTexture.texture,
-      outputTextures.finalTexture.view,
-      intermediaryTextureView,
-    );
+    {
+      computePass = commandEncoder.beginComputePass({
+        timestampWrites: {
+          querySet: timestampWrites.querySet,
+          beginningOfPassWriteIndex:
+            timestampWrites.beginningOfPassWriteIndex + 6,
+          endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 6,
+        },
+      });
+      compositePass(
+        computePass,
+        baseEntries,
+        outputTextures.finalTexture.texture,
+        outputTextures.finalTexture.view,
+        intermediaryTextureView,
+      );
+      computePass.end();
+    }
 
     // Last texture in the ping-pong was the copy texture, so we use it as our history texture
     commandEncoder.copyTextureToTexture(
       {
-        texture: copyIntermediaryTexture,
+        texture: intermediaryTexture,
       },
       {
         texture: previousIntermediaryTexture,
@@ -503,5 +535,14 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
       },
     );
   };
-  return { render, label };
+  return {
+    render,
+    label,
+    timestampLabels: [
+      "shadow trace",
+      "shadow interpolate",
+      "shadow denoise",
+      "shadow composite",
+    ],
+  };
 };
