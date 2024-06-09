@@ -29,8 +29,8 @@ export const getDenoisePass = async () => {
 
   const getDenoiseBindGroup = (
     baseEntries: GPUBindGroupDescriptor["entries"],
-    intermediaryTextureView: GPUTextureView,
-    copyIntermediaryTextureView: GPUTextureView,
+    inputTextureView: GPUTextureView,
+    outputTextureView: GPUTextureView,
   ) => {
     return device.createBindGroup({
       layout: compositeBindGroupLayout,
@@ -38,11 +38,11 @@ export const getDenoisePass = async () => {
         ...baseEntries,
         {
           binding: 2, // output texture
-          resource: copyIntermediaryTextureView,
+          resource: outputTextureView,
         },
         {
           binding: 9, // sampled texture
-          resource: intermediaryTextureView,
+          resource: inputTextureView,
         },
       ],
     });
@@ -53,22 +53,22 @@ export const getDenoisePass = async () => {
   const enqueuePass = (
     computePass: GPUComputePassEncoder,
     baseEntries: GPUBindGroupDescriptor["entries"],
-    intermediaryTexture: GPUTexture,
-    intermediaryTextureView: GPUTextureView,
-    copyIntermediaryTextureView: GPUTextureView,
+    inputTexture: GPUTexture,
+    inputTextureView: GPUTextureView,
+    outputTextureView: GPUTextureView,
   ) => {
     if (!bindGroup) {
       bindGroup = getDenoiseBindGroup(
         baseEntries,
-        intermediaryTextureView,
-        copyIntermediaryTextureView,
+        inputTextureView,
+        outputTextureView,
       );
     }
     computePass.setPipeline(denoisePipeline);
     computePass.setBindGroup(0, bindGroup);
     computePass.dispatchWorkgroups(
-      Math.ceil(intermediaryTexture.width / 16),
-      Math.ceil(intermediaryTexture.height / 8),
+      Math.ceil(inputTexture.width / 16),
+      Math.ceil(inputTexture.height / 8),
     );
   };
 

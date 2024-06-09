@@ -22,7 +22,7 @@ struct VoxelObject {
 @group(0) @binding(1) var velocityTex : texture_2d<f32>;
 @group(0) @binding(2) var depthTex : texture_2d<f32>;
 @group(0) @binding(3) var normalTex : texture_2d<f32>;
-@group(0) @binding(4) var shadowTex : texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(4) var shadowTex : texture_storage_2d<rgba16float, write>;
 @group(0) @binding(5) var shadowCopyTex : texture_2d<f32>;
 
 // Camera
@@ -110,6 +110,9 @@ fn checkSharedPlane(
          // Add to ray buffer
 //         let count = incrementCounters();
 //         screenRays[count].pixel = vec2<u32>(pixel);
+       }
+       else {
+       textureStore(shadowTex, pixel, vec4(0.0));
        }
        return;
     }

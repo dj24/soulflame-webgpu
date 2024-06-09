@@ -10,6 +10,7 @@ import matrices from "../shader/matrices.wgsl";
 import { OUTPUT_TEXTURE_FORMAT } from "../constants";
 import { getDenoisePass } from "./passes/get-denoise-pass";
 import { getCompositePass } from "./passes/get-composite-pass";
+import { getInterpolatePass } from "./passes/get-interpolation-pass";
 
 // export const getShadowsPass = async (): Promise<RenderPass> => {
 //   return createComputeCompositePass({
@@ -276,20 +277,22 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
 
   const denoisePass = await getDenoisePass();
   const compositePass = await getCompositePass();
+  const interpolatePass = await getInterpolatePass();
 
-  const render = ({
-    outputTextures,
-    timestampWrites,
-    viewProjectionMatricesBuffer,
-    volumeAtlas,
-    cameraPositionBuffer,
-    transformationMatrixBuffer,
-    sunDirectionBuffer,
-    blueNoiseTextureView,
-    timeBuffer,
-    bvhBuffer,
-    commandEncoder,
-  }: RenderArgs) => {
+  const render = (renderArgs: RenderArgs) => {
+    const {
+      outputTextures,
+      timestampWrites,
+      viewProjectionMatricesBuffer,
+      volumeAtlas,
+      cameraPositionBuffer,
+      transformationMatrixBuffer,
+      sunDirectionBuffer,
+      blueNoiseTextureView,
+      timeBuffer,
+      bvhBuffer,
+      commandEncoder,
+    } = renderArgs;
     if (!copyOutputTexture) {
       copyOutputTexture = device.createTexture({
         size: [
@@ -459,13 +462,21 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
     );
     computePass.dispatchWorkgroups(groupsX, groupsY);
 
+    // Interpolate
+    interpolatePass(
+      computePass,
+      renderArgs,
+      copyIntermediaryTextureView,
+      intermediaryTextureView,
+    );
+
     //Denoise
     denoisePass(
       computePass,
       baseEntries,
-      intermediaryTexture,
-      intermediaryTextureView,
+      copyIntermediaryTexture,
       copyIntermediaryTextureView,
+      intermediaryTextureView,
     );
 
     // Composite into image
@@ -474,7 +485,7 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
       baseEntries,
       outputTextures.finalTexture.texture,
       outputTextures.finalTexture.view,
-      copyIntermediaryTextureView,
+      intermediaryTextureView,
     );
 
     // Last texture in the ping-pong was the copy texture, so we use it as our history texture

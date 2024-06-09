@@ -197,7 +197,7 @@ const NEIGHBORHOOD_SAMPLE_POSITIONS = array<vec2<i32>, 8>(
     vec2<i32>(1, 1)
 );
 
-const DEPTH_SENSITIVITY = 50000.0;
+const DEPTH_SENSITIVITY = 5000.0;
 const BLUR_RADIUS = 2.0;
 const GOLDEN_RATIO = 1.61803398875;
 
@@ -302,8 +302,8 @@ fn denoise(
       outputColour += shadowSample * weight;
   }
   outputColour /= totalWeight;
-  textureStore(outputTex, pixel, shadowRef);
-//  textureStore(outputTex, pixel, mix(outputColour, previousShadow, 0.5));
+//  textureStore(outputTex, pixel, shadowRef);
+  textureStore(outputTex, pixel, mix(outputColour, previousShadow, 0.5));
 //  textureStore(outputTex, pixel, vec4(f32(taps)));
 //  textureStore(outputTex, pixel, vec4(totalWeight / f32(taps)));
 //  textureStore(outputTex, pixel, vec4(shadowVariance * 32.0));
@@ -329,7 +329,7 @@ fn composite(
 
    for(var i = 0; i <= taps; i++){
        let angle = (golden_angle * f32(i)) % 360.0;
-       let radius = f32(i) * 0.5;
+       let radius = f32(i);
        let sampleUV = polarToCartesian(angle, radius) * texelSize + uv;
        let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
        let normalSample = textureSampleLevel(normalTex, nearestSampler, sampleUV, 0.0).rgb;
