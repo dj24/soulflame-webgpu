@@ -24,6 +24,7 @@ struct VoxelObject {
 @group(0) @binding(3) var normalTex : texture_2d<f32>;
 @group(0) @binding(4) var shadowTex : texture_storage_2d<rgba16float, write>;
 @group(0) @binding(5) var shadowCopyTex : texture_2d<f32>;
+@group(0) @binding(6) var blueNoiseTex : texture_2d<f32>;
 
 // Camera
 @group(1) @binding(0) var<uniform> cameraPosition : vec3<f32>;
@@ -92,9 +93,9 @@ fn checkSharedPlane(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
 ) {
   let texSize = textureDimensions(albedoTex);
-  let pixel = vec2<i32>(GlobalInvocationID.xy);
-  let uv = vec2<f32>(pixel) / vec2<f32>(texSize);
-  let nearestFilledPixel = (pixel / 3) * 3;
+  var r = textureLoad(blueNoiseTex, GlobalInvocationID.xy % 511, 0).rg;
+  let pixel = vec2<i32>(GlobalInvocationID.xy) + vec2<i32>(r * 3.0 - vec2(1.5));
+  let nearestFilledPixel = (vec2<i32>(GlobalInvocationID.xy) / 3) * 3;
   let isOriginPixel = all(pixel == nearestFilledPixel);
 
   let isCornerPixel = all(pixel == nearestFilledPixel + vec2(2));

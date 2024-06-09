@@ -60,6 +60,15 @@ export const getInterpolatePass = async () => {
           viewDimension: "2d",
         },
       },
+      // Blue noise
+      {
+        binding: 6,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+          viewDimension: "2d",
+        },
+      },
     ],
   });
 
@@ -193,6 +202,10 @@ export const getInterpolatePass = async () => {
         {
           binding: 5,
           resource: inputTextureView,
+        },
+        {
+          binding: 6,
+          resource: renderArgs.blueNoiseTextureView,
         },
       ],
     });
