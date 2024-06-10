@@ -5,6 +5,7 @@ import boxIntersection from "../../shader/box-intersection.wgsl";
 import raymarchVoxels from "../../shader/raymarch-voxels.wgsl";
 import bvh from "../../shader/bvh.wgsl";
 import gBufferRaymarch from "../g-buffer-raymarch.wgsl";
+import depth from "../../shader/depth.wgsl";
 
 export const getBufferRaymarchPipeline = async () => {
   const normalEntry: GPUBindGroupLayoutEntry = {
@@ -137,6 +138,7 @@ export const getBufferRaymarchPipeline = async () => {
           ${boxIntersection}
           ${raymarchVoxels}
           ${bvh}
+          ${depth}
           ${gBufferRaymarch}`,
       }),
       entryPoint: "bufferMarch",

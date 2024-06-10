@@ -29,10 +29,10 @@ const BLUE_NOISE_SIZE = 511;
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const SHADOW_ACNE_OFFSET: f32 = 0.005;
-const SCATTER_AMOUNT: f32 = 0.1;
-//const SCATTER_AMOUNT: f32 = 0.00;
-const POSITION_SCATTER_AMOUNT: f32 = 0.1;
-//const POSITION_SCATTER_AMOUNT: f32 = 0.00;
+//const SCATTER_AMOUNT: f32 = 0.1;
+//const POSITION_SCATTER_AMOUNT: f32 = 0.1;
+const SCATTER_AMOUNT: f32 = 0.00;
+const POSITION_SCATTER_AMOUNT: f32 = 0.00;
 
 fn blinnPhong(normal: vec3<f32>, lightDirection: vec3<f32>, viewDirection: vec3<f32>, specularStrength: f32, shininess: f32, lightColour: vec3<f32>) -> vec3<f32> {
   let halfDirection = normalize(lightDirection + viewDirection);
@@ -70,10 +70,6 @@ const SAMPLE_OFFSETS: array<vec2<i32>, 4> = array<vec2<i32>, 4>(
   vec2<i32>(1, 0),
 );
 
-fn getScaleFromMatrix(transform: mat4x4<f32>) -> vec3<f32> {
-  return vec3<f32>(length(transform[0].xyz), length(transform[1].xyz), length(transform[2].xyz));
-}
-
 @compute @workgroup_size(16, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
@@ -88,6 +84,14 @@ fn main(
   let voxelObject = voxelObjects[i32(worldPosSample.a)];
   let axisScales = getScaleFromMatrix(voxelObject.transform);
   let voxelObjectScale = axisScales.x * axisScales.y * axisScales.z;
+
+  let depthSample = textureLoad(depthTex, pixel, 0).r;
+  if(depthSample < 0.00001){ // SKY
+    textureStore(outputTex, outputPixel, vec4(0.0));
+    return;
+  }
+  let rayDirection = calculateRayDirection(uv, viewProjections.inverseViewProjection);
+
   var worldPos = worldPosSample.rgb;
 
   var samplePixel = outputPixel;
@@ -106,8 +110,8 @@ fn main(
   var radiance = vec3(0.1);
 
   // Calculate the probability of sampling the sun
-  let sunProbability = clamp(dot(normalSample, sunDirection) * 0.5, 0.0, 1.0) * 0.5;
-//  let sunProbability = 0.0;
+//  let sunProbability = clamp(dot(normalSample, sunDirection) * 0.5, 0.0, 1.0) * 0.5;
+  let sunProbability = 0.0;
   // Calculate the probability of sampling the diffuse light
   let diffuseProbability = 1.0 - sunProbability;
 
@@ -160,31 +164,6 @@ fn calculateVariance(neighborhood: array<vec3<f32>, 9>) -> f32 {
     return variance / 9.0;
 }
 
-const NEAR = 0.5;
-const FAR = 10000.0;
-
-fn normaliseDepth(depth:f32) -> f32 {
-    return normaliseValue(NEAR, FAR, depth);
-}
-
-fn calculateVarianceDepth(neighborhood: array<f32, 9>) -> f32 {
-    var mean: f32 = 0.0;
-    var variance: f32 = 0.0;
-
-    // Calculate the mean
-    for (var i = 0; i < 9; i = i + 1) {
-        mean = mean + normaliseDepth(neighborhood[i]);
-    }
-    mean = mean / 9.0;
-
-    // Calculate the variance
-    for (var i = 0; i < 9; i = i + 1) {
-        let diff: f32 = neighborhood[i] - mean;
-        variance = variance + diff * diff;
-    }
-
-    return variance / 9.0;
-}
 
 const NEIGHBORHOOD_SAMPLE_POSITIONS = array<vec2<i32>, 8>(
     vec2<i32>(-1, -1),
@@ -262,7 +241,7 @@ fn denoise(
       let sampleUV = polarToCartesian(angle, radius) * texelSize + uv;
       let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
       let normalSample = textureSampleLevel(normalTex, nearestSampler, sampleUV, 0.0).rgb;
-      let depthLoad = normaliseDepth(textureLoad(depthTex, samplePixel, 0).r);
+      let depthLoad = textureLoad(depthTex, samplePixel, 0).r;
       let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0);
       let normalWeight = dot(normalSample, normalRef);
       let depthWeight = clamp(1.0 - abs(depthRef - depthLoad) * DEPTH_SENSITIVITY, 0.0, 1.0);
@@ -289,7 +268,7 @@ fn composite(
   let texelSize = 1.0 / vec2<f32>(texSize);
   let pixel = vec2<i32>(GlobalInvocationID.xy);
   let shadowRef = textureLoad(intermediaryTexture, pixel, 0);
-  let depthRef = normaliseDepth(textureLoad(depthTex, pixel, 0).r);
+  let depthRef = textureLoad(depthTex, pixel, 0).r;
   let normalRef = textureLoad(normalTex, pixel, 0).rgb;
   let uv = (vec2<f32>(pixel) + vec2(0.5)) / vec2<f32>(texSize);
 
@@ -305,7 +284,7 @@ fn composite(
        let sampleUV = polarToCartesian(angle, radius) * texelSize + uv;
        let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
        let normalSample = textureSampleLevel(normalTex, nearestSampler, sampleUV, 0.0).rgb;
-       let depthLoad = normaliseDepth(textureLoad(depthTex, samplePixel, 0).r);
+       let depthLoad = textureLoad(depthTex, samplePixel, 0).r;
        let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0);
        let normalWeight = dot(normalSample, normalRef);
        let depthWeight = clamp(1.0 - abs(depthRef - depthLoad) * DEPTH_SENSITIVITY, 0.0, 1.0);

@@ -11,6 +11,7 @@ import { OUTPUT_TEXTURE_FORMAT } from "../constants";
 import { getDenoisePass } from "./passes/get-denoise-pass";
 import { getCompositePass } from "./passes/get-composite-pass";
 import { getInterpolatePass } from "./passes/get-interpolation-pass";
+import depth from "../shader/depth.wgsl";
 
 // export const getShadowsPass = async (): Promise<RenderPass> => {
 //   return createComputeCompositePass({
@@ -233,6 +234,7 @@ ${boxIntersection}
 ${raymarchVoxels}
 ${bvh}
 ${bvhCoarse}
+${depth}
 ${shadows}`;
 
 const NUM_THREADS_X = 16;

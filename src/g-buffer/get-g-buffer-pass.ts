@@ -88,16 +88,19 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     commandEncoder.clearBuffer(counterBuffer, 0, 4);
     commandEncoder.clearBuffer(screenRayBuffer);
 
+    // Sparse raymarch
     let computePass = commandEncoder.beginComputePass({ timestampWrites });
     sparseRayMarch(computePass, renderArgs);
     computePass.end();
 
+    // Copy
     Object.keys(copyTextures).forEach((key: keyof OutputTextures) => {
       const source = renderArgs.outputTextures[key] as GBufferTexture;
       const destination = copyTextures[key] as GBufferTexture;
       copyGBufferTexture(commandEncoder, source, destination);
     });
 
+    // Interpolate
     computePass = commandEncoder.beginComputePass({
       timestampWrites: {
         querySet: timestampWrites.querySet,
@@ -119,6 +122,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     );
     computePass.end();
 
+    // Full raymarch
     computePass = commandEncoder.beginComputePass({
       timestampWrites: {
         querySet: timestampWrites.querySet,
@@ -129,6 +133,8 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     });
     bufferMarch(computePass, renderArgs, screenRayBuffer, indirectBuffer);
     computePass.end();
+
+    // World pos reconstruct
     computePass = commandEncoder.beginComputePass({
       timestampWrites: {
         querySet: timestampWrites.querySet,

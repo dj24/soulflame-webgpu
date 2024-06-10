@@ -52,26 +52,27 @@ const neighborOffsets = array<vec2<i32>, 4>(
 );
 
 // Normal is in voxel (object) space, so will only have 1 or -1 values on one axis
-fn checkSharedPlane(
+fn isOnSharedPlane(
   normal : vec3<f32>,
   voxelPos : vec3<f32>,
   neighborVoxelPos : vec3<f32>,
   neighborNormal : vec3<f32>
 ) -> bool {
-  if(any(normal != neighborNormal)){
-  return false;
+  let epsilon = 0.001;
+  if(abs(neighborNormal.y) > 0.0 && abs(normal.y) > 0.0){
+    return abs(voxelPos.y - neighborVoxelPos.y) < epsilon;
   }
-  if(abs(neighborNormal.x) > 0.0){
-    return voxelPos.x == neighborVoxelPos.x;
+  if(abs(neighborNormal.x) > 0.0 && abs(normal.x) > 0.0){
+    return abs(voxelPos.x - neighborVoxelPos.x) < epsilon;
   }
-  if(abs(neighborNormal.y) > 0.0){
-    return voxelPos.y == neighborVoxelPos.y;
-  }
-  if(abs(neighborNormal.z) > 0.0){
-    return voxelPos.z == neighborVoxelPos.z;
+  if(abs(neighborNormal.z) > 0.0 && abs(normal.z) > 0.0){
+    return abs(voxelPos.z - neighborVoxelPos.z) < epsilon;
   }
   return false;
 }
+
+const NEAR_PLANE = 0.5;
+const FAR_PLANE = 10000.0;
 
 const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
   vec2<u32>(0,1),
@@ -132,7 +133,7 @@ fn incrementCounters() -> u32{
   if(!hasFoundObject) {
     // Dont march any more rays - we have hit the sky
     textureStore(velocityTex, pixel, vec4(velocityRef.xyz, -1.0));
-    textureStore(depthTex, pixel, vec4(10000.0));
+    textureStore(depthTex, pixel, vec4(0.0));
     textureStore(normalTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
     textureStore(albedoTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
     return;
@@ -142,7 +143,7 @@ fn incrementCounters() -> u32{
   let normalRef = textureLoad(normalCopyTex, nearestFilledPixel, 0).xyz;
   let localNormal = (voxelObject.inverseTransform * vec4(normalRef, 0.0)).xyz;
   let rayDirection = calculateRayDirection(nearestUV, viewProjections.inverseViewProjection);
-  let worldPosRef = cameraPosition + rayDirection * depthRef;
+  let worldPosRef = cameraPosition + rayDirection * reversedNormalisedDepthToDistance(depthRef, NEAR_PLANE, FAR_PLANE);
   let localPosRef = (voxelObject.inverseTransform * vec4(worldPosRef, 1.0)).xyz;
   let voxelPosRef = floor(localPosRef);
 
@@ -154,20 +155,20 @@ fn incrementCounters() -> u32{
     let neighborNormal = textureLoad(normalCopyTex, neighborPixel, 0).xyz;
     let neighborLocalNormal = (voxelObject.inverseTransform * vec4(neighborNormal, 0.0)).xyz;
     let neighborRayDirection = calculateRayDirection(neighborUV, viewProjections.inverseViewProjection);
-    let neighborWorldPos = cameraPosition + neighborRayDirection * neighborDepth;
+    let neighborWorldPos = cameraPosition + neighborRayDirection * reversedNormalisedDepthToDistance(neighborDepth, NEAR_PLANE, FAR_PLANE);
     let neighborLocalPos = (voxelObject.inverseTransform * vec4(neighborWorldPos, 1.0)).xyz;
     let neighborVoxelPos = floor(neighborLocalPos);
 
-    if(!checkSharedPlane(localNormal, voxelPosRef, neighborVoxelPos, neighborLocalNormal)) {
+    if(!isOnSharedPlane(localNormal, voxelPosRef, neighborVoxelPos, neighborLocalNormal)) {
       if(isOriginPixel){
         // Add to ray buffer
         let count = incrementCounters();
         screenRays[count].pixel = vec2<u32>(pixel);
       }else{
-        textureStore(albedoTex, pixel, vec4(0.0, 1.0, 0.0, 1.0));
+        textureStore(albedoTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
         textureStore(normalTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
         textureStore(velocityTex, pixel, vec4(velocityRef.xyz, -1.0));
-        textureStore(depthTex, pixel, vec4(10000.0));
+        textureStore(depthTex, pixel, vec4(0.0));
       }
       return;
     }
@@ -200,7 +201,11 @@ fn incrementCounters() -> u32{
   let normalBottom = mix(normal2, normal3, xInterp);
   let normal = mix(normalTop, normalBottom, yInterp);
 
-  let worldPos = cameraPosition + calculateRayDirection(uv, viewProjections.inverseViewProjection) * depth;
+  let worldPos =
+    cameraPosition
+    + calculateRayDirection(uv, viewProjections.inverseViewProjection)
+    * reversedNormalisedDepthToDistance(depth, NEAR_PLANE, FAR_PLANE);
+
   let localPos = (voxelObject.inverseTransform * vec4(worldPos, 1.0)).xyz;
   let voxelPos = floor(localPos);
   let atlasSamplePos = vec3<i32>(voxelObject.atlasLocation + voxelPos);
@@ -208,10 +213,8 @@ fn incrementCounters() -> u32{
   let paletteX = i32(palettePos* 255.0);
   let paletteY = i32(voxelObject.paletteIndex);
   let albedo = textureLoad(paletteTex, vec2(paletteX, paletteY), 0).rgb;
-//  let albedo = vec3(vec2<f32>(pixel) % 3.0, 0.0) * 0.33;
-//  let albedo = vec3(uv, 0.0);
 
-  textureStore(albedoTex, pixel, vec4(albedo, 1));
+  textureStore(albedoTex, pixel, vec4(albedo, 1.0));
   textureStore(velocityTex, pixel, velocityRef);
   textureStore(depthTex, pixel, vec4(depth));
   textureStore(normalTex, pixel, vec4(normal, 1.0));

@@ -1,5 +1,6 @@
 import { device, RenderArgs, resolution } from "../../app";
 import getRayDirection from "../../shader/get-ray-direction.wgsl";
+import depth from "../../shader/depth.wgsl";
 
 export const getWorldPosReconstructionPipeline = async () => {
   const bindGroupLayout = device.createBindGroupLayout({
@@ -46,6 +47,7 @@ export const getWorldPosReconstructionPipeline = async () => {
       module: device.createShaderModule({
         code: `
           ${getRayDirection}
+          ${depth}
           struct ViewProjectionMatrices {
             viewProjection : mat4x4<f32>,
             previousViewProjection : mat4x4<f32>,
@@ -59,8 +61,8 @@ export const getWorldPosReconstructionPipeline = async () => {
           @group(0) @binding(2) var worldPosTex : texture_storage_2d<rgba32float, write>;
           @group(0) @binding(3) var<uniform> cameraPosition : vec3<f32>;
         
-          const NEAR = 0.5;
-          const FAR = 10000.0;
+          const NEAR_PLANE = 0.5;
+          const FAR_PLANE = 10000.0;
           
           @compute @workgroup_size(8, 8, 1)
           fn main(
@@ -70,8 +72,9 @@ export const getWorldPosReconstructionPipeline = async () => {
             let pixel = GlobalInvocationID.xy;
             var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
             let depth = textureLoad(depthTex, pixel, 0).r;
+            let distanceToSurface = reversedNormalisedDepthToDistance(depth, NEAR_PLANE, FAR_PLANE);
             let rayDirection = calculateRayDirection(uv, viewProjections.inverseViewProjection);
-            let worldPos = cameraPosition + rayDirection * depth;
+            let worldPos = cameraPosition + rayDirection * distanceToSurface;
             textureStore(worldPosTex, pixel, vec4(worldPos, 1));
           }
 `,

@@ -2,6 +2,7 @@ import { device, RenderArgs, resolution } from "../../app";
 import { DEPTH_FORMAT } from "../../constants";
 import getRayDirection from "../../shader/get-ray-direction.wgsl";
 import gBufferInterpolate from "../interpolate.compute.wgsl";
+import depth from "../../shader/depth.wgsl";
 
 export const getInterpolatePipeline = async () => {
   const bindGroupLayout = device.createBindGroupLayout({
@@ -171,7 +172,7 @@ export const getInterpolatePipeline = async () => {
     }),
     compute: {
       module: device.createShaderModule({
-        code: `${getRayDirection}${gBufferInterpolate}`,
+        code: `${depth}${getRayDirection}${gBufferInterpolate}`,
       }),
       entryPoint: "main",
     },

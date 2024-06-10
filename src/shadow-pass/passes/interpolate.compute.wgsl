@@ -115,8 +115,8 @@ const BLUE_NOISE_SIZE = 512;
   }
 
   var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
-  let pixel = vec2<i32>(GlobalInvocationID.xy) + vec2<i32>(r * 3.0 - vec2(1.5));
-//  let pixel = vec2<i32>(GlobalInvocationID.xy);
+//  let pixel = vec2<i32>(GlobalInvocationID.xy) + vec2<i32>(r * 3.0 - vec2(1.5));
+  let pixel = vec2<i32>(GlobalInvocationID.xy);
   let nearestFilledPixel = (vec2<i32>(GlobalInvocationID.xy) / 2) * 2;
   let isOriginPixel = all(vec2<i32>(GlobalInvocationID.xy) == nearestFilledPixel);
 

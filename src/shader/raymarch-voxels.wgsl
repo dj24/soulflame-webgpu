@@ -1,4 +1,4 @@
-const EPSILON = 0.0001;
+const EPSILON = 0.001;
 const MAX_RAY_STEPS = 256;
 const FAR_PLANE = 10000.0;
 const NEAR_PLANE = 0.5;
@@ -86,11 +86,16 @@ fn getBitInBrick(brick: Brick, bitIndex: u32) -> bool {
   return getBit(brick.voxels[maskIndex], bitIndexInMask);
 }
 
+fn getScaleFromMatrix(transform: mat4x4<f32>) -> vec3<f32> {
+  return vec3<f32>(length(transform[0].xyz), length(transform[1].xyz), length(transform[2].xyz));
+}
+
 fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, objectRayOrigin: vec3<f32>, mipLevel: u32) -> RayMarchResult {
   var output = RayMarchResult();
   let rayDirSign = sign(objectRayDirection);
   let atlasLocation = vec3<u32>(voxelObject.atlasLocation);
   var voxelSize = vec3(f32(1 << mipLevel));
+  let scale = getScaleFromMatrix(voxelObject.transform);
   var shiftedRayOrigin = objectRayOrigin - objectRayDirection * EPSILON;
   var objectPos = shiftedRayOrigin;
   var currentIndex = vec3<i32>(floor(objectPos));

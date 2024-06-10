@@ -145,7 +145,7 @@ fn tracePixel(pixel: vec2<u32>){
     if(!bvhResult.hit){
       textureStore(albedoTex, pixel, vec4(0));
       textureStore(normalTex, pixel, vec4(0));
-      textureStore(depthWrite, pixel, vec4(FAR_PLANE));
+      textureStore(depthWrite, pixel, vec4(0));
       let worldPos = rayOrigin + skyDomeIntersection(rayOrigin, rayDirection) * rayDirection;
       let velocity = getVelocityStatic(worldPos, viewProjections);
       textureStore(velocityTex, pixel, vec4(velocity,0, -1.0));
@@ -162,12 +162,14 @@ fn tracePixel(pixel: vec2<u32>){
     let velocity = getVelocityStatic(worldPos, viewProjections);
 
     let depth = distance(cameraPosition, worldPos);
+    let normalisedDepth = distanceToReversedNormalisedDepth(depth, NEAR_PLANE, FAR_PLANE);
     textureStore(albedoTex, pixel, vec4(albedo, 1));
 //    let scale = vec3<f32>(length(voxelObject.transform[0].xyz), length(voxelObject.transform[1].xyz), length(voxelObject.transform[2].xyz));
 //    textureStore(albedoTex, pixel, vec4(scale, 1));
+    // TODO: derive normal instead
     textureStore(normalTex, pixel, vec4(normal,1));
     textureStore(velocityTex, pixel, vec4(velocity,0,f32(closestIntersection.voxelObjectIndex)));
-    textureStore(depthWrite, pixel, vec4(depth, 0, 0, 0));
+    textureStore(depthWrite, pixel, vec4(normalisedDepth));
 }
 
 @compute @workgroup_size(16, 8, 1)
@@ -200,11 +202,7 @@ fn bufferMarch(
   let bufferIndex = GlobalInvocationID.x / 8;
   let localRayIndex = GlobalInvocationID.x % 8;
   let pixel = screenRayBuffer[bufferIndex];
-  if(pixel.x % 6 == 0 || pixel.y % 6 == 0){
-//    return;
-  }
   let offsetPixel = pixel + REMAINING_RAY_OFFSETS[localRayIndex];
-
 
   tracePixel(offsetPixel);
 //  textureStore(depthWrite, offsetPixel, vec4(0,0,0,0));
