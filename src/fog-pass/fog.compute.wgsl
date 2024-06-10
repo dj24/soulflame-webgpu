@@ -35,7 +35,16 @@ fn main(
   let distanceFromCamera = min(depthSample, MAX_DISTANCE);
   var stepLength = distanceFromCamera / STEPS;
   let rayDir = calculateRayDirection(uv,viewProjections.inverseViewProjection);
-  var blueNoisePixel = (vec2<i32>(pixel)) % BLUE_NOISE_SIZE;
+  var blueNoisePixel = vec2<i32>(pixel);
+    blueNoisePixel.x += i32(time.frame) * 32;
+    blueNoisePixel.y += i32(time.frame) * 16;
+    blueNoisePixel = blueNoisePixel % BLUE_NOISE_SIZE;
+    if(time.frame % 2 == 0){
+      blueNoisePixel.y = BLUE_NOISE_SIZE - blueNoisePixel.y;
+    }
+    if(time.frame % 3 == 0){
+      blueNoisePixel.x = BLUE_NOISE_SIZE - blueNoisePixel.x;
+    }
   let blueNoiseSample = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
   let startDistance = START_DISTANCE + random(blueNoiseSample) * stepLength;
   let rayOrigin = cameraPosition + rayDir * startDistance;
@@ -49,7 +58,7 @@ fn main(
    positionAlongRay += rayDir * stepLength;
    absorption *= stepAbsorption;
    var directLight = LIGHT_INTENSITY;
-   if(rayMarchBVHShadows(positionAlongRay, sunDirection,1).hit){
+   if(rayMarchBVHShadows(positionAlongRay, sunDirection,0).hit){
       directLight = 0.0;
     }
     volColour += stepColour * absorption * directLight;

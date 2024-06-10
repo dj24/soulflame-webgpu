@@ -235,49 +235,20 @@ fn denoise(
   previousShadow = clamp(previousShadow, minCol, maxCol);
 
   // Get variance of the 3x3 neighborhood
-  let normalNeighbourhood = array<vec3<f32>, 9>(
-    normalRef,
-    textureLoad(normalTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[0], 0).rgb,
-    textureLoad(normalTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[1], 0).rgb,
-    textureLoad(normalTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[2], 0).rgb,
-    textureLoad(normalTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[3], 0).rgb,
-    textureLoad(normalTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[4], 0).rgb,
-    textureLoad(normalTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[5], 0).rgb,
-    textureLoad(normalTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[6], 0).rgb,
-    textureLoad(normalTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[7], 0).rgb
-  );
-
-  let depthNeighbourhood = array<f32, 9>(
-    normaliseDepth(depthRef),
-    normaliseDepth(textureLoad(depthTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[0], 0).r),
-    normaliseDepth(textureLoad(depthTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[1], 0).r),
-    normaliseDepth(textureLoad(depthTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[2], 0).r),
-    normaliseDepth(textureLoad(depthTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[3], 0).r),
-    normaliseDepth(textureLoad(depthTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[4], 0).r),
-    normaliseDepth(textureLoad(depthTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[5], 0).r),
-    normaliseDepth(textureLoad(depthTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[6], 0).r),
-    normaliseDepth(textureLoad(depthTex, vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[7], 0).r)
-  );
 
 
-
-  let depthVariance = clamp(calculateVarianceDepth(depthNeighbourhood) * DEPTH_SENSITIVITY, 0.0, 1.0);
-  let normalVariance = calculateVariance(normalNeighbourhood);
-
-  let normalisedNormalVariance = normalVariance * 0.5 + 0.5;
-
-  let variance = normalisedNormalVariance * depthVariance;
+  let variance = 1.0;
 
   // Bilateral blur
   var outputColour = shadowRef;
   var totalWeight = 1.0;
   let golden_angle = 137.5; // The golden angle in degrees
-  let taps = clamp(i32(8.0 - (depthVariance *8.0)), 0, 8);
+  let taps = i32(clamp(variance * 8.0, 0, 8));
 //  let taps = 8;
 
   for(var i = 0; i <= taps; i++){
       let angle = (golden_angle * f32(i)) % 360.0;
-      let radius = f32(i) * 0.5;
+      let radius = f32(i);
       let sampleUV = polarToCartesian(angle, radius) * texelSize + uv;
       let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
       let normalSample = textureSampleLevel(normalTex, nearestSampler, sampleUV, 0.0).rgb;
@@ -291,8 +262,8 @@ fn denoise(
       outputColour += shadowSample * weight;
   }
   outputColour /= totalWeight;
-  let temporalWeight = clamp(1.0 - length(uvVelocity), 0.0, 0.75);
-  textureStore(outputTex, pixel, mix(outputColour, previousShadow, temporalWeight));
+//  textureStore(outputTex, pixel, shadowRef);
+  textureStore(outputTex, pixel, mix(outputColour, previousShadow, 0.5));
 //  textureStore(outputTex, pixel, vec4(f32(taps)));
 //  textureStore(outputTex, pixel, vec4(totalWeight / f32(taps)));
 //  textureStore(outputTex, pixel, vec4(shadowVariance * 32.0));
@@ -318,7 +289,7 @@ fn composite(
 
    for(var i = 0; i <= taps; i++){
        let angle = (golden_angle * f32(i)) % 360.0;
-       let radius =  f32(i) * 0.5;
+       let radius =  f32(i);
        let sampleUV = polarToCartesian(angle, radius) * texelSize + uv;
        let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
        let normalSample = textureSampleLevel(normalTex, nearestSampler, sampleUV, 0.0).rgb;
