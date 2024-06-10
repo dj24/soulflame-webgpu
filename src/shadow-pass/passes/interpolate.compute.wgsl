@@ -116,7 +116,8 @@ const BLUE_NOISE_SIZE = 512;
 
   var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
   let pixel = vec2<i32>(GlobalInvocationID.xy) + vec2<i32>(r * 3.0 - vec2(1.5));
-  let nearestFilledPixel = (vec2<i32>(GlobalInvocationID.xy) / 3) * 3;
+//  let pixel = vec2<i32>(GlobalInvocationID.xy);
+  let nearestFilledPixel = (vec2<i32>(GlobalInvocationID.xy) / 2) * 2;
   let isOriginPixel = all(vec2<i32>(GlobalInvocationID.xy) == nearestFilledPixel);
 
   let nearestUV = vec2<f32>(nearestFilledPixel) / vec2<f32>(texSize);
@@ -180,9 +181,9 @@ const BLUE_NOISE_SIZE = 512;
   }
 
   let pixel0 = nearestFilledPixel;
-  let pixel1 = nearestFilledPixel + vec2<i32>(3, 0);
-  let pixel2 = nearestFilledPixel + vec2<i32>(0, 3);
-  let pixel3 = nearestFilledPixel + vec2<i32>(3, 3);
+  let pixel1 = nearestFilledPixel + vec2<i32>(2, 0);
+  let pixel2 = nearestFilledPixel + vec2<i32>(0, 2);
+  let pixel3 = nearestFilledPixel + vec2<i32>(2, 2);
 
   // Interpolate
   let shadow0 = shadowRef;
@@ -190,8 +191,8 @@ const BLUE_NOISE_SIZE = 512;
   let shadow2 = textureLoad(shadowCopyTex, pixel2, 0).r;
   let shadow3 = textureLoad(shadowCopyTex, pixel3, 0).r;
 
-  let xInterp = f32(pixel.x) % 3.0 / 3.0;
-  let yInterp = f32(pixel.y) % 3.0 / 3.0;
+  let xInterp = f32(pixel.x) % 2.0 / 2.0;
+  let yInterp = f32(pixel.y) % 2.0 / 2.0;
 
   let shadowBottom = mix(shadow0, shadow1, xInterp);
   let shadowTop = mix(shadow2, shadow3, xInterp);

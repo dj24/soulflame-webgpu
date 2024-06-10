@@ -577,7 +577,7 @@ const computePasses = await Promise.all([
   getShadowsPass(),
   getSkyPass(),
   // getLightsPass(),
-  getTaaPass(),
+  // getTaaPass(),
   // getFogPass(),
   // getBloomPass(),
   // getMotionBlurPass(),

@@ -453,10 +453,10 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
     computePass.setPipeline(effectPipeline);
     computePass.setBindGroup(0, bindGroup);
     const groupsX = Math.ceil(
-      outputTextures.finalTexture.width / NUM_THREADS_X / 3,
+      outputTextures.finalTexture.width / NUM_THREADS_X / 2,
     );
     const groupsY = Math.ceil(
-      outputTextures.finalTexture.height / NUM_THREADS_Y / 3,
+      outputTextures.finalTexture.height / NUM_THREADS_Y / 2,
     );
     computePass.dispatchWorkgroups(groupsX, groupsY);
     computePass.end();

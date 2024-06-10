@@ -78,7 +78,7 @@ fn getScaleFromMatrix(transform: mat4x4<f32>) -> vec3<f32> {
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
-  let pixel = vec2<i32>(GlobalInvocationID.xy) * 3;
+  let pixel = vec2<i32>(GlobalInvocationID.xy) * 2;
 
   let uv = (vec2<f32>(pixel) + vec2(0.5)) / vec2<f32>(textureDimensions(outputTex));
 
@@ -235,20 +235,30 @@ fn denoise(
   previousShadow = clamp(previousShadow, minCol, maxCol);
 
   // Get variance of the 3x3 neighborhood
+  let previousShadowNeighbourhood = array<vec3<f32>, 9>(
+    textureLoad(intermediaryTexture, vec2<i32>(previousPixel), 0).rgb,
+    textureLoad(intermediaryTexture, vec2<i32>(previousPixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[0], 0).rgb,
+    textureLoad(intermediaryTexture, vec2<i32>(previousPixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[1], 0).rgb,
+    textureLoad(intermediaryTexture, vec2<i32>(previousPixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[2], 0).rgb,
+    textureLoad(intermediaryTexture, vec2<i32>(previousPixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[3], 0).rgb,
+    textureLoad(intermediaryTexture, vec2<i32>(previousPixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[4], 0).rgb,
+    textureLoad(intermediaryTexture, vec2<i32>(previousPixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[5], 0).rgb,
+    textureLoad(intermediaryTexture, vec2<i32>(previousPixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[6], 0).rgb,
+    textureLoad(intermediaryTexture, vec2<i32>(previousPixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[7], 0).rgb
+  );
 
-
-  let variance = 1.0;
+  let variance = clamp(calculateVariance(previousShadowNeighbourhood), 0.0, 1.0);
 
   // Bilateral blur
   var outputColour = shadowRef;
   var totalWeight = 1.0;
   let golden_angle = 137.5; // The golden angle in degrees
-  let taps = i32(clamp(variance * 8.0, 0, 8));
+  let taps = i32(clamp(variance * 32.0, 0, 16));
 //  let taps = 8;
 
   for(var i = 0; i <= taps; i++){
       let angle = (golden_angle * f32(i)) % 360.0;
-      let radius = f32(i);
+      let radius = f32(i) * 0.5;
       let sampleUV = polarToCartesian(angle, radius) * texelSize + uv;
       let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
       let normalSample = textureSampleLevel(normalTex, nearestSampler, sampleUV, 0.0).rgb;
@@ -262,8 +272,10 @@ fn denoise(
       outputColour += shadowSample * weight;
   }
   outputColour /= totalWeight;
-//  textureStore(outputTex, pixel, shadowRef);
-  textureStore(outputTex, pixel, mix(outputColour, previousShadow, 0.5));
+//  textureStore(outputTex, pixel, vec4(variance * 16.0));
+  textureStore(outputTex, pixel, shadowRef);
+//  textureStore(outputTex, pixel, mix(shadowRef, previousShadow, 0.5));
+//  textureStore(outputTex, pixel, mix(outputColour, previousShadow, 0.5));
 //  textureStore(outputTex, pixel, vec4(f32(taps)));
 //  textureStore(outputTex, pixel, vec4(totalWeight / f32(taps)));
 //  textureStore(outputTex, pixel, vec4(shadowVariance * 32.0));
@@ -289,7 +301,7 @@ fn composite(
 
    for(var i = 0; i <= taps; i++){
        let angle = (golden_angle * f32(i)) % 360.0;
-       let radius =  f32(i);
+       let radius =  f32(i) * 0.5;
        let sampleUV = polarToCartesian(angle, radius) * texelSize + uv;
        let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
        let normalSample = textureSampleLevel(normalTex, nearestSampler, sampleUV, 0.0).rgb;
@@ -304,5 +316,7 @@ fn composite(
     outputColour /= totalWeight;
 
   let albedoRef = textureLoad(albedoTex, pixel, 0);
-  textureStore(outputTex, pixel,outputColour * albedoRef);
+   textureStore(outputTex, pixel,shadowRef);
+//  textureStore(outputTex, pixel,shadowRef * albedoRef);
+//  textureStore(outputTex, pixel,outputColour * albedoRef);
 }
