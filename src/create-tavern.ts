@@ -28,7 +28,7 @@ const NAME_ALLOWLIST = [
   "debug-plane",
   "Dragon",
   "monu10",
-  "teapot",
+  // "teapot",
   // "sponza-small",
   // "Sponza",
   // "Table",

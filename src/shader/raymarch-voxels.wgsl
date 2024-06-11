@@ -96,7 +96,6 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
   let rayDirSign = sign(objectRayDirection);
   let atlasLocation = vec3<u32>(voxelObject.atlasLocation);
   var voxelSize = vec3(f32(1 << mipLevel));
-  let scale = getScaleFromMatrix(voxelObject.transform);
   var shiftedRayOrigin = objectRayOrigin - objectRayDirection * EPSILON;
   var objectPos = shiftedRayOrigin;
   var currentIndex = vec3<i32>(floor(objectPos));
@@ -118,10 +117,9 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
 
     if(mipSample0.r > 0.0 && isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
         output.objectPos = objectPos;
-        output.worldPos = (voxelObject.transform *  vec4(objectPos, 1.0)).xyz;
         output.normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(objectNormal));
         output.hit = true;
-        output.t = tCurrent;
+        output.t = tCurrent  + EPSILON;
         output.palettePosition = mipSample0.r;
         return output;
     }

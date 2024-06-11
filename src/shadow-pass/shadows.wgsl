@@ -1,14 +1,14 @@
 
-
+// TODO: offset in object space instead of world space to scale with object size
 fn diffuseRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>, voxelObjectSize: f32) -> bool {
   let selfOcclusionOffset = 1.0 * length(voxelObjectSize); // To adccount for self occlusion of higher mip
-  let rayOrigin = worldPos + normal * selfOcclusionOffset;
+  let rayOrigin = worldPos + normal * 0.5;
   return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 0).hit;
 }
 
 fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>, voxelObjectSize: f32) -> bool {
   let selfOcclusionOffset =  1.0 * length(voxelObjectSize); // To adccount for self occlusion of higher mip
-  let rayOrigin = worldPos + shadowRayDirection * selfOcclusionOffset;
+  let rayOrigin = worldPos + shadowRayDirection * 0.5;
   return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 0).hit;
 }
 
@@ -111,7 +111,7 @@ fn main(
 
   // Calculate the probability of sampling the sun
 //  let sunProbability = clamp(dot(normalSample, sunDirection) * 0.5, 0.0, 1.0) * 0.5;
-  let sunProbability = 0.0;
+  let sunProbability = 0.5;
   // Calculate the probability of sampling the diffuse light
   let diffuseProbability = 1.0 - sunProbability;
 

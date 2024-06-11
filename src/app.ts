@@ -584,8 +584,8 @@ const computePasses = await Promise.all([
   getTonemapPass(),
   // getLutPass("luts/Reeve 38.CUBE"),
   // getVignettePass(15.0),
-  // getBoxOutlinePass(),
   fullscreenQuad(device),
+  // getBoxOutlinePass(),
 ]);
 beginRenderLoop(device, await Promise.all(computePasses));
 debugUI.setupDebugControls(computePasses);

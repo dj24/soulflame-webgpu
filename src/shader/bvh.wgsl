@@ -26,7 +26,7 @@ fn getDistanceToNode(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, node: BVHNod
 // Stack-based BVH traversal
 fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult {
   var closestIntersection = RayMarchResult();
-  closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
+ closestIntersection.t = FAR_PLANE;
 
   // Create a stack to store the nodes to visit
   var stack = stack_new();
@@ -81,8 +81,9 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
          var rayMarchResult = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);
 //        var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, worldPos, 3);
         rayMarchResult.voxelObjectIndex = node.leftIndex;
+        rayMarchResult.t += distanceToLeaf;
 
-        let totalDistance = distance(rayOrigin, rayMarchResult.worldPos);
+        let totalDistance = rayMarchResult.t;
         if(rayMarchResult.hit && totalDistance < closestRayMarchDistance){
           closestIntersection = rayMarchResult;
           closestRayMarchDistance = totalDistance;
@@ -102,7 +103,6 @@ const MAX_SHADOW_BVH_VISITS = 8;
 
 fn rayMarchBVHShadows(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, mipLevel: u32) -> RayMarchResult {
    var closestIntersection = RayMarchResult();
-   closestIntersection.worldPos = rayOrigin + rayDirection * FAR_PLANE;
    closestIntersection.t = FAR_PLANE;
 
    // Create a stack to store the nodes to visit
@@ -155,6 +155,7 @@ fn rayMarchBVHShadows(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, mipLevel: u
          let worldPos = rayOrigin + rayDirection * distanceToLeaf;
          let voxelObject = voxelObjects[node.leftIndex];
          var rayMarchResult = rayMarchTransformed(voxelObject, rayDirection, worldPos, mipLevel);
+         rayMarchResult.t += distanceToLeaf;
 //       var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, worldPos, 3);
          rayMarchResult.voxelObjectIndex = node.leftIndex;
          if(rayMarchResult.hit){

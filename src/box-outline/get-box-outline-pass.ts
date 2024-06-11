@@ -1,4 +1,4 @@
-import { camera, device, RenderArgs, RenderPass } from "../app";
+import { camera, device, gpuContext, RenderArgs, RenderPass } from "../app";
 import { Light } from "../lights-pass/get-lights-pass";
 import { voxelObjects } from "../create-tavern";
 import { getCuboidVertices } from "../primitive-meshes/cuboid";
@@ -109,7 +109,7 @@ export const getBoxOutlinePass = async (): Promise<RenderPass> => {
       entryPoint: "main",
       targets: [
         {
-          format: OUTPUT_TEXTURE_FORMAT,
+          format: "bgra8unorm",
         },
       ],
     },
@@ -187,7 +187,7 @@ export const getBoxOutlinePass = async (): Promise<RenderPass> => {
     const passEncoder = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
-          view: outputTextures.finalTexture.view,
+          view: gpuContext.getCurrentTexture().createView(),
           clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
           loadOp: "load",
           storeOp: "store",
