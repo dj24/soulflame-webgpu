@@ -11,4 +11,4 @@ glslc.exe
 node_modules
 public/voxel-models
 dist/
-.idea/workspace.xml
+.idea/**/workspace.xml

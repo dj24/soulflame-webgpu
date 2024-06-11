@@ -90,6 +90,7 @@ fn getScaleFromMatrix(transform: mat4x4<f32>) -> vec3<f32> {
   return vec3<f32>(length(transform[0].xyz), length(transform[1].xyz), length(transform[2].xyz));
 }
 
+
 fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, objectRayOrigin: vec3<f32>, mipLevel: u32) -> RayMarchResult {
   var output = RayMarchResult();
   let rayDirSign = sign(objectRayDirection);
@@ -135,7 +136,6 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
     objectPos = objectRayOrigin + objectRayDirection * tCurrent;
     currentIndex = vec3<i32>(floor(objectPos / voxelSize) * voxelSize);
     objectNormal = mask * -rayDirSign;
-
 
     if(!isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
         break;
