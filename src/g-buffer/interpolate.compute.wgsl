@@ -148,7 +148,7 @@ fn incrementCounters() -> u32{
   let voxelPosRef = floor(localPosRef);
 
   // Check if each neightbor is the same voxel plane
-  for(var i = 1; i < 4; i = i + 1) {
+  for(var i = 0; i < 4; i = i + 1) {
     let neighborPixel = nearestFilledPixel + neighborOffsets[i];
     let neighborUV = vec2<f32>(neighborPixel) / vec2<f32>(texSize);
     let neighborDepth = textureLoad(depthCopyTex, neighborPixel, 0).r;

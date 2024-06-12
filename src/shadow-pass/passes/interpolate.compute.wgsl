@@ -52,11 +52,18 @@ struct Time {
 //@group(3) @binding(2) var<storage, read_write> counter : array<atomic<u32>>;
 
 const neighborOffsets = array<vec2<i32>, 4>(
-  vec2<i32>(0, 0),
-  vec2<i32>(3, 0),
-  vec2<i32>(0, 3),
-  vec2<i32>(3, 3)
+  vec2<i32>(-2, -2),// bottom left
+  vec2<i32>(2, -2),// bottom right
+  vec2<i32>(-2, 2),// top left
+  vec2<i32>(2, 2)// top right
 );
+
+fn cubicInterpolate(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32 {
+  let a = (3.0 * (p1 - p2) - p0 + p3) * 0.5;
+  let b = 2.0 * p2 + p0 - (5.0 * p1 + p3) * 0.5;
+  let c = (p2 - p0) * 0.5;
+  return ((a * t + b) * t + c) * t + p1;
+}
 
 // Normal is in voxel (object) space, so will only have 1 or -1 values on one axis
 fn checkSharedPlane(
@@ -89,6 +96,15 @@ fn checkSharedPlane(
 //  return count;
 //}
 
+fn hermiteBasis(t: f32) -> f32 {
+    // Example Hermite basis functions:
+    // h0(t) = 2t^3 - 3t^2 + 1
+    // h1(t) = -2t^3 + 3t^2
+    // h2(t) = t^3 - 2t^2 + t
+    // h3(t) = t^3 - t^2
+    return 2.0 * t * t * t - 3.0 * t * t + 1.0; // This is h0(t), similarly define others as needed
+}
+
 const BLUE_NOISE_SIZE = 512;
 
 /**
@@ -117,7 +133,9 @@ const BLUE_NOISE_SIZE = 512;
   var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
 //  let pixel = vec2<i32>(GlobalInvocationID.xy) + vec2<i32>(r * 3.0 - vec2(1.5));
   let pixel = vec2<i32>(GlobalInvocationID.xy);
-  let nearestFilledPixel = (vec2<i32>(GlobalInvocationID.xy) / 2) * 2;
+  let uv = vec2<f32>(pixel) / vec2<f32>(texSize);
+  // Nearest even pixel
+  let nearestFilledPixel = vec2<i32>(round(vec2<f32>(GlobalInvocationID.xy) / 2.0) * 2.0);
   let isOriginPixel = all(vec2<i32>(GlobalInvocationID.xy) == nearestFilledPixel);
 
   let nearestUV = vec2<f32>(nearestFilledPixel) / vec2<f32>(texSize);
@@ -157,7 +175,7 @@ const BLUE_NOISE_SIZE = 512;
   let voxelPosRef = floor(localPosRef);
 
   // Check if each neightbor is the same voxel plane
-  for(var i = 1; i < 4; i = i + 1) {
+  for(var i = 0; i < 4; i = i + 1) {
     let neighborPixel = nearestFilledPixel + neighborOffsets[i];
     let neighborUV = vec2<f32>(neighborPixel) / vec2<f32>(texSize);
     let neighborDepth = textureLoad(depthTex, neighborPixel, 0).r;
@@ -180,25 +198,29 @@ const BLUE_NOISE_SIZE = 512;
     }
   }
 
-  let pixel0 = nearestFilledPixel;
-  let pixel1 = nearestFilledPixel + vec2<i32>(2, 0);
-  let pixel2 = nearestFilledPixel + vec2<i32>(0, 2);
-  let pixel3 = nearestFilledPixel + vec2<i32>(2, 2);
+  let steps = select(5,13,uv.x> 0.5);
+  let maxDistance = distance(vec2(0.0), vec2(4.0));
+
+  var totalWeight = 0.0;
+  var shadow = vec3(0.0);
 
   // Interpolate
-  let shadow0 = shadowRef;
-  let shadow1 = textureLoad(shadowCopyTex, pixel1, 0).r;
-  let shadow2 = textureLoad(shadowCopyTex, pixel2, 0).r;
-  let shadow3 = textureLoad(shadowCopyTex, pixel3, 0).r;
 
-  let xInterp = f32(pixel.x) % 2.0 / 2.0;
-  let yInterp = f32(pixel.y) % 2.0 / 2.0;
+  for(var x = -4; x <= 4; x += 2){
+    for(var y = -4; y <= 4; y += 2){
+      let offsetPixel = nearestFilledPixel + vec2<i32>(x, y);
+      let distanceToPixel = distance(vec2<f32>(offsetPixel), vec2<f32>(pixel));
+      // Normalize distance to a parameter t in the range [0, 1] based on a chosen scale
+      let t = clamp(distanceToPixel / maxDistance, 0.0, 1.0);
+      // Calculate weight using Hermite basis function
+      let weight = hermiteBasis(t);
+      // Accumulate the weighted color
+      shadow += textureLoad(shadowCopyTex, offsetPixel, 0).rgb * weight;
+      totalWeight += weight;
+    }
+  }
 
-  let shadowBottom = mix(shadow0, shadow1, xInterp);
-  let shadowTop = mix(shadow2, shadow3, xInterp);
-  let shadow = mix(shadowBottom, shadowTop, yInterp);
+  shadow /= totalWeight;
 
-
-  textureStore(shadowTex, pixel, vec4(shadow));
-
+  textureStore(shadowTex, pixel, vec4(shadow, 1));
 }

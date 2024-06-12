@@ -36,10 +36,7 @@ struct VoxelObject {
 struct RayMarchResult {
   voxelObjectIndex: i32,
   palettePosition: f32,
-  worldPos: vec3<f32>,
-  objectPos: vec3<f32>,
   normal: vec3<f32>,
-  stepsTaken: i32,
   hit: bool,
   t: f32,
 }
@@ -110,16 +107,13 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
   // RAYMARCH
   for(var i = 0; i < MAX_RAY_STEPS; i++)
   {
-    output.stepsTaken = i;
-
     let samplePosition = vec3<u32>(currentIndex) + atlasLocation;
     let mipSample0 = textureLoad(voxels, samplePosition / vec3((1u << mipLevel)), mipLevel);
 
     if(mipSample0.r > 0.0 && isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
-        output.objectPos = objectPos;
-        output.normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(objectNormal));
+        output.normal = objectNormal;
         output.hit = true;
-        output.t = tCurrent  + EPSILON;
+        output.t = tCurrent + EPSILON;
         output.palettePosition = mipSample0.r;
         return output;
     }

@@ -1,14 +1,12 @@
 
 // TODO: offset in object space instead of world space to scale with object size
 fn diffuseRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>, voxelObjectSize: f32) -> bool {
-  let selfOcclusionOffset = 1.0 * length(voxelObjectSize); // To adccount for self occlusion of higher mip
-  let rayOrigin = worldPos + normal * 0.5;
+  let rayOrigin = worldPos + normal * 0.005;
   return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 0).hit;
 }
 
 fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>, voxelObjectSize: f32) -> bool {
-  let selfOcclusionOffset =  1.0 * length(voxelObjectSize); // To adccount for self occlusion of higher mip
-  let rayOrigin = worldPos + shadowRayDirection * 0.5;
+  let rayOrigin = worldPos + normal * 0.005;
   return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 0).hit;
 }
 
@@ -29,9 +27,9 @@ const BLUE_NOISE_SIZE = 511;
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const SHADOW_ACNE_OFFSET: f32 = 0.005;
-//const SCATTER_AMOUNT: f32 = 0.1;
+const SCATTER_AMOUNT: f32 = 0.01;
 //const POSITION_SCATTER_AMOUNT: f32 = 0.1;
-const SCATTER_AMOUNT: f32 = 0.00;
+//const SCATTER_AMOUNT: f32 = 0.00;
 const POSITION_SCATTER_AMOUNT: f32 = 0.00;
 
 fn blinnPhong(normal: vec3<f32>, lightDirection: vec3<f32>, viewDirection: vec3<f32>, specularStrength: f32, shininess: f32, lightColour: vec3<f32>) -> vec3<f32> {
@@ -97,7 +95,7 @@ fn main(
   var samplePixel = outputPixel;
   samplePixel.x += i32(time.frame) * 32;
   samplePixel.y += i32(time.frame) * 16;
-  var blueNoisePixel = samplePixel % BLUE_NOISE_SIZE;
+  var blueNoisePixel = (samplePixel / 2) % BLUE_NOISE_SIZE;
   if(time.frame % 2 == 0){
     blueNoisePixel.y = BLUE_NOISE_SIZE - blueNoisePixel.y;
   }
@@ -111,7 +109,7 @@ fn main(
 
   // Calculate the probability of sampling the sun
 //  let sunProbability = clamp(dot(normalSample, sunDirection) * 0.5, 0.0, 1.0) * 0.5;
-  let sunProbability = 0.5;
+  let sunProbability = 0.05;
   // Calculate the probability of sampling the diffuse light
   let diffuseProbability = 1.0 - sunProbability;
 

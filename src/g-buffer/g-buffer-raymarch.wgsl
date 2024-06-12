@@ -157,16 +157,13 @@ fn tracePixel(pixel: vec2<u32>){
     let paletteX = i32(closestIntersection.palettePosition * 255.0);
     let paletteY = i32(voxelObject.paletteIndex);
     let albedo = textureLoad(paletteTex, vec2(paletteX, paletteY), 0).rgb;
-    let normal = closestIntersection.normal;
-    let worldPos = closestIntersection.worldPos;
+    let normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(closestIntersection.normal));
+    let worldPos = rayOrigin + rayDirection * closestIntersection.t;
     let velocity = getVelocityStatic(worldPos, viewProjections);
-
     let depth = closestIntersection.t;
     let normalisedDepth = distanceToReversedNormalisedDepth(depth, NEAR_PLANE, FAR_PLANE);
+
     textureStore(albedoTex, pixel, vec4(albedo, 1));
-//    let scale = vec3<f32>(length(voxelObject.transform[0].xyz), length(voxelObject.transform[1].xyz), length(voxelObject.transform[2].xyz));
-//    textureStore(albedoTex, pixel, vec4(scale, 1));
-    // TODO: derive normal instead
     textureStore(normalTex, pixel, vec4(normal,1));
     textureStore(velocityTex, pixel, vec4(velocity,0,f32(closestIntersection.voxelObjectIndex)));
     textureStore(depthWrite, pixel, vec4(normalisedDepth));

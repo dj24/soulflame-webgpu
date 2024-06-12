@@ -24,11 +24,20 @@ fn aces(v: vec3<f32>) -> vec3<f32>
     return clamp((v*(a*v+b))/(v*(c*v+d)+e), vec3(0.0), vec3(1.0f));
 }
 
+fn reverse_aces(v: vec3<f32>) -> vec3<f32>
+{
+    let a = 2.51f;
+    let b = 0.03f;
+    let c = 2.43f;
+    let d = 0.59f;
+    let e = 0.14f;
+    return clamp((v*(v*(c-e)-b))/(a-v*(d-e)), vec3(0.0), vec3(1.0f));
+}
+
 fn uncharted2_filmic(v: vec3<f32>) -> vec3<f32>
 {
     let exposure_bias = 0.4f;
     let curr = uncharted2_tonemap_partial(v * exposure_bias);
-
     let W = vec3(11.2f);
     let white_scale = vec3(1.0f) / uncharted2_tonemap_partial(W);
     return curr * white_scale;
