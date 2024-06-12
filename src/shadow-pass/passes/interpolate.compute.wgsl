@@ -53,17 +53,10 @@ struct Time {
 
 const neighborOffsets = array<vec2<i32>, 4>(
   vec2<i32>(-2, -2),// bottom left
-  vec2<i32>(2, -2),// bottom right
-  vec2<i32>(-2, 2),// top left
-  vec2<i32>(2, 2)// top right
+  vec2<i32>(4, -2),// bottom right
+  vec2<i32>(-2, 4),// top left
+  vec2<i32>(4, 4)// top right
 );
-
-fn cubicInterpolate(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32 {
-  let a = (3.0 * (p1 - p2) - p0 + p3) * 0.5;
-  let b = 2.0 * p2 + p0 - (5.0 * p1 + p3) * 0.5;
-  let c = (p2 - p0) * 0.5;
-  return ((a * t + b) * t + c) * t + p1;
-}
 
 // Normal is in voxel (object) space, so will only have 1 or -1 values on one axis
 fn checkSharedPlane(
@@ -105,6 +98,87 @@ fn hermiteBasis(t: f32) -> f32 {
     return 2.0 * t * t * t - 3.0 * t * t + 1.0; // This is h0(t), similarly define others as needed
 }
 
+fn bilinearTextureLoad(tex: texture_2d<f32>,pixel: vec2<i32>) -> vec4<f32> {
+    let origin = pixel / 2 * 2;
+    let c00 = textureLoad(tex, origin, 0);
+    let c10 = textureLoad(tex, origin + vec2<i32>(2, 0), 0);
+    let c01 = textureLoad(tex, origin + vec2<i32>(0, 2), 0);
+    let c11 = textureLoad(tex, origin + vec2<i32>(2, 2), 0);
+    let t = f32(pixel.x - origin.x) / 2.0;
+    let u = f32(pixel.y - origin.y) / 2.0;
+    return mix(mix(c00, c10, t), mix(c01, c11, t), u);
+}
+
+// w0, w1, w2, and w3 are the four cubic B-spline basis functions
+fn w0(a:f32) -> f32
+{
+	return (1.0 / 6.0) * (a * (a * (-a + 3.0) - 3.0) + 1.0);
+}
+
+fn w1(a:f32) -> f32
+{
+	return (1.0 / 6.0) * (a * a * (3.0 * a - 6.0) + 4.0);
+}
+
+fn w2(a:f32) -> f32
+{
+	return (1.0 / 6.0) * (a * (a * (-3.0 * a + 3.0) + 3.0) + 1.0);
+}
+
+fn w3(a:f32) -> f32
+{
+	return (1.0 / 6.0) * (a * a * a);
+}
+
+// g0 and g1 are the two amplitude functions
+fn g0(a:f32) -> f32
+{
+	return w0(a) + w1(a);
+}
+
+fn g1(a:f32) -> f32
+{
+	return w2(a) + w3(a);
+}
+
+// h0 and h1 are the two offset functions
+fn h0(a:f32) -> f32
+{
+	return -1.0 + w1(a) / (w0(a) + w1(a));
+}
+
+fn h1(a:f32) -> f32
+{
+	return 1.0 + w3(a) / (w2(a) + w3(a));
+}
+
+fn BicubicSample(texture: texture_2d<f32>, UV: vec2<f32>, Scale: vec2<f32>, RTScale: f32) -> vec4<f32> {
+    var scaledUV = Scale * RTScale;
+    var st = UV * scaledUV + vec2<f32>(0.5);
+    var invScale = vec2<f32>(1.0) / scaledUV;
+    var iuv = floor(st);
+    var fuv = fract(st);
+
+    var g0x = g0(fuv.x);
+    var g1x = g1(fuv.x);
+    var h0x = h0(fuv.x);
+    var h1x = h1(fuv.x);
+    var h0y = h0(fuv.y);
+    var h1y = h1(fuv.y);
+
+    var p0 = (vec2<f32>(iuv.x + h0x, iuv.y + h0y) - vec2<f32>(0.5)) * invScale;
+    var p1 = (vec2<f32>(iuv.x + h1x, iuv.y + h0y) - vec2<f32>(0.5)) * invScale;
+    var p2 = (vec2<f32>(iuv.x + h0x, iuv.y + h1y) - vec2<f32>(0.5)) * invScale;
+    var p3 = (vec2<f32>(iuv.x + h1x, iuv.y + h1y) - vec2<f32>(0.5)) * invScale;
+
+    return vec4(0);
+// TODO: update to use bilinearTextureLoad
+//    return g0(fuv.y) * (g0x * bilinearTextureLoad(texture, p0) +
+//                        g1x * bilinearTextureLoad(texture, p1)) +
+//           g1(fuv.y) * (g0x * bilinearTextureLoad(texture, p2) +
+//                        g1x * bilinearTextureLoad(texture, p3));
+}
+
 const BLUE_NOISE_SIZE = 512;
 
 /**
@@ -135,7 +209,7 @@ const BLUE_NOISE_SIZE = 512;
   let pixel = vec2<i32>(GlobalInvocationID.xy);
   let uv = vec2<f32>(pixel) / vec2<f32>(texSize);
   // Nearest even pixel
-  let nearestFilledPixel = vec2<i32>(round(vec2<f32>(GlobalInvocationID.xy) / 2.0) * 2.0);
+  let nearestFilledPixel = pixel / 2 * 2;
   let isOriginPixel = all(vec2<i32>(GlobalInvocationID.xy) == nearestFilledPixel);
 
   let nearestUV = vec2<f32>(nearestFilledPixel) / vec2<f32>(texSize);
@@ -199,28 +273,35 @@ const BLUE_NOISE_SIZE = 512;
   }
 
   let steps = select(5,13,uv.x> 0.5);
-  let maxDistance = distance(vec2(0.0), vec2(4.0));
+  let maxDistance = distance(vec2(0.0), vec2(2.0));
 
   var totalWeight = 0.0;
   var shadow = vec3(0.0);
-
   // Interpolate
+//  for(var x = 0; x <= 4; x += 2){
+//    for(var y = 0; y <= 4; y += 2){
+//      let offsetPixel = nearestFilledPixel + vec2<i32>(x, y);
+//      let distanceToPixel = distance(vec2<f32>(offsetPixel), vec2<f32>(pixel));
+//      let t = clamp(distanceToPixel / maxDistance, 0.0, 1.0);
+//      let weight = hermiteBasis(t);
+////      let weight = 1.0 / (distanceToPixel * distanceToPixel);
+//      if(uv.x> 0.5){
+//       shadow += bilinearTextureLoad(shadowCopyTex, offsetPixel).rgb * weight;
+//      } else{
+//        shadow += textureLoad(shadowCopyTex, offsetPixel, 0).rgb * weight;
+//      }
+//
+//      totalWeight += weight;
+//    }
+//  }
 
-  for(var x = -4; x <= 4; x += 2){
-    for(var y = -4; y <= 4; y += 2){
-      let offsetPixel = nearestFilledPixel + vec2<i32>(x, y);
-      let distanceToPixel = distance(vec2<f32>(offsetPixel), vec2<f32>(pixel));
-      // Normalize distance to a parameter t in the range [0, 1] based on a chosen scale
-      let t = clamp(distanceToPixel / maxDistance, 0.0, 1.0);
-      // Calculate weight using Hermite basis function
-      let weight = hermiteBasis(t);
-      // Accumulate the weighted color
-      shadow += textureLoad(shadowCopyTex, offsetPixel, 0).rgb * weight;
-      totalWeight += weight;
-    }
+  if(uv.x> 0.5){
+   shadow = bilinearTextureLoad(shadowCopyTex, pixel).rgb;
+  } else{
+    shadow = textureLoad(shadowCopyTex, pixel, 0).rgb;
   }
 
-  shadow /= totalWeight;
+
 
   textureStore(shadowTex, pixel, vec4(shadow, 1));
 }
