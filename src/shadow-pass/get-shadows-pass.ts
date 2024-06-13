@@ -262,8 +262,10 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
   let copyOutputTextureView: GPUTextureView;
   let intermediaryTexture: GPUTexture;
   let intermediaryTextureView: GPUTextureView;
+  let intermediaryTextureViewMip1: GPUTextureView;
   let copyIntermediaryTexture: GPUTexture;
   let copyIntermediaryTextureView: GPUTextureView;
+  let copyIntermediaryTextureViewMip1: GPUTextureView;
   let previousIntermediaryTexture: GPUTexture;
   let previousIntermediaryTextureView: GPUTextureView;
 
@@ -308,12 +310,13 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
       copyOutputTextureView = copyOutputTexture.createView();
     }
     if (!intermediaryTexture) {
-      const intermediaryDescriptor = {
+      const intermediaryDescriptor: GPUTextureDescriptor = {
         size: [
           outputTextures.finalTexture.width,
           outputTextures.finalTexture.height,
           1,
         ],
+        mipLevelCount: 2,
         format: outputTextures.finalTexture.format,
         usage:
           GPUTextureUsage.STORAGE_BINDING |
@@ -326,10 +329,26 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
       previousIntermediaryTexture = device.createTexture(
         intermediaryDescriptor,
       );
-      copyIntermediaryTextureView = copyIntermediaryTexture.createView();
-      intermediaryTextureView = intermediaryTexture.createView();
-      previousIntermediaryTextureView =
-        previousIntermediaryTexture.createView();
+      copyIntermediaryTextureView = copyIntermediaryTexture.createView({
+        baseMipLevel: 0,
+        mipLevelCount: 1,
+      });
+      intermediaryTextureView = intermediaryTexture.createView({
+        baseMipLevel: 0,
+        mipLevelCount: 1,
+      });
+      previousIntermediaryTextureView = previousIntermediaryTexture.createView({
+        baseMipLevel: 0,
+        mipLevelCount: 1,
+      });
+      intermediaryTextureViewMip1 = intermediaryTexture.createView({
+        baseMipLevel: 1,
+        mipLevelCount: 1,
+      });
+      copyIntermediaryTextureViewMip1 = copyIntermediaryTexture.createView({
+        baseMipLevel: 1,
+        mipLevelCount: 1,
+      });
     }
 
     commandEncoder.copyTextureToTexture(
@@ -442,7 +461,7 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
         ...baseEntries,
         {
           binding: 2, // output texture
-          resource: intermediaryTextureView,
+          resource: intermediaryTextureViewMip1,
         },
       ],
     };
@@ -477,7 +496,7 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
         computePass,
         renderArgs,
         copyIntermediaryTextureView,
-        intermediaryTextureView,
+        intermediaryTextureViewMip1,
       );
       computePass.end();
     }

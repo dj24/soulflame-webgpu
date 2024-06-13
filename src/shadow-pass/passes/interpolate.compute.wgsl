@@ -32,6 +32,7 @@ struct Time {
 @group(0) @binding(5) var shadowCopyTex : texture_2d<f32>;
 @group(0) @binding(6) var blueNoiseTex : texture_2d<f32>;
 @group(0) @binding(7) var<uniform> time : Time;
+@group(0) @binding(8) var linearSampler : sampler;
 
 // Camera
 @group(1) @binding(0) var<uniform> cameraPosition : vec3<f32>;
@@ -152,10 +153,9 @@ fn h1(a:f32) -> f32
 	return 1.0 + w3(a) / (w2(a) + w3(a));
 }
 
-fn BicubicSample(texture: texture_2d<f32>, UV: vec2<f32>, Scale: vec2<f32>, RTScale: f32) -> vec4<f32> {
-    var scaledUV = Scale * RTScale;
-    var st = UV * scaledUV + vec2<f32>(0.5);
-    var invScale = vec2<f32>(1.0) / scaledUV;
+fn BicubicSample(texture: texture_2d<f32>, uv: vec2<f32>) -> vec4<f32> {
+    var st = uv;
+    var invScale = vec2<f32>(1.0) / uv;
     var iuv = floor(st);
     var fuv = fract(st);
 
@@ -171,12 +171,10 @@ fn BicubicSample(texture: texture_2d<f32>, UV: vec2<f32>, Scale: vec2<f32>, RTSc
     var p2 = (vec2<f32>(iuv.x + h0x, iuv.y + h1y) - vec2<f32>(0.5)) * invScale;
     var p3 = (vec2<f32>(iuv.x + h1x, iuv.y + h1y) - vec2<f32>(0.5)) * invScale;
 
-    return vec4(0);
-// TODO: update to use bilinearTextureLoad
-//    return g0(fuv.y) * (g0x * bilinearTextureLoad(texture, p0) +
-//                        g1x * bilinearTextureLoad(texture, p1)) +
-//           g1(fuv.y) * (g0x * bilinearTextureLoad(texture, p2) +
-//                        g1x * bilinearTextureLoad(texture, p3));
+    return g0(fuv.y) * (g0x * textureSampleLevel(texture, linearSampler, p0, 0.0) +
+                        g1x * textureSampleLevel(texture, linearSampler, p1, 0.0)) +
+           g1(fuv.y) * (g0x * textureSampleLevel(texture, linearSampler, p2, 0.0) +
+                        g1x * textureSampleLevel(texture, linearSampler, p3, 0.0));
 }
 
 const BLUE_NOISE_SIZE = 512;
@@ -192,6 +190,7 @@ const BLUE_NOISE_SIZE = 512;
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
 ) {
   let texSize = textureDimensions(albedoTex);
+  let mip1Pixel = vec2<i32>(GlobalInvocationID.xy) / 2;
 
   var blueNoisePixel = vec2<i32>(GlobalInvocationID.xy);
   blueNoisePixel.x += i32(time.frame) * 32;
@@ -208,8 +207,9 @@ const BLUE_NOISE_SIZE = 512;
 //  let pixel = vec2<i32>(GlobalInvocationID.xy) + vec2<i32>(r * 3.0 - vec2(1.5));
   let pixel = vec2<i32>(GlobalInvocationID.xy);
   let uv = vec2<f32>(pixel) / vec2<f32>(texSize);
+
   // Nearest even pixel
-  let nearestFilledPixel = pixel / 2 * 2;
+  let nearestFilledPixel = mip1Pixel * 2;
   let isOriginPixel = all(vec2<i32>(GlobalInvocationID.xy) == nearestFilledPixel);
 
   let nearestUV = vec2<f32>(nearestFilledPixel) / vec2<f32>(texSize);
@@ -239,7 +239,8 @@ const BLUE_NOISE_SIZE = 512;
     return;
   }
   let voxelObject = voxelObjects[i32(velocityRef.a)];
-  let shadowRef = textureLoad(shadowCopyTex, nearestFilledPixel, 0).r;
+  // Loaded as mip1
+  let shadowRef = textureLoad(shadowCopyTex, mip1Pixel, 0).r;
   let depthRef = textureLoad(depthTex, nearestFilledPixel, 0).r;
   let normalRef = textureLoad(normalTex, nearestFilledPixel, 0).xyz;
   let localNormal = (voxelObject.inverseTransform * vec4(normalRef, 0.0)).xyz;
@@ -296,11 +297,10 @@ const BLUE_NOISE_SIZE = 512;
 //  }
 
   if(uv.x> 0.5){
-   shadow = bilinearTextureLoad(shadowCopyTex, pixel).rgb;
+   shadow = textureSampleLevel(shadowCopyTex, linearSampler, uv, 0).rgb;
   } else{
-    shadow = textureLoad(shadowCopyTex, pixel, 0).rgb;
+    shadow = textureLoad(shadowCopyTex, mip1Pixel, 0).rgb;
   }
-
 
 
   textureStore(shadowTex, pixel, vec4(shadow, 1));

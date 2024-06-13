@@ -72,11 +72,11 @@ const SAMPLE_OFFSETS: array<vec2<i32>, 4> = array<vec2<i32>, 4>(
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
+  let outputPixel = vec2<i32>(GlobalInvocationID.xy);
   let pixel = vec2<i32>(GlobalInvocationID.xy) * 2;
 
-  let uv = (vec2<f32>(pixel) + vec2(0.5)) / vec2<f32>(textureDimensions(outputTex));
+  let uv = (vec2<f32>(outputPixel) + vec2(0.5)) / vec2<f32>(textureDimensions(outputTex));
 
-  let outputPixel = pixel;
   var normalSample = textureLoad(normalTex, pixel, 0).rgb;
   let worldPosSample = textureLoad(worldPosTex, pixel, 0);
   let voxelObject = voxelObjects[i32(worldPosSample.a)];
@@ -92,7 +92,7 @@ fn main(
 
   var worldPos = worldPosSample.rgb;
 
-  var samplePixel = outputPixel;
+  var samplePixel = pixel;
   samplePixel.x += i32(time.frame) * 32;
   samplePixel.y += i32(time.frame) * 16;
   var blueNoisePixel = (samplePixel / 2) % BLUE_NOISE_SIZE;

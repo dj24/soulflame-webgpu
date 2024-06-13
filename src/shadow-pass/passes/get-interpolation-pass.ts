@@ -77,6 +77,12 @@ export const getInterpolatePass = async () => {
           type: "uniform",
         },
       },
+      // Sampler
+      {
+        binding: 8,
+        visibility: GPUShaderStage.COMPUTE,
+        sampler: {},
+      },
     ],
   });
 
@@ -220,6 +226,13 @@ export const getInterpolatePass = async () => {
           resource: {
             buffer: renderArgs.timeBuffer,
           },
+        },
+        {
+          binding: 8,
+          resource: device.createSampler({
+            magFilter: "linear",
+            minFilter: "linear",
+          }),
         },
       ],
     });
