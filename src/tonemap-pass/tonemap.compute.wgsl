@@ -36,7 +36,7 @@ fn reverse_aces(v: vec3<f32>) -> vec3<f32>
 
 fn uncharted2_filmic(v: vec3<f32>) -> vec3<f32>
 {
-    let exposure_bias = 0.4f;
+    let exposure_bias = 0.2f;
     let curr = uncharted2_tonemap_partial(v * exposure_bias);
     let W = vec3(11.2f);
     let white_scale = vec3(1.0f) / uncharted2_tonemap_partial(W);

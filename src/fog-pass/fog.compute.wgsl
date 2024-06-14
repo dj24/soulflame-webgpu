@@ -3,11 +3,11 @@ const BLUE_NOISE_SIZE = 511;
 const MAX_DISTANCE = 40.0;
 const START_DISTANCE = 0.0;
 const EXTINCTION = vec3(.06, .03, .02);
-const FORWARD_SCATTER = 0.25;
+const FORWARD_SCATTER = 0.15;
 const STEPS = 8.0;
 const NEAR  = 0.5;
 const FAR = 10000.0;
-const LIGHT_INTENSITY = 48.0;
+const LIGHT_INTENSITY = 32.0;
 
 fn henyeyGreenstein(cosTheta: f32, g: f32) -> f32 {
   let g2 = g * g;
@@ -30,7 +30,7 @@ fn main(
   var pixel = GlobalInvocationID.xy;
   let uv = vec2<f32>(pixel) / vec2<f32>(textureDimensions(outputTex));
   let gBufferPixel = pixel * DOWNSCALE;
-  let depthSample = textureLoad(depthTex, gBufferPixel, 0).r;
+  let depthSample = reversedNormalisedDepthToDistance(textureLoad(depthTex, gBufferPixel, 0).r, NEAR, FAR);
   let normalSample = textureLoad(normalTex, gBufferPixel, 0).xyz;
   let distanceFromCamera = min(depthSample, MAX_DISTANCE);
   var stepLength = distanceFromCamera / STEPS;

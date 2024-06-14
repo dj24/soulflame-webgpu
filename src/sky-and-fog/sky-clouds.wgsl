@@ -331,6 +331,9 @@ fn spiralBlurCubeSample(rayDirection: vec3<f32>) -> vec4<f32>
   return output / weights;
 }
 
+const NEAR_PLANE = 0.5;
+const FAR_PLANE = 10000.0;
+
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
@@ -344,7 +347,7 @@ fn main(
     let sky = spiralBlurCubeSample(rayDirection).rgb;
 
     var color = sky;
-    let distanceToCamera = textureLoad(depth, pixel, 0).r;
+    let distanceToCamera = reversedNormalisedDepthToDistance(textureLoad(depth, pixel, 0).r, NEAR_PLANE, FAR_PLANE);
 
     if(distanceToCamera > 9999.0){
       let output = vec4(color, 1);

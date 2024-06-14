@@ -2,6 +2,7 @@ import { device, RenderArgs, RenderPass } from "../app";
 import sky from "./sky-clouds.wgsl";
 import randomCommon from "../random-common.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
+import depth from "../shader/depth.wgsl";
 import { createTextureFromImage } from "webgpu-utils";
 import { defaultUsage } from "../abstractions/g-buffer-texture";
 import { OUTPUT_TEXTURE_FORMAT, SKYBOX_TEXTURE_FORMAT } from "../constants";
@@ -149,7 +150,7 @@ export const getSkyPass = async (): Promise<RenderPass> => {
     }),
     compute: {
       module: device.createShaderModule({
-        code: `${randomCommon}${getRayDirection}${sky}`,
+        code: `${depth}${randomCommon}${getRayDirection}${sky}`,
       }),
       entryPoint: "main",
     },
@@ -161,7 +162,7 @@ export const getSkyPass = async (): Promise<RenderPass> => {
     }),
     compute: {
       module: device.createShaderModule({
-        code: `${randomCommon}${getRayDirection}${sky}`,
+        code: `${depth}${randomCommon}${getRayDirection}${sky}`,
       }),
       entryPoint: "writeToCube",
     },

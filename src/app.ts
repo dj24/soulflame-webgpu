@@ -270,21 +270,21 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
     if (!timeBuffer) {
       timeBuffer = createUniformBuffer([frameCount, 0, 0], "time buffer");
     }
-    // device.queue.writeBuffer(
-    //   timeBuffer,
-    //   4, // offset
-    //   new Float32Array([deltaTime]),
-    // );
-    // device.queue.writeBuffer(
-    //   timeBuffer,
-    //   0, // offset
-    //   new Uint32Array([frameCount]),
-    // );
-    // device.queue.writeBuffer(
-    //   timeBuffer,
-    //   8, // offset
-    //   new Float32Array([elapsedTime / 1000]),
-    // );
+    device.queue.writeBuffer(
+      timeBuffer,
+      4, // offset
+      new Float32Array([deltaTime]),
+    );
+    device.queue.writeBuffer(
+      timeBuffer,
+      0, // offset
+      new Uint32Array([frameCount]),
+    );
+    device.queue.writeBuffer(
+      timeBuffer,
+      8, // offset
+      new Float32Array([elapsedTime / 1000]),
+    );
   };
 
   const getResolutionBuffer = () => {
@@ -577,10 +577,10 @@ const computePasses = await Promise.all([
   getShadowsPass(),
   getSkyPass(),
   // getLightsPass(),
-  // getTaaPass(),
-  // getFogPass(),
+  getTaaPass(),
+  getFogPass(),
   // getBloomPass(),
-  // getMotionBlurPass(),
+  getMotionBlurPass(),
   getTonemapPass(),
   // getLutPass("luts/Reeve 38.CUBE"),
   // getVignettePass(15.0),

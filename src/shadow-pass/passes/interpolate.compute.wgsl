@@ -53,10 +53,10 @@ struct Time {
 //@group(3) @binding(2) var<storage, read_write> counter : array<atomic<u32>>;
 
 const neighborOffsets = array<vec2<i32>, 4>(
-  vec2<i32>(-2, -2),// bottom left
-  vec2<i32>(4, -2),// bottom right
-  vec2<i32>(-2, 4),// top left
-  vec2<i32>(4, 4)// top right
+  vec2<i32>(0, 0),// bottom left
+  vec2<i32>(2, 0),// bottom right
+  vec2<i32>(0, 2),// top left
+  vec2<i32>(2, 2)// top right
 );
 
 // Normal is in voxel (object) space, so will only have 1 or -1 values on one axis
@@ -90,91 +90,41 @@ fn checkSharedPlane(
 //  return count;
 //}
 
-fn hermiteBasis(t: f32) -> f32 {
-    // Example Hermite basis functions:
-    // h0(t) = 2t^3 - 3t^2 + 1
-    // h1(t) = -2t^3 + 3t^2
-    // h2(t) = t^3 - 2t^2 + t
-    // h3(t) = t^3 - t^2
-    return 2.0 * t * t * t - 3.0 * t * t + 1.0; // This is h0(t), similarly define others as needed
-}
 
-fn bilinearTextureLoad(tex: texture_2d<f32>,pixel: vec2<i32>) -> vec4<f32> {
-    let origin = pixel / 2 * 2;
-    let c00 = textureLoad(tex, origin, 0);
-    let c10 = textureLoad(tex, origin + vec2<i32>(2, 0), 0);
-    let c01 = textureLoad(tex, origin + vec2<i32>(0, 2), 0);
-    let c11 = textureLoad(tex, origin + vec2<i32>(2, 2), 0);
-    let t = f32(pixel.x - origin.x) / 2.0;
-    let u = f32(pixel.y - origin.y) / 2.0;
-    return mix(mix(c00, c10, t), mix(c01, c11, t), u);
-}
+const ca = vec4(   3.0,  -6.0,   0.0,  4.0 ) /  6.0;
+const cb = vec4(  -1.0,   6.0, -12.0,  8.0 ) /  6.0;
+//const ca = vec4(   3.0,  -5.0,   0.0,  2.0 ) /  2.0; // Catmull-Rom
+//const cb = vec4(  -1.0,   5.0,  -8.0,  4.0 ) /  2.0;
 
-// w0, w1, w2, and w3 are the four cubic B-spline basis functions
-fn w0(a:f32) -> f32
+
+fn powers( x:f32 ) -> vec4<f32> { return vec4(x*x*x, x*x, x, 1.0); }
+
+fn spline( x:f32, c0:vec4<f32>, c1:vec4<f32>, c2:vec4<f32>, c3:vec4<f32> ) -> vec4<f32>
 {
-	return (1.0 / 6.0) * (a * (a * (-a + 3.0) - 3.0) + 1.0);
+  // We could expand the powers and build a matrix instead (twice as many coefficients
+  // would need to be stored, but it could be faster.
+  return c0 * dot( cb, powers(x + 1.0)) +
+         c1 * dot( ca, powers(x      )) +
+         c2 * dot( ca, powers(1.0 - x)) +
+         c3 * dot( cb, powers(2.0 - x));
 }
 
-fn w1(a:f32) -> f32
+fn SAM( a:i32, b:i32, i:vec2<f32>, res: vec2<f32>) -> vec4<f32>
 {
-	return (1.0 / 6.0) * (a * a * (3.0 * a - 6.0) + 4.0);
+    return textureSampleLevel(shadowCopyTex, linearSampler, (i+vec2(f32(a),f32(b))+0.5)/res, 0);
 }
 
-fn w2(a:f32) -> f32
+fn texture_Bicubic( uv:vec2<f32> ) -> vec4<f32>
 {
-	return (1.0 / 6.0) * (a * (a * (-3.0 * a + 3.0) + 3.0) + 1.0);
-}
+    let res = vec2<f32>(textureDimensions(shadowCopyTex));
+    let p = res * uv - 0.5;
+    let f = fract(p);
+    let i = floor(p);
 
-fn w3(a:f32) -> f32
-{
-	return (1.0 / 6.0) * (a * a * a);
-}
-
-// g0 and g1 are the two amplitude functions
-fn g0(a:f32) -> f32
-{
-	return w0(a) + w1(a);
-}
-
-fn g1(a:f32) -> f32
-{
-	return w2(a) + w3(a);
-}
-
-// h0 and h1 are the two offset functions
-fn h0(a:f32) -> f32
-{
-	return -1.0 + w1(a) / (w0(a) + w1(a));
-}
-
-fn h1(a:f32) -> f32
-{
-	return 1.0 + w3(a) / (w2(a) + w3(a));
-}
-
-fn BicubicSample(texture: texture_2d<f32>, uv: vec2<f32>) -> vec4<f32> {
-    var st = uv;
-    var invScale = vec2<f32>(1.0) / uv;
-    var iuv = floor(st);
-    var fuv = fract(st);
-
-    var g0x = g0(fuv.x);
-    var g1x = g1(fuv.x);
-    var h0x = h0(fuv.x);
-    var h1x = h1(fuv.x);
-    var h0y = h0(fuv.y);
-    var h1y = h1(fuv.y);
-
-    var p0 = (vec2<f32>(iuv.x + h0x, iuv.y + h0y) - vec2<f32>(0.5)) * invScale;
-    var p1 = (vec2<f32>(iuv.x + h1x, iuv.y + h0y) - vec2<f32>(0.5)) * invScale;
-    var p2 = (vec2<f32>(iuv.x + h0x, iuv.y + h1y) - vec2<f32>(0.5)) * invScale;
-    var p3 = (vec2<f32>(iuv.x + h1x, iuv.y + h1y) - vec2<f32>(0.5)) * invScale;
-
-    return g0(fuv.y) * (g0x * textureSampleLevel(texture, linearSampler, p0, 0.0) +
-                        g1x * textureSampleLevel(texture, linearSampler, p1, 0.0)) +
-           g1(fuv.y) * (g0x * textureSampleLevel(texture, linearSampler, p2, 0.0) +
-                        g1x * textureSampleLevel(texture, linearSampler, p3, 0.0));
+    return spline( f.y, spline( f.x, SAM(-1,-1, i, res), SAM( 0,-1, i, res), SAM( 1,-1, i, res), SAM( 2,-1, i, res)),
+                        spline( f.x, SAM(-1, 0, i, res), SAM( 0, 0, i, res), SAM( 1, 0, i, res), SAM( 2, 0, i, res)),
+                        spline( f.x, SAM(-1, 1, i, res), SAM( 0, 1, i, res), SAM( 1, 1, i, res), SAM( 2, 1, i, res)),
+                        spline( f.x, SAM(-1, 2, i, res), SAM( 0, 2, i, res), SAM( 1, 2, i, res), SAM( 2, 2, i, res)));
 }
 
 const BLUE_NOISE_SIZE = 512;
@@ -204,7 +154,7 @@ const BLUE_NOISE_SIZE = 512;
   }
 
   var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
-//  let pixel = vec2<i32>(GlobalInvocationID.xy) + vec2<i32>(r * 3.0 - vec2(1.5));
+//  let pixel = vec2<i32>(GlobalInvocationID.xy) + vec2<i32>(r * 8.0 - vec2(4.0));
   let pixel = vec2<i32>(GlobalInvocationID.xy);
   let uv = vec2<f32>(pixel) / vec2<f32>(texSize);
 
@@ -236,6 +186,7 @@ const BLUE_NOISE_SIZE = 512;
   }
   if(!hasFoundObject) {
     // Dont march any more rays - we have hit the sky
+    textureStore(shadowTex, pixel, vec4(0.0));
     return;
   }
   let voxelObject = voxelObjects[i32(velocityRef.a)];
@@ -272,36 +223,11 @@ const BLUE_NOISE_SIZE = 512;
       return;
     }
   }
-
-  let steps = select(5,13,uv.x> 0.5);
-  let maxDistance = distance(vec2(0.0), vec2(2.0));
-
-  var totalWeight = 0.0;
-  var shadow = vec3(0.0);
-  // Interpolate
-//  for(var x = 0; x <= 4; x += 2){
-//    for(var y = 0; y <= 4; y += 2){
-//      let offsetPixel = nearestFilledPixel + vec2<i32>(x, y);
-//      let distanceToPixel = distance(vec2<f32>(offsetPixel), vec2<f32>(pixel));
-//      let t = clamp(distanceToPixel / maxDistance, 0.0, 1.0);
-//      let weight = hermiteBasis(t);
-////      let weight = 1.0 / (distanceToPixel * distanceToPixel);
-//      if(uv.x> 0.5){
-//       shadow += bilinearTextureLoad(shadowCopyTex, offsetPixel).rgb * weight;
-//      } else{
-//        shadow += textureLoad(shadowCopyTex, offsetPixel, 0).rgb * weight;
-//      }
-//
-//      totalWeight += weight;
-//    }
-//  }
-
-  if(uv.x> 0.5){
-   shadow = textureSampleLevel(shadowCopyTex, linearSampler, uv, 0).rgb;
-  } else{
-    shadow = textureLoad(shadowCopyTex, mip1Pixel, 0).rgb;
+  var shadow = vec3<f32>(0.0);
+  shadow = texture_Bicubic(uv).rgb;
+  if(uv.y < 0.5){
+    shadow = textureSampleLevel(shadowCopyTex, linearSampler, uv, 0).rgb;
   }
-
 
   textureStore(shadowTex, pixel, vec4(shadow, 1));
 }

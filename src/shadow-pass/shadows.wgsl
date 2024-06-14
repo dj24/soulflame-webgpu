@@ -11,8 +11,9 @@ fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f3
 }
 
 
-const SUN_COLOR = vec3(0.6,0.5,0.4) * 200.0;
+const SUN_COLOR = vec3(0.6,0.5,0.4) * 100.0;
 const MOON_COLOR = vec3<f32>(0.5, 0.5, 1.0);
+const MIN_RADIANCE = 0.5;
 const SUBPIXEL_SAMPLE_POSITIONS: array<vec2<f32>, 8> = array<vec2<f32>, 8>(
   vec2<f32>(0.25, 0.25),
   vec2<f32>(0.75, 0.25),
@@ -27,10 +28,10 @@ const BLUE_NOISE_SIZE = 511;
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const SHADOW_ACNE_OFFSET: f32 = 0.005;
-const SCATTER_AMOUNT: f32 = 0.01;
-//const POSITION_SCATTER_AMOUNT: f32 = 0.1;
+const SCATTER_AMOUNT: f32 = 0.04;
+const POSITION_SCATTER_AMOUNT: f32 = 0.01;
 //const SCATTER_AMOUNT: f32 = 0.00;
-const POSITION_SCATTER_AMOUNT: f32 = 0.00;
+//const POSITION_SCATTER_AMOUNT: f32 = 0.00;
 
 fn blinnPhong(normal: vec3<f32>, lightDirection: vec3<f32>, viewDirection: vec3<f32>, specularStrength: f32, shininess: f32, lightColour: vec3<f32>) -> vec3<f32> {
   let halfDirection = normalize(lightDirection + viewDirection);
@@ -105,13 +106,16 @@ fn main(
   var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
   let sampleWorldPos = worldPos + randomInPlanarUnitDisk(r, normalSample) * POSITION_SCATTER_AMOUNT;
 
-  var radiance = vec3(0.1);
+  var radiance = vec3(MIN_RADIANCE);
 
   // Calculate the probability of sampling the sun
-//  let sunProbability = clamp(dot(normalSample, sunDirection) * 0.5, 0.0, 1.0) * 0.5;
-  let sunProbability = 0.05;
+  let sunProbability = clamp(dot(normalSample, sunDirection) * 0.5, 0.0, 1.0) * 0.5;
+//  let sunProbability = select(0.0, select(0.2, 0.5, uv.x > 0.66), uv.x > 0.33);
   // Calculate the probability of sampling the diffuse light
   let diffuseProbability = 1.0 - sunProbability;
+
+  let maxDiffuseIntensity = vec3(16.0);
+  let maxSunIntensity = vec3(32.0);
 
 // TODO: push to buffer instead and evaluate in a separate pass
   if(r.x < sunProbability){
@@ -120,14 +124,14 @@ fn main(
       let viewDirection = normalize(cameraPosition - worldPos);
       let diffuse = max(dot(normalSample, sunDirection), 0.0);
       let specular = pow(max(dot(normalSample, normalize(sunDirection + viewDirection)), 0.0), 32.0);
-      let lightIntensity = SUN_COLOR * (diffuse + specular);
-      radiance += lightIntensity;
+      let lightIntensity = clamp(SUN_COLOR * (diffuse + specular), vec3(MIN_RADIANCE), maxSunIntensity);
+      radiance = lightIntensity;
     }
   } else{
      var diffuseDirection = randomInCosineWeightedHemisphere(r, normalSample);
      if(!diffuseRay(sampleWorldPos, diffuseDirection, normalSample, voxelObjectScale)){
-          let sky = textureSampleLevel(skyCube, linearSampler, diffuseDirection, 0.0);
-          radiance += clamp(vec3(sky.rgb), vec3(0.0), vec3(32.0));
+          let sky = textureSampleLevel(skyCube, linearSampler, diffuseDirection, 0.0) * 2.0;
+          radiance = clamp(vec3(sky.rgb), vec3(MIN_RADIANCE), maxDiffuseIntensity);
       }
   }
 
@@ -230,7 +234,7 @@ fn denoise(
   var outputColour = shadowRef;
   var totalWeight = 1.0;
   let golden_angle = 137.5; // The golden angle in degrees
-  let taps = i32(clamp(variance * 32.0, 0, 16));
+  let taps = i32(clamp(variance * 16.0, 0, 16));
 //  let taps = 8;
 
   for(var i = 0; i <= taps; i++){
@@ -243,16 +247,16 @@ fn denoise(
       let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0);
       let normalWeight = dot(normalSample, normalRef);
       let depthWeight = clamp(1.0 - abs(depthRef - depthLoad) * DEPTH_SENSITIVITY, 0.0, 1.0);
-//      let weight = depthWeight * normalWeight;
-      let weight = normalWeight;
+      let weight = depthWeight * normalWeight;
+//      let weight = normalWeight;
       totalWeight += weight;
       outputColour += shadowSample * weight;
   }
   outputColour /= totalWeight;
 //  textureStore(outputTex, pixel, vec4(variance * 16.0));
-  textureStore(outputTex, pixel, shadowRef);
+//  textureStore(outputTex, pixel, shadowRef);
 //  textureStore(outputTex, pixel, mix(shadowRef, previousShadow, 0.5));
-//  textureStore(outputTex, pixel, mix(outputColour, previousShadow, 0.5));
+  textureStore(outputTex, pixel, mix(outputColour, previousShadow, 0.9));
 //  textureStore(outputTex, pixel, vec4(f32(taps)));
 //  textureStore(outputTex, pixel, vec4(totalWeight / f32(taps)));
 //  textureStore(outputTex, pixel, vec4(shadowVariance * 32.0));
@@ -286,14 +290,14 @@ fn composite(
        let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0);
        let normalWeight = dot(normalSample, normalRef);
        let depthWeight = clamp(1.0 - abs(depthRef - depthLoad) * DEPTH_SENSITIVITY, 0.0, 1.0);
-       let weight = depthWeight * normalWeight;
+       let weight = normalWeight;
        totalWeight += weight;
        outputColour += shadowSample * weight;
     }
     outputColour /= totalWeight;
 
   let albedoRef = textureLoad(albedoTex, pixel, 0);
-   textureStore(outputTex, pixel,shadowRef);
+//   textureStore(outputTex, pixel,outputColour);
 //  textureStore(outputTex, pixel,shadowRef * albedoRef);
-//  textureStore(outputTex, pixel,outputColour * albedoRef);
+  textureStore(outputTex, pixel,outputColour * albedoRef);
 }
