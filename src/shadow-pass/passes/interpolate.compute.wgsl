@@ -53,10 +53,10 @@ struct Time {
 //@group(3) @binding(2) var<storage, read_write> counter : array<atomic<u32>>;
 
 const neighborOffsets = array<vec2<i32>, 4>(
-  vec2<i32>(0, 0),// bottom left
-  vec2<i32>(2, 0),// bottom right
-  vec2<i32>(0, 2),// top left
-  vec2<i32>(2, 2)// top right
+  vec2<i32>(-1, -1),// bottom left
+  vec2<i32>(3, -1),// bottom right
+  vec2<i32>(-1, 3),// top left
+  vec2<i32>(3, 3)// top right
 );
 
 // Normal is in voxel (object) space, so will only have 1 or -1 values on one axis
