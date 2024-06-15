@@ -6,11 +6,14 @@ const isNullCharacter = (byte: any) => {
 };
 
 export type TVoxels = {
+  /** Number of voxels */
   VOX: number;
+  /** Size of the voxel object */
   SIZE: number[];
+  /** Voxel data */
   XYZI: { x: number; y: number; z: number; c: number }[];
+  /** RGBA palette */
   RGBA: { r: number; g: number; b: number; a: number }[];
-  PACK?: number;
 };
 
 /**
