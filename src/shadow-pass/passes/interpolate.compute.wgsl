@@ -45,12 +45,25 @@ struct Time {
 
 //
 //// Screen Rays
-//struct ScreenRay {
-//  pixel : vec2<u32>,
-//};
-//@group(3) @binding(0) var<storage, read_write> indirectArgs : array<atomic<u32>>;
-//@group(3) @binding(1) var<storage, read_write> screenRays : array<ScreenRay>;
-//@group(3) @binding(2) var<storage, read_write> counter : array<atomic<u32>>;
+struct BufferRay {
+  pixel : vec2<u32>,
+  direction : vec3<f32>,
+  origin : vec3<f32>,
+  lightColour : vec3<f32>,
+};
+
+@group(3) @binding(0) var<storage, read_write> indirectArgs : array<atomic<u32>>;
+@group(3) @binding(1) var<storage, read_write> rayBuffer : array<BufferRay>;
+@group(3) @binding(2) var<storage, read_write> counter : array<atomic<u32>>;
+
+// Increment the count of the ray buffers, and only increment the dispatch indirect args every 64 rays, due to the 64x1x1 workgroup size
+fn incrementCounters() -> u32{
+  let count = atomicAdd(&counter[0], 1);
+  if(count % 64 == 0){
+   atomicAdd(&indirectArgs[0], 1);
+  }
+  return count;
+}
 
 const neighborOffsets = array<vec2<i32>, 4>(
   vec2<i32>(-1, -1),// bottom left

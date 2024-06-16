@@ -45,6 +45,13 @@ struct Light {
   colour: vec3<f32>,
 };
 
+struct BufferRay {
+  pixel : vec2<u32>,
+  direction : vec3<f32>,
+  origin : vec3<f32>,
+  lightColour : vec3<f32>,
+};
+
 // Function to remap the blue noise value to a sample index
 fn remapToSampleIndex(blueNoiseValue: f32, numSamples: u32) -> u32 {
     // Map blue noise value to the index range [0, numSamples)
@@ -69,15 +76,9 @@ const SAMPLE_OFFSETS: array<vec2<i32>, 4> = array<vec2<i32>, 4>(
   vec2<i32>(1, 0),
 );
 
-@compute @workgroup_size(16, 8, 1)
-fn main(
-  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
-) {
-  let outputPixel = vec2<i32>(GlobalInvocationID.xy);
-  let pixel = vec2<i32>(GlobalInvocationID.xy) * 2;
-
+fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32) {
+  let pixel = outputPixel * downscaleFactor;
   let uv = (vec2<f32>(outputPixel) + vec2(0.5)) / vec2<f32>(textureDimensions(outputTex));
-
   var normalSample = textureLoad(normalTex, pixel, 0).rgb;
   let worldPosSample = textureLoad(worldPosTex, pixel, 0);
   let voxelObject = voxelObjects[i32(worldPosSample.a)];
@@ -136,6 +137,13 @@ fn main(
   }
 
   textureStore(outputTex, outputPixel, vec4(radiance, 1.0));
+}
+
+@compute @workgroup_size(16, 8, 1)
+fn main(
+  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
+) {
+  tracePixel(vec2<i32>(GlobalInvocationID.xy), 2);
 }
 
 const PI = 3.1415926535897932384626433832795;

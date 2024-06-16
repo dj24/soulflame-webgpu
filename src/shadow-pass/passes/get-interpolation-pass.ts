@@ -138,34 +138,34 @@ export const getInterpolatePass = async () => {
     ],
   });
 
-  // const screenRayBindGroupLayout = device.createBindGroupLayout({
-  //   entries: [
-  //     // Indirect buffer
-  //     {
-  //       binding: 0,
-  //       visibility: GPUShaderStage.COMPUTE,
-  //       buffer: {
-  //         type: "storage",
-  //       },
-  //     },
-  //     // Screen rays
-  //     {
-  //       binding: 1,
-  //       visibility: GPUShaderStage.COMPUTE,
-  //       buffer: {
-  //         type: "storage",
-  //       },
-  //     },
-  //     // Counter buffer
-  //     {
-  //       binding: 2,
-  //       visibility: GPUShaderStage.COMPUTE,
-  //       buffer: {
-  //         type: "storage",
-  //       },
-  //     },
-  //   ],
-  // });
+  const screenRayBindGroupLayout = device.createBindGroupLayout({
+    entries: [
+      // Indirect buffer
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "storage",
+        },
+      },
+      // Screen rays
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "storage",
+        },
+      },
+      // Counter buffer
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "storage",
+        },
+      },
+    ],
+  });
 
   const pipeline = device.createComputePipeline({
     label: "interpolate shadows",
@@ -238,35 +238,35 @@ export const getInterpolatePass = async () => {
     });
   };
 
-  // const getScreenRayBindGroup = (
-  //   indirectArgsBuffer: GPUBuffer,
-  //   screenRaysBuffer: GPUBuffer,
-  //   counterBuffer: GPUBuffer,
-  // ) => {
-  //   return device.createBindGroup({
-  //     layout: screenRayBindGroupLayout,
-  //     entries: [
-  //       {
-  //         binding: 0,
-  //         resource: {
-  //           buffer: indirectArgsBuffer,
-  //         },
-  //       },
-  //       {
-  //         binding: 1,
-  //         resource: {
-  //           buffer: screenRaysBuffer,
-  //         },
-  //       },
-  //       {
-  //         binding: 2,
-  //         resource: {
-  //           buffer: counterBuffer,
-  //         },
-  //       },
-  //     ],
-  //   });
-  // };
+  const getScreenRayBindGroup = (
+    indirectArgsBuffer: GPUBuffer,
+    screenRaysBuffer: GPUBuffer,
+    counterBuffer: GPUBuffer,
+  ) => {
+    return device.createBindGroup({
+      layout: screenRayBindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: {
+            buffer: indirectArgsBuffer,
+          },
+        },
+        {
+          binding: 1,
+          resource: {
+            buffer: screenRaysBuffer,
+          },
+        },
+        {
+          binding: 2,
+          resource: {
+            buffer: counterBuffer,
+          },
+        },
+      ],
+    });
+  };
 
   const getCameraBindGroup = (renderArgs: RenderArgs) => {
     return device.createBindGroup({
@@ -320,9 +320,9 @@ export const getInterpolatePass = async () => {
     renderArgs: RenderArgs,
     outputTextureView: GPUTextureView,
     inputTextureView: GPUTextureView,
-    // indirectBuffer: GPUBuffer,
-    // screenRayBuffer: GPUBuffer,
-    // counterBuffer: GPUBuffer,
+    indirectBuffer: GPUBuffer,
+    screenRayBuffer: GPUBuffer,
+    counterBuffer: GPUBuffer,
   ) => {
     if (!bindGroup) {
       bindGroup = getBindGroup(renderArgs, outputTextureView, inputTextureView);
@@ -333,13 +333,13 @@ export const getInterpolatePass = async () => {
     if (!voxelObjectsBindGroup) {
       voxelObjectsBindGroup = getVoxelObjectsBindGroup(renderArgs);
     }
-    // if (!screenRayBindGroup) {
-    //   screenRayBindGroup = getScreenRayBindGroup(
-    //     indirectBuffer,
-    //     screenRayBuffer,
-    //     counterBuffer,
-    //   );
-    // }
+    if (!screenRayBindGroup) {
+      screenRayBindGroup = getScreenRayBindGroup(
+        indirectBuffer,
+        screenRayBuffer,
+        counterBuffer,
+      );
+    }
 
     // Interpolate diffuse
     computePass.setPipeline(pipeline);

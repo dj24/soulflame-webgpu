@@ -13,16 +13,9 @@ import { getCompositePass } from "./passes/get-composite-pass";
 import { getInterpolatePass } from "./passes/get-interpolation-pass";
 import depth from "../shader/depth.wgsl";
 
-// export const getShadowsPass = async (): Promise<RenderPass> => {
-//   return createComputeCompositePass({
-//     shaderCode: shadows,
-//     effectEntryPoint: "main",
-//     compositeEntryPoint: "composite",
-//     downscale: 1,
-//     label: "shadows",
-//     workgroupSizeFactor: [1, 2, 1],
-//   });
-// };
+const ceilToNearestMultipleOf = (n: number, multiple: number) => {
+  return Math.ceil(n / multiple) * multiple;
+};
 
 const depthEntry: GPUBindGroupLayoutEntry = {
   binding: 0,
@@ -269,6 +262,10 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
   let previousIntermediaryTexture: GPUTexture;
   let previousIntermediaryTextureView: GPUTextureView;
 
+  let counterBuffer: GPUBuffer;
+  let indirectBuffer: GPUBuffer;
+  let screenRayBuffer: GPUBuffer;
+
   let nearestSampler = device.createSampler({
     magFilter: "nearest",
     minFilter: "nearest",
@@ -297,6 +294,42 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
       bvhBuffer,
       commandEncoder,
     } = renderArgs;
+    if (!indirectBuffer) {
+      indirectBuffer = device.createBuffer({
+        size: 3 * 4,
+        usage:
+          GPUBufferUsage.INDIRECT |
+          GPUBufferUsage.STORAGE |
+          GPUBufferUsage.COPY_SRC |
+          GPUBufferUsage.COPY_DST,
+      });
+      counterBuffer = device.createBuffer({
+        size: 4,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      });
+      const uint32 = new Uint32Array(3);
+      uint32[0] = 1; // The X value
+      uint32[1] = 1; // The Y value
+      uint32[2] = 1; // The Z value
+      // Write values into a GPUBuffer
+      device.queue.writeBuffer(indirectBuffer, 0, uint32, 0, uint32.length);
+
+      const { width, height } = renderArgs.outputTextures.finalTexture;
+      const maxScreenRays = width * height;
+      const stride = 4 + 4 + 4 + 4;
+      const bufferSizeBytes = ceilToNearestMultipleOf(
+        maxScreenRays * stride,
+        4,
+      );
+      screenRayBuffer = device.createBuffer({
+        size: bufferSizeBytes,
+        usage:
+          GPUBufferUsage.STORAGE |
+          GPUBufferUsage.COPY_DST |
+          GPUBufferUsage.COPY_SRC,
+      });
+    }
+
     if (!copyOutputTexture) {
       copyOutputTexture = device.createTexture({
         size: [
@@ -309,6 +342,7 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
       });
       copyOutputTextureView = copyOutputTexture.createView();
     }
+
     if (!intermediaryTexture) {
       const intermediaryDescriptor: GPUTextureDescriptor = {
         size: [
@@ -497,6 +531,9 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
         renderArgs,
         copyIntermediaryTextureView,
         intermediaryTextureViewMip1,
+        indirectBuffer,
+        screenRayBuffer,
+        counterBuffer,
       );
       computePass.end();
     }
