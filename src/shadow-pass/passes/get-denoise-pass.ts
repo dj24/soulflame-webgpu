@@ -1,5 +1,5 @@
 import { device } from "../../app";
-import { baseBindGroupLayoutEntries, code } from "../get-shadows-pass";
+import { baseBindGroupLayoutEntries, shadowCode } from "../get-shadows-pass";
 
 const intermediaryTextureEntry: GPUBindGroupLayoutEntry = {
   binding: 9,
@@ -21,7 +21,7 @@ export const getDenoisePass = async () => {
     }),
     compute: {
       module: device.createShaderModule({
-        code,
+        code: shadowCode,
       }),
       entryPoint: "denoise",
     },

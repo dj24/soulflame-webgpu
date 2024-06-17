@@ -33,13 +33,6 @@ const POSITION_SCATTER_AMOUNT: f32 = 0.01;
 //const SCATTER_AMOUNT: f32 = 0.00;
 //const POSITION_SCATTER_AMOUNT: f32 = 0.00;
 
-fn blinnPhong(normal: vec3<f32>, lightDirection: vec3<f32>, viewDirection: vec3<f32>, specularStrength: f32, shininess: f32, lightColour: vec3<f32>) -> vec3<f32> {
-  let halfDirection = normalize(lightDirection + viewDirection);
-  let diffuse = max(dot(normal, lightDirection), 0.0);
-  let specular = pow(max(dot(normal, halfDirection), 0.0), shininess);
-  return (diffuse + specular * specularStrength) * lightColour;
-}
-
 struct Light {
   direction: vec3<f32>,
   colour: vec3<f32>,
@@ -51,12 +44,6 @@ struct BufferRay {
   origin : vec3<f32>,
   lightColour : vec3<f32>,
 };
-
-// Function to remap the blue noise value to a sample index
-fn remapToSampleIndex(blueNoiseValue: f32, numSamples: u32) -> u32 {
-    // Map blue noise value to the index range [0, numSamples)
-    return u32(blueNoiseValue * f32(numSamples));
-}
 
 fn randomInCosineWeightedHemisphere(r: vec2<f32>, normal: vec3<f32>) -> vec3<f32> {
   let r1 = 2.0 * PI * r.x;
@@ -91,9 +78,7 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32) {
     return;
   }
   let rayDirection = calculateRayDirection(uv, viewProjections.inverseViewProjection);
-
   var worldPos = worldPosSample.rgb;
-
   var samplePixel = pixel;
   samplePixel.x += i32(time.frame) * 32;
   samplePixel.y += i32(time.frame) * 16;
@@ -106,7 +91,6 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32) {
   }
   var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
   let sampleWorldPos = worldPos + randomInPlanarUnitDisk(r, normalSample) * POSITION_SCATTER_AMOUNT;
-
   var radiance = vec3(MIN_RADIANCE);
 
   // Calculate the probability of sampling the sun
@@ -158,13 +142,11 @@ fn polarToCartesian(angle: f32, radius: f32) -> vec2<f32> {
 fn calculateVariance(neighborhood: array<vec3<f32>, 9>) -> f32 {
     var mean: vec3<f32> = vec3<f32>(0.0);
     var variance: f32 = 0.0;
-
     // Calculate the mean
     for (var i = 0; i < 9; i = i + 1) {
         mean = mean + neighborhood[i];
     }
     mean = mean / 9.0;
-
     // Calculate the variance
     for (var i = 0; i < 9; i = i + 1) {
         var diff = length(neighborhood[i] - mean);
@@ -262,9 +244,9 @@ fn denoise(
   }
   outputColour /= totalWeight;
 //  textureStore(outputTex, pixel, vec4(variance * 16.0));
-//  textureStore(outputTex, pixel, shadowRef);
+  textureStore(outputTex, pixel, shadowRef);
 //  textureStore(outputTex, pixel, mix(shadowRef, previousShadow, 0.5));
-  textureStore(outputTex, pixel, mix(outputColour, previousShadow, 0.9));
+//  textureStore(outputTex, pixel, mix(outputColour, previousShadow, 0.9));
 //  textureStore(outputTex, pixel, vec4(f32(taps)));
 //  textureStore(outputTex, pixel, vec4(totalWeight / f32(taps)));
 //  textureStore(outputTex, pixel, vec4(shadowVariance * 32.0));
@@ -306,6 +288,30 @@ fn composite(
 
   let albedoRef = textureLoad(albedoTex, pixel, 0);
 //   textureStore(outputTex, pixel,outputColour);
-//  textureStore(outputTex, pixel,shadowRef * albedoRef);
-  textureStore(outputTex, pixel,outputColour * albedoRef);
+  textureStore(outputTex, pixel,shadowRef * albedoRef);
+//  textureStore(outputTex, pixel,outputColour * albedoRef);
+}
+
+@group(1) @binding(0) var<storage, read_write> shadowRayBuffer : array<vec2<u32>>;
+
+// 2x2 grid of offsets
+const REMAINING_RAY_OFFSETS = array<vec2<u32>, 3>(
+  vec2<u32>(1, 0),
+  vec2<u32>(0, 1),
+  vec2<u32>(1, 1)
+);
+
+@compute @workgroup_size(72, 1, 1)
+fn bufferMarch(
+  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
+  @builtin(local_invocation_id) LocalInvocationID : vec3<u32>,
+  @builtin(workgroup_id) WorkGroupID : vec3<u32>,
+) {
+  let bufferIndex = GlobalInvocationID.x / 24;
+  let localRayIndex = GlobalInvocationID.x % 3;
+  let pixel = shadowRayBuffer[bufferIndex];
+  let offsetPixel = pixel + REMAINING_RAY_OFFSETS[localRayIndex];
+  tracePixel(vec2<i32>(offsetPixel), 1);
+//  textureStore(depthWrite, offsetPixel, vec4(0,0,0,0));
+//   textureStore(albedoTex, offsetPixel, vec4(1,0,0,1));
 }

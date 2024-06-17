@@ -46,20 +46,17 @@ struct Time {
 //
 //// Screen Rays
 struct BufferRay {
-  pixel : vec2<u32>,
-  direction : vec3<f32>,
-  origin : vec3<f32>,
-  lightColour : vec3<f32>,
+  pixel : vec2<u32>
 };
 
 @group(3) @binding(0) var<storage, read_write> indirectArgs : array<atomic<u32>>;
 @group(3) @binding(1) var<storage, read_write> rayBuffer : array<BufferRay>;
 @group(3) @binding(2) var<storage, read_write> counter : array<atomic<u32>>;
 
-// Increment the count of the ray buffers, and only increment the dispatch indirect args every 64 rays, due to the 64x1x1 workgroup size
+// Increment the count of the ray buffers, and only increment the dispatch indirect args every 24 rays -> 3 rays in group, 24 groups = 72x1x1 workgroup size
 fn incrementCounters() -> u32{
   let count = atomicAdd(&counter[0], 1);
-  if(count % 64 == 0){
+  if(count % 24 == 0){
    atomicAdd(&indirectArgs[0], 1);
   }
   return count;
@@ -67,9 +64,9 @@ fn incrementCounters() -> u32{
 
 const neighborOffsets = array<vec2<i32>, 4>(
   vec2<i32>(-1, -1),// bottom left
-  vec2<i32>(3, -1),// bottom right
-  vec2<i32>(-1, 3),// top left
-  vec2<i32>(3, 3)// top right
+  vec2<i32>(2, -1),// bottom right
+  vec2<i32>(-1, 2),// top left
+  vec2<i32>(2, 2)// top right
 );
 
 // Normal is in voxel (object) space, so will only have 1 or -1 values on one axis
@@ -93,15 +90,6 @@ fn checkSharedPlane(
   }
   return false;
 }
-
-// Increment the count of the ray buffers, and only increment the dispatch indirect args every 8 rays, due to the 64x1x1 workgroup size (8 ray groups, 8 rays per group)
-//fn incrementCounters() -> u32{
-//  let count = atomicAdd(&counter[0], 1);
-//  if(count % 8 == 0){
-//   atomicAdd(&indirectArgs[0], 1);
-//  }
-//  return count;
-//}
 
 
 const ca = vec4(   3.0,  -6.0,   0.0,  4.0 ) /  6.0;
@@ -185,8 +173,8 @@ const BLUE_NOISE_SIZE = 512;
     if(objectIndex != velocityRef.a) {
        if(isOriginPixel){
          // Add to ray buffer
-//         let count = incrementCounters();
-//         screenRays[count].pixel = vec2<u32>(pixel);
+         let count = incrementCounters();
+         rayBuffer[count].pixel = vec2<u32>(pixel);
        }
        else {
         textureStore(shadowTex, pixel, vec4(0.0));
@@ -228,8 +216,8 @@ const BLUE_NOISE_SIZE = 512;
     if(!checkSharedPlane(localNormal, voxelPosRef, neighborVoxelPos, neighborLocalNormal)) {
       if(isOriginPixel){
         // Add to ray buffer
-//        let count = incrementCounters();
-//        screenRays[count].pixel = vec2<u32>(pixel);
+        let count = incrementCounters();
+        rayBuffer[count].pixel = vec2<u32>(pixel);
       }else{
         textureStore(shadowTex, pixel, vec4(0.0));
       }

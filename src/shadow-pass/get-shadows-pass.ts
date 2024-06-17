@@ -12,6 +12,7 @@ import { getDenoisePass } from "./passes/get-denoise-pass";
 import { getCompositePass } from "./passes/get-composite-pass";
 import { getInterpolatePass } from "./passes/get-interpolation-pass";
 import depth from "../shader/depth.wgsl";
+import { getBufferPass } from "./passes/get-buffer-pass";
 
 const ceilToNearestMultipleOf = (n: number, multiple: number) => {
   return Math.ceil(n / multiple) * multiple;
@@ -191,7 +192,7 @@ export const baseBindGroupLayoutEntries = [
   previousIntermediaryTextureEntry,
 ];
 
-export const code = `
+export const shadowCode = `
 struct Time {
   frame: u32,
   deltaTime: f32,
@@ -245,7 +246,7 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
     }),
     compute: {
       module: device.createShaderModule({
-        code,
+        code: shadowCode,
       }),
       entryPoint: "main",
     },
@@ -279,6 +280,7 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
   const denoisePass = await getDenoisePass();
   const compositePass = await getCompositePass();
   const interpolatePass = await getInterpolatePass();
+  const bufferPass = await getBufferPass();
 
   const render = (renderArgs: RenderArgs) => {
     const {
@@ -315,12 +317,9 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
       device.queue.writeBuffer(indirectBuffer, 0, uint32, 0, uint32.length);
 
       const { width, height } = renderArgs.outputTextures.finalTexture;
-      const maxScreenRays = width * height;
-      const stride = 4 + 4 + 4 + 4;
-      const bufferSizeBytes = ceilToNearestMultipleOf(
-        maxScreenRays * stride,
-        4,
-      );
+      // Groups of 4x4 rays are traced
+      const maxScreenRays = (width / 2) * (height / 2);
+      const bufferSizeBytes = ceilToNearestMultipleOf(maxScreenRays * 4, 4);
       screenRayBuffer = device.createBuffer({
         size: bufferSizeBytes,
         usage:
@@ -502,6 +501,7 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
 
     // Trace
     let computePass = commandEncoder.beginComputePass({
+      label: "shadow trace",
       timestampWrites,
     });
     const bindGroup = device.createBindGroup(bindGroupDescriptor); // TODO: dont create every frame
@@ -519,6 +519,7 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
     // Interpolate
     {
       computePass = commandEncoder.beginComputePass({
+        label: "shadow interpolate",
         timestampWrites: {
           querySet: timestampWrites.querySet,
           beginningOfPassWriteIndex:
@@ -538,14 +539,36 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
       computePass.end();
     }
 
-    //Denoise
+    // Trace full resolution (adapative)
     {
       computePass = commandEncoder.beginComputePass({
+        label: "shadow full res",
         timestampWrites: {
           querySet: timestampWrites.querySet,
           beginningOfPassWriteIndex:
             timestampWrites.beginningOfPassWriteIndex + 4,
           endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 4,
+        },
+      });
+      bufferPass(
+        computePass,
+        bindGroup,
+        renderArgs,
+        screenRayBuffer,
+        indirectBuffer,
+      );
+      computePass.end();
+    }
+
+    //Denoise
+    {
+      computePass = commandEncoder.beginComputePass({
+        label: "shadow denoise",
+        timestampWrites: {
+          querySet: timestampWrites.querySet,
+          beginningOfPassWriteIndex:
+            timestampWrites.beginningOfPassWriteIndex + 6,
+          endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 6,
         },
       });
       denoisePass(
@@ -561,11 +584,12 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
     // Composite into image
     {
       computePass = commandEncoder.beginComputePass({
+        label: "shadow composite",
         timestampWrites: {
           querySet: timestampWrites.querySet,
           beginningOfPassWriteIndex:
-            timestampWrites.beginningOfPassWriteIndex + 6,
-          endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 6,
+            timestampWrites.beginningOfPassWriteIndex + 8,
+          endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 8,
         },
       });
       compositePass(
@@ -599,6 +623,7 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
     timestampLabels: [
       "shadow trace",
       "shadow interpolate",
+      "full res shadow",
       "shadow denoise",
       "shadow composite",
     ],

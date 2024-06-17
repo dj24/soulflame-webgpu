@@ -174,7 +174,7 @@ export const getInterpolatePass = async () => {
         bindGroupLayout,
         cameraBindGroupLayout,
         voxelObjectsBindGroupLayout,
-        // screenRayBindGroupLayout,
+        screenRayBindGroupLayout,
       ],
     }),
     compute: {
@@ -346,7 +346,7 @@ export const getInterpolatePass = async () => {
     computePass.setBindGroup(0, bindGroup);
     computePass.setBindGroup(1, cameraBindGroup);
     computePass.setBindGroup(2, voxelObjectsBindGroup);
-    // computePass.setBindGroup(3, screenRayBindGroup);
+    computePass.setBindGroup(3, screenRayBindGroup);
     computePass.dispatchWorkgroups(
       Math.ceil(resolution[0] / 16),
       Math.ceil(resolution[1] / 8),
