@@ -1,7 +1,7 @@
 
 // TODO: offset in object space instead of world space to scale with object size
 fn diffuseRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>, voxelObjectSize: f32) -> bool {
-  let rayOrigin = worldPos + normal * 0.005;
+  let rayOrigin = worldPos  + normal * 0.005;
   return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 0).hit;
 }
 
@@ -28,10 +28,8 @@ const BLUE_NOISE_SIZE = 511;
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const SHADOW_ACNE_OFFSET: f32 = 0.005;
-const SCATTER_AMOUNT: f32 = 0.01;
-const POSITION_SCATTER_AMOUNT: f32 = 0.005;
-//const SCATTER_AMOUNT: f32 = 0.00;
-//const POSITION_SCATTER_AMOUNT: f32 = 0.00;
+const SCATTER_AMOUNT: f32 = 0.001;
+const POSITION_SCATTER_AMOUNT: f32 = 0.00;
 
 struct Light {
   direction: vec3<f32>,
@@ -63,7 +61,7 @@ const SAMPLE_OFFSETS: array<vec2<i32>, 4> = array<vec2<i32>, 4>(
   vec2<i32>(1, 0),
 );
 
-fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32) {
+fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32, blueNoiseOffset: vec2<i32>) -> vec3<f32>{
   let pixel = outputPixel * downscaleFactor;
   let uv = (vec2<f32>(outputPixel) + vec2(0.5)) / vec2<f32>(textureDimensions(outputTex));
   var normalSample = textureLoad(normalTex, pixel, 0).rgb;
@@ -74,15 +72,14 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32) {
 
   let depthSample = textureLoad(depthTex, pixel, 0).r;
   if(depthSample < 0.00001){ // SKY
-    textureStore(outputTex, outputPixel, vec4(0.0));
-    return;
+    return vec3(0.0);
   }
   let rayDirection = calculateRayDirection(uv, viewProjections.inverseViewProjection);
   var worldPos = worldPosSample.rgb;
   var samplePixel = pixel;
   samplePixel.x += i32(time.frame) * 32;
   samplePixel.y += i32(time.frame) * 16;
-  var blueNoisePixel = (samplePixel / downscaleFactor) % BLUE_NOISE_SIZE;
+  var blueNoisePixel = ((samplePixel / downscaleFactor) + blueNoiseOffset) % BLUE_NOISE_SIZE;
   if(time.frame % 2 == 0){
     blueNoisePixel.y = BLUE_NOISE_SIZE - blueNoisePixel.y;
   }
@@ -120,14 +117,42 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32) {
       }
   }
 
-  textureStore(outputTex, outputPixel, vec4(radiance, 1.0));
+  return radiance;
+
 }
 
 @compute @workgroup_size(16, 8, 1)
 fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
-  tracePixel(vec2<i32>(GlobalInvocationID.xy), 2);
+  let pixel = vec2<i32>(GlobalInvocationID.xy);
+  let result = tracePixel(pixel, 2, vec2(0));
+  textureStore(outputTex, pixel, vec4(result, 1.0));
+}
+
+
+@group(1) @binding(0) var<storage, read_write> shadowRayBuffer : array<vec2<u32>>;
+
+// 2x2 grid of offsets
+const RAY_OFFSETS = array<vec2<u32>, 4>(
+  vec2<u32>(0,0),
+  vec2<u32>(1, 0),
+  vec2<u32>(0, 1),
+  vec2<u32>(1, 1)
+);
+
+@compute @workgroup_size(128, 1, 1)
+fn bufferMarch(
+  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
+  @builtin(local_invocation_id) LocalInvocationID : vec3<u32>,
+  @builtin(workgroup_id) WorkGroupID : vec3<u32>,
+) {
+  let bufferIndex = GlobalInvocationID.x / 4;
+  let localRayIndex = GlobalInvocationID.x % 4;
+  let pixel = shadowRayBuffer[bufferIndex];
+  let offsetPixel = pixel + RAY_OFFSETS[localRayIndex];
+  let result = tracePixel(vec2<i32>(offsetPixel), 1, vec2(0));
+  textureStore(outputTex, offsetPixel, vec4(result, 1.0));
 }
 
 const PI = 3.1415926535897932384626433832795;
@@ -245,8 +270,8 @@ fn denoise(
   outputColour /= totalWeight;
 //  textureStore(outputTex, pixel, vec4(variance * 16.0));
 //  textureStore(outputTex, pixel, shadowRef);
-//  textureStore(outputTex, pixel, mix(shadowRef, previousShadow, 0.5));
-  textureStore(outputTex, pixel, mix(outputColour, previousShadow, 0.9));
+  textureStore(outputTex, pixel, mix(shadowRef, previousShadow, 0.5));
+//  textureStore(outputTex, pixel, mix(outputColour, previousShadow, 0.5));
 //  textureStore(outputTex, pixel, vec4(f32(taps)));
 //  textureStore(outputTex, pixel, vec4(totalWeight / f32(taps)));
 //  textureStore(outputTex, pixel, vec4(shadowVariance * 32.0));
@@ -288,30 +313,6 @@ fn composite(
 
   let albedoRef = textureLoad(albedoTex, pixel, 0);
 //   textureStore(outputTex, pixel,outputColour);
-//  textureStore(outputTex, pixel,shadowRef * albedoRef);
-  textureStore(outputTex, pixel,outputColour * albedoRef);
-}
-
-@group(1) @binding(0) var<storage, read_write> shadowRayBuffer : array<vec2<u32>>;
-
-// 2x2 grid of offsets
-const RAY_OFFSETS = array<vec2<u32>, 4>(
-  vec2<u32>(0,0),
-  vec2<u32>(1, 0),
-  vec2<u32>(0, 1),
-  vec2<u32>(1, 1)
-);
-
-@compute @workgroup_size(72, 1, 1)
-fn bufferMarch(
-  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
-  @builtin(local_invocation_id) LocalInvocationID : vec3<u32>,
-  @builtin(workgroup_id) WorkGroupID : vec3<u32>,
-) {
-  let bufferIndex = GlobalInvocationID.x / 4;
-  let localRayIndex = GlobalInvocationID.x % 4;
-  let pixel = shadowRayBuffer[bufferIndex];
-  let offsetPixel = pixel + RAY_OFFSETS[localRayIndex];
-  tracePixel(vec2<i32>(offsetPixel), 1);
-//  textureStore(outputTex, offsetPixel, vec4(200,0,0,0));
+  textureStore(outputTex, pixel,shadowRef * albedoRef);
+//  textureStore(outputTex, pixel,outputColour * albedoRef);
 }
