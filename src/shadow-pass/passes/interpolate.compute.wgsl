@@ -53,17 +53,16 @@ struct BufferRay {
 @group(3) @binding(1) var<storage, read_write> rayBuffer : array<BufferRay>;
 @group(3) @binding(2) var<storage, read_write> counter : array<atomic<u32>>;
 
-// Increment the count of the ray buffers, and only increment the dispatch indirect args every 24 rays -> 3 rays in group, 24 groups = 72x1x1 workgroup size
 fn incrementCounters() -> u32{
   let count = atomicAdd(&counter[0], 1);
-  if(count % 24 == 0){
+  if(count % 4 == 0){
    atomicAdd(&indirectArgs[0], 1);
   }
   return count;
 }
 
 const neighborOffsets = array<vec2<i32>, 4>(
-  vec2<i32>(-1, -1),// bottom left
+  vec2<i32>(-2, -1),// bottom left
   vec2<i32>(2, -1),// bottom right
   vec2<i32>(-1, 2),// top left
   vec2<i32>(2, 2)// top right

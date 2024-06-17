@@ -28,8 +28,8 @@ const BLUE_NOISE_SIZE = 511;
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const SHADOW_ACNE_OFFSET: f32 = 0.005;
-const SCATTER_AMOUNT: f32 = 0.04;
-const POSITION_SCATTER_AMOUNT: f32 = 0.01;
+const SCATTER_AMOUNT: f32 = 0.01;
+const POSITION_SCATTER_AMOUNT: f32 = 0.005;
 //const SCATTER_AMOUNT: f32 = 0.00;
 //const POSITION_SCATTER_AMOUNT: f32 = 0.00;
 
@@ -82,7 +82,7 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32) {
   var samplePixel = pixel;
   samplePixel.x += i32(time.frame) * 32;
   samplePixel.y += i32(time.frame) * 16;
-  var blueNoisePixel = (samplePixel / 2) % BLUE_NOISE_SIZE;
+  var blueNoisePixel = (samplePixel / downscaleFactor) % BLUE_NOISE_SIZE;
   if(time.frame % 2 == 0){
     blueNoisePixel.y = BLUE_NOISE_SIZE - blueNoisePixel.y;
   }
@@ -99,7 +99,7 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32) {
   // Calculate the probability of sampling the diffuse light
   let diffuseProbability = 1.0 - sunProbability;
 
-  let maxDiffuseIntensity = vec3(16.0);
+  let maxDiffuseIntensity = vec3(4.0);
   let maxSunIntensity = vec3(32.0);
 
 // TODO: push to buffer instead and evaluate in a separate pass
@@ -244,9 +244,9 @@ fn denoise(
   }
   outputColour /= totalWeight;
 //  textureStore(outputTex, pixel, vec4(variance * 16.0));
-  textureStore(outputTex, pixel, shadowRef);
+//  textureStore(outputTex, pixel, shadowRef);
 //  textureStore(outputTex, pixel, mix(shadowRef, previousShadow, 0.5));
-//  textureStore(outputTex, pixel, mix(outputColour, previousShadow, 0.9));
+  textureStore(outputTex, pixel, mix(outputColour, previousShadow, 0.9));
 //  textureStore(outputTex, pixel, vec4(f32(taps)));
 //  textureStore(outputTex, pixel, vec4(totalWeight / f32(taps)));
 //  textureStore(outputTex, pixel, vec4(shadowVariance * 32.0));
@@ -268,7 +268,7 @@ fn composite(
   var outputColour = shadowRef;
   var totalWeight = 1.0;
   let golden_angle = 137.5; // The golden angle in degrees
-  let taps = 8;
+  let taps = 4;
 
    for(var i = 0; i <= taps; i++){
        let angle = (golden_angle * f32(i)) % 360.0;
@@ -288,14 +288,15 @@ fn composite(
 
   let albedoRef = textureLoad(albedoTex, pixel, 0);
 //   textureStore(outputTex, pixel,outputColour);
-  textureStore(outputTex, pixel,shadowRef * albedoRef);
-//  textureStore(outputTex, pixel,outputColour * albedoRef);
+//  textureStore(outputTex, pixel,shadowRef * albedoRef);
+  textureStore(outputTex, pixel,outputColour * albedoRef);
 }
 
 @group(1) @binding(0) var<storage, read_write> shadowRayBuffer : array<vec2<u32>>;
 
 // 2x2 grid of offsets
-const REMAINING_RAY_OFFSETS = array<vec2<u32>, 3>(
+const RAY_OFFSETS = array<vec2<u32>, 4>(
+  vec2<u32>(0,0),
   vec2<u32>(1, 0),
   vec2<u32>(0, 1),
   vec2<u32>(1, 1)
@@ -307,11 +308,10 @@ fn bufferMarch(
   @builtin(local_invocation_id) LocalInvocationID : vec3<u32>,
   @builtin(workgroup_id) WorkGroupID : vec3<u32>,
 ) {
-  let bufferIndex = GlobalInvocationID.x / 24;
-  let localRayIndex = GlobalInvocationID.x % 3;
+  let bufferIndex = GlobalInvocationID.x / 4;
+  let localRayIndex = GlobalInvocationID.x % 4;
   let pixel = shadowRayBuffer[bufferIndex];
-  let offsetPixel = pixel + REMAINING_RAY_OFFSETS[localRayIndex];
+  let offsetPixel = pixel + RAY_OFFSETS[localRayIndex];
   tracePixel(vec2<i32>(offsetPixel), 1);
-//  textureStore(depthWrite, offsetPixel, vec4(0,0,0,0));
-//   textureStore(albedoTex, offsetPixel, vec4(1,0,0,1));
+//  textureStore(outputTex, offsetPixel, vec4(200,0,0,0));
 }

@@ -384,6 +384,10 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
       });
     }
 
+    commandEncoder.clearBuffer(indirectBuffer, 0, 4);
+    commandEncoder.clearBuffer(counterBuffer, 0, 4);
+    commandEncoder.clearBuffer(screenRayBuffer);
+
     commandEncoder.copyTextureToTexture(
       {
         texture: outputTextures.finalTexture.texture, // TODO: pass texture as well as view
@@ -552,10 +556,11 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
       });
       bufferPass(
         computePass,
-        bindGroup,
-        renderArgs,
         screenRayBuffer,
         indirectBuffer,
+        copyIntermediaryTextureView,
+        intermediaryTextureView,
+        renderArgs,
       );
       computePass.end();
     }

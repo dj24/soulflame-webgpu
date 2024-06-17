@@ -51,7 +51,7 @@ export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.create(4, 4);
-let downscale = 3.0;
+let downscale = 1.0;
 let startTime = 0;
 export let elapsedTime = startTime;
 export let deltaTime = 0;
@@ -374,7 +374,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
 
     // Multiply the existing direction vector by the rotation matrix
     const newDirection = vec3.normalize(
-      vec3.transformMat4(vec3.create(0, 0.9, -0.8), rotationMatrix),
+      vec3.transformMat4(vec3.create(0, 0.5, -0.8), rotationMatrix),
     );
 
     if (sunDirectionBuffer) {
@@ -577,7 +577,7 @@ const computePasses = await Promise.all([
   getShadowsPass(),
   getSkyPass(),
   // getLightsPass(),
-  // getTaaPass(),
+  getTaaPass(),
   // getFogPass(),
   // getBloomPass(),
   getMotionBlurPass(),
