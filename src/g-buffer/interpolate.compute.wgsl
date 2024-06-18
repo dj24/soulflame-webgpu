@@ -114,7 +114,7 @@ fn incrementCounters() -> u32{
   let nearestUV = vec2<f32>(nearestFilledPixel) / vec2<f32>(texSize);
   let velocityRef = textureLoad(velocityCopyTex, nearestFilledPixel, 0);
   let depthRef = textureLoad(depthCopyTex, nearestFilledPixel, 0).r;
-  let distanceToSurface = reversedLinearDepthToDistance(depthRef, NEAR_PLANE, FAR_PLANE);
+  let distanceToSurface = logarithmicDepthToDistance(depthRef, NEAR_PLANE, FAR_PLANE);
 
   // disable interpolation for distances greater than 1000, due to precision issues
 //  if(distanceToSurface > 9000){
@@ -172,7 +172,7 @@ fn incrementCounters() -> u32{
     let neighborNormal = textureLoad(normalCopyTex, neighborPixel, 0).xyz;
     let neighborLocalNormal = (voxelObject.inverseTransform * vec4(neighborNormal, 0.0)).xyz;
     let neighborRayDirection = calculateRayDirection(neighborUV, viewProjections.inverseViewProjection);
-    let neighborWorldPos = cameraPosition + neighborRayDirection * reversedLinearDepthToDistance(neighborDepth, NEAR_PLANE, FAR_PLANE);
+    let neighborWorldPos = cameraPosition + neighborRayDirection * logarithmicDepthToDistance(neighborDepth, NEAR_PLANE, FAR_PLANE);
     let neighborLocalPos = (voxelObject.inverseTransform * vec4(neighborWorldPos, 1.0)).xyz;
     let neighborVoxelPos = floor(neighborLocalPos);
 
@@ -221,7 +221,7 @@ fn incrementCounters() -> u32{
   let worldPos =
     cameraPosition
     + calculateRayDirection(uv, viewProjections.inverseViewProjection)
-    * reversedLinearDepthToDistance(depth, NEAR_PLANE, FAR_PLANE);
+    * logarithmicDepthToDistance(depth, NEAR_PLANE, FAR_PLANE);
 
   let localPos = (voxelObject.inverseTransform * vec4(worldPos, 1.0)).xyz;
   let voxelPos = floor(localPos);

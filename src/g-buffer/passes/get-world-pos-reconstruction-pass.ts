@@ -82,7 +82,7 @@ export const getWorldPosReconstructionPipeline = async () => {
             let pixel = GlobalInvocationID.xy;
             var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
             let depth = textureLoad(depthTex, pixel, 0).r;
-            let distanceToSurface = reversedLinearDepthToDistance(depth, NEAR_PLANE, FAR_PLANE);
+            let distanceToSurface = logarithmicDepthToDistance(depth, NEAR_PLANE, FAR_PLANE);
             let rayDirection = calculateRayDirection(uv, viewProjections.inverseViewProjection);
             var worldPos = cameraPosition + rayDirection * distanceToSurface;
             

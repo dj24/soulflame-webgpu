@@ -161,12 +161,13 @@ fn tracePixel(pixel: vec2<u32>){
     let worldPos = rayOrigin + rayDirection * closestIntersection.t;
     let velocity = getVelocityStatic(worldPos, viewProjections);
     let cameraDistance = closestIntersection.t;
-    let normalisedDepth = distanceToReversedLinearDepth(cameraDistance, NEAR_PLANE, FAR_PLANE);
+//    let normalisedDepth = distanceToReversedLinearDepth(cameraDistance, NEAR_PLANE, FAR_PLANE);
+let logDepth = distanceToLogarithmicDepth(cameraDistance, NEAR_PLANE, FAR_PLANE);
 
     textureStore(albedoTex, pixel, vec4(albedo, 1));
     textureStore(normalTex, pixel, vec4(normal,1));
     textureStore(velocityTex, pixel, vec4(velocity,0,f32(closestIntersection.voxelObjectIndex)));
-    textureStore(depthWrite, pixel, vec4(normalisedDepth));
+    textureStore(depthWrite, pixel, vec4(logDepth));
 }
 
 @compute @workgroup_size(16, 8, 1)

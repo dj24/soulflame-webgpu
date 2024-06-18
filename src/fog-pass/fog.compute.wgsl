@@ -30,7 +30,7 @@ fn main(
   var pixel = GlobalInvocationID.xy;
   let uv = vec2<f32>(pixel) / vec2<f32>(textureDimensions(outputTex));
   let gBufferPixel = pixel * DOWNSCALE;
-  let depthSample = reversedLinearDepthToDistance(textureLoad(depthTex, gBufferPixel, 0).r, NEAR, FAR);
+  let depthSample = logarithmicDepthToDistance(textureLoad(depthTex, gBufferPixel, 0).r, NEAR, FAR);
   let normalSample = textureLoad(normalTex, gBufferPixel, 0).xyz;
   let distanceFromCamera = min(depthSample, MAX_DISTANCE);
   var stepLength = distanceFromCamera / STEPS;

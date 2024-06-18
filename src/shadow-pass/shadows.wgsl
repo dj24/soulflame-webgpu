@@ -28,7 +28,7 @@ const BLUE_NOISE_SIZE = 511;
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const SHADOW_ACNE_OFFSET: f32 = 0.005;
-const SCATTER_AMOUNT: f32 = 0.001;
+const SCATTER_AMOUNT: f32 = 0.00;
 const POSITION_SCATTER_AMOUNT: f32 = 0.00;
 
 struct Light {
@@ -193,7 +193,7 @@ const NEIGHBORHOOD_SAMPLE_POSITIONS = array<vec2<i32>, 8>(
     vec2<i32>(1, 1)
 );
 
-const DEPTH_SENSITIVITY = 5000.0;
+const DEPTH_SENSITIVITY = 10000.0;
 const BLUR_RADIUS = 2.0;
 const GOLDEN_RATIO = 1.61803398875;
 
@@ -254,7 +254,7 @@ fn denoise(
 
   for(var i = 0; i <= taps; i++){
       let angle = (golden_angle * f32(i)) % 360.0;
-      let radius = f32(i) * 0.5;
+      let radius = f32(i) * 0.66;
       let sampleUV = polarToCartesian(angle, radius) * texelSize + uv;
       let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
       let normalSample = textureSampleLevel(normalTex, nearestSampler, sampleUV, 0.0).rgb;
@@ -270,7 +270,7 @@ fn denoise(
   outputColour /= totalWeight;
 //  textureStore(outputTex, pixel, vec4(variance * 16.0));
 //  textureStore(outputTex, pixel, shadowRef);
-  textureStore(outputTex, pixel, mix(shadowRef, previousShadow, 0.5));
+  textureStore(outputTex, pixel, mix(shadowRef, previousShadow, 0.9));
 //  textureStore(outputTex, pixel, mix(outputColour, previousShadow, 0.5));
 //  textureStore(outputTex, pixel, vec4(f32(taps)));
 //  textureStore(outputTex, pixel, vec4(totalWeight / f32(taps)));
@@ -293,11 +293,11 @@ fn composite(
   var outputColour = shadowRef;
   var totalWeight = 1.0;
   let golden_angle = 137.5; // The golden angle in degrees
-  let taps = 4;
+  let taps = 8;
 
    for(var i = 0; i <= taps; i++){
        let angle = (golden_angle * f32(i)) % 360.0;
-       let radius =  f32(i) * 0.5;
+       let radius =  f32(i);
        let sampleUV = polarToCartesian(angle, radius) * texelSize + uv;
        let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
        let normalSample = textureSampleLevel(normalTex, nearestSampler, sampleUV, 0.0).rgb;
@@ -313,6 +313,6 @@ fn composite(
 
   let albedoRef = textureLoad(albedoTex, pixel, 0);
 //   textureStore(outputTex, pixel,outputColour);
-  textureStore(outputTex, pixel,shadowRef * albedoRef);
-//  textureStore(outputTex, pixel,outputColour * albedoRef);
+//  textureStore(outputTex, pixel,shadowRef * albedoRef);
+  textureStore(outputTex, pixel,outputColour * albedoRef);
 }
