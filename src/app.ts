@@ -582,7 +582,7 @@ const computePasses = await Promise.all([
   getBloomPass(),
   getMotionBlurPass(),
   getTonemapPass(),
-  // getLutPass("luts/Reeve 38.CUBE"),
+  getLutPass("luts/Reeve 38.CUBE"),
   // getVignettePass(15.0),
   fullscreenQuad(device),
   // getBoxOutlinePass(),
