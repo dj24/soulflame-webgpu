@@ -160,8 +160,8 @@ fn tracePixel(pixel: vec2<u32>){
     let normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(closestIntersection.normal));
     let worldPos = rayOrigin + rayDirection * closestIntersection.t;
     let velocity = getVelocityStatic(worldPos, viewProjections);
-    let depth = closestIntersection.t;
-    let normalisedDepth = distanceToReversedNormalisedDepth(depth, NEAR_PLANE, FAR_PLANE);
+    let cameraDistance = closestIntersection.t;
+    let normalisedDepth = distanceToReversedLinearDepth(cameraDistance, NEAR_PLANE, FAR_PLANE);
 
     textureStore(albedoTex, pixel, vec4(albedo, 1));
     textureStore(normalTex, pixel, vec4(normal,1));

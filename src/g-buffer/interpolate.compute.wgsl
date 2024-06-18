@@ -113,6 +113,23 @@ fn incrementCounters() -> u32{
   let isCornerPixel = all(pixel == nearestFilledPixel + vec2(2));
   let nearestUV = vec2<f32>(nearestFilledPixel) / vec2<f32>(texSize);
   let velocityRef = textureLoad(velocityCopyTex, nearestFilledPixel, 0);
+  let depthRef = textureLoad(depthCopyTex, nearestFilledPixel, 0).r;
+  let distanceToSurface = reversedLinearDepthToDistance(depthRef, NEAR_PLANE, FAR_PLANE);
+
+  // disable interpolation for distances greater than 1000, due to precision issues
+//  if(distanceToSurface > 9000){
+//    if(isOriginPixel){
+//      // Add to ray buffer
+//      let count = incrementCounters();
+//      screenRays[count].pixel = vec2<u32>(pixel);
+//    }else{
+//      textureStore(albedoTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
+//      textureStore(normalTex, pixel, vec4(0.0, 0.0, 0.0, 1.0));
+//      textureStore(velocityTex, pixel, vec4(velocityRef.xyz, -1.0));
+//      textureStore(depthTex, pixel, vec4(0.0));
+//    }
+//    return;
+//  }
 
   var hasFoundObject = false;
   // Check if each neightbor is the same object
@@ -139,11 +156,11 @@ fn incrementCounters() -> u32{
     return;
   }
   let voxelObject = voxelObjects[i32(velocityRef.a)];
-  let depthRef = textureLoad(depthCopyTex, nearestFilledPixel, 0).r;
+
   let normalRef = textureLoad(normalCopyTex, nearestFilledPixel, 0).xyz;
   let localNormal = (voxelObject.inverseTransform * vec4(normalRef, 0.0)).xyz;
   let rayDirection = calculateRayDirection(nearestUV, viewProjections.inverseViewProjection);
-  let worldPosRef = cameraPosition + rayDirection * reversedNormalisedDepthToDistance(depthRef, NEAR_PLANE, FAR_PLANE);
+  let worldPosRef = cameraPosition + rayDirection * distanceToSurface;
   let localPosRef = (voxelObject.inverseTransform * vec4(worldPosRef, 1.0)).xyz;
   let voxelPosRef = floor(localPosRef);
 
@@ -155,7 +172,7 @@ fn incrementCounters() -> u32{
     let neighborNormal = textureLoad(normalCopyTex, neighborPixel, 0).xyz;
     let neighborLocalNormal = (voxelObject.inverseTransform * vec4(neighborNormal, 0.0)).xyz;
     let neighborRayDirection = calculateRayDirection(neighborUV, viewProjections.inverseViewProjection);
-    let neighborWorldPos = cameraPosition + neighborRayDirection * reversedNormalisedDepthToDistance(neighborDepth, NEAR_PLANE, FAR_PLANE);
+    let neighborWorldPos = cameraPosition + neighborRayDirection * reversedLinearDepthToDistance(neighborDepth, NEAR_PLANE, FAR_PLANE);
     let neighborLocalPos = (voxelObject.inverseTransform * vec4(neighborWorldPos, 1.0)).xyz;
     let neighborVoxelPos = floor(neighborLocalPos);
 
@@ -204,7 +221,7 @@ fn incrementCounters() -> u32{
   let worldPos =
     cameraPosition
     + calculateRayDirection(uv, viewProjections.inverseViewProjection)
-    * reversedNormalisedDepthToDistance(depth, NEAR_PLANE, FAR_PLANE);
+    * reversedLinearDepthToDistance(depth, NEAR_PLANE, FAR_PLANE);
 
   let localPos = (voxelObject.inverseTransform * vec4(worldPos, 1.0)).xyz;
   let voxelPos = floor(localPos);
