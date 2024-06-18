@@ -5074,6 +5074,177 @@
             ]
         },
         {
+            "name": "debug-plane",
+            "position": [
+                128,
+                -15,
+                0
+            ],
+            "scale": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "rotation": [
+                0.0,
+                1.0,
+                0.0,
+                0.0
+            ]
+        },
+        {
+            "name": "debug-plane",
+            "position": [
+                128,
+                -15,
+                64
+            ],
+            "scale": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "rotation": [
+                0.0,
+                1.0,
+                0.0,
+                0.0
+            ]
+        },
+        {
+            "name": "debug-plane",
+            "position": [
+                128,
+                -15,
+                128
+            ],
+            "scale": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "rotation": [
+                0.0,
+                1.0,
+                0.0,
+                0.0
+            ]
+        },
+        {
+            "name": "debug-plane",
+            "position": [
+                64,
+                -15,
+                128
+            ],
+            "scale": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "rotation": [
+                0.0,
+                1.0,
+                0.0,
+                0.0
+            ]
+        },
+        {
+            "name": "debug-plane",
+            "position": [
+                0,
+                -15,
+                128
+            ],
+            "scale": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "rotation": [
+                0.0,
+                1.0,
+                0.0,
+                0.0
+            ]
+        },
+        {
+            "name": "debug-plane",
+            "position": [
+                -64,
+                -15,
+                128
+            ],
+            "scale": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "rotation": [
+                0.0,
+                1.0,
+                0.0,
+                0.0
+            ]
+        },
+        {
+            "name": "debug-plane",
+            "position": [
+                -128,
+                -15,
+                128
+            ],
+            "scale": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "rotation": [
+                0.0,
+                1.0,
+                0.0,
+                0.0
+            ]
+        },
+        {
+            "name": "debug-plane",
+            "position": [
+                -128,
+                -15,
+                64
+            ],
+            "scale": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "rotation": [
+                0.0,
+                1.0,
+                0.0,
+                0.0
+            ]
+        },
+        {
+            "name": "debug-plane",
+            "position": [
+                -128,
+                -15,
+                0
+            ],
+            "scale": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "rotation": [
+                0.0,
+                1.0,
+                0.0,
+                0.0
+            ]
+        },
+        {
             "name": "street-scene",
             "position": [
                 -45.0,
