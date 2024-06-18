@@ -9,7 +9,7 @@ export type TVoxels = {
   /** Number of voxels */
   VOX: number;
   /** Size of the voxel object */
-  SIZE: number[];
+  SIZE: [x: number, y: number, z: number];
   /** Voxel data */
   XYZI: { x: number; y: number; z: number; c: number }[];
   /** RGBA palette */

@@ -86,14 +86,8 @@ export class BVH {
       };
     });
     this.#childIndex = 0;
-    this.#nodes = new Array(voxelObjects.length * 2 - 1);
+    this.#nodes = [];
     this.#build(this.#allLeafNodes, 0);
-    this.#gpuBuffer = device.createBuffer({
-      size: this.#nodes.length * stride,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: false,
-      label: "bvh buffer",
-    });
     this.#writeToGpuBuffer();
   }
 
@@ -117,6 +111,12 @@ export class BVH {
     if (this.#allLeafNodes.length === 0) {
       return;
     }
+    this.#gpuBuffer = this.#device.createBuffer({
+      size: this.#nodes.length * stride,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: false,
+      label: "bvh buffer",
+    });
     const isLeaf = leafNodes.length === 1;
     if (isLeaf) {
       this.#nodes[startIndex] = {
