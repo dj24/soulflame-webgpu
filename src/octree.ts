@@ -81,6 +81,7 @@ export class Octree {
               voxel.z < originZ + voxels.SIZE[2] / 2
             );
           });
+          // No voxels in this octant, skip
           if (childVoxels.length === 0) {
             continue;
           }
