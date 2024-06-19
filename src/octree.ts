@@ -1,13 +1,9 @@
-import { vec3, Vec3 } from "wgpu-matrix";
-import { VoxelObject } from "./voxel-object";
-import { frameTimeTracker } from "./app";
 import { TVoxels } from "./convert-vxm";
+import { Vec3 } from "wgpu-matrix";
 
 const ceilToNearestMultipleOf = (n: number, multiple: number) => {
   return Math.ceil(n / multiple) * multiple;
 };
-
-const stride = ceilToNearestMultipleOf(44, 16);
 
 export const getOctreeDepthFromVoxelBounds = (size: TVoxels["SIZE"]) => {
   return Math.ceil(Math.log2(Math.max(...size)));
@@ -16,7 +12,7 @@ export const getOctreeDepthFromVoxelBounds = (size: TVoxels["SIZE"]) => {
 type OctreeNode = {
   childIndices: number[];
   voxels: TVoxels;
-  origin: [x: number, y: number, z: number];
+  origin: Vec3;
 };
 
 /**
@@ -110,3 +106,21 @@ export class Octree {
     };
   }
 }
+
+/** Iterative stack-based traversal of the octree */
+export const traverseOctree = (octree: Octree) => {
+  let stack = [0];
+  while (stack.length > 0) {
+    const nodeIndex = stack.pop()!;
+    const node = octree.nodes[nodeIndex];
+    if (node.childIndices[0] === -1) {
+      // Leaf node
+      continue;
+    }
+    for (let i = 0; i < 8; i++) {
+      if (node.childIndices[i] !== -1) {
+        stack.push(node.childIndices[i]);
+      }
+    }
+  }
+};
