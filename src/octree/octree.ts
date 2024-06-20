@@ -1,4 +1,4 @@
-import { TVoxels } from "./convert-vxm";
+import { TVoxels } from "../convert-vxm";
 import { Vec3 } from "wgpu-matrix";
 
 const ceilToNearestMultipleOf = (n: number, multiple: number) => {
@@ -10,6 +10,7 @@ export const getOctreeDepthFromVoxelBounds = (size: TVoxels["SIZE"]) => {
 };
 
 type OctreeNode = {
+  /** Indices of the 8 child nodes */
   childIndices: number[];
   voxels: TVoxels;
   origin: Vec3;
