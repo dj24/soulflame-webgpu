@@ -1,4 +1,9 @@
-import { getOctreeDepthFromVoxelBounds, Octree } from "./octree";
+import {
+  getOctantOriginFromDepthAndIndex,
+  getOctantSizeFromDepth,
+  getOctreeDepthFromVoxelBounds,
+  Octree,
+} from "./octree";
 import { TVoxels } from "../convert-vxm";
 
 describe("get depth", () => {
@@ -19,6 +24,93 @@ describe("get depth", () => {
   });
 });
 
+describe("check octant size", () => {
+  test("size of octant at depth 0 is 256", () => {
+    expect(getOctantSizeFromDepth(0, [256, 128, 256])).toBe(256);
+  });
+
+  test("size of octant at depth 1 is 128", () => {
+    expect(getOctantSizeFromDepth(1, [256, 128, 256])).toBe(128);
+  });
+
+  test("size of octant at depth 2 is 64", () => {
+    expect(getOctantSizeFromDepth(2, [256, 128, 256])).toBe(64);
+  });
+});
+
+describe.only("check octant origin position", () => {
+  test("origin of octant 0 at depth 0 is [0, 0, 0]", () => {
+    expect(getOctantOriginFromDepthAndIndex(0, 0, [256, 256, 256])).toEqual([
+      0, 0, 0,
+    ]);
+  });
+
+  describe("depth 1", () => {
+    test("origin of octant 1 at depth 1 is [128, 0, 0]", () => {
+      expect(getOctantOriginFromDepthAndIndex(1, 1, [256, 256, 256])).toEqual([
+        128, 0, 0,
+      ]);
+    });
+
+    test("origin of octant 2 at depth 1 is [0, 128, 0]", () => {
+      expect(getOctantOriginFromDepthAndIndex(1, 2, [256, 256, 256])).toEqual([
+        0, 128, 0,
+      ]);
+    });
+
+    test("origin of octant 3 at depth 1 is [0, 0, 128]", () => {
+      expect(getOctantOriginFromDepthAndIndex(1, 3, [256, 256, 256])).toEqual([
+        128, 128, 0,
+      ]);
+    });
+
+    test("origin of octant 4 at depth 1 is [128, 128, 0]", () => {
+      expect(getOctantOriginFromDepthAndIndex(1, 4, [256, 256, 256])).toEqual([
+        0, 0, 128,
+      ]);
+    });
+
+    test("origin of octant 5 at depth 1 is [128, 0, 128]", () => {
+      expect(getOctantOriginFromDepthAndIndex(1, 5, [256, 256, 256])).toEqual([
+        128, 0, 128,
+      ]);
+    });
+
+    test("origin of octant 6 at depth 1 is [0, 128, 128]", () => {
+      expect(getOctantOriginFromDepthAndIndex(1, 6, [256, 256, 256])).toEqual([
+        0, 128, 128,
+      ]);
+    });
+
+    test("origin of octant 7 at depth 1 is [128, 128, 128]", () => {
+      expect(getOctantOriginFromDepthAndIndex(1, 7, [256, 256, 256])).toEqual([
+        128, 128, 128,
+      ]);
+    });
+  });
+
+  // TODO: account for parent origin
+  describe("depth 2", () => {
+    test("origin of octant 0 at depth 2 is [0, 0, 0]", () => {
+      expect(getOctantOriginFromDepthAndIndex(2, 0, [256, 256, 256])).toEqual([
+        0, 0, 0,
+      ]);
+    });
+
+    test("origin of octant 1 at depth 2 is [64, 0, 0]", () => {
+      expect(getOctantOriginFromDepthAndIndex(2, 1, [256, 256, 256])).toEqual([
+        64, 0, 0,
+      ]);
+    });
+
+    test("origin of octant 2 at depth 2 is [0, 64, 0]", () => {
+      expect(getOctantOriginFromDepthAndIndex(2, 2, [256, 256, 256])).toEqual([
+        0, 64, 0,
+      ]);
+    });
+  });
+});
+
 describe("octree", () => {
   test("1 voxel in 8x8x8", () => {
     const voxels: TVoxels = {
@@ -29,54 +121,21 @@ describe("octree", () => {
     };
     const octree = new Octree(voxels);
     expect(octree.nodes.length).toBe(1);
+    expect(octree.nodes[0].childMask).toBe(0);
   });
 
-  describe("8 voxels along x axis in 8x8x8", () => {
-    let octree: Octree;
-    beforeEach(() => {
-      const voxels: TVoxels = {
-        SIZE: [8, 8, 8],
-        XYZI: [
-          { x: 0, y: 0, z: 0, c: 0 },
-          { x: 1, y: 0, z: 0, c: 0 },
-          { x: 2, y: 0, z: 0, c: 0 },
-          { x: 3, y: 0, z: 0, c: 0 },
-          { x: 4, y: 0, z: 0, c: 0 },
-          { x: 5, y: 0, z: 0, c: 0 },
-          { x: 6, y: 0, z: 0, c: 0 },
-          { x: 7, y: 0, z: 0, c: 0 },
-        ],
-        RGBA: [],
-        VOX: 8,
-      };
-      octree = new Octree(voxels);
-    });
-    test("has one 8x8x8 node", () => {
-      const nodesOfSize8 = octree.nodes.filter((node) => {
-        return node.voxels.SIZE[0] === 8;
-      });
-      expect(nodesOfSize8).toHaveLength(1);
-    });
-    test("has 2 4x4x4 nodes", () => {
-      const nodesOfSize4 = octree.nodes.filter((node) => {
-        return node.voxels.SIZE[0] === 4;
-      });
-      expect(nodesOfSize4).toHaveLength(2);
-    });
-    test("has 4 2x2x2 nodes", () => {
-      const nodesOfSize2 = octree.nodes.filter((node) => {
-        return node.voxels.SIZE[0] === 2;
-      });
-      expect(nodesOfSize2).toHaveLength(4);
-    });
-    test("has 8 1x1x1 nodes", () => {
-      const nodesOfSize1 = octree.nodes.filter((node) => {
-        return node.voxels.SIZE[0] === 1;
-      });
-      expect(nodesOfSize1).toHaveLength(8);
-    });
-    test("has 15 nodes", () => {
-      expect(octree.nodes).toHaveLength(15);
-    });
+  test("2 voxels in 2x2x2", () => {
+    const voxels: TVoxels = {
+      SIZE: [2, 2, 2],
+      XYZI: [
+        { x: 0, y: 0, z: 0, c: 0 },
+        { x: 1, y: 0, z: 0, c: 0 },
+      ],
+      RGBA: [],
+      VOX: 2,
+    };
+    const octree = new Octree(voxels);
+    expect(octree.nodes[0].childMask).toBe(0b11000000);
+    expect(octree.nodes.length).toBe(3);
   });
 });

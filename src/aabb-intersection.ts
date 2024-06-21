@@ -1,5 +1,4 @@
-import { vec3, Vec3 } from "wgpu-matrix";
-import { Octree } from "./octree";
+import { Vec3 } from "wgpu-matrix";
 
 type IntersectionResult = {
   tNear: number;
