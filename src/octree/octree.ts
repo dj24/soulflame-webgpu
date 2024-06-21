@@ -10,10 +10,11 @@ export const getOctreeDepthFromVoxelBounds = (size: TVoxels["SIZE"]) => {
 };
 
 type OctreeNode = {
-  /** Indices of the 8 child nodes */
-  childIndices: number[];
+  /** index of the first child node */
+  firstChildIndex: number;
+  /** bitmask of which children are present */
+  childMask: number;
   voxels: TVoxels;
-  origin: Vec3;
 };
 
 /**
@@ -35,36 +36,23 @@ export class Octree {
     startIndex: number,
   ) {
     const isLeaf = voxels.XYZI.length === 1;
-    let childIndices = [-1, -1, -1, -1, -1, -1, -1, -1];
+    let childMask = 0;
     if (isLeaf) {
+      // TODO: handle leaf
       this.nodes[startIndex] = {
-        childIndices,
+        childMask,
         voxels,
-        origin,
+        firstChildIndex: -1,
       };
       return;
     }
-    const childVoxels = voxels.XYZI.filter((voxel) => {
-      return (
-        voxel.x >= origin[0] &&
-        voxel.x < origin[0] + voxels.SIZE[0] / 2 &&
-        voxel.y >= origin[1] &&
-        voxel.y < origin[1] + voxels.SIZE[1] / 2 &&
-        voxel.z >= origin[2] &&
-        voxel.z < origin[2] + voxels.SIZE[2] / 2
-      );
-    });
-    if (childVoxels.length === 0) {
-      this.nodes[startIndex] = {
-        childIndices,
-        voxels,
-        origin,
-      };
-      return;
-    }
+    // Check if there are any voxels in each of the 8 children, if so, increment the childIndex
+    let foundVoxels = false;
+    let octantIndex = 0;
     for (let x = 0; x < 2; x++) {
       for (let y = 0; y < 2; y++) {
         for (let z = 0; z < 2; z++) {
+          octantIndex++;
           const originX = origin[0] + (voxels.SIZE[0] / 2) * x;
           const originY = origin[1] + (voxels.SIZE[1] / 2) * y;
           const originZ = origin[2] + (voxels.SIZE[2] / 2) * z;
@@ -78,50 +66,37 @@ export class Octree {
               voxel.z < originZ + voxels.SIZE[2] / 2
             );
           });
-          // No voxels in this octant, skip
-          if (childVoxels.length === 0) {
-            continue;
+          if (childVoxels.length > 0) {
+            foundVoxels = true;
+            this.#build(
+              {
+                SIZE: [
+                  voxels.SIZE[0] / 2,
+                  voxels.SIZE[1] / 2,
+                  voxels.SIZE[2] / 2,
+                ],
+                XYZI: childVoxels,
+                RGBA: voxels.RGBA,
+                VOX: childVoxels.length,
+              },
+              [origin[0], origin[1], origin[2]],
+              this.#childIndex + octantIndex,
+            );
           }
-          childIndices[x + y * 2 + z * 4] = ++this.#childIndex;
-          this.#build(
-            {
-              SIZE: [
-                voxels.SIZE[0] / 2,
-                voxels.SIZE[1] / 2,
-                voxels.SIZE[2] / 2,
-              ],
-              XYZI: childVoxels,
-              RGBA: voxels.RGBA,
-              VOX: childVoxels.length,
-            },
-            [originX, originY, originZ],
-            this.#childIndex,
-          );
         }
       }
     }
-    this.nodes[startIndex] = {
-      childIndices,
-      voxels,
-      origin,
-    };
+    if (!foundVoxels) {
+      return;
+    }
+    /*
+     * Increment by 8 to allow us to lookup nodes based on the bitmask
+     * 10000000 = 1
+     * 01000000 = 2
+     * 00100000 = 3
+     * 00010000 = 4
+     * etc
+     */
+    this.#childIndex += 8;
   }
 }
-
-/** Iterative stack-based traversal of the octree */
-export const traverseOctree = (octree: Octree) => {
-  let stack = [0];
-  while (stack.length > 0) {
-    const nodeIndex = stack.pop()!;
-    const node = octree.nodes[nodeIndex];
-    if (node.childIndices[0] === -1) {
-      // Leaf node
-      continue;
-    }
-    for (let i = 0; i < 8; i++) {
-      if (node.childIndices[i] !== -1) {
-        stack.push(node.childIndices[i]);
-      }
-    }
-  }
-};

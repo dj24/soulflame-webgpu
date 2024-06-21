@@ -1,5 +1,5 @@
 import { getOctreeDepthFromVoxelBounds, Octree } from "./octree";
-import { TVoxels } from "./convert-vxm";
+import { TVoxels } from "../convert-vxm";
 
 describe("get depth", () => {
   test("1x1x1 has depth of 1", () => {
