@@ -1,4 +1,5 @@
 import {
+  getChildMask,
   getOctantOriginFromDepthAndIndex,
   getOctantSizeFromDepth,
   getOctreeDepthFromVoxelBounds,
@@ -38,7 +39,7 @@ describe("check octant size", () => {
   });
 });
 
-describe.only("check octant origin position", () => {
+describe("check octant origin position", () => {
   test("origin of octant 0 at depth 0 is [0, 0, 0]", () => {
     expect(getOctantOriginFromDepthAndIndex(0, 0, [256, 256, 256])).toEqual([
       0, 0, 0,
@@ -108,34 +109,88 @@ describe.only("check octant origin position", () => {
         0, 64, 0,
       ]);
     });
+
+    test("origin of octant 0 with offset [128, 128, 128] at depth 2 is [128, 128, 128]", () => {
+      expect(
+        getOctantOriginFromDepthAndIndex(
+          2,
+          0,
+          [256, 256, 256],
+          [128, 128, 128],
+        ),
+      ).toEqual([128, 128, 128]);
+    });
   });
 });
 
 describe("octree", () => {
-  test("1 voxel in 8x8x8", () => {
-    const voxels: TVoxels = {
+  test.todo("1 voxel in 8x8x8");
+});
+
+describe("child mask", () => {
+  describe("1 voxel in 8x8x8 volume", () => {
+    const baseVoxels: TVoxels = {
       SIZE: [8, 8, 8],
-      XYZI: [{ x: 0, y: 0, z: 0, c: 0 }],
+      XYZI: [],
       RGBA: [],
       VOX: 1,
     };
-    const octree = new Octree(voxels);
-    expect(octree.nodes.length).toBe(1);
-    expect(octree.nodes[0].childMask).toBe(0);
-  });
-
-  test("2 voxels in 2x2x2", () => {
-    const voxels: TVoxels = {
-      SIZE: [2, 2, 2],
-      XYZI: [
-        { x: 0, y: 0, z: 0, c: 0 },
-        { x: 1, y: 0, z: 0, c: 0 },
-      ],
-      RGBA: [],
-      VOX: 2,
-    };
-    const octree = new Octree(voxels);
-    expect(octree.nodes[0].childMask).toBe(0b11000000);
-    expect(octree.nodes.length).toBe(3);
+    const octantSize = 4;
+    test("octant [0,0,0]", () => {
+      const voxels: TVoxels = {
+        ...baseVoxels,
+        XYZI: [{ x: 0, y: 0, z: 0, c: 0 }],
+      };
+      expect(getChildMask(voxels, octantSize, [0, 0, 0])).toBe(0b10000000);
+    });
+    test("octant [1,0,0]", () => {
+      const voxels: TVoxels = {
+        ...baseVoxels,
+        XYZI: [{ x: 7, y: 0, z: 0, c: 0 }],
+      };
+      expect(getChildMask(voxels, octantSize, [0, 0, 0])).toBe(0b01000000);
+    });
+    test("octant [0,1,0]", () => {
+      const voxels: TVoxels = {
+        ...baseVoxels,
+        XYZI: [{ x: 0, y: 7, z: 0, c: 0 }],
+      };
+      expect(getChildMask(voxels, octantSize, [0, 0, 0])).toBe(0b00100000);
+    });
+    test("octant [1,1,0]", () => {
+      const voxels: TVoxels = {
+        ...baseVoxels,
+        XYZI: [{ x: 7, y: 7, z: 0, c: 0 }],
+      };
+      expect(getChildMask(voxels, octantSize, [0, 0, 0])).toBe(0b00010000);
+    });
+    test("octant [0,0,1]", () => {
+      const voxels: TVoxels = {
+        ...baseVoxels,
+        XYZI: [{ x: 0, y: 0, z: 7, c: 0 }],
+      };
+      expect(getChildMask(voxels, octantSize, [0, 0, 0])).toBe(0b00001000);
+    });
+    test("octant [1,0,1]", () => {
+      const voxels: TVoxels = {
+        ...baseVoxels,
+        XYZI: [{ x: 7, y: 0, z: 7, c: 0 }],
+      };
+      expect(getChildMask(voxels, octantSize, [0, 0, 0])).toBe(0b00000100);
+    });
+    test("octant [0,1,1]", () => {
+      const voxels: TVoxels = {
+        ...baseVoxels,
+        XYZI: [{ x: 0, y: 7, z: 7, c: 0 }],
+      };
+      expect(getChildMask(voxels, octantSize, [0, 0, 0])).toBe(0b00000010);
+    });
+    test("octant [1,1,1]", () => {
+      const voxels: TVoxels = {
+        ...baseVoxels,
+        XYZI: [{ x: 7, y: 7, z: 7, c: 0 }],
+      };
+      expect(getChildMask(voxels, octantSize, [0, 0, 0])).toBe(0b00000001);
+    });
   });
 });
