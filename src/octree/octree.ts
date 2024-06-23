@@ -33,46 +33,6 @@ export const octantIndexToOffset = (index: number) => {
   return [index & 1 ? 1 : 0, index & 2 ? 1 : 0, index & 4 ? 1 : 0];
 };
 
-/**
- * Returns the size of an octant at a given depth
- * Octants are always cubic, so the root node will often be larger than the bounds of the voxel object
- * @param depth - depth of the octant
- * @param voxelObjectSize - overall size of the voxel object
- */
-export const getOctantSizeFromDepth = (
-  depth: number,
-  voxelObjectSize: [x: number, y: number, z: number],
-) => {
-  const largestLength = Math.max(...voxelObjectSize);
-  return Math.ceil(largestLength / 2 ** depth);
-};
-
-export const getChildNodeIndex = (node: OctreeNode, childIndex: number) => {
-  return node.firstChildIndex + childIndex;
-};
-
-/** Returns the origin of an octant at a given depth and index
- * @param depth - depth of the octant
- * @param index - index of the octant
- * @param voxelObjectSize - overall size of the voxel object
- * @param parentOrigin - origin of the parent octant
- */
-export const getOctantOriginFromDepthAndIndex = (
-  depth: number,
-  index: number,
-  voxelObjectSize: [x: number, y: number, z: number],
-  parentOrigin: [x: number, y: number, z: number] = [0, 0, 0],
-) => {
-  const size = getOctantSizeFromDepth(depth, voxelObjectSize);
-  const offset = octantIndexToOffset(index);
-  const scaledOffset = offset.map((o) => o * size);
-  return [
-    parentOrigin[0] + scaledOffset[0],
-    parentOrigin[1] + scaledOffset[1],
-    parentOrigin[2] + scaledOffset[2],
-  ];
-};
-
 type OctreeNode = {
   /** index of the first child node */
   firstChildIndex: number;
@@ -86,10 +46,18 @@ type OctreeNode = {
  */
 export class Octree {
   readonly nodes: OctreeNode[];
+  #pointer: number;
 
   constructor(voxels: TVoxels) {
     this.nodes = [];
+    this.#pointer = 0;
     this.#build(voxels, 0, [0, 0, 0], 0);
+  }
+
+  // Allocate memory for 8 nodes, and return the index of the first node
+  #mallocOctant() {
+    this.#pointer += 8;
+    return this.#pointer - 7;
   }
 
   #build(
@@ -98,38 +66,35 @@ export class Octree {
     offset: [x: number, y: number, z: number],
     depth: number,
   ) {
+    if (depth === 2) {
+      console.log({ startIndex, offset, depth });
+    }
+
     // The voxels contained within each child octant
     const childOctants: (TVoxels | null)[] = Array.from(
       { length: 8 },
       () => null,
     );
     const childDepth = depth + 1;
-    const childOctantSize = getOctantSizeFromDepth(childDepth, voxels.SIZE);
+
+    const childOctantSize = voxels.SIZE[0] / 2;
 
     // For each child octant, check if it contains any voxels
     for (let i = 0; i < 8; i++) {
-      const origin = getOctantOriginFromDepthAndIndex(
-        childDepth,
-        i,
-        voxels.SIZE,
-        offset,
-      );
+      const origin = octantIndexToOffset(i);
+      const x = offset[0] + origin[0] * childOctantSize;
+      const y = offset[1] + origin[1] * childOctantSize;
+      const z = offset[2] + origin[2] * childOctantSize;
+
       const octantVoxels = voxels.XYZI.filter(
         (voxel) =>
-          voxel.x >= origin[0] &&
-          voxel.x < origin[0] + childOctantSize &&
-          voxel.y >= origin[1] &&
-          voxel.y < origin[1] + childOctantSize &&
-          voxel.z >= origin[2] &&
-          voxel.z < origin[2] + childOctantSize,
+          voxel.x >= x &&
+          voxel.x < x + childOctantSize &&
+          voxel.y >= y &&
+          voxel.y < y + childOctantSize &&
+          voxel.z >= z &&
+          voxel.z < z + childOctantSize,
       );
-      console.log({
-        i,
-        voxels: voxels.XYZI,
-        origin,
-        childDepth,
-        childOctantSize,
-      });
       if (octantVoxels.length > 0) {
         childOctants[i] = {
           SIZE: [childOctantSize, childOctantSize, childOctantSize],
@@ -140,51 +105,44 @@ export class Octree {
       }
     }
 
-    /* Once we have the valid child octants, create a node for the current octant
-     * and recurse into the valid child octants */
+    // Once we have the valid child octants, create a node for the current octant
     const childMask = childOctants.reduce((mask, octantVoxels, i) => {
       return octantVoxels ? setBitLE(mask, i) : mask;
     }, 0);
 
-    const firstChildIndex = startIndex * 8;
+    // Allocate memory for 8 child nodes
+    const firstChildIndex = this.#mallocOctant();
+
+    // Create the parent node
     this.nodes[startIndex] = {
       firstChildIndex,
       childMask,
       voxels,
     };
-    // If the current octant has no children, return
-    if (childMask === 0) {
-      return;
-    }
 
-    // Leaf nodes are octants with a size of 1
-    if (childOctantSize === 1) {
-      childOctants.forEach((octantVoxels, i) => {
-        if (!octantVoxels) {
-          return;
+    childOctants.forEach((octantVoxels, i) => {
+      if (octantVoxels) {
+        const isLeaf = octantVoxels.SIZE[0] === 1;
+        const childIndex = firstChildIndex + i;
+        // Leaf node
+        if (isLeaf) {
+          this.nodes[childIndex] = {
+            firstChildIndex: -1,
+            childMask: 0,
+            voxels: octantVoxels,
+          };
+        } else {
+          const origin = octantIndexToOffset(i);
+          const x = (origin[0] * voxels.SIZE[0]) / 2;
+          const y = (origin[1] * voxels.SIZE[1]) / 2;
+          const z = (origin[2] * voxels.SIZE[2]) / 2;
+          this.#build(octantVoxels, childIndex, [x, y, z], childDepth);
         }
-        this.nodes[firstChildIndex + i] = {
-          firstChildIndex: -1,
-          childMask: 0,
-          voxels: octantVoxels,
-        };
-      });
-    }
-    // Otherwise, recurse into the child octants
-    else {
-      childOctants.forEach((octantVoxels, i) => {
-        if (!octantVoxels) {
-          return;
-        }
-        const [x, y, z] = getOctantOriginFromDepthAndIndex(
-          depth + 1,
-          i,
-          octantVoxels.SIZE,
-          offset,
-        );
-        console.log({ origin: [x, y, z], depth: depth + 1, i });
-        this.#build(octantVoxels, firstChildIndex + i, [x, y, z], depth + 1);
-      });
-    }
+      }
+    });
+  }
+
+  get totalSize() {
+    return this.nodes.length * 4;
   }
 }
