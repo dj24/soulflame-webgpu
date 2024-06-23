@@ -6,6 +6,10 @@ export const getOctreeDepthFromVoxelBounds = (size: TVoxels["SIZE"]) => {
   return Math.ceil(Math.log2(Math.max(...size)));
 };
 
+export const bitmaskToString = (bitmask: number) => {
+  return bitmask.toString(2).padStart(8, "0");
+};
+
 /** Converts an octant index to an offset in the parent octant
  * Bits represent the following octants:
  *
@@ -43,51 +47,8 @@ export const getOctantSizeFromDepth = (
   return Math.ceil(largestLength / 2 ** depth);
 };
 
-/** Returns a bitmask of which children are present in the octant
- * Bits represent the following octants:
- *
- * 0 = [0,0,0]
- *
- * 1 = [1,0,0]
- *
- * 2 = [0,1,0]
- *
- * 3 = [1,1,0]
- *
- * 4 = [0,0,1]
- *
- * 5 = [1,0,1]
- *
- * 6 = [0,1,1]
- *
- * 7 = [1,1,1]
- */
-export const getChildMask = (
-  voxels: TVoxels,
-  octantSize: number,
-  origin: [x: number, y: number, z: number],
-) => {
-  let mask = 0b00000000;
-  for (let i = 0; i < 8; i++) {
-    const offset = octantIndexToOffset(i);
-    const x = origin[0] + offset[0] * octantSize;
-    const y = origin[1] + offset[1] * octantSize;
-    const z = origin[2] + offset[2] * octantSize;
-    const isVoxelInOctant = voxels.XYZI.some((voxel) => {
-      return (
-        voxel.x >= x &&
-        voxel.x < x + octantSize &&
-        voxel.y >= y &&
-        voxel.y < y + octantSize &&
-        voxel.z >= z &&
-        voxel.z < z + octantSize
-      );
-    });
-    if (isVoxelInOctant) {
-      mask = setBitLE(mask, i);
-    }
-  }
-  return mask;
+export const getChildNodeIndex = (node: OctreeNode, childIndex: number) => {
+  return node.firstChildIndex + childIndex;
 };
 
 /** Returns the origin of an octant at a given depth and index
@@ -138,7 +99,58 @@ export class Octree {
     offset: [x: number, y: number, z: number],
     depth: number,
   ) {
-    const childMask = 0b00000000;
+    const validChildVoxels = [];
+    const octantSize = getOctantSizeFromDepth(depth + 1, voxels.SIZE);
+    // For each child octant, check if it contains any voxels
+    for (let i = 0; i < 8; i++) {
+      const origin = getOctantOriginFromDepthAndIndex(
+        depth + 1,
+        i,
+        voxels.SIZE,
+        offset,
+      );
+      if (
+        voxels.XYZI.some((voxel) => {
+          return (
+            voxel.x >= origin[0] &&
+            voxel.x < origin[0] + octantSize &&
+            voxel.y >= origin[1] &&
+            voxel.y < origin[1] + octantSize &&
+            voxel.z >= origin[2] &&
+            voxel.z < origin[2] + octantSize
+          );
+        })
+      ) {
+        validChildVoxels.push(i);
+      }
+    }
+    /* Once we have the valid child octants, create a node for the current octant
+     * and recurse into the valid child octants */
+    const childMask = validChildVoxels.reduce((mask, i) => {
+      return setBitLE(mask, i);
+    }, 0);
+
     const firstChildIndex = this.#startIndex;
+
+    this.nodes[this.#startIndex] = {
+      firstChildIndex,
+      childMask,
+      voxels,
+    };
+
+    validChildVoxels.forEach((i) => {
+      const origin = getOctantOriginFromDepthAndIndex(
+        depth + 1,
+        i,
+        voxels.SIZE,
+        offset,
+      );
+      this.#build(
+        voxels,
+        firstChildIndex + i,
+        [origin[0], origin[1], origin[2]],
+        depth + 1,
+      );
+    });
   }
 }
