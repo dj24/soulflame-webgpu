@@ -82,11 +82,10 @@ type OctreeNode = {
 };
 
 /**
- * Handles construction and GPU serialisation of an Octree for a single voxel object.
+ * Handles construction of an Octree for a single voxel object.
  */
 export class Octree {
   readonly nodes: OctreeNode[];
-  #startIndex = 0;
 
   constructor(voxels: TVoxels) {
     this.nodes = [];
@@ -99,58 +98,93 @@ export class Octree {
     offset: [x: number, y: number, z: number],
     depth: number,
   ) {
-    const validChildVoxels = [];
-    const octantSize = getOctantSizeFromDepth(depth + 1, voxels.SIZE);
+    // The voxels contained within each child octant
+    const childOctants: (TVoxels | null)[] = Array.from(
+      { length: 8 },
+      () => null,
+    );
+    const childDepth = depth + 1;
+    const childOctantSize = getOctantSizeFromDepth(childDepth, voxels.SIZE);
+
     // For each child octant, check if it contains any voxels
     for (let i = 0; i < 8; i++) {
       const origin = getOctantOriginFromDepthAndIndex(
-        depth + 1,
+        childDepth,
         i,
         voxels.SIZE,
         offset,
       );
-      if (
-        voxels.XYZI.some((voxel) => {
-          return (
-            voxel.x >= origin[0] &&
-            voxel.x < origin[0] + octantSize &&
-            voxel.y >= origin[1] &&
-            voxel.y < origin[1] + octantSize &&
-            voxel.z >= origin[2] &&
-            voxel.z < origin[2] + octantSize
-          );
-        })
-      ) {
-        validChildVoxels.push(i);
+      const octantVoxels = voxels.XYZI.filter(
+        (voxel) =>
+          voxel.x >= origin[0] &&
+          voxel.x < origin[0] + childOctantSize &&
+          voxel.y >= origin[1] &&
+          voxel.y < origin[1] + childOctantSize &&
+          voxel.z >= origin[2] &&
+          voxel.z < origin[2] + childOctantSize,
+      );
+      console.log({
+        i,
+        voxels: voxels.XYZI,
+        origin,
+        childDepth,
+        childOctantSize,
+      });
+      if (octantVoxels.length > 0) {
+        childOctants[i] = {
+          SIZE: [childOctantSize, childOctantSize, childOctantSize],
+          XYZI: octantVoxels,
+          RGBA: voxels.RGBA,
+          VOX: voxels.VOX,
+        };
       }
     }
+
     /* Once we have the valid child octants, create a node for the current octant
      * and recurse into the valid child octants */
-    const childMask = validChildVoxels.reduce((mask, i) => {
-      return setBitLE(mask, i);
+    const childMask = childOctants.reduce((mask, octantVoxels, i) => {
+      return octantVoxels ? setBitLE(mask, i) : mask;
     }, 0);
 
-    const firstChildIndex = this.#startIndex;
-
-    this.nodes[this.#startIndex] = {
+    const firstChildIndex = startIndex * 8;
+    this.nodes[startIndex] = {
       firstChildIndex,
       childMask,
       voxels,
     };
+    // If the current octant has no children, return
+    if (childMask === 0) {
+      return;
+    }
 
-    validChildVoxels.forEach((i) => {
-      const origin = getOctantOriginFromDepthAndIndex(
-        depth + 1,
-        i,
-        voxels.SIZE,
-        offset,
-      );
-      this.#build(
-        voxels,
-        firstChildIndex + i,
-        [origin[0], origin[1], origin[2]],
-        depth + 1,
-      );
-    });
+    // Leaf nodes are octants with a size of 1
+    if (childOctantSize === 1) {
+      childOctants.forEach((octantVoxels, i) => {
+        if (!octantVoxels) {
+          return;
+        }
+        this.nodes[firstChildIndex + i] = {
+          firstChildIndex: -1,
+          childMask: 0,
+          voxels: octantVoxels,
+        };
+      });
+    }
+    // Otherwise, recurse into the child octants
+    else {
+      childOctants.forEach((octantVoxels, i) => {
+        if (!octantVoxels) {
+          return;
+        }
+        const [x, y, z] = getOctantOriginFromDepthAndIndex(
+          depth + 1,
+          i,
+          octantVoxels.SIZE,
+          offset,
+        );
+        console.log({ origin: [x, y, z], depth: depth + 1, i });
+        this.#build(octantVoxels, firstChildIndex + i, [x, y, z], depth + 1);
+      });
+    }
   }
 }

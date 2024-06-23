@@ -37,6 +37,10 @@ describe("check octant size", () => {
   test("size of octant at depth 2 is 64", () => {
     expect(getOctantSizeFromDepth(2, [256, 128, 256])).toBe(64);
   });
+
+  test("size of octant at depth 1 is 2x2 in a 4x4x4 volume is 2", () => {
+    expect(getOctantSizeFromDepth(1, [4, 4, 4])).toBe(2);
+  });
 });
 
 describe("check octant origin position", () => {
@@ -123,17 +127,26 @@ describe("check octant origin position", () => {
   });
 });
 
-describe.only("octree", () => {
-  test("1 voxel in 8x8x8", () => {
+describe("octree", () => {
+  test("2 voxel in 8x8x8", () => {
     const voxels: TVoxels = {
       SIZE: [8, 8, 8],
-      XYZI: [{ x: 0, y: 0, z: 0, c: 0 }],
+      XYZI: [
+        { x: 0, y: 0, z: 0, c: 0 },
+        { x: 7, y: 0, z: 0, c: 0 },
+      ],
       RGBA: [],
       VOX: 1,
     };
     const octree = new Octree(voxels);
     console.log(
-      octree.nodes.map((node) => ({ mask: bitmaskToString(node.childMask) })),
+      octree.nodes.map((node, i) => ({
+        index: i,
+        mask: bitmaskToString(node.childMask),
+        size: node.voxels.SIZE[0],
+        pointer: node.firstChildIndex,
+        voxels: node.voxels.XYZI.length,
+      })),
     );
   });
 });

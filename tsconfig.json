@@ -10,7 +10,8 @@
     "allowImportingTsExtensions": false,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "experimentalDecorators": true
+    "experimentalDecorators": true,
+    "strictNullChecks": true,
   },
   "typedocOptions": {
   "entryPoints": ["./src/**.ts"],
