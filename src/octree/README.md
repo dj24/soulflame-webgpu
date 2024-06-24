@@ -2,13 +2,12 @@
 
 ## Bit Layout
 
-4 bytes per node
+2 bytes per node
 
 ### Non-Leaf
-- 16 bits: Relative pointer to the first child node from current node's point in memory
+- 8 bits: Relative pointer to the first child node from current node's point in memory
 - 8 bits: bit mask for the children that are present
-- 8 bits: bit mask indicating if children are leaves or not
 
 ### Leaf
-- 8 bits: palette x (colour in palette)
-- 8 bits: palette y (palette index)
+- 8 bits: 0 value (pointer of 0 is not valid, so we can use to determine leaf nodes)
+- 8 bits: palette value
