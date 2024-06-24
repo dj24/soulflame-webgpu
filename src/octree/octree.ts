@@ -178,7 +178,7 @@ export class Octree {
   }
 }
 
-export const octreeToBuffer = (octree: Octree) => {
+export const octreeToArrayBuffer = (octree: Octree) => {
   const strideBytes = 4;
   const buffer = new ArrayBuffer(octree.totalSize);
   const view = new DataView(buffer);
@@ -188,7 +188,8 @@ export const octreeToBuffer = (octree: Octree) => {
       view.setUint8(i * strideBytes, 0);
       view.setUint8(i * strideBytes + 1, node.paletteIndex);
     } else {
-      view.setUint16(i * strideBytes, node.firstChildIndex, true);
+      const relativeIndex = node.firstChildIndex - i;
+      view.setUint16(i * strideBytes, relativeIndex, true);
       view.setUint8(i * strideBytes + 2, node.childMask);
     }
   });

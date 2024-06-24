@@ -69,6 +69,14 @@ export const getBufferRaymarchPipeline = async () => {
     },
   };
 
+  const octreeBufferEntry: GPUBindGroupLayoutEntry = {
+    binding: 13,
+    visibility: GPUShaderStage.COMPUTE,
+    buffer: {
+      type: "read-only-storage",
+    },
+  };
+
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
       {
@@ -100,6 +108,7 @@ export const getBufferRaymarchPipeline = async () => {
       },
       bvhBufferEntry,
       paletteTextureEntry,
+      octreeBufferEntry,
     ],
   });
 
@@ -134,6 +143,7 @@ export const getBufferRaymarchPipeline = async () => {
           @group(0) @binding(10) var<storage> bvhNodes: array<BVHNode>;
           @group(0) @binding(11) var worldPosTex : texture_storage_2d<rgba32float, write>;
           @group(0) @binding(12) var paletteTex : texture_2d<f32>;
+          @group(0) @binding(13) var<storage> octree : array<u32>;
           ${getRayDirection}
           ${boxIntersection}
           ${raymarchVoxels}
@@ -196,6 +206,12 @@ export const getBufferRaymarchPipeline = async () => {
         {
           binding: 12,
           resource: renderArgs.volumeAtlas.paletteTextureView,
+        },
+        {
+          binding: 13,
+          resource: {
+            buffer: renderArgs.volumeAtlas.octreeBuffer,
+          },
         },
       ],
     });

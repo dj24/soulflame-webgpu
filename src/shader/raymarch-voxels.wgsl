@@ -31,6 +31,7 @@ struct VoxelObject {
   size : vec3<f32>,
   atlasLocation : vec3<f32>,
   paletteIndex : f32,
+  octreeBufferIndex: u32
 }
 
 struct RayMarchResult {
@@ -142,41 +143,6 @@ fn rayMarchTransformed(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOri
       return  rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel);
 }
 
-fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>, startingMipLevel: u32) -> RayMarchResult {
-   var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
-   let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-   var output = RayMarchResult();
-   for(var mipLevel = startingMipLevel; mipLevel > 0; mipLevel--){
-     output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel);
-     if(output.hit){
-       objectRayOrigin += (output.t - EPSILON) * objectRayDirection;
-     }
-     else{
-      return output;
-     }
-   }
-   return rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, 0);
-}
-
-const SHADOW_MIN_MIP_LEVEL =1u;
-
-fn rayMarchOctreeShadows(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>, startingMipLevel: u32) -> RayMarchResult {
-   var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
-   let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-   var output = RayMarchResult();
-   for(var mipLevel = startingMipLevel; mipLevel > SHADOW_MIN_MIP_LEVEL; mipLevel--){
-     output = rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel);
-     if(output.hit){
-       objectRayOrigin += (output.t - EPSILON) * objectRayDirection;
-     }
-     else{
-      return output;
-     }
-   }
-   return rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, SHADOW_MIN_MIP_LEVEL);
-}
-
-
 struct Stack {
   arr: array<i32, STACK_LEN>,
 	head: u32,
@@ -196,6 +162,88 @@ fn stack_pop(stack: ptr<function, Stack>) -> i32 {
     (*stack).head -= 1u;
     return (*stack).arr[(*stack).head];
 }
+
+// if first 8 bytes are empty, then it is a leaf node
+fn isLeaf(node: u32) -> bool {
+  let firstByte = node & 0xFFu;
+  return firstByte == 0;
+}
+
+// second 8 bits are the palette index
+fn unpackLeaf(node: u32) -> u32 {
+  return (node >> 8u) & 0xFFu;
+}
+
+struct InternalNode {
+  firstChildOffset: u32,
+  childMask: u32
+}
+
+// 16 bit relative offset to the first child node, then 8 bits for the child bitmask
+fn unpackInternal(node: u32) -> InternalNode {
+  var output = InternalNode();
+  output.firstChildOffset = node & 0xFFFFu;
+  output.childMask = (node >> 16u) & 0xFFu;
+  return output;
+}
+
+fn getNodeSizeAtDepth(rootSize: u32, depth: u32) -> u32 {
+  return rootSize >> depth;
+}
+
+// get the offset of the child node at the given index (0-7
+fn octantIndexToOffset(index: u32) -> vec3<u32> {
+  return vec3<u32>(
+    select(0u, 1u, (index & 1u) != 0u),
+    select(0u, 1u, (index & 2u) != 0u),
+    select(0u, 1u, (index & 4u) != 0u)
+  );
+}
+
+fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) -> RayMarchResult {
+    let objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
+    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+    var output = RayMarchResult();
+
+    var stack = stack_new();
+    stack_push(&stack, 0);
+
+    var depth = 0u;
+    let maxAxisSize = max(voxelObject.size.x, max(voxelObject.size.y, voxelObject.size.z));
+    var size = getNodeSizeAtDepth(u32(maxAxisSize), depth);
+    var nodeIndex = 0;
+    var iterations = 0;
+
+    while (stack.head > 0u && iterations < MAX_STEPS) {
+      let node = octreeBuffer[nodeIndex];
+      if(isLeaf(node)){
+        // TODO: Implement leaf node intersection
+        return output;
+      }
+      else{
+        let internalNode = unpackInternal(node);
+        let firstChildIndex = nodeIndex + internalNode.firstChildOffset;
+        // Check if each child is filled via the bitmask
+        for(var i = 0; i < 8; i++){
+          // If the child is filled, check it for intersection
+          if(getBit(internalNode.childMask, i)){
+//            let offsetWithinOctant = octantIndexToOffset(i);
+
+          }
+        }
+      }
+      iterations += 1;
+    }
+
+
+//    let intersection = boxIntersection(objectRayOrigin, objectRayDirection, vec3(f32(size)) / 2);
+//    output.hit = intersection.isHit;
+//    output.normal = intersection.normal;
+//    output.t = intersection.tNear;
+
+    return output;
+}
+
 
 const colours = array<vec3<f32>, 6>(
   vec3<f32>(1.0, 0.0, 0.0),

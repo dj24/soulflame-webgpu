@@ -1,4 +1,4 @@
-import { device, RenderPass, RenderArgs, resolution } from "../app";
+import { device, RenderPass, RenderArgs } from "../app";
 import { GBufferTexture } from "../abstractions/g-buffer-texture";
 import { getWorldPosReconstructionPipeline } from "./passes/get-world-pos-reconstruction-pass";
 import { getInterpolatePipeline } from "./passes/get-interpolation-pass";

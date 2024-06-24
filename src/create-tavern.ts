@@ -7,6 +7,7 @@ import { convertVxm } from "./convert-vxm";
 import { createTextureFromVoxels } from "./create-texture-from-voxels/create-texture-from-voxels";
 import { createPaletteTextureFromVoxels } from "./create-texture-from-voxels/create-palette-texture-from-voxels";
 import { writeTextureToCanvas } from "./write-texture-to-canvas";
+import { Octree, octreeToArrayBuffer } from "./octree/octree";
 
 export let voxelObjects: VoxelObject[] = [];
 
@@ -24,10 +25,10 @@ type TSceneDefinition = {
 };
 
 const NAME_ALLOWLIST = [
-  "street-scene",
-  "debug-plane",
+  // "street-scene",
+  // "debug-plane",
   "Dragon",
-  "monu10",
+  // "monu10",
   // "teapot",
   // "sponza-small",
   // "Sponza",
@@ -52,11 +53,7 @@ const NAME_ALLOWLIST = [
   // "Tavern",
 ];
 
-const processTavernObject = async (
-  commandEncoder: GPUCommandEncoder,
-  name: string,
-  device: GPUDevice,
-) => {
+const processTavernObject = async (name: string, device: GPUDevice) => {
   console.time(`Fetch ${name}`);
   const response = await fetch(`./Tavern/${name}.vxm`);
   console.timeEnd(`Fetch ${name}`);
@@ -69,11 +66,16 @@ const processTavernObject = async (
   let texture = await createTextureFromVoxels(device, voxels);
   console.timeEnd(`Create texture from voxels for ${name}`);
 
+  console.time(`Create octree for ${name}`);
+  const octree = new Octree(voxels);
+  const octreeArrayBuffer = octreeToArrayBuffer(octree);
+  console.timeEnd(`Create octree for ${name}`);
+
   console.time(`Create palette texture for ${name}`);
   const palette = await createPaletteTextureFromVoxels(device, voxels);
   console.timeEnd(`Create palette texture for ${name}`);
 
-  return { name, texture, palette };
+  return { name, texture, palette, octreeArrayBuffer };
 };
 
 export const createTavern = async (
@@ -88,27 +90,20 @@ export const createTavern = async (
   const uniqueChildNames = new Set(childObjects.map((child) => child.name));
   const uniqueChildNamesArray = Array.from(uniqueChildNames);
 
-  let commandEncoder = device.createCommandEncoder();
-
   console.time("Load all volumes");
   {
     let textures = await Promise.all(
-      uniqueChildNamesArray.map((name) =>
-        processTavernObject(commandEncoder, name, device),
-      ),
+      uniqueChildNamesArray.map((name) => processTavernObject(name, device)),
     );
-    for (const { name, texture, palette } of textures) {
+    for (const { name, texture, palette, octreeArrayBuffer } of textures) {
       console.time(`Add volume for ${name}`);
-      await volumeAtlas.addVolume(texture, palette, name);
-      commandEncoder = device.createCommandEncoder();
+      await volumeAtlas.addVolume(texture, palette, name, octreeArrayBuffer);
       console.timeEnd(`Add volume for ${name}`);
     }
   }
 
   console.timeEnd("Load all volumes");
-
   const volumes = volumeAtlas.dictionary;
-
   let torchPositions = [];
 
   for (const child of childObjects) {
@@ -133,6 +128,7 @@ export const createTavern = async (
         atlasLocation: location,
         name,
         paletteIndex,
+        octreeBufferIndex: 0,
       }),
     );
   }

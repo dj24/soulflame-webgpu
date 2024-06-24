@@ -4,7 +4,7 @@ import {
   getOctreeDepthFromVoxelBounds,
   LeafNode,
   Octree,
-  octreeToBuffer,
+  octreeToArrayBuffer,
 } from "./octree";
 import { TVoxels } from "../convert-vxm";
 

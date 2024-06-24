@@ -6,6 +6,7 @@ struct VoxelObject {
   size : vec3<f32>,
   atlasLocation : vec3<f32>,
   paletteIndex : f32,
+  octreeBufferIndex: u32
 }
 
 @binding(0) @group(0) var<uniform> modelViewProjectionMatrix : mat4x4f;

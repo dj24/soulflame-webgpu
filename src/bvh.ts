@@ -112,7 +112,7 @@ export class BVH {
       return;
     }
     this.#gpuBuffer = this.#device.createBuffer({
-      size: this.#nodes.length * stride,
+      size: Math.max(this.#nodes.length, 1) * stride,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       mappedAtCreation: false,
       label: "bvh buffer",

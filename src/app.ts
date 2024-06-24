@@ -401,9 +401,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
   );
 
   const getVoxelObjectsBuffer = () => {
-    const voxelObjectsInFrustrum = voxelObjects;
-
-    const voxelObjectsArray = voxelObjectsInFrustrum.flatMap((voxelObject) =>
+    const voxelObjectsArray = voxelObjects.flatMap((voxelObject) =>
       voxelObject.toArray(),
     );
 
@@ -419,7 +417,7 @@ const beginRenderLoop = (device: GPUDevice, computePasses: RenderPass[]) => {
         size: new Float32Array(voxelObjectsArray).byteLength,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         mappedAtCreation: false,
-        label: "voxel objects transforms buffer",
+        label: "voxel objects buffer",
       });
     }
   };
@@ -574,18 +572,18 @@ const computePasses = await Promise.all([
   getClearPass(),
   // getHelloTrianglePass(),
   getGBufferPass(),
-  getShadowsPass(),
-  getSkyPass(),
+  // getShadowsPass(),
+  // getSkyPass(),
   // getLightsPass(),
-  getTaaPass(),
-  getFogPass(),
-  getBloomPass(),
-  getMotionBlurPass(),
-  getTonemapPass(),
-  getLutPass("luts/Reeve 38.CUBE"),
+  // getTaaPass(),
+  // getFogPass(),
+  // getBloomPass(),
+  // getMotionBlurPass(),
+  // getTonemapPass(),
+  // getLutPass("luts/Reeve 38.CUBE"),
   // getVignettePass(15.0),
   fullscreenQuad(device),
-  // getBoxOutlinePass(),
+  getBoxOutlinePass(),
 ]);
 beginRenderLoop(device, await Promise.all(computePasses));
 debugUI.setupDebugControls(computePasses);

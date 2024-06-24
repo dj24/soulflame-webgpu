@@ -5,7 +5,7 @@
 2 bytes per node
 
 ### Non-Leaf
-- 8 bits: Relative pointer to the first child node from current node's point in memory
+- 16 bits: Relative pointer to the first child node from current node's point in memory
 - 8 bits: bit mask for the children that are present
 
 ### Leaf

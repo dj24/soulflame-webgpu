@@ -2,6 +2,7 @@ import { Vec3 } from "wgpu-matrix";
 import { VOLUME_ATLAS_FORMAT, VOLUME_MIP_LEVELS } from "./constants";
 import { writeTextureToCanvas } from "./write-texture-to-canvas";
 import { generateOctreeMips } from "./create-3d-texture/generate-octree-mips";
+import { device } from "./app";
 
 const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
   format: VOLUME_ATLAS_FORMAT,
@@ -52,6 +53,7 @@ export class VolumeAtlas {
   #device: GPUDevice;
   #atlasTextureView: GPUTextureView;
   #paletteTextureView: GPUTextureView;
+  #octreeBuffer: GPUBuffer;
 
   constructor(device: GPUDevice) {
     this.#device = device;
@@ -81,6 +83,12 @@ export class VolumeAtlas {
     });
     this.#atlasTextureView = this.#atlasTexture.createView();
     this.#paletteTextureView = this.#paletteTexture.createView();
+    this.#octreeBuffer = device.createBuffer({
+      size: 4,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: true,
+      label: "Octree buffer",
+    });
   }
 
   get dictionary() {
@@ -91,6 +99,7 @@ export class VolumeAtlas {
     volume: GPUTexture,
     palette: GPUTexture,
     label: string,
+    octreeArrayBuffer: ArrayBuffer,
   ) => {
     if (this.#dictionary[label]) {
       throw new Error(
@@ -224,27 +233,37 @@ export class VolumeAtlas {
 
     this.#paletteTexture = newPaletteTexture;
 
+    // Resize the octree buffer to fit the new data
+    const newOctreeBuffer = this.#device.createBuffer({
+      label: "Octree buffer",
+      size: this.#octreeBuffer.size + octreeArrayBuffer.byteLength,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    });
+
+    // await this.#octreeBuffer.mapAsync(GPUMapMode.READ);
+
+    // write existing data to the new buffer
+    this.#device.queue.writeBuffer(
+      newOctreeBuffer,
+      0,
+      this.#octreeBuffer.getMappedRange(),
+    );
+
+    // write new data to the new buffer
+    this.#device.queue.writeBuffer(
+      newOctreeBuffer,
+      this.#octreeBuffer.size,
+      octreeArrayBuffer,
+    );
+
     this.#device.queue.submit([commandEncoder.finish()]);
     await this.#device.queue.onSubmittedWorkDone();
 
+    this.#octreeBuffer = newOctreeBuffer;
     this.#atlasTexture = await generateOctreeMips(
       this.#device,
       this.#atlasTexture,
     );
-
-    // writeTextureToCanvas(
-    //   this.#device,
-    //   "debug-canvas",
-    //   this.#paletteTexture,
-    //   this.paletteTextureView,
-    // );
-
-    //TODO: adjust to use render pipeline to support 8 bit format
-    // const zSliceTexture = await flipTexture(
-    //   device,
-    //   await flatten3dTexture(device, newAtlasTexture),
-    // );
-    // writeTextureToCanvas(device, "debug-canvas", zSliceTexture);
     this.#atlasTextureView = this.#atlasTexture.createView();
     this.#paletteTextureView = this.#paletteTexture.createView();
   };
@@ -255,5 +274,9 @@ export class VolumeAtlas {
 
   get paletteTextureView() {
     return this.#paletteTextureView;
+  }
+
+  get octreeBuffer() {
+    return this.#octreeBuffer;
   }
 }

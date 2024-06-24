@@ -40,6 +40,8 @@ export class VoxelObject extends MovableObject {
   #atlasLocation: Vec3;
   /** Index of the palette in the palette texture */
   #paletteIndex: number;
+  /** Index of the object in the octree buffer */
+  #octreeBufferIndex: number;
 
   constructor({
     position,
@@ -49,6 +51,7 @@ export class VoxelObject extends MovableObject {
     atlasLocation,
     name = "unnamed",
     paletteIndex,
+    octreeBufferIndex,
   }: {
     position: Vec3;
     rotation: Vec3;
@@ -57,6 +60,7 @@ export class VoxelObject extends MovableObject {
     atlasLocation: Vec3;
     name: string;
     paletteIndex: number;
+    octreeBufferIndex: number;
   }) {
     super({
       position,
@@ -68,6 +72,7 @@ export class VoxelObject extends MovableObject {
     this.#size = size;
     this.#atlasLocation = atlasLocation;
     this.#paletteIndex = paletteIndex;
+    this.#octreeBufferIndex = octreeBufferIndex;
   }
 
   get objectSpaceCorners() {
@@ -110,6 +115,10 @@ export class VoxelObject extends MovableObject {
       ...this.#atlasLocation,
       // 0.0, //padding for 4 byte stride
       this.#paletteIndex,
+      0.0, //padding for 4 byte stride
+      0.0, //padding for 4 byte stride
+      0.0, //padding for 4 byte stride
+      this.#octreeBufferIndex,
     ];
   }
 }
