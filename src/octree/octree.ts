@@ -33,13 +33,22 @@ export const octantIndexToOffset = (index: number) => {
   return [index & 1 ? 1 : 0, index & 2 ? 1 : 0, index & 4 ? 1 : 0];
 };
 
-type OctreeNode = {
+export type InternalNode = {
   /** index of the first child node */
   firstChildIndex: number;
   /** bitmask of which children are present */
   childMask: number;
   voxels: TVoxels;
 };
+
+export type LeafNode = {
+  /** 0 if this is a leaf node */
+  leafFlag: 0;
+  /** index of the palette color */
+  paletteIndex: number;
+};
+
+type OctreeNode = InternalNode | LeafNode;
 
 /**
  * Handles construction of an Octree for a single voxel object.
@@ -66,10 +75,6 @@ export class Octree {
     offset: [x: number, y: number, z: number],
     depth: number,
   ) {
-    if (depth === 2) {
-      console.log({ startIndex, offset, depth });
-    }
-
     // The voxels contained within each child octant
     const childOctants: (TVoxels | null)[] = Array.from(
       { length: 8 },
@@ -95,6 +100,7 @@ export class Octree {
           voxel.z >= z &&
           voxel.z < z + childOctantSize,
       );
+
       if (octantVoxels.length > 0) {
         childOctants[i] = {
           SIZE: [childOctantSize, childOctantSize, childOctantSize],
@@ -120,6 +126,8 @@ export class Octree {
       voxels,
     };
 
+    const childSize = voxels.SIZE[0] / 2;
+
     childOctants.forEach((octantVoxels, i) => {
       if (octantVoxels) {
         const isLeaf = octantVoxels.SIZE[0] === 1;
@@ -127,15 +135,14 @@ export class Octree {
         // Leaf node
         if (isLeaf) {
           this.nodes[childIndex] = {
-            firstChildIndex: -1,
-            childMask: 0,
-            voxels: octantVoxels,
+            leafFlag: 0,
+            paletteIndex: octantVoxels.XYZI[0].c,
           };
         } else {
           const origin = octantIndexToOffset(i);
-          const x = (origin[0] * voxels.SIZE[0]) / 2;
-          const y = (origin[1] * voxels.SIZE[1]) / 2;
-          const z = (origin[2] * voxels.SIZE[2]) / 2;
+          const x = offset[0] + origin[0] * childSize;
+          const y = offset[1] + origin[1] * childSize;
+          const z = offset[2] + origin[2] * childSize;
           this.#build(octantVoxels, childIndex, [x, y, z], childDepth);
         }
       }
@@ -146,3 +153,21 @@ export class Octree {
     return this.nodes.length * 4;
   }
 }
+
+export const octreeToBuffer = (octree: Octree) => {
+  const strideBytes = 4;
+  const buffer = new ArrayBuffer(octree.totalSize);
+  const view = new DataView(buffer);
+
+  octree.nodes.forEach((node, i) => {
+    if ("leafFlag" in node) {
+      view.setUint8(i * strideBytes, 0);
+      view.setUint8(i * strideBytes + 1, node.paletteIndex);
+    } else {
+      view.setUint16(i * strideBytes, node.firstChildIndex, true);
+      view.setUint8(i * strideBytes + 2, node.childMask);
+    }
+  });
+
+  return buffer;
+};
