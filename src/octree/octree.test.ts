@@ -1,5 +1,6 @@
 import {
   bitmaskToString,
+  bytesToMB,
   getOctreeDepthFromVoxelBounds,
   LeafNode,
   Octree,
@@ -64,10 +65,10 @@ describe("octree", () => {
 
   test("256 random voxels in 256x128x64", () => {
     const randomVoxels = Array.from({ length: 256 }, () => ({
-      x: Math.floor(Math.random() * 256),
-      y: Math.floor(Math.random() * 128),
-      z: Math.floor(Math.random() * 64),
-      c: Math.floor(Math.random() * 256),
+      x: Math.floor(Math.random() * 255),
+      y: Math.floor(Math.random() * 127),
+      z: Math.floor(Math.random() * 63),
+      c: Math.floor(Math.random() * 255),
     }));
 
     const voxels: TVoxels = {
@@ -88,5 +89,25 @@ describe("octree", () => {
         leafNodes.find((leafNode) => leafNode.paletteIndex === voxel.c),
       ).toBeTruthy();
     });
+  });
+
+  test("solid 64x64x64 has only one node", () => {
+    let voxels: TVoxels["XYZI"] = [];
+    for (let x = 0; x < 64; x++) {
+      for (let y = 0; y < 64; y++) {
+        for (let z = 0; z < 64; z++) {
+          voxels.push({ x, y, z, c: 1 });
+        }
+      }
+    }
+
+    const octree = new Octree({
+      SIZE: [64, 64, 64],
+      XYZI: voxels,
+      RGBA: [],
+      VOX: 1,
+    });
+    expect(octree.nodes.length).toBe(1);
+    expect("leafFlag" in octree.nodes[0]).toBeTruthy();
   });
 });

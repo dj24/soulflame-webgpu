@@ -6,6 +6,10 @@ export const getOctreeDepthFromVoxelBounds = (size: TVoxels["SIZE"]) => {
   return Math.ceil(Math.log2(Math.max(...size)));
 };
 
+export const bytesToMB = (bytes: number) => {
+  return bytes / 1024 / 1024;
+};
+
 export const bitmaskToString = (bitmask: number) => {
   return bitmask.toString(2).padStart(8, "0");
 };
@@ -64,9 +68,9 @@ export class Octree {
   }
 
   // Allocate memory for 8 nodes, and return the index of the first node
-  #mallocOctant() {
-    this.#pointer += 8;
-    return this.#pointer - 7;
+  #mallocOctant(nodeCount = 8) {
+    this.#pointer += nodeCount;
+    return this.#pointer - (nodeCount - 1);
   }
 
   #build(
@@ -111,13 +115,33 @@ export class Octree {
       }
     }
 
+    // Count the number of valid child octants, so we know how many child nodes to allocate
+    let requiredChildNodes = 0;
+
     // Once we have the valid child octants, create a node for the current octant
     const childMask = childOctants.reduce((mask, octantVoxels, i) => {
-      return octantVoxels ? setBitLE(mask, i) : mask;
+      if (octantVoxels) {
+        requiredChildNodes = i + 1;
+        return setBitLE(mask, i);
+      }
+      return mask;
     }, 0);
 
+    const isAllSameColor = voxels.XYZI.every(
+      (voxel) => voxel.c === voxels.XYZI[0].c,
+    );
+
+    // If all child octants are filled with the same colour, this is a leaf (solid) node
+    if (childMask === 255 && isAllSameColor) {
+      this.nodes[startIndex] = {
+        leafFlag: 0,
+        paletteIndex: voxels.XYZI[0].c,
+      };
+      return;
+    }
+
     // Allocate memory for 8 child nodes
-    const firstChildIndex = this.#mallocOctant();
+    const firstChildIndex = this.#mallocOctant(requiredChildNodes);
 
     // Create the parent node
     this.nodes[startIndex] = {
