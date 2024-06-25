@@ -20,6 +20,8 @@ type VolumeAtlasEntry = {
   size: Vec3;
   /** The y position of the volume in the atlas texture */
   paletteIndex: number;
+  /** The offset of the octree in the octree buffer */
+  octreeOffset: number;
 };
 
 export type VolumeAtlasDictionary = {
@@ -84,8 +86,11 @@ export class VolumeAtlas {
     this.#atlasTextureView = this.#atlasTexture.createView();
     this.#paletteTextureView = this.#paletteTexture.createView();
     this.#octreeBuffer = device.createBuffer({
-      size: 4,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      size: 0,
+      usage:
+        GPUBufferUsage.STORAGE |
+        GPUBufferUsage.COPY_DST |
+        GPUBufferUsage.COPY_SRC,
       mappedAtCreation: true,
       label: "Octree buffer",
     });
@@ -183,6 +188,7 @@ export class VolumeAtlas {
       location: [atlasLocationX, 0, 0],
       size: [width, height, depthOrArrayLayers],
       paletteIndex,
+      octreeOffset: this.#octreeBuffer.size,
     };
 
     // Copy the old palette texture into the new larger one
@@ -237,10 +243,8 @@ export class VolumeAtlas {
     const newOctreeBuffer = this.#device.createBuffer({
       label: "Octree buffer",
       size: this.#octreeBuffer.size + octreeArrayBuffer.byteLength,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      usage: this.#octreeBuffer.usage,
     });
-
-    // await this.#octreeBuffer.mapAsync(GPUMapMode.READ);
 
     // write existing data to the new buffer
     this.#device.queue.writeBuffer(
@@ -260,6 +264,29 @@ export class VolumeAtlas {
     await this.#device.queue.onSubmittedWorkDone();
 
     this.#octreeBuffer = newOctreeBuffer;
+
+    // DEBUG OCTREE
+    {
+      const copyOctreeBuffer = this.#device.createBuffer({
+        label: "Octree buffer copy",
+        size: this.#octreeBuffer.size,
+        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+      });
+      const copyCommandEncoder = this.#device.createCommandEncoder();
+      copyCommandEncoder.copyBufferToBuffer(
+        this.#octreeBuffer,
+        0,
+        copyOctreeBuffer,
+        0,
+        this.#octreeBuffer.size,
+      );
+      this.#device.queue.submit([copyCommandEncoder.finish()]);
+      await this.#device.queue.onSubmittedWorkDone();
+      await copyOctreeBuffer.mapAsync(GPUMapMode.READ);
+      const arrayBuffer = copyOctreeBuffer.getMappedRange(0, 16);
+      console.log(new Uint8Array(arrayBuffer));
+    }
+
     this.#atlasTexture = await generateOctreeMips(
       this.#device,
       this.#atlasTexture,

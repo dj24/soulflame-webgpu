@@ -185,9 +185,19 @@ export const octreeToArrayBuffer = (octree: Octree) => {
 
   octree.nodes.forEach((node, i) => {
     if ("leafFlag" in node) {
+      if (i < 4) {
+        console.log(
+          `Setting leaf node at ${i} with colour ${node.paletteIndex}}`,
+        );
+      }
       view.setUint8(i * strideBytes, 0);
       view.setUint8(i * strideBytes + 1, node.paletteIndex);
     } else {
+      if (i < 4) {
+        console.log(
+          `Setting internal node at ${i} with firstChildIndex ${node.firstChildIndex} and childMask ${node.childMask}`,
+        );
+      }
       const relativeIndex = node.firstChildIndex - i;
       view.setUint16(i * strideBytes, relativeIndex, true);
       view.setUint8(i * strideBytes + 2, node.childMask);

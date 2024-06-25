@@ -117,7 +117,7 @@ export const createTavern = async (
     }
 
     const { position, rotation, scale, name } = child;
-    const { size, location, paletteIndex } = volume;
+    const { size, location, paletteIndex, octreeOffset } = volume;
 
     voxelObjects.push(
       new VoxelObject({
@@ -128,7 +128,7 @@ export const createTavern = async (
         atlasLocation: location,
         name,
         paletteIndex,
-        octreeBufferIndex: 0,
+        octreeBufferIndex: octreeOffset,
       }),
     );
   }
