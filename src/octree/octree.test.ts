@@ -3,6 +3,7 @@ import {
   bytesToMB,
   getOctreeDepthFromVoxelBounds,
   LeafNode,
+  octantIndexToOffset,
   Octree,
   octreeToArrayBuffer,
 } from "./octree";
@@ -109,5 +110,19 @@ describe("octree", () => {
     });
     expect(octree.nodes.length).toBe(1);
     expect("leafFlag" in octree.nodes[0]).toBeTruthy();
+  });
+});
+
+describe("octant index to offset", () => {
+  test("0 to [0, 0, 0]", () => {
+    expect(octantIndexToOffset(0)).toEqual([0, 0, 0]);
+  });
+
+  test("1 to [1, 0, 0]", () => {
+    expect(octantIndexToOffset(1)).toEqual([1, 0, 0]);
+  });
+
+  test("2 to [0, 1, 0]", () => {
+    expect(octantIndexToOffset(2)).toEqual([0, 1, 0]);
   });
 });

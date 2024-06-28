@@ -47,3 +47,12 @@ test("can clear bit at position 2", () => {
 test("can clear bit at position 3", () => {
   expect(clearBit(8, 3)).toBe(0);
 });
+
+test("can get bit at position 0", () => {
+  expect(getBit(1, 0)).toBe(true);
+});
+
+test("can get bit at position 7", () => {
+  expect(getBit(128, 7)).toBe(true);
+  expect(getBit(128, 6)).toBe(false);
+});

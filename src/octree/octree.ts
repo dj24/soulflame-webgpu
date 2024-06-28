@@ -1,5 +1,5 @@
 import { TVoxels } from "../convert-vxm";
-import { setBitLE } from "./bitmask";
+import { setBit, setBitLE } from "./bitmask";
 
 /** Returns the depth of the octree required to contain the given voxel bounds */
 export const getOctreeDepthFromVoxelBounds = (size: TVoxels["SIZE"]) => {
@@ -35,6 +35,10 @@ export const bitmaskToString = (bitmask: number) => {
  */
 export const octantIndexToOffset = (index: number) => {
   return [index & 1 ? 1 : 0, index & 2 ? 1 : 0, index & 4 ? 1 : 0];
+};
+
+const ceilToNextPowerOfTwo = (n: number) => {
+  return Math.pow(2, Math.ceil(Math.log2(n)));
 };
 
 export type InternalNode = {
@@ -85,8 +89,8 @@ export class Octree {
       () => null,
     );
     const childDepth = depth + 1;
-
-    const childOctantSize = voxels.SIZE[0] / 2;
+    const objectSize = ceilToNextPowerOfTwo(Math.max(...voxels.SIZE));
+    const childOctantSize = objectSize / 2;
 
     // For each child octant, check if it contains any voxels
     for (let i = 0; i < 8; i++) {
@@ -122,7 +126,8 @@ export class Octree {
     const childMask = childOctants.reduce((mask, octantVoxels, i) => {
       if (octantVoxels) {
         requiredChildNodes = i + 1;
-        return setBitLE(mask, i);
+        return setBit(mask, i);
+        // return setBitLE(mask, i);
       }
       return mask;
     }, 0);
@@ -137,6 +142,11 @@ export class Octree {
         leafFlag: 0,
         paletteIndex: voxels.XYZI[0].c,
       };
+      console.log({
+        index: startIndex,
+        leafFlag: 0,
+        paletteIndex: voxels.XYZI[0].c,
+      });
       return;
     }
 
@@ -147,10 +157,16 @@ export class Octree {
     this.nodes[startIndex] = {
       firstChildIndex,
       childMask,
-      voxels,
+      voxels: { ...voxels, SIZE: [objectSize, objectSize, objectSize] },
     };
 
-    const childSize = voxels.SIZE[0] / 2;
+    console.log({
+      index: startIndex,
+      objectSize,
+      childOctantSize,
+      firstChildIndex,
+      mask: bitmaskToString(childMask),
+    });
 
     childOctants.forEach((octantVoxels, i) => {
       if (octantVoxels) {
@@ -164,9 +180,9 @@ export class Octree {
           };
         } else {
           const origin = octantIndexToOffset(i);
-          const x = offset[0] + origin[0] * childSize;
-          const y = offset[1] + origin[1] * childSize;
-          const z = offset[2] + origin[2] * childSize;
+          const x = offset[0] + origin[0] * childOctantSize;
+          const y = offset[1] + origin[1] * childOctantSize;
+          const z = offset[2] + origin[2] * childOctantSize;
           this.#build(octantVoxels, childIndex, [x, y, z], childDepth);
         }
       }

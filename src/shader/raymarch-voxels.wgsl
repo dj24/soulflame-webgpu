@@ -211,7 +211,6 @@ fn getNodeSizeAtDepth(rootSize: u32, depth: u32) -> u32 {
   return rootSize >> depth;
 }
 
-// get the offset of the child node at the given index (0-7
 fn octantIndexToOffset(index: u32) -> vec3<u32> {
   return vec3<u32>(
     select(0u, 1u, (index & 1u) != 0u),
@@ -224,6 +223,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     let objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
     var output = RayMarchResult();
+    output.t = FAR_PLANE;
 
     var nodeStack = stack_new();
     var depthStack = stack_new();
@@ -239,13 +239,23 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     var size = getNodeSizeAtDepth(u32(maxAxisSize), depth);
     var nodeIndex = 0u;
     var iterations = 0;
+    var deepestHitDepth = 0u;
 
 
     while (nodeStack.head > 0u && iterations < MAX_STEPS) {
       let node = octreeBuffer[nodeIndex];
       if(nodeIndex > 0 && isLeaf(node)){
         // TODO: Implement leaf node intersection
-        return output;
+        // Transform the ray into the child node's space
+        let childRayOrigin = objectRayOrigin - vec3<f32>(parentOffset);
+        let boxSize = vec3(f32(getNodeSizeAtDepth(size, depth))) / 2;
+        let intersection = boxIntersection(childRayOrigin, objectRayDirection, boxSize);
+        if(intersection.isHit && intersection.tNear < output.t && depth >= deepestHitDepth){
+          output.hit = true;
+          output.normal = intersection.normal;
+          output.t = intersection.tNear;
+          deepestHitDepth = depth;
+        }
       }
       else{
         let internalNode = unpackInternal(node);
@@ -260,17 +270,22 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
               let childNodeIndex = firstChildIndex + i;
 
               // Transform the ray into the child node's space
-              let childOffset = offsetWithinOctant * octantSize;
-              let childRayOrigin = objectRayOrigin - vec3<f32>(childOffset) - vec3<f32>(parentOffset);
+              let childOffset = vec3<u32>(parentOffset) + offsetWithinOctant * octantSize;
+              let childRayOrigin = objectRayOrigin - vec3<f32>(childOffset);
               let boxSize = vec3(f32(octantSize)) / 2;
               let intersection = boxIntersection(childRayOrigin, objectRayDirection, boxSize);
+
+              // If we hit the child node, so push it onto the stack to check its children
               if(intersection.isHit){
                   stack_push(&nodeStack, i32(childNodeIndex));
                   stack_push(&depthStack, i32(octantDepth));
                   stack3_push(&offsetsStack, vec3<i32>(childOffset));
-                  output.hit = true;
-                  output.normal = intersection.normal;
-                  output.t = intersection.tNear;
+                  if(octantDepth == 2 && intersection.tNear < output.t){
+                        output.hit = true;
+                        output.normal = vec3(f32(i % 3), f32((i + 1) % 3), f32((i + 2) % 3));
+                        output.t = intersection.tNear;
+                  }
+
               }
           }
         }
