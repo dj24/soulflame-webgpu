@@ -101,26 +101,26 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     });
 
     // Interpolate
-    computePass = commandEncoder.beginComputePass({
-      timestampWrites: {
-        querySet: timestampWrites.querySet,
-        beginningOfPassWriteIndex:
-          timestampWrites.beginningOfPassWriteIndex + 2,
-        endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 2,
-      },
-    });
-    interpolate(
-      computePass,
-      renderArgs,
-      copyTextures.albedoTexture.view,
-      copyTextures.velocityTexture.view,
-      copyTextures.depthTexture.view,
-      copyTextures.normalTexture.view,
-      indirectBuffer,
-      screenRayBuffer,
-      counterBuffer,
-    );
-    computePass.end();
+    // computePass = commandEncoder.beginComputePass({
+    //   timestampWrites: {
+    //     querySet: timestampWrites.querySet,
+    //     beginningOfPassWriteIndex:
+    //       timestampWrites.beginningOfPassWriteIndex + 2,
+    //     endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 2,
+    //   },
+    // });
+    // interpolate(
+    //   computePass,
+    //   renderArgs,
+    //   copyTextures.albedoTexture.view,
+    //   copyTextures.velocityTexture.view,
+    //   copyTextures.depthTexture.view,
+    //   copyTextures.normalTexture.view,
+    //   indirectBuffer,
+    //   screenRayBuffer,
+    //   counterBuffer,
+    // );
+    // computePass.end();
 
     // Full raymarch
     computePass = commandEncoder.beginComputePass({

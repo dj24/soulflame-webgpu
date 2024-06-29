@@ -28,6 +28,7 @@ const NAME_ALLOWLIST = [
   // "street-scene",
   // "debug-plane",
   "Dragon",
+  // "debug",
   // "monu10",
   // "teapot",
   // "sponza-small",

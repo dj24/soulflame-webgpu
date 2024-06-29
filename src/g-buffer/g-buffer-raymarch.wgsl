@@ -142,15 +142,15 @@ fn tracePixel(pixel: vec2<u32>){
     var closestIntersection = RayMarchResult();
 
     let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
-    if(!bvhResult.hit){
-      textureStore(albedoTex, pixel, vec4(0));
-      textureStore(normalTex, pixel, vec4(0));
-      textureStore(depthWrite, pixel, vec4(0));
-      let worldPos = rayOrigin + skyDomeIntersection(rayOrigin, rayDirection) * rayDirection;
-      let velocity = getVelocityStatic(worldPos, viewProjections);
-      textureStore(velocityTex, pixel, vec4(velocity,0, -1.0));
-      return;
-    }
+//    if(!bvhResult.hit){
+//      textureStore(albedoTex, pixel, vec4(0));
+//      textureStore(normalTex, pixel, vec4(0));
+//      textureStore(depthWrite, pixel, vec4(0));
+//      let worldPos = rayOrigin + skyDomeIntersection(rayOrigin, rayDirection) * rayDirection;
+//      let velocity = getVelocityStatic(worldPos, viewProjections);
+//      textureStore(velocityTex, pixel, vec4(velocity,0, -1.0));
+//      return;
+//    }
     closestIntersection = bvhResult;
 
     let voxelObject = voxelObjects[closestIntersection.voxelObjectIndex];
@@ -164,7 +164,10 @@ fn tracePixel(pixel: vec2<u32>){
 //    let normalisedDepth = distanceToReversedLinearDepth(cameraDistance, NEAR_PLANE, FAR_PLANE);
 let logDepth = distanceToLogarithmicDepth(cameraDistance, NEAR_PLANE, FAR_PLANE);
 
-    textureStore(albedoTex, pixel, vec4(albedo, 1));
+//    textureStore(albedoTex, pixel, vec4(albedo, 1));
+//    if(!bvhResult.hit){
+      textureStore(albedoTex, pixel, vec4(f32(closestIntersection.iterations)/ 64.0));
+//    }
     textureStore(normalTex, pixel, vec4(normal,1));
     textureStore(velocityTex, pixel, vec4(velocity,0,f32(closestIntersection.voxelObjectIndex)));
     textureStore(depthWrite, pixel, vec4(logDepth));

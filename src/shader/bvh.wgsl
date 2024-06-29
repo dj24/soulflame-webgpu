@@ -84,10 +84,10 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
         rayMarchResult.t += distanceToLeaf;
 
         let totalDistance = rayMarchResult.t;
-        if(rayMarchResult.hit && totalDistance < closestRayMarchDistance){
+//        if(rayMarchResult.hit && totalDistance < closestRayMarchDistance){
           closestIntersection = rayMarchResult;
           closestRayMarchDistance = totalDistance;
-        }
+//        }
 
         nodeIndex = stack_pop(&stack);
     }

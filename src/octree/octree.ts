@@ -1,5 +1,5 @@
 import { TVoxels } from "../convert-vxm";
-import { setBit, setBitLE } from "./bitmask";
+import { getBit, setBit, setBitLE } from "./bitmask";
 
 /** Returns the depth of the octree required to contain the given voxel bounds */
 export const getOctreeDepthFromVoxelBounds = (size: TVoxels["SIZE"]) => {
@@ -64,10 +64,12 @@ type OctreeNode = InternalNode | LeafNode;
 export class Octree {
   readonly nodes: OctreeNode[];
   #pointer: number;
+  #maxDepth: number;
 
   constructor(voxels: TVoxels) {
     this.nodes = [];
     this.#pointer = 0;
+    this.#maxDepth = getOctreeDepthFromVoxelBounds(voxels.SIZE);
     this.#build(voxels, 0, [0, 0, 0], 0);
   }
 
@@ -136,19 +138,16 @@ export class Octree {
       (voxel) => voxel.c === voxels.XYZI[0].c,
     );
 
-    // If all child octants are filled with the same colour, this is a leaf (solid) node
-    if (childMask === 255 && isAllSameColor) {
-      this.nodes[startIndex] = {
-        leafFlag: 0,
-        paletteIndex: voxels.XYZI[0].c,
-      };
-      console.log({
-        index: startIndex,
-        leafFlag: 0,
-        paletteIndex: voxels.XYZI[0].c,
-      });
-      return;
-    }
+    const isParentToMaxDepth = childDepth === this.#maxDepth - 1;
+
+    // If all child octants are filled with the same colour, and we are one level from the smallest voxels, this is a leaf (solid) node
+    // if (childMask === 255 && isAllSameColor && isParentToMaxDepth) {
+    //   this.nodes[startIndex] = {
+    //     leafFlag: 0,
+    //     paletteIndex: voxels.XYZI[0].c,
+    //   };
+    //   return;
+    // }
 
     // Allocate memory for 8 child nodes
     const firstChildIndex = this.#mallocOctant(requiredChildNodes);
@@ -159,14 +158,6 @@ export class Octree {
       childMask,
       voxels: { ...voxels, SIZE: [objectSize, objectSize, objectSize] },
     };
-
-    console.log({
-      index: startIndex,
-      objectSize,
-      childOctantSize,
-      firstChildIndex,
-      mask: bitmaskToString(childMask),
-    });
 
     childOctants.forEach((octantVoxels, i) => {
       if (octantVoxels) {
@@ -201,17 +192,13 @@ export const octreeToArrayBuffer = (octree: Octree) => {
 
   octree.nodes.forEach((node, i) => {
     if ("leafFlag" in node) {
-      if (i < 4) {
-        console.log(
-          `Setting leaf node at ${i} with colour ${node.paletteIndex}}`,
-        );
-      }
+      console.log(`Setting leaf node at ${i} with colour ${node.paletteIndex}`);
       view.setUint8(i * strideBytes, 0);
       view.setUint8(i * strideBytes + 1, node.paletteIndex);
     } else {
       if (i < 4) {
         console.log(
-          `Setting internal node at ${i} with firstChildIndex ${node.firstChildIndex} and childMask ${node.childMask}`,
+          `Setting internal node at ${i} with firstChildIndex ${node.firstChildIndex} and childMask ${bitmaskToString(node.childMask)}`,
         );
       }
       const relativeIndex = node.firstChildIndex - i;
@@ -221,4 +208,35 @@ export const octreeToArrayBuffer = (octree: Octree) => {
   });
 
   return buffer;
+};
+
+/** traverse an octree at a given point, to see if it contains a voxel */
+export const traverseOctreeAtPoint = (
+  octree: Octree,
+  x: number,
+  y: number,
+  z: number,
+) => {
+  let node = octree.nodes[0];
+  let depth = 0;
+  while (node && "firstChildIndex" in node) {
+    const objectSize = node.voxels.SIZE[0];
+    const childOctantSize = objectSize / 2;
+    const octantIndex =
+      (x >= childOctantSize ? 1 : 0) +
+      (y >= childOctantSize ? 2 : 0) +
+      (z >= childOctantSize ? 4 : 0);
+    if (getBit(node.childMask, octantIndex)) {
+      const childIndex = node.firstChildIndex + octantIndex;
+      node = octree.nodes[childIndex];
+      depth++;
+    } else {
+      return null;
+    }
+  }
+
+  return {
+    node,
+    depth,
+  };
 };

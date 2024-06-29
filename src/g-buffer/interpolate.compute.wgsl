@@ -101,7 +101,7 @@ fn incrementCounters() -> u32{
   * Ray buffer is a list of pixel groups that need to be re-marched at full resolution
   * The stored value is the origin of the group ([0,0] in a [3x3] kernel)
   */
-@compute @workgroup_size(16, 8, 1)
+@compute @workgroup_size(16, 16, 1)
  fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
 ) {
