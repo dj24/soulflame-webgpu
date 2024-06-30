@@ -238,120 +238,107 @@ fn max3(value: vec3<f32>) -> f32 {
   return max(value.x, max(value.y, value.z));
 }
 
-fn planeIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, planeNormal: vec3<f32>, planePosition: vec3<f32>) -> f32 {
-  let denom = dot(planeNormal, rayDirection);
-  if(abs(denom) < EPSILON){
-    return FAR_PLANE;
-  }
-  let t = dot(planePosition - rayOrigin, planeNormal) / denom;
-  return t;
-}
-
-fn closestPlaneIndex(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, nodeCenter: vec3<f32>) -> i32 {
-  var closestIndex = -1;
-  var closestDistance = FAR_PLANE + EPSILON;
-  let planeHit0 = planeIntersection(rayOrigin, rayDirection, vec3(1.0, 0.0, 0.0), nodeCenter);
-  if(planeHit0 < closestDistance){
-    closestIndex = 0;
-    closestDistance = planeHit0;
-  }
-  let planeHit1 = planeIntersection(rayOrigin, rayDirection, vec3(0.0, 1.0, 0.0), nodeCenter);
-  if(planeHit1 < closestDistance){
-    closestIndex = 1;
-    closestDistance = planeHit1;
-  }
-  let planeHit2 = planeIntersection(rayOrigin, rayDirection, vec3(0.0, 0.0, 1.0), nodeCenter);
-  if(planeHit2 < closestDistance){
-    closestIndex = 2;
-    closestDistance = planeHit2;
-  }
-  return closestIndex;
+fn planeIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, planeNormal: vec3<f32>, planeDistance: f32) -> f32 {
+    let denom = dot(rayDirection, planeNormal);
+    if(abs(denom) < EPSILON){
+      return FAR_PLANE;
+    }
+    let t = (planeDistance - dot(rayOrigin, planeNormal)) / denom;
+    return t;
 }
 
 // https://bertolami.com/files/octrees.pdf
 fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) -> RayMarchResult {
-    let objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
-    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
     var output = RayMarchResult();
-    output.t = FAR_PLANE;
-
     var nodeStack = stack_new();
     var depthStack = stack_new();
     var offsetsStack = stack3_new();
     stack_push(&nodeStack, 0);
-    stack_push(&depthStack, 0);
-    stack3_push(&offsetsStack, vec3(0));
+
+    // transform ray to object space
+    let objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
+    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
 
     var depth = 0u;
-    var parentOffset = vec3(0);
-
     let rootNodeSize = ceilToPowerOfTwo(max3(voxelObject.size));
     var size = getNodeSizeAtDepth(u32(rootNodeSize), depth);
-    var nodeIndex = 0u;
+    var nodeIndex = voxelObject.octreeBufferIndex;
     var iterations = 0;
 
 
-    while (nodeStack.head > 0u && iterations < 64) {
-      let node = octreeBuffer[nodeIndex];
-      let internalNode = unpackInternal(node);
+    var currentNode = octreeBuffer[nodeIndex];
+    var currentOrigin = objectRayOrigin;
+    var currentDirection = objectRayDirection;
+
+    while (output.iterations < 64) {
+      let internalNode = unpackInternal(currentNode);
       let firstChildIndex = nodeIndex + internalNode.firstChildOffset;
-      var closestLeafIndex = 0u;
-      var closestLeafDistance = FAR_PLANE;
+      let nodeCenter = vec3(f32(size)) * 0.5;
 
-      // Get the intersection with each plane for getting to sibling nodes
-      let nodeCenter = vec3<f32>(parentOffset) + vec3(f32(size)) / 2.0;
-      var octantIndex = getClosestOctantIndex(objectRayOrigin, nodeCenter);
-      let closestPlaneIndex = closestPlaneIndex(objectRayOrigin, objectRayDirection, nodeCenter);
+      // Determine which size of each plane the ray is on
+      var side = vec3<bool>(
+        dot(currentOrigin, vec3(1,0,0)) >= nodeCenter.x,
+        dot(currentOrigin, vec3(0,1,0)) >= nodeCenter.y,
+        dot(currentOrigin, vec3(0,0,1)) >= nodeCenter.z,
+      );
 
-      // Check if we have already checked the plane in this axis
-      var checkedPlanes = vec3<bool>(false);
+      // Get distance to each plane
+      var xPlaneDistance = planeIntersection(objectRayOrigin, objectRayDirection, vec3(1.0, 0.0, 0.0), nodeCenter.x);
+      var yPlaneDistance = planeIntersection(objectRayOrigin, objectRayDirection, vec3(0.0, 1.0, 0.0), nodeCenter.y);
+      var zPlaneDistance = planeIntersection(objectRayOrigin, objectRayDirection, vec3(0.0, 0.0, 1.0), nodeCenter.z);
 
-//      var octantIndex = getClosestOctantIndex(objectRayOrigin, nodeCenter);
+      for(var i = 0; i < 3; i++){
+        // Compute child octant index
+        let idx = (select(0u, 1u, side.x) << 0u) | (select(0u, 1u, side.y) << 1u) | (select(0u, 1u, side.z) << 2u);
 
-      // Check if each child is filled via the bitmask
-      for(var i = 0u; i < 8; i++){
-        let octantIndex = i;
-
-        // If the child is filled, check it for intersection
-        if(getBit(internalNode.childMask, octantIndex)){
-          let offsetWithinOctant = octantIndexToOffset(i);
-          let octantDepth = depth + 1u;
-          let octantSize = getNodeSizeAtDepth(size, octantDepth);
-          let childNodeIndex = firstChildIndex + octantIndex;
-
-          // Transform the ray into the child node's space
-          let childOffset = vec3<u32>(parentOffset) + offsetWithinOctant * octantSize;
-          let childRayOrigin = objectRayOrigin - vec3<f32>(childOffset);
-          let boxSize = vec3(f32(octantSize)) / 2;
-          let octantIntersection = boxIntersection(childRayOrigin, objectRayDirection, boxSize);
-
-          if(octantIntersection.isHit){
-            // If we hit a leaf node, check if it is the closest hit
-            if(getBit(internalNode.leafMask, octantIndex) && octantIntersection.tNear < closestLeafDistance){
-              closestLeafIndex = childNodeIndex;
-              closestLeafDistance = octantIntersection.tNear;
-            }
-            // If we hit an internal child node, so push it onto the stack to check its children
-            else{
-              stack_push(&nodeStack, i32(childNodeIndex));
-              stack_push(&depthStack, i32(octantDepth));
-              stack3_push(&offsetsStack, vec3<i32>(childOffset));
-            }
-          }
+        // Check if this is a valid child
+        if(!getBit(internalNode.childMask, idx)){
+          continue;
         }
-      }
-      // If we hit a leaf node, break out of the loop
-      if(closestLeafIndex > 0){
-        break;
+
+        // Get node of child
+        let childNodeIndex = firstChildIndex + idx;
+        let childNode = octreeBuffer[childNodeIndex];
+
+        // If the child is a leaf, we have hit a voxel
+        if(isLeaf(childNode)){
+          output.hit = true;
+          return output;
+        }
+
+        // If the child is an internal node, we need to push it to the stack
+        stack_push(&nodeStack, i32(childNodeIndex));
+        stack_push(&depthStack, i32(depth + 1));
+//        stack3_push(&offsetsStack, vec3<u32>(side));
+
+        // Find nearest plane intersection
+        let minDistance = min(yPlaneDistance, min(xPlaneDistance, zPlaneDistance));
+        if(minDistance >= FAR_PLANE){
+          return output;
+        }
+
+        // Update origin and side for next iteration
+        currentOrigin = currentOrigin + currentDirection * minDistance;
+        if(any(currentOrigin < vec3(0)) || any(currentOrigin > vec3(f32(size)))){
+          return output;
+        }
+
+        // Update side flags
+        side.x  = select(side.x, !side.x, minDistance == xPlaneDistance);
+        side.y  = select(side.y, !side.y, minDistance == yPlaneDistance);
+        side.z  = select(side.z, !side.z, minDistance == zPlaneDistance);
+
+        // Update distances
+        xPlaneDistance = planeIntersection(currentOrigin, currentDirection, vec3(1.0, 0.0, 0.0), nodeCenter.x);
+        yPlaneDistance = planeIntersection(currentOrigin, currentDirection, vec3(0.0, 1.0, 0.0), nodeCenter.y);
+        zPlaneDistance = planeIntersection(currentOrigin, currentDirection, vec3(0.0, 0.0, 1.0), nodeCenter.z);
       }
 
       nodeIndex = u32(stack_pop(&nodeStack));
       depth = u32(stack_pop(&depthStack));
-      parentOffset = stack3_pop(&offsetsStack);
-      iterations += 1;
+//      offsets = stack3_pop(&offsetsStack);
+      output.iterations += 1u;
     }
-
-    output.iterations = u32(iterations);
 
     return output;
 }
