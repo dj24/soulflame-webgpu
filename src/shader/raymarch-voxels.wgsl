@@ -222,20 +222,12 @@ fn octantIndexToOffset(index: u32) -> vec3<u32> {
   );
 }
 
-fn getTraversalOrder(rayDirection: vec3<f32>) -> array<u32, 8> {
-    var order = array<u32, 8>();
-    let x = select(1u, 0u, rayDirection.x < 0.0);
-    let y = select(1u, 0u, rayDirection.y < 0.0);
-    let z = select(1u, 0u, rayDirection.z < 0.0);
-    order[0] = x + y * 2u + z * 4u;
-    order[1] = x + y * 2u + select(0u, 4u, z == 0u);
-    order[2] = x + select(0u, 2u, y == 0u) + z * 4u;
-    order[3] = x + select(0u, 2u, y == 0u) + select(0u, 4u, z == 0u);
-    order[4] = select(0u, 1u, x == 0u) + y * 2u + z * 4u;
-    order[5] = select(0u, 1u, x == 0u) + y * 2u + select(0u, 4u, z == 0u);
-    order[6] = select(0u, 1u, x == 0u) + select(0u, 2u, y == 0u) + z * 4u;
-    order[7] = select(0u, 1u, x == 0u) + select(0u, 2u, y == 0u) + select(0u, 4u, z == 0u);
-    return order;
+fn getClosestOctantIndex(position: vec3<f32>, nodeCenter: vec3<f32>) -> u32 {
+  let orientedPosition = position - nodeCenter;
+  let xTest = select(0u, 1u, orientedPosition.x >= 0.0);
+  let yTest = select(0u, 1u, orientedPosition.y >= 0.0);
+  let zTest = select(0u, 1u, orientedPosition.z >= 0.0);
+  return xTest | (yTest << 1) | (zTest << 2);
 }
 
 fn ceilToPowerOfTwo(value: f32) -> f32 {
@@ -246,6 +238,37 @@ fn max3(value: vec3<f32>) -> f32 {
   return max(value.x, max(value.y, value.z));
 }
 
+fn planeIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, planeNormal: vec3<f32>, planePosition: vec3<f32>) -> f32 {
+  let denom = dot(planeNormal, rayDirection);
+  if(abs(denom) < EPSILON){
+    return FAR_PLANE;
+  }
+  let t = dot(planePosition - rayOrigin, planeNormal) / denom;
+  return t;
+}
+
+fn closestPlaneIndex(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, nodeCenter: vec3<f32>) -> i32 {
+  var closestIndex = -1;
+  var closestDistance = FAR_PLANE + EPSILON;
+  let planeHit0 = planeIntersection(rayOrigin, rayDirection, vec3(1.0, 0.0, 0.0), nodeCenter);
+  if(planeHit0 < closestDistance){
+    closestIndex = 0;
+    closestDistance = planeHit0;
+  }
+  let planeHit1 = planeIntersection(rayOrigin, rayDirection, vec3(0.0, 1.0, 0.0), nodeCenter);
+  if(planeHit1 < closestDistance){
+    closestIndex = 1;
+    closestDistance = planeHit1;
+  }
+  let planeHit2 = planeIntersection(rayOrigin, rayDirection, vec3(0.0, 0.0, 1.0), nodeCenter);
+  if(planeHit2 < closestDistance){
+    closestIndex = 2;
+    closestDistance = planeHit2;
+  }
+  return closestIndex;
+}
+
+// https://bertolami.com/files/octrees.pdf
 fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) -> RayMarchResult {
     let objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
@@ -266,7 +289,6 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     var size = getNodeSizeAtDepth(u32(rootNodeSize), depth);
     var nodeIndex = 0u;
     var iterations = 0;
-    var deepestHitDepth = 0u;
 
 
     while (nodeStack.head > 0u && iterations < 64) {
@@ -276,26 +298,38 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       var closestLeafIndex = 0u;
       var closestLeafDistance = FAR_PLANE;
 
+      // Get the intersection with each plane for getting to sibling nodes
+      let nodeCenter = vec3<f32>(parentOffset) + vec3(f32(size)) / 2.0;
+      var octantIndex = getClosestOctantIndex(objectRayOrigin, nodeCenter);
+      let closestPlaneIndex = closestPlaneIndex(objectRayOrigin, objectRayDirection, nodeCenter);
+
+      // Check if we have already checked the plane in this axis
+      var checkedPlanes = vec3<bool>(false);
+
+//      var octantIndex = getClosestOctantIndex(objectRayOrigin, nodeCenter);
+
       // Check if each child is filled via the bitmask
       for(var i = 0u; i < 8; i++){
+        let octantIndex = i;
+
         // If the child is filled, check it for intersection
-        if(getBit(internalNode.childMask, i)){
+        if(getBit(internalNode.childMask, octantIndex)){
           let offsetWithinOctant = octantIndexToOffset(i);
           let octantDepth = depth + 1u;
           let octantSize = getNodeSizeAtDepth(size, octantDepth);
-          let childNodeIndex = firstChildIndex + i;
+          let childNodeIndex = firstChildIndex + octantIndex;
 
           // Transform the ray into the child node's space
           let childOffset = vec3<u32>(parentOffset) + offsetWithinOctant * octantSize;
           let childRayOrigin = objectRayOrigin - vec3<f32>(childOffset);
           let boxSize = vec3(f32(octantSize)) / 2;
-          let intersection = boxIntersection(childRayOrigin, objectRayDirection, boxSize);
+          let octantIntersection = boxIntersection(childRayOrigin, objectRayDirection, boxSize);
 
-          if(intersection.isHit){
+          if(octantIntersection.isHit){
             // If we hit a leaf node, check if it is the closest hit
-            if(getBit(internalNode.leafMask, i) && intersection.tNear < closestLeafDistance){
+            if(getBit(internalNode.leafMask, octantIndex) && octantIntersection.tNear < closestLeafDistance){
               closestLeafIndex = childNodeIndex;
-              closestLeafDistance = intersection.tNear;
+              closestLeafDistance = octantIntersection.tNear;
             }
             // If we hit an internal child node, so push it onto the stack to check its children
             else{

@@ -22,6 +22,10 @@ type VolumeAtlasEntry = {
   paletteIndex: number;
   /** The offset of the octree in the octree buffer */
   octreeOffset: number;
+  /** The size of the octree in the octree buffer in bytes */
+  octreeSizeBytes: number;
+  /** The size of the texture in bytes */
+  textureSizeBytes: number;
 };
 
 export type VolumeAtlasDictionary = {
@@ -189,6 +193,9 @@ export class VolumeAtlas {
       size: [width, height, depthOrArrayLayers],
       paletteIndex,
       octreeOffset: this.#octreeBuffer.size,
+      octreeSizeBytes: octreeArrayBuffer.byteLength,
+      textureSizeBytes:
+        volume.width * volume.height * volume.depthOrArrayLayers,
     };
 
     // Copy the old palette texture into the new larger one

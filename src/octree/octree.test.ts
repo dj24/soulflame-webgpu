@@ -1,14 +1,11 @@
 import {
-  bitmaskToString,
-  bytesToMB,
   getOctreeDepthFromVoxelBounds,
-  getTraversalOrder,
   LeafNode,
   octantPositions,
   octantIndexToOffset,
   Octree,
-  octreeToArrayBuffer,
   traverseOctreeAtPoint,
+  getClosestOctantIndex,
 } from "./octree";
 import { TVoxels } from "../convert-vxm";
 
@@ -190,13 +187,11 @@ describe("traverse octree", () => {
   });
 });
 
-describe("traversal order", () => {
-  test("traversal order for ray direction [1, 1, 1]", () => {
-    const order = getTraversalOrder([1, 1, 1]);
-    expect(order[0]).toEqual(0);
+describe("get closest octant", () => {
+  test("position -10,-10,-10 with node center 0.5,0.5,0.5 is closest to octant 0", () => {
+    expect(getClosestOctantIndex([-10, -10, -10], [0.5, 0.5, 0.5])).toBe(0);
   });
-  test("traversal order for ray direction [0,0,1]", () => {
-    const order = getTraversalOrder([0, 0, 1]);
-    expect(order[0]).toEqual(4);
+  test("position 100,100,100 with node center 0.5,0.5,0.5 is closest to octant 7", () => {
+    expect(getClosestOctantIndex([100, 100, 100], [0.5, 0.5, 0.5])).toBe(7);
   });
 });

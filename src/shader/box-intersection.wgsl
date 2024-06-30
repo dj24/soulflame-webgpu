@@ -63,26 +63,6 @@ fn boxIntersection(
     return result;
 }
 
-fn planeIntersection(
-    ro: vec3<f32>,
-    rd: vec3<f32>,
-    planeNormal: vec3<f32>,
-    planeDistance: f32,
-) -> BoxIntersectionResult {
-    var result = BoxIntersectionResult();
-    let denom = dot(planeNormal, rd);
-    if (abs(denom) > 0.0001) {
-        let t = -(dot(planeNormal, ro) + planeDistance) / denom;
-        if (t > 0.0) {
-            result.isHit = true;
-            result.tNear = t;
-            result.tFar = t;
-            result.normal = planeNormal;
-        }
-    }
-    return result;
-}
-
 fn get3x3From4x4(m: mat4x4<f32>) -> mat3x3<f32> {
     return mat3x3<f32>(
         m[0].xyz,

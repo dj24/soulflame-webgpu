@@ -166,7 +166,7 @@ let logDepth = distanceToLogarithmicDepth(cameraDistance, NEAR_PLANE, FAR_PLANE)
 
 //    textureStore(albedoTex, pixel, vec4(albedo, 1));
 //    if(!bvhResult.hit){
-      textureStore(albedoTex, pixel, vec4(f32(closestIntersection.iterations)/ 32.0));
+      textureStore(albedoTex, pixel, vec4(f32(closestIntersection.iterations)/ 128.0));
 //    }
     textureStore(normalTex, pixel, vec4(normal,1));
     textureStore(velocityTex, pixel, vec4(velocity,0,f32(closestIntersection.voxelObjectIndex)));

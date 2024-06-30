@@ -48,6 +48,19 @@ export const octantIndexToOffset = (index: number) => {
   return [index & 1 ? 1 : 0, index & 2 ? 1 : 0, index & 4 ? 1 : 0];
 };
 
+export const getClosestOctantIndex = (
+  position: [x: number, y: number, z: number],
+  centerOfNode: [x: number, y: number, z: number],
+) => {
+  let orientedPositionX = position[0] - centerOfNode[0];
+  let orientedPositionY = position[1] - centerOfNode[1];
+  let orientedPositionZ = position[2] - centerOfNode[2];
+  let xTest = orientedPositionX >= 0 ? 1 : 0;
+  let yTest = orientedPositionY >= 0 ? 1 : 0;
+  let zTest = orientedPositionZ >= 0 ? 1 : 0;
+  return xTest | (yTest << 1) | (zTest << 2);
+};
+
 const ceilToNextPowerOfTwo = (n: number) => {
   return Math.pow(2, Math.ceil(Math.log2(n)));
 };
@@ -257,12 +270,4 @@ export const traverseOctreeAtPoint = (
     node,
     depth,
   };
-};
-
-export const getTraversalOrder = (
-  rayDirection: [x: number, y: number, z: number],
-) => {
-  const order = new Array(8).fill(0).map((_, i) => i);
-
-  return order;
 };
