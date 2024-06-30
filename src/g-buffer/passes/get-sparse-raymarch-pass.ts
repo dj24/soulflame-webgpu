@@ -218,8 +218,8 @@ export const getSparseRaymarchPipeline = async () => {
     computePass.setPipeline(pipeline);
     computePass.setBindGroup(0, bindGroup);
     computePass.dispatchWorkgroups(
-      Math.ceil(resolution[0] / 16 / 3),
-      Math.ceil(resolution[1] / 8 / 3),
+      Math.ceil(resolution[0] / 16),
+      Math.ceil(resolution[1] / 8),
     );
   };
 

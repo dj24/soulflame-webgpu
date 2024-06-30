@@ -2,7 +2,9 @@ import {
   bitmaskToString,
   bytesToMB,
   getOctreeDepthFromVoxelBounds,
+  getTraversalOrder,
   LeafNode,
+  octantPositions,
   octantIndexToOffset,
   Octree,
   octreeToArrayBuffer,
@@ -137,16 +139,8 @@ describe("octree", () => {
 });
 
 describe("octant index to offset", () => {
-  test("0 to [0, 0, 0]", () => {
-    expect(octantIndexToOffset(0)).toEqual([0, 0, 0]);
-  });
-
-  test("1 to [1, 0, 0]", () => {
-    expect(octantIndexToOffset(1)).toEqual([1, 0, 0]);
-  });
-
-  test("2 to [0, 1, 0]", () => {
-    expect(octantIndexToOffset(2)).toEqual([0, 1, 0]);
+  test.each([0, 1, 2, 3, 4, 5, 6, 7])("octantIndexToOffset (%i)", (index) => {
+    expect(octantIndexToOffset(index)).toEqual(octantPositions[index]);
   });
 });
 
@@ -193,5 +187,16 @@ describe("traverse octree", () => {
       },
       depth: 3,
     });
+  });
+});
+
+describe("traversal order", () => {
+  test("traversal order for ray direction [1, 1, 1]", () => {
+    const order = getTraversalOrder([1, 1, 1]);
+    expect(order[0]).toEqual(0);
+  });
+  test("traversal order for ray direction [0,0,1]", () => {
+    const order = getTraversalOrder([0, 0, 1]);
+    expect(order[0]).toEqual(4);
   });
 });

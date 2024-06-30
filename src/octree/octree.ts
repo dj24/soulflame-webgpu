@@ -1,6 +1,17 @@
 import { TVoxels } from "../convert-vxm";
 import { getBit, setBit, setBitLE } from "./bitmask";
 
+export const octantPositions = [
+  [0, 0, 0],
+  [1, 0, 0],
+  [0, 1, 0],
+  [1, 1, 0],
+  [0, 0, 1],
+  [1, 0, 1],
+  [0, 1, 1],
+  [1, 1, 1],
+];
+
 /** Returns the depth of the octree required to contain the given voxel bounds */
 export const getOctreeDepthFromVoxelBounds = (size: TVoxels["SIZE"]) => {
   return Math.ceil(Math.log2(Math.max(...size)));
@@ -46,6 +57,8 @@ export type InternalNode = {
   firstChildIndex: number;
   /** bitmask of which children are present */
   childMask: number;
+  /** voxels contained within this node */
+  leafMask: number;
   voxels: TVoxels;
 };
 
@@ -152,12 +165,7 @@ export class Octree {
     // Allocate memory for 8 child nodes
     const firstChildIndex = this.#mallocOctant(requiredChildNodes);
 
-    // Create the parent node
-    this.nodes[startIndex] = {
-      firstChildIndex,
-      childMask,
-      voxels: { ...voxels, SIZE: [objectSize, objectSize, objectSize] },
-    };
+    let leafMask = 0;
 
     childOctants.forEach((octantVoxels, i) => {
       if (octantVoxels) {
@@ -169,6 +177,7 @@ export class Octree {
             leafFlag: 0,
             paletteIndex: octantVoxels.XYZI[0].c,
           };
+          leafMask = setBit(leafMask, i);
         } else {
           const origin = octantIndexToOffset(i);
           const x = offset[0] + origin[0] * childOctantSize;
@@ -178,6 +187,14 @@ export class Octree {
         }
       }
     });
+
+    // Create the parent node
+    this.nodes[startIndex] = {
+      firstChildIndex,
+      childMask,
+      leafMask,
+      voxels: { ...voxels, SIZE: [objectSize, objectSize, objectSize] },
+    };
   }
 
   get totalSize() {
@@ -204,6 +221,7 @@ export const octreeToArrayBuffer = (octree: Octree) => {
       const relativeIndex = node.firstChildIndex - i;
       view.setUint16(i * strideBytes, relativeIndex, true);
       view.setUint8(i * strideBytes + 2, node.childMask);
+      view.setUint8(i * strideBytes + 3, node.leafMask);
     }
   });
 
@@ -239,4 +257,12 @@ export const traverseOctreeAtPoint = (
     node,
     depth,
   };
+};
+
+export const getTraversalOrder = (
+  rayDirection: [x: number, y: number, z: number],
+) => {
+  const order = new Array(8).fill(0).map((_, i) => i);
+
+  return order;
 };
