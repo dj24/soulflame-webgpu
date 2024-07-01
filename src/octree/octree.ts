@@ -220,22 +220,27 @@ export const octreeToArrayBuffer = (octree: Octree) => {
   const buffer = new ArrayBuffer(octree.totalSize);
   const view = new DataView(buffer);
 
+  let averageRelativeIndex = 0;
+
   octree.nodes.forEach((node, i) => {
     if ("leafFlag" in node) {
-      console.log(`Setting leaf node at ${i} with colour ${node.paletteIndex}`);
-      view.setUint8(i * strideBytes, 0);
+      view.setUint8(i * strideBytes, 255);
       view.setUint8(i * strideBytes + 1, node.paletteIndex);
     } else {
       const relativeIndex = node.firstChildIndex - i;
+      averageRelativeIndex += relativeIndex;
       console.assert(
         relativeIndex < 65535,
         `Octree node's firstChildIndex of ${relativeIndex} of exceeds max 16bit unsigned integer!`,
       );
-      view.setUint16(i * strideBytes, relativeIndex, true);
-      view.setUint8(i * strideBytes + 2, node.childMask);
+      view.setUint8(i * strideBytes, node.childMask);
+      view.setUint16(i * strideBytes + 1, relativeIndex, true);
       view.setUint8(i * strideBytes + 3, node.leafMask);
     }
   });
+
+  averageRelativeIndex /= octree.nodes.length;
+  console.log({ averageRelativeIndex });
 
   return buffer;
 };

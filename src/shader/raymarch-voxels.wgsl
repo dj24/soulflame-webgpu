@@ -184,10 +184,10 @@ fn stack3_pop(stack: ptr<function, Stack3>) -> vec3<i32> {
     return (*stack).arr[(*stack).head];
 }
 
-// if first 8 bytes are empty, then it is a leaf node
+// if childMask is full, then the node is a leaf
 fn isLeaf(node: u32) -> bool {
   let firstByte = node & 0xFFu;
-  return firstByte == 0;
+  return firstByte == 255;
 }
 
 // second 8 bits are the palette index
@@ -196,16 +196,16 @@ fn unpackLeaf(node: u32) -> u32 {
 }
 
 struct InternalNode {
-  firstChildOffset: u32,
   childMask: u32,
+  firstChildOffset: u32,
   leafMask: u32
 }
 
 // 16 bit relative offset to the first child node, then 8 bits for the child bitmask
 fn unpackInternal(node: u32) -> InternalNode {
   var output = InternalNode();
-  output.firstChildOffset = node & 0xFFFFu;
-  output.childMask = (node >> 16u) & 0xFFu;
+  output.childMask = node & 0xFFFFu;
+  output.firstChildOffset = (node >> 8u) & 0xFFFFu;
   output.leafMask = (node >> 24u) & 0xFFu;
   return output;
 }
