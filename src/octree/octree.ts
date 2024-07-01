@@ -167,13 +167,13 @@ export class Octree {
     const isParentToMaxDepth = childDepth === this.#maxDepth - 1;
 
     // If all child octants are filled with the same colour, and we are one level from the smallest voxels, this is a leaf (solid) node
-    // if (childMask === 255 && isAllSameColor && isParentToMaxDepth) {
-    //   this.nodes[startIndex] = {
-    //     leafFlag: 0,
-    //     paletteIndex: voxels.XYZI[0].c,
-    //   };
-    //   return;
-    // }
+    if (childMask === 255 && isAllSameColor && isParentToMaxDepth) {
+      this.nodes[startIndex] = {
+        leafFlag: 0,
+        paletteIndex: voxels.XYZI[0].c,
+      };
+      return;
+    }
 
     // Allocate memory for 8 child nodes
     const firstChildIndex = this.#mallocOctant(requiredChildNodes);
@@ -226,12 +226,11 @@ export const octreeToArrayBuffer = (octree: Octree) => {
       view.setUint8(i * strideBytes, 0);
       view.setUint8(i * strideBytes + 1, node.paletteIndex);
     } else {
-      if (i < 4) {
-        console.log(
-          `Setting internal node at ${i} with firstChildIndex ${node.firstChildIndex} and childMask ${bitmaskToString(node.childMask)}`,
-        );
-      }
       const relativeIndex = node.firstChildIndex - i;
+      console.assert(
+        relativeIndex < 65535,
+        `Octree node's firstChildIndex of ${relativeIndex} of exceeds max 16bit unsigned integer!`,
+      );
       view.setUint16(i * strideBytes, relativeIndex, true);
       view.setUint8(i * strideBytes + 2, node.childMask);
       view.setUint8(i * strideBytes + 3, node.leafMask);
