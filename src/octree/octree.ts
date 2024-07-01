@@ -1,5 +1,5 @@
 import { TVoxels } from "../convert-vxm";
-import { getBit, setBit, setBitLE } from "./bitmask";
+import { clearBit, getBit, getBitLE, setBit, setBitLE } from "./bitmask";
 
 export const octantPositions = [
   [0, 0, 0],
@@ -20,6 +20,8 @@ export const getOctreeDepthFromVoxelBounds = (size: TVoxels["SIZE"]) => {
 export const bytesToMB = (bytes: number) => {
   return bytes / 1024 / 1024;
 };
+
+const MAX_15_BIT_UNSIGNED_INT = 32767;
 
 export const bitmaskToString = (bitmask: number) => {
   return bitmask.toString(2).padStart(8, "0");
@@ -73,6 +75,8 @@ export type InternalNode = {
   /** voxels contained within this node */
   leafMask: number;
   voxels: TVoxels;
+  /** if the firstChildIndex exceeds the max 15 bit unsigned integer, we store the relative address of a 32 bit address */
+  isFarBit: boolean;
 };
 
 export type LeafNode = {
@@ -82,7 +86,13 @@ export type LeafNode = {
   paletteIndex: number;
 };
 
-type OctreeNode = InternalNode | LeafNode;
+/** For nodes that exceed the 15 bit unsigned integer limit, we store the address of the first child node */
+export type AddressNode = {
+  /** index of the first child node */
+  firstChildIndex: number;
+};
+
+type OctreeNode = InternalNode | LeafNode | AddressNode;
 
 /**
  * Handles construction of an Octree for a single voxel object.
@@ -178,6 +188,21 @@ export class Octree {
     // Allocate memory for 8 child nodes
     const firstChildIndex = this.#mallocOctant(requiredChildNodes);
 
+    // The index to store in the parent node
+    let indexToStore = firstChildIndex;
+    let isFarBit = false;
+
+    // If the first child index exceeds the max 15 bit unsigned integer, we instead store the pointer to a 32bit address
+    if (firstChildIndex > MAX_15_BIT_UNSIGNED_INT) {
+      let addressNodeIndex = this.#mallocOctant(1);
+      indexToStore = addressNodeIndex;
+      this.nodes[addressNodeIndex] = {
+        firstChildIndex,
+      };
+      indexToStore = addressNodeIndex;
+      isFarBit = true;
+    }
+
     let leafMask = 0;
 
     childOctants.forEach((octantVoxels, i) => {
@@ -203,10 +228,11 @@ export class Octree {
 
     // Create the parent node
     this.nodes[startIndex] = {
-      firstChildIndex,
+      firstChildIndex: indexToStore,
       childMask,
       leafMask,
       voxels: { ...voxels, SIZE: [objectSize, objectSize, objectSize] },
+      isFarBit,
     };
   }
 
@@ -220,58 +246,44 @@ export const octreeToArrayBuffer = (octree: Octree) => {
   const buffer = new ArrayBuffer(octree.totalSize);
   const view = new DataView(buffer);
 
-  let averageRelativeIndex = 0;
-
   octree.nodes.forEach((node, i) => {
+    // handle leaf nodes
     if ("leafFlag" in node) {
       view.setUint8(i * strideBytes, 255);
       view.setUint8(i * strideBytes + 1, node.paletteIndex);
-    } else {
-      const relativeIndex = node.firstChildIndex - i;
-      averageRelativeIndex += relativeIndex;
-      console.assert(
-        relativeIndex < 65535,
-        `Octree node's firstChildIndex of ${relativeIndex} of exceeds max 16bit unsigned integer!`,
-      );
+    }
+    // handle internal nodes
+    else if ("childMask" in node) {
       view.setUint8(i * strideBytes, node.childMask);
-      view.setUint16(i * strideBytes + 1, relativeIndex, true);
+      const relativeIndex = node.firstChildIndex - i;
+      const value = node.isFarBit ? setBitLE(relativeIndex, 15) : relativeIndex;
+      if (!node.isFarBit) {
+        console.assert(
+          relativeIndex < MAX_15_BIT_UNSIGNED_INT,
+          `Octree node's firstChildIndex of ${relativeIndex} of exceeds max 15bit unsigned integer!`,
+        );
+        console.assert(
+          bitmaskToString(value)[15] === "0",
+          `Far bit set for node ${i}`,
+        );
+      } else {
+        console.assert(
+          bitmaskToString(value)[15] === "1",
+          `Far bit not set for node ${i}`,
+        );
+      }
+      view.setUint16(
+        i * strideBytes + 1,
+        node.isFarBit ? setBit(relativeIndex, 15) : clearBit(relativeIndex, 15),
+        true,
+      );
       view.setUint8(i * strideBytes + 3, node.leafMask);
+    }
+    // handle address nodes
+    else {
+      view.setUint32(i * strideBytes, node.firstChildIndex, true);
     }
   });
 
-  averageRelativeIndex /= octree.nodes.length;
-  console.log({ averageRelativeIndex });
-
   return buffer;
-};
-
-/** traverse an octree at a given point, to see if it contains a voxel */
-export const traverseOctreeAtPoint = (
-  octree: Octree,
-  x: number,
-  y: number,
-  z: number,
-) => {
-  let node = octree.nodes[0];
-  let depth = 0;
-  while (node && "firstChildIndex" in node) {
-    const objectSize = node.voxels.SIZE[0];
-    const childOctantSize = objectSize / 2;
-    const octantIndex =
-      (x >= childOctantSize ? 1 : 0) +
-      (y >= childOctantSize ? 2 : 0) +
-      (z >= childOctantSize ? 4 : 0);
-    if (getBit(node.childMask, octantIndex)) {
-      const childIndex = node.firstChildIndex + octantIndex;
-      node = octree.nodes[childIndex];
-      depth++;
-    } else {
-      return null;
-    }
-  }
-
-  return {
-    node,
-    depth,
-  };
 };

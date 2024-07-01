@@ -13,3 +13,7 @@ export const clearBit = (bitmask: number, index: number) => {
 export const getBit = (bitmask: number, index: number) => {
   return (bitmask & (1 << index)) !== 0;
 };
+
+export const getBitLE = (bitmask: number, index: number) => {
+  return (bitmask & (1 << (7 - index))) !== 0;
+};

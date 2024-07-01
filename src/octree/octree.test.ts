@@ -4,7 +4,6 @@ import {
   octantPositions,
   octantIndexToOffset,
   Octree,
-  traverseOctreeAtPoint,
   getClosestOctantIndex,
 } from "./octree";
 import { TVoxels } from "../convert-vxm";
@@ -138,52 +137,6 @@ describe("octree", () => {
 describe("octant index to offset", () => {
   test.each([0, 1, 2, 3, 4, 5, 6, 7])("octantIndexToOffset (%i)", (index) => {
     expect(octantIndexToOffset(index)).toEqual(octantPositions[index]);
-  });
-});
-
-describe("traverse octree", () => {
-  test("can traverse 8x8x8 octree with one voxel at 0, 0, 0", () => {
-    const octree = new Octree({
-      SIZE: [8, 8, 8],
-      XYZI: [{ x: 0, y: 0, z: 0, c: 1 }],
-      RGBA: [],
-      VOX: 1,
-    });
-    expect(traverseOctreeAtPoint(octree, 0, 0, 0)).toEqual({
-      node: {
-        leafFlag: 0,
-        paletteIndex: 1,
-      },
-      depth: 3,
-    });
-  });
-  test("returns null for point with no voxel", () => {
-    const octree = new Octree({
-      SIZE: [8, 8, 8],
-      XYZI: [{ x: 0, y: 0, z: 0, c: 1 }],
-      RGBA: [],
-      VOX: 1,
-    });
-    expect(traverseOctreeAtPoint(octree, 1, 0, 0)).toEqual(null);
-  });
-
-  test("can traverse 8x8x8 octree with 2 voxels", () => {
-    const octree = new Octree({
-      SIZE: [8, 8, 8],
-      XYZI: [
-        { x: 0, y: 0, z: 0, c: 1 },
-        { x: 4, y: 0, z: 2, c: 1 },
-      ],
-      RGBA: [],
-      VOX: 1,
-    });
-    expect(traverseOctreeAtPoint(octree, 0, 0, 0)).toEqual({
-      node: {
-        leafFlag: 0,
-        paletteIndex: 1,
-      },
-      depth: 3,
-    });
   });
 });
 

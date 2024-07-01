@@ -198,7 +198,8 @@ fn unpackLeaf(node: u32) -> u32 {
 struct InternalNode {
   childMask: u32,
   firstChildOffset: u32,
-  leafMask: u32
+  leafMask: u32,
+  hasFarBit: bool
 }
 
 // 16 bit relative offset to the first child node, then 8 bits for the child bitmask
@@ -206,6 +207,7 @@ fn unpackInternal(node: u32) -> InternalNode {
   var output = InternalNode();
   output.childMask = node & 0xFFFFu;
   output.firstChildOffset = (node >> 8u) & 0xFFFFu;
+  output.hasFarBit = (output.firstChildOffset & 0x8000u) != 0u;
   output.leafMask = (node >> 24u) & 0xFFu;
   return output;
 }
@@ -260,7 +262,11 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     while (nodeStack.head > 0u && iterations < 64) {
       let node = octreeBuffer[nodeIndex];
       let internalNode = unpackInternal(node);
-      let firstChildIndex = nodeIndex + internalNode.firstChildOffset;
+      var firstChildIndex = nodeIndex + internalNode.firstChildOffset;
+      // if this has the far bit set, we need to get the 32 bit address node
+      if(internalNode.hasFarBit){
+        firstChildIndex = octreeBuffer[firstChildIndex];
+      }
       var closestLeafIndex = 0u;
       var closestLeafDistance = FAR_PLANE;
 
