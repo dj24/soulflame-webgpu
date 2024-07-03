@@ -202,13 +202,25 @@ struct InternalNode {
   hasFarBit: bool
 }
 
-// 16 bit relative offset to the first child node, then 8 bits for the child bitmask
+fn getFirstChildIndexFromInternalNode(node: InternalNode, index: u32) -> u32 {
+  if(node.hasFarBit){
+    return octreeBuffer[index + node.firstChildOffset];
+  }
+  return index + node.firstChildOffset;
+}
+
+/**
+  * Unpacks an internal node from a 32 bit integer
+  * First 8 bits are the child mask
+  * The next 16 bits are the first child offset, with the far bit in the 16th bit
+  * The next 8 bits are the leaf mask
+  */
 fn unpackInternal(node: u32) -> InternalNode {
   var output = InternalNode();
-  output.childMask = node & 0xFFFFu;
-  output.firstChildOffset = (node >> 8u) & 0xFFFFu;
-  output.hasFarBit = (output.firstChildOffset & 0x8000u) != 0u;
+  output.childMask = node & 0xFFu;
+  output.firstChildOffset = (node >> 8u) & 0x7FFFu;
   output.leafMask = (node >> 24u) & 0xFFu;
+  output.hasFarBit = (output.firstChildOffset & 0x8000u) != 0u;
   return output;
 }
 

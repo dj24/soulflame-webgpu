@@ -28,9 +28,10 @@ const NAME_ALLOWLIST = [
   // "street-scene",
   // "debug-plane",
   "Dragon",
+  // "teapot",
   // "debug",
   // "monu10",
-  // "teapot",
+
   // "sponza-small",
   // "Sponza",
   // "Table",

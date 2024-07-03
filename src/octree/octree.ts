@@ -1,5 +1,12 @@
 import { TVoxels } from "../convert-vxm";
-import { clearBit, getBit, getBitLE, setBit, setBitLE } from "./bitmask";
+import {
+  clearBit,
+  clearBitLE,
+  getBit,
+  getBitLE,
+  setBit,
+  setBitLE,
+} from "./bitmask";
 
 export const octantPositions = [
   [0, 0, 0],
@@ -23,8 +30,12 @@ export const bytesToMB = (bytes: number) => {
 
 const MAX_15_BIT_UNSIGNED_INT = 32767;
 
-export const bitmaskToString = (bitmask: number) => {
-  return bitmask.toString(2).padStart(8, "0");
+export const bitmaskToString = (bitmask: number, bits = 8) => {
+  return bitmask.toString(2).padStart(bits, "0");
+};
+
+export const bitmaskToStringLE = (bitmask: number, bits = 8) => {
+  return bitmask.toString(2).padStart(bits, "0").split("").reverse().join("");
 };
 
 /** Converts an octant index to an offset in the parent octant
@@ -187,19 +198,19 @@ export class Octree {
 
     // Allocate memory for 8 child nodes
     const firstChildIndex = this.#mallocOctant(requiredChildNodes);
+    const relativeIndex = firstChildIndex - startIndex;
 
     // The index to store in the parent node
-    let indexToStore = firstChildIndex;
+    let indexToStore = relativeIndex;
     let isFarBit = false;
 
     // If the first child index exceeds the max 15 bit unsigned integer, we instead store the pointer to a 32bit address
-    if (firstChildIndex > MAX_15_BIT_UNSIGNED_INT) {
+    if (relativeIndex > MAX_15_BIT_UNSIGNED_INT) {
       let addressNodeIndex = this.#mallocOctant(1);
-      indexToStore = addressNodeIndex;
+      indexToStore = addressNodeIndex - startIndex;
       this.nodes[addressNodeIndex] = {
         firstChildIndex,
       };
-      indexToStore = addressNodeIndex;
       isFarBit = true;
     }
 
@@ -255,28 +266,25 @@ export const octreeToArrayBuffer = (octree: Octree) => {
     // handle internal nodes
     else if ("childMask" in node) {
       view.setUint8(i * strideBytes, node.childMask);
-      const relativeIndex = node.firstChildIndex - i;
-      const value = node.isFarBit ? setBitLE(relativeIndex, 15) : relativeIndex;
+      const value = node.isFarBit
+        ? setBit(node.firstChildIndex, 15)
+        : clearBit(node.firstChildIndex, 15);
       if (!node.isFarBit) {
         console.assert(
-          relativeIndex < MAX_15_BIT_UNSIGNED_INT,
-          `Octree node's firstChildIndex of ${relativeIndex} of exceeds max 15bit unsigned integer!`,
+          node.firstChildIndex < MAX_15_BIT_UNSIGNED_INT,
+          `Octree node's firstChildIndex of ${node.firstChildIndex} of exceeds max 15bit unsigned integer!`,
         );
         console.assert(
-          bitmaskToString(value)[15] === "0",
-          `Far bit set for node ${i}`,
+          bitmaskToStringLE(value, 16)[15] === "0",
+          `Far bit set for node ${i}: ${bitmaskToStringLE(value)}`,
         );
       } else {
         console.assert(
-          bitmaskToString(value)[15] === "1",
-          `Far bit not set for node ${i}`,
+          bitmaskToStringLE(value, 16)[15] === "1",
+          `Far bit not set for node ${i}: ${bitmaskToStringLE(value, 16)}`,
         );
       }
-      view.setUint16(
-        i * strideBytes + 1,
-        node.isFarBit ? setBit(relativeIndex, 15) : clearBit(relativeIndex, 15),
-        true,
-      );
+      view.setUint16(i * strideBytes + 1, value, true);
       view.setUint8(i * strideBytes + 3, node.leafMask);
     }
     // handle address nodes

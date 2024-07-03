@@ -1,4 +1,5 @@
-import { clearBit, getBit, setBit } from "./bitmask";
+import { clearBit, getBit, setBit, setBitLE } from "./bitmask";
+import { bitmaskToString } from "./octree";
 
 test("can set bit at position 0", () => {
   expect(setBit(0, 0)).toBe(1);
@@ -55,4 +56,13 @@ test("can get bit at position 0", () => {
 test("can get bit at position 7", () => {
   expect(getBit(128, 7)).toBe(true);
   expect(getBit(128, 6)).toBe(false);
+});
+
+test("can set bit at position 15", () => {
+  console.log(bitmaskToString(setBitLE(0, 15, 16)));
+  expect(setBitLE(0, 15, 16)).toBe(32768);
+});
+
+test("can clear bit at position 15", () => {
+  expect(clearBit(32768, 15)).toBe(0);
 });
