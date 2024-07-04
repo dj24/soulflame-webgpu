@@ -276,7 +276,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     var iterations = 0;
 
 
-    while (nodeStack.head > 0u && iterations < 64) {
+    while (nodeStack.head > 0u && iterations < 33) {
       let node = octreeBuffer[nodeIndex];
       let internalNode = unpackInternal(node);
       var firstChildIndex = nodeIndex + internalNode.firstChildOffset;
@@ -285,13 +285,35 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
         firstChildIndex = octreeBuffer[firstChildIndex];
       }
       var closestLeafIndex = 0u;
-      var closestLeafDistance = FAR_PLANE;
+      let nodeSize = getNodeSizeAtDepth(size, depth);
 
-      // Get the intersection with each plane for getting to sibling nodes
-      let nodeCenter = vec3<f32>(parentOffset) + vec3(f32(size)) / 2.0;
+      // Translate the ray into the node's space, to remove the need for "min bounds" in calculations
+      let translatedRayOrigin = objectRayOrigin - vec3<f32>(parentOffset);
+      var currentIndex = max(vec3(1), ceil(objectRayOrigin));
+      var tMax = currentIndex / objectRayDirection;
+      let tDelta = 1.0 / objectRayDirection;
+      let step = sign(objectRayDirection);
 
       // Check if each child is filled via the bitmask
       for(var i = 0u; i < 8; i++){
+        if(tMax.x < tMax.y){
+          if(tMax.x < tMax.z){
+            currentIndex.x += step.x;
+            tMax.x += tDelta.x;
+          } else {
+            currentIndex.z += step.z;
+            tMax.z += tDelta.z;
+          }
+        } else {
+          if(tMax.y < tMax.z){
+            currentIndex.y += step.y;
+            tMax.y += tDelta.y;
+          } else {
+            currentIndex.z += step.z;
+            tMax.z += tDelta.z;
+          }
+        }
+
         let octantIndex = i;
 
         // If the child is filled, check it for intersection
@@ -309,9 +331,8 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
 
           if(octantIntersection.isHit){
             // If we hit a leaf node, check if it is the closest hit
-            if(getBit(internalNode.leafMask, octantIndex) && octantIntersection.tNear < closestLeafDistance){
-              closestLeafIndex = childNodeIndex;
-              closestLeafDistance = octantIntersection.tNear;
+            if(getBit(internalNode.leafMask, octantIndex)){
+              return output;
             }
             // If we hit an internal child node, so push it onto the stack to check its children
             else{
@@ -330,10 +351,8 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       nodeIndex = u32(stack_pop(&nodeStack));
       depth = u32(stack_pop(&depthStack));
       parentOffset = stack3_pop(&offsetsStack);
-      iterations += 1;
+      output.iterations += 1;
     }
-
-    output.iterations = u32(iterations);
 
     return output;
 }

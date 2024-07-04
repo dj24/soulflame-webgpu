@@ -205,14 +205,22 @@ export class Octree {
     let isFarBit = false;
 
     // If the first child index exceeds the max 15 bit unsigned integer, we instead store the pointer to a 32bit address
-    // if (relativeIndex > MAX_15_BIT_UNSIGNED_INT) {
-    //   let addressNodeIndex = this.#mallocOctant(1);
-    //   indexToStore = addressNodeIndex - startIndex;
-    //   this.nodes[addressNodeIndex] = {
-    //     firstChildIndex,
-    //   };
-    //   isFarBit = true;
-    // }
+    if (relativeIndex > MAX_15_BIT_UNSIGNED_INT) {
+      // let addressNodeIndex = this.#mallocOctant(1);
+      // indexToStore = addressNodeIndex - startIndex;
+      // this.nodes[addressNodeIndex] = {
+      //   firstChildIndex,
+      // };
+      // isFarBit = true;
+      this.nodes[startIndex] = {
+        firstChildIndex: 0,
+        childMask: 0,
+        leafMask: 0,
+        voxels: { ...voxels, SIZE: [objectSize, objectSize, objectSize] },
+        isFarBit,
+      };
+      return;
+    }
 
     let leafMask = 0;
 
