@@ -5,6 +5,8 @@ import {
   octantIndexToOffset,
   Octree,
   getClosestOctantIndex,
+  setInternalNode,
+  InternalNode,
 } from "./octree";
 import { TVoxels } from "../convert-vxm";
 
@@ -147,4 +149,30 @@ describe("get closest octant", () => {
   test("position 100,100,100 with node center 0.5,0.5,0.5 is closest to octant 7", () => {
     expect(getClosestOctantIndex([100, 100, 100], [0.5, 0.5, 0.5])).toBe(7);
   });
+});
+
+test("internal node is set in dataview correctly", () => {
+  const dataView = new DataView(new ArrayBuffer(8));
+  const internalNode: InternalNode = {
+    childMask: 0b11111111,
+    firstChildIndex: 27,
+    leafMask: 0b11111111,
+    isFarBit: false,
+    voxels: {
+      SIZE: [64, 64, 64],
+      XYZI: [{ x: 0, y: 0, z: 0, c: 1 }],
+      RGBA: [],
+      VOX: 8,
+    },
+  };
+  setInternalNode(dataView, 0, internalNode);
+  // Simulate shader unpacking
+  const value = dataView.getUint32(0, true);
+  const childMask = value & 0xff;
+  const firstChildIndex = (value >> 8) & 0xffff;
+  const leafMask = (value >> 24) & 0xff;
+
+  expect(childMask).toBe(0b11111111);
+  expect(firstChildIndex).toBe(27);
+  expect(leafMask).toBe(0b11111111);
 });

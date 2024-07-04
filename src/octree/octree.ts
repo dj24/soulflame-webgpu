@@ -205,14 +205,14 @@ export class Octree {
     let isFarBit = false;
 
     // If the first child index exceeds the max 15 bit unsigned integer, we instead store the pointer to a 32bit address
-    if (relativeIndex > MAX_15_BIT_UNSIGNED_INT) {
-      let addressNodeIndex = this.#mallocOctant(1);
-      indexToStore = addressNodeIndex - startIndex;
-      this.nodes[addressNodeIndex] = {
-        firstChildIndex,
-      };
-      isFarBit = true;
-    }
+    // if (relativeIndex > MAX_15_BIT_UNSIGNED_INT) {
+    //   let addressNodeIndex = this.#mallocOctant(1);
+    //   indexToStore = addressNodeIndex - startIndex;
+    //   this.nodes[addressNodeIndex] = {
+    //     firstChildIndex,
+    //   };
+    //   isFarBit = true;
+    // }
 
     let leafMask = 0;
 
@@ -252,44 +252,44 @@ export class Octree {
   }
 }
 
+const setLeafNode = (dataView: DataView, index: number, node: LeafNode) => {
+  dataView.setUint8(index * 4, 255);
+  dataView.setUint8(index * 4 + 1, node.paletteIndex);
+};
+
+export const setInternalNode = (
+  dataView: DataView,
+  index: number,
+  node: InternalNode,
+) => {
+  dataView.setUint8(index * 4, node.childMask);
+  const value = node.isFarBit
+    ? setBit(node.firstChildIndex, 15)
+    : clearBit(node.firstChildIndex, 15);
+  dataView.setUint16(index * 4 + 1, value, true);
+  dataView.setUint8(index * 4 + 3, node.leafMask);
+};
+
+const setAddressNode = (
+  dataView: DataView,
+  index: number,
+  node: AddressNode,
+) => {
+  dataView.setUint32(index * 4, node.firstChildIndex, true);
+};
+
 export const octreeToArrayBuffer = (octree: Octree) => {
   const strideBytes = 4;
   const buffer = new ArrayBuffer(octree.totalSize);
   const view = new DataView(buffer);
 
   octree.nodes.forEach((node, i) => {
-    // handle leaf nodes
     if ("leafFlag" in node) {
-      view.setUint8(i * strideBytes, 255);
-      view.setUint8(i * strideBytes + 1, node.paletteIndex);
-    }
-    // handle internal nodes
-    else if ("childMask" in node) {
-      view.setUint8(i * strideBytes, node.childMask);
-      const value = node.isFarBit
-        ? setBit(node.firstChildIndex, 15)
-        : clearBit(node.firstChildIndex, 15);
-      if (!node.isFarBit) {
-        console.assert(
-          node.firstChildIndex < MAX_15_BIT_UNSIGNED_INT,
-          `Octree node's firstChildIndex of ${node.firstChildIndex} of exceeds max 15bit unsigned integer!`,
-        );
-        console.assert(
-          bitmaskToStringLE(value, 16)[15] === "0",
-          `Far bit set for node ${i}: ${bitmaskToStringLE(value)}`,
-        );
-      } else {
-        console.assert(
-          bitmaskToStringLE(value, 16)[15] === "1",
-          `Far bit not set for node ${i}: ${bitmaskToStringLE(value, 16)}`,
-        );
-      }
-      view.setUint16(i * strideBytes + 1, value, true);
-      view.setUint8(i * strideBytes + 3, node.leafMask);
-    }
-    // handle address nodes
-    else {
-      view.setUint32(i * strideBytes, node.firstChildIndex, true);
+      setLeafNode(view, i, node);
+    } else if ("childMask" in node) {
+      setInternalNode(view, i, node);
+    } else {
+      setAddressNode(view, i, node);
     }
   });
 

@@ -184,17 +184,6 @@ fn stack3_pop(stack: ptr<function, Stack3>) -> vec3<i32> {
     return (*stack).arr[(*stack).head];
 }
 
-// if childMask is full, then the node is a leaf
-fn isLeaf(node: u32) -> bool {
-  let firstByte = node & 0xFFu;
-  return firstByte == 255;
-}
-
-// second 8 bits are the palette index
-fn unpackLeaf(node: u32) -> u32 {
-  return (node >> 8u) & 0xFFu;
-}
-
 struct InternalNode {
   childMask: u32,
   firstChildOffset: u32,
@@ -203,10 +192,25 @@ struct InternalNode {
 }
 
 fn getFirstChildIndexFromInternalNode(node: InternalNode, index: u32) -> u32 {
-  if(node.hasFarBit){
-    return octreeBuffer[index + node.firstChildOffset];
-  }
+//  if(node.hasFarBit){
+//    return octreeBuffer[index + node.firstChildOffset];
+//  }
   return index + node.firstChildOffset;
+}
+
+const mask8 = 0xFFu;
+const mask16 = 0xFFFFu;
+const mask15 = 0x7FFFu;
+
+// if childMask is full, then the node is a leaf
+fn isLeaf(node: u32) -> bool {
+  let firstByte = node & mask8;
+  return firstByte == 255;
+}
+
+// second 8 bits are the palette index
+fn unpackLeaf(node: u32) -> u32 {
+  return (node >> 8u) & mask8;
 }
 
 /**
@@ -217,10 +221,11 @@ fn getFirstChildIndexFromInternalNode(node: InternalNode, index: u32) -> u32 {
   */
 fn unpackInternal(node: u32) -> InternalNode {
   var output = InternalNode();
-  output.childMask = node & 0xFFu;
-  output.firstChildOffset = (node >> 8u) & 0x7FFFu;
-  output.leafMask = (node >> 24u) & 0xFFu;
-  output.hasFarBit = (output.firstChildOffset & 0x8000u) != 0u;
+  output.childMask = node & mask8;
+//  output.firstChildOffset = (node >> 8u) & mask15;
+//  output.hasFarBit = (output.firstChildOffset & 0x8000u) != 0u;
+  output.firstChildOffset = (node >> 8u) & mask16;
+  output.leafMask = (node >> 24u) & mask8;
   return output;
 }
 
