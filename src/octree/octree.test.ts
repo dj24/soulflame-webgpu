@@ -170,9 +170,11 @@ test("internal node is set in dataview correctly", () => {
   const value = dataView.getUint32(0, true);
   const childMask = value & 0xff;
   const firstChildIndex = (value >> 8) & 0xffff;
+  const farBit = firstChildIndex & 0x8000;
   const leafMask = (value >> 24) & 0xff;
 
   expect(childMask).toBe(0b11111111);
   expect(firstChildIndex).toBe(27);
   expect(leafMask).toBe(0b11111111);
+  expect(farBit).toBe(0);
 });

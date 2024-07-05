@@ -241,6 +241,10 @@ fn octantIndexToOffset(index: u32) -> vec3<u32> {
   );
 }
 
+fn octantOffsetToIndex(offset: vec3<u32>) -> u32 {
+  return offset.x + offset.y * 2u + offset.z * 4u;
+}
+
 fn ceilToPowerOfTwo(value: f32) -> f32 {
   return pow(2.0, ceil(log2(value)));
 }
@@ -287,59 +291,43 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       var closestLeafIndex = 0u;
       let nodeSize = getNodeSizeAtDepth(size, depth);
 
-      // Translate the ray into the node's space, to remove the need for "min bounds" in calculations
-      let translatedRayOrigin = objectRayOrigin - vec3<f32>(parentOffset);
-      var currentIndex = max(vec3(1), ceil(objectRayOrigin));
-      var tMax = currentIndex / objectRayDirection;
-      let tDelta = 1.0 / objectRayDirection;
-      let step = sign(objectRayDirection);
+      var nodeRayOrigin = objectRayOrigin - vec3<f32>(parentOffset);
+      var rayOrigin = nodeRayOrigin;
 
       // Check if each child is filled via the bitmask
-      for(var i = 0u; i < 8; i++){
-        if(tMax.x < tMax.y){
-          if(tMax.x < tMax.z){
-            currentIndex.x += step.x;
-            tMax.x += tDelta.x;
-          } else {
-            currentIndex.z += step.z;
-            tMax.z += tDelta.z;
-          }
-        } else {
-          if(tMax.y < tMax.z){
-            currentIndex.y += step.y;
-            tMax.y += tDelta.y;
-          } else {
-            currentIndex.z += step.z;
-            tMax.z += tDelta.z;
-          }
-        }
-
+      for(var i = 0u; i < 1; i++){
+//        let octantPos = vec3<u32>(max(vec3(1), ceil(rayOrigin)));
+//        let octantIndex = octantOffsetToIndex(octantPos);
         let octantIndex = i;
+
+        let offsetWithinOctant = octantIndexToOffset(i);
+        let octantDepth = depth + 1u;
+        let octantSize = getNodeSizeAtDepth(size, octantDepth);
+        let childNodeIndex = firstChildIndex + octantIndex;
 
         // If the child is filled, check it for intersection
         if(getBit(internalNode.childMask, octantIndex)){
-          let offsetWithinOctant = octantIndexToOffset(i);
-          let octantDepth = depth + 1u;
-          let octantSize = getNodeSizeAtDepth(size, octantDepth);
-          let childNodeIndex = firstChildIndex + octantIndex;
-
           // Transform the ray into the child node's space
           let childOffset = vec3<u32>(parentOffset) + offsetWithinOctant * octantSize;
           let childRayOrigin = objectRayOrigin - vec3<f32>(childOffset);
           let boxSize = vec3(f32(octantSize)) / 2;
           let octantIntersection = boxIntersection(childRayOrigin, objectRayDirection, boxSize);
+          if(!octantIntersection.isHit){
+            continue;
+          }
 
-          if(octantIntersection.isHit){
-            // If we hit a leaf node, check if it is the closest hit
-            if(getBit(internalNode.leafMask, octantIndex)){
-              return output;
-            }
-            // If we hit an internal child node, so push it onto the stack to check its children
-            else{
-              stack_push(&nodeStack, i32(childNodeIndex));
-              stack_push(&depthStack, i32(octantDepth));
-              stack3_push(&offsetsStack, vec3<i32>(childOffset));
-            }
+          // Advance the ray to the intersection point
+          rayOrigin = nodeRayOrigin + objectRayDirection * octantIntersection.tNear;
+
+          // If we hit a leaf node, check if it is the closest hit
+          if(getBit(internalNode.leafMask, octantIndex)){
+            return output;
+          }
+          // If we hit an internal child node, so push it onto the stack to check its children
+          else{
+            stack_push(&nodeStack, i32(childNodeIndex));
+            stack_push(&depthStack, i32(octantDepth));
+            stack3_push(&offsetsStack, vec3<i32>(childOffset));
           }
         }
       }

@@ -213,7 +213,7 @@ export class Octree {
       // };
       // isFarBit = true;
       this.nodes[startIndex] = {
-        firstChildIndex: 0,
+        firstChildIndex: indexToStore,
         childMask: 0,
         leafMask: 0,
         voxels: { ...voxels, SIZE: [objectSize, objectSize, objectSize] },
