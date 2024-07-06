@@ -5,21 +5,6 @@ struct BoxIntersectionResult {
     isHit: bool,
 }
 
-fn simpleBoxIntersection(
-    ro: vec3<f32>,
-    rd: vec3<f32>,
-    boxSize: vec3<f32>,
-) -> vec2<f32> {
-  let m = 1.0/rd; // can precompute if traversing a set of aligned boxes
-  let n = m*ro;   // can precompute if traversing a set of aligned boxes
-  let k = abs(m)*boxSize;
-  let t1 = -n - k;
-  let t2 = -n + k;
-  let tN = max( max( t1.x, t1.y ), t1.z );
-  let tF = min( min( t2.x, t2.y ), t2.z );
-  return vec2( tN, tF );
-}
-
 fn boxIntersection(
     ro: vec3<f32>,
     rd: vec3<f32>,
