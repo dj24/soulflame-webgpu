@@ -257,7 +257,7 @@ fn planeIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, planeNormal:
   return -(dot(rayOrigin,planeNormal)+planeDistance)/dot(rayDirection,planeNormal);
 }
 
-fn sort3(a: f32, b: f32, c: f32) -> vec3<f32> {
+fn sort3Asc(a: f32, b: f32, c: f32) -> vec3<f32> {
   return vec3<f32>(
     min(a, min(b, c)),
     max(min(a, b), min(max(a, b), c)),
@@ -265,7 +265,20 @@ fn sort3(a: f32, b: f32, c: f32) -> vec3<f32> {
   );
 }
 
-// https://bertolami.com/files/octrees.pdf
+fn sort3Desc(a: f32, b: f32, c: f32) -> vec3<f32> {
+  return vec3<f32>(
+    max(a, max(b, c)),
+    max(min(a, b), min(max(a, b), c)),
+    min(a, min(b, c))
+  );
+}
+/*
+https://bertolami.com/files/octrees.pdf
+● If x >= 0, then it is closest to a positive x child node
+● If y >= 0, then it is closest to a positive y child node
+● If z >= 0, then it is closest to a positive z child node
+
+*/
 fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) -> RayMarchResult {
     let objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
@@ -281,7 +294,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     var size = getNodeSizeAtDepth(u32(rootNodeSize), depth);
     var nodeIndex = 0u;
 
-    while (output.iterations < 8) {
+    while (output.iterations < 16) {
       output.iterations += 1;
       let node = octreeBuffer[nodeIndex];
       let internalNode = unpackInternal(node);
@@ -295,29 +308,6 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       let nodeSize = getNodeSizeAtDepth(size, depth);
       let boxExtents = f32(nodeSize / 2);
       let nodeRayOrigin = objectRayOrigin - vec3<f32>(parentOffset);
-      var nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(boxExtents));
-      if(!nodeIntersection.isHit){
-        depth -= 1;
-        parentOffset = previousOffset;
-        continue;
-      }
-
-      // First check if we hit the bounds of the node
-      var hitPosition = nodeRayOrigin + objectRayDirection * nodeIntersection.tNear - EPSILON;
-      var hitOctant = max(vec3(0), floor(hitPosition / vec3(boxExtents)));
-      var hitIndex = octantOffsetToIndex(vec3<u32>(hitOctant));
-      if(getBit(internalNode.childMask, hitIndex)){
-        // Eventually handle leaf here
-        if(depth == 2){
-          output.hit = true;
-          output.normal = debugColourFromIndex(i32(hitIndex));
-          return output;
-        }
-        previousOffset = parentOffset;
-        parentOffset += hitOctant * f32(nodeSize) * 0.5;
-        depth += 1;
-        continue;
-      }
 
       // If not, use planes to find the "inner" intersections
       var yPlaneIntersection = planeIntersection(nodeRayOrigin, objectRayDirection, vec3(0.0, -1, 0.0), boxExtents);
@@ -339,10 +329,18 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       }
 
       // Get the closest plane intersection
-      let sortedIntersections = sort3(xPlaneIntersection, yPlaneIntersection, zPlaneIntersection);
+      let sortedIntersections = sort3Asc(xPlaneIntersection, yPlaneIntersection, zPlaneIntersection);
+
+      if(sortedIntersections[0] >= 9999.0){
+        break;
+      }
 
       for(var i = 0; i < 3; i++){
         output.iterations += 1;
+        // if the intersection is behind the ray origin, ignore it. As we are sorted ascending, the first nodes could be invalid
+        if(sortedIntersections[i] <= 0.0){
+          continue;
+        }
         // If we didn't hit a plane, we need to go to the next node
         if(sortedIntersections[i] >= 9999.0){
           output.iterations += 1;
@@ -351,14 +349,14 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
           output.normal = vec3(0.125 * f32(depth));
           break;
         }
-        hitPosition = nodeRayOrigin + objectRayDirection * sortedIntersections[i] - EPSILON;
-        hitOctant = max(vec3(0), floor(hitPosition / vec3(boxExtents)));
-        hitIndex = octantOffsetToIndex(vec3<u32>(hitOctant));
+        let hitPosition = nodeRayOrigin + objectRayDirection * sortedIntersections[i] - EPSILON;
+        let hitOctant = max(vec3(0), floor(hitPosition / vec3(boxExtents)));
+        let hitIndex = octantOffsetToIndex(vec3<u32>(hitOctant));
 
         // Hit a valid (filled) octant, now travese to the child node
         if(getBit(internalNode.childMask, hitIndex)){
           // Eventually handle leaf here
-          if(depth == 2){
+          if(depth == 0){
             output.hit = true;
             output.normal = debugColourFromIndex(i32(hitIndex));
             return output;
