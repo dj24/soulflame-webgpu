@@ -23,5 +23,10 @@ export class KeyboardControls {
         this.pressed[key as keyof KeyboardControls["pressed"]] = false;
       });
     });
+    window.addEventListener("contextmenu", () => {
+      Object.keys(this.pressed).forEach((key) => {
+        this.pressed[key as keyof KeyboardControls["pressed"]] = false;
+      });
+    });
   }
 }
