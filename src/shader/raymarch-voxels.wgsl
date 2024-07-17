@@ -329,22 +329,30 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     while (output.iterations < 16 && stack.head > 0u) {
       output.iterations += 1;
 
+      // Get the node data TODO: update node index
       let node = octreeBuffer[nodeIndex];
       let internalNode = unpackInternal(node);
+
+      // Unpack relevant data from the stack
       let stackElement = unpack4x8unorm(u32(stack_pop(&stack)));
       let nodeOrigin = stackElement.xyz;
       let depth = u32(stackElement.w);
+
+      // Get the size of the node and the center so we can get the plane intersections
       let nodeSize = getNodeSizeAtDepth(u32(rootNodeSize), depth);
       let centerOfNode = nodeOrigin + vec3(f32(nodeSize) * 0.5);
+
+      // Get octant based on which side of the center the ray origin is
       let startingOctant = vec3<u32>(objectRayOrigin >= centerOfNode);
       let startingIndex = octantOffsetToIndex(startingOctant);
 
       // If there is no voxels in the node, skip it
       if(!getBit(internalNode.childMask, startingIndex)){
-        continue;
+//        continue;
       }
 
-      if(depth == 0){
+      // TODO: handle leaf here
+      if(depth == 0 && getBit(internalNode.childMask, startingIndex)){
         output.hit = true;
         output.normal = debugColourFromIndex(i32(startingIndex));
         return output;
