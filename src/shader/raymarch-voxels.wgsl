@@ -205,47 +205,53 @@ fn stack3_pop(stack: ptr<function, Stack3>) -> vec3<i32> {
 }
 
 struct InternalNode {
-  childMask: u32,
   firstChildOffset: u32,
-  leafMask: u32,
-  hasFarBit: bool
+  childMask: u32,
+  x: u32,
+  y: u32,
+  z: u32,
+  size: u32,
 }
 
 fn getFirstChildIndexFromInternalNode(node: InternalNode, index: u32) -> u32 {
-//  if(node.hasFarBit){
-//    return octreeBuffer[index + node.firstChildOffset];
-//  }
   return index + node.firstChildOffset;
 }
 
 const mask8 = 0xFFu;
 const mask16 = 0xFFFFu;
-const mask15 = 0x7FFFu;
 
-// if childMask is full, then the node is a leaf
+// if first child offset is 0, then it is a leaf
 fn isLeaf(node: u32) -> bool {
   let firstByte = node & mask8;
-  return firstByte == 255;
+  return firstByte == 0;
 }
 
-// second 8 bits are the palette index
-fn unpackLeaf(node: u32) -> u32 {
-  return (node >> 8u) & mask8;
+//2nd, 3rd and 4th bytes are the red, green and blue values
+fn unpackLeaf(node: u32) -> vec3<u32> {
+  return vec3<u32>(
+    (node >> 8u) & mask8,
+    (node >> 16u) & mask8,
+    (node >> 24u) & mask8
+  );
 }
 
 /**
   * Unpacks an internal node from a 32 bit integer
-  * First 8 bits are the child mask
-  * The next 16 bits are the first child offset, with the far bit in the 16th bit
-  * The next 8 bits are the leaf mask
+  * First 8 bits are the firstChildOffset
+  * The next 8 bits are the child mask
+  * The next 8 bits are the x position
+  * The next 8 bits are the y position
+  * The next 8 bits are the z position
+  * The next 8 bits are the size
   */
 fn unpackInternal(node: u32) -> InternalNode {
   var output = InternalNode();
-  output.childMask = node & mask8;
-//  output.firstChildOffset = (node >> 8u) & mask15;
-//  output.hasFarBit = (output.firstChildOffset & 0x8000u) != 0u;
-  output.firstChildOffset = (node >> 8u) & mask16;
-  output.leafMask = (node >> 24u) & mask8;
+  output.firstChildOffset = node & mask8;
+  output.childMask = (node >> 8u) & mask8;
+  output.x = (node >> 16u) & mask8;
+  output.y = (node >> 24u) & mask8;
+  output.z = (node >> 32u) & mask8;
+  output.size = (node >> 40u) & mask8;
   return output;
 }
 
@@ -316,97 +322,16 @@ fn getPlaneIntersections(rayOrigin: vec3<f32>, rayDirection:vec3<f32>, nodeSize:
     return vec3<f32>(xPlaneIntersection, yPlaneIntersection, zPlaneIntersection);
 }
 
-/*
-https://bertolami.com/files/octrees.pdf
-● If x >= 0, then it is closest to a positive x child node
-● If y >= 0, then it is closest to a positive y child node
-● If z >= 0, then it is closest to a positive z child node
-*/
+
 fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) -> RayMarchResult {
     var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
     var output = RayMarchResult();
     output.t = FAR_PLANE;
-    let rootNodeSize = ceilToPowerOfTwo(max3(voxelObject.size));
     var nodeIndex = 0u;
-
-    /*
-      Create a stack to store the node origins and depths of the nodes we are traversing
-      packed into a single integer
-      3bytes: position
-      1byte: depth
-    */
     var stack = stacku32_new();
-    let startingNodeOrigin = vec3<f32>(0.0);
-    stacku32_push(&stack, pack4x8unorm(vec4<f32>(startingNodeOrigin, 0.0)));
 
-    let rootNodeIntersection = boxIntersection(objectRayOrigin, objectRayDirection, vec3<f32>(rootNodeSize) * 0.5);
-    if(!rootNodeIntersection.isHit){
-      return output;
-    }
-
-    objectRayOrigin += objectRayDirection * rootNodeIntersection.tNear - EPSILON;
-
-    while (output.iterations < 16 && stack.head > 0u) {
-      output.iterations += 1;
-
-      // Get the node data TODO: update node index
-      let node = octreeBuffer[nodeIndex];
-      let internalNode = unpackInternal(node);
-
-      // Unpack relevant data from the stack
-      let stackElement = unpack4x8unorm(stacku32_pop(&stack));
-      let nodeOrigin = vec3<f32>(stackElement.xyz);
-      let depth = u32(stackElement.w);
-
-      // Get the size of the node and the center so we can get the plane intersections
-      let nodeSize = getNodeSizeAtDepth(u32(rootNodeSize), depth);
-      let centerOfNode = nodeOrigin + vec3(f32(nodeSize) * 0.5);
-
-      // Get octant based on which side of the center the ray origin is
-      let startingOctant = vec3<u32>(objectRayOrigin >= centerOfNode);
-      let startingIndex = octantOffsetToIndex(startingOctant);
-
-      // TODO: handle leaf here
-      if(depth == 0 && getBit(internalNode.childMask, startingIndex)){
-        output.hit = true;
-        output.normal = debugColourFromIndex(i32(startingIndex));
-        return output;
-      }
-
-      // Use planes to find the "inner" intersections
-      let planeIntersections = getPlaneIntersections(objectRayOrigin - nodeOrigin, objectRayDirection, f32(nodeSize));
-
-      // Get the closest plane intersection
-      let sortedIntersections = sort3Asc(planeIntersections.x, planeIntersections.y, planeIntersections.z);
-
-      for(var i = 0; i < 3; i++){
-        // If the closest intersection is outside the bounds of the node, we are done
-        if(sortedIntersections[i] > 9999.0){
-          break;
-        }
-
-        let childNodeSize = nodeSize >> 1u;
-        let centerOfChild = nodeOrigin + vec3(f32(childNodeSize));
-        let hitPosition = objectRayOrigin + objectRayDirection * sortedIntersections[i] - EPSILON;
-        let hitOctant = vec3<u32>(hitPosition >= centerOfChild);
-        let hitIndex = octantOffsetToIndex(vec3<u32>(hitOctant));
-
-        // Hit a valid (filled) octant, push it to the stack
-        if(getBit(internalNode.childMask, hitIndex)){
-          // Eventually handle leaf here
-          if(depth == 0){
-            output.hit = true;
-            output.normal = debugColourFromIndex(i32(hitIndex));
-            return output;
-          }
-          let offsetPosition = nodeOrigin + vec3<f32>(hitOctant * nodeSize);
-          let packedValue = pack4x8unorm(vec4<f32>(offsetPosition, f32(depth + 1)));
-          stacku32_push(&stack, packedValue);
-          break;
-        }
-      }
-    }
+    //TODO: copy the bvh traversal code here
 
     return output;
 }

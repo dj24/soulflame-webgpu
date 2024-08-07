@@ -1,12 +1,5 @@
 import { TVoxels } from "../convert-vxm";
-import {
-  clearBit,
-  clearBitLE,
-  getBit,
-  getBitLE,
-  setBit,
-  setBitLE,
-} from "./bitmask";
+import { setBit } from "./bitmask";
 
 export const octantPositions = [
   [0, 0, 0],
@@ -24,11 +17,7 @@ export const getOctreeDepthFromVoxelBounds = (size: TVoxels["SIZE"]) => {
   return Math.ceil(Math.log2(Math.max(...size)));
 };
 
-export const bytesToMB = (bytes: number) => {
-  return bytes / 1024 / 1024;
-};
-
-const MAX_15_BIT_UNSIGNED_INT = 32767;
+const OCTREE_STRIDE = 8;
 
 export const bitmaskToString = (bitmask: number, bits = 8) => {
   return bitmask.toString(2).padStart(bits, "0");
@@ -61,49 +50,39 @@ export const octantIndexToOffset = (index: number) => {
   return [index & 1 ? 1 : 0, index & 2 ? 1 : 0, index & 4 ? 1 : 0];
 };
 
-export const getClosestOctantIndex = (
-  position: [x: number, y: number, z: number],
-  centerOfNode: [x: number, y: number, z: number],
-) => {
-  let orientedPositionX = position[0] - centerOfNode[0];
-  let orientedPositionY = position[1] - centerOfNode[1];
-  let orientedPositionZ = position[2] - centerOfNode[2];
-  let xTest = orientedPositionX >= 0 ? 1 : 0;
-  let yTest = orientedPositionY >= 0 ? 1 : 0;
-  let zTest = orientedPositionZ >= 0 ? 1 : 0;
-  return xTest | (yTest << 1) | (zTest << 2);
-};
-
 const ceilToNextPowerOfTwo = (n: number) => {
   return Math.pow(2, Math.ceil(Math.log2(n)));
 };
 
 export type InternalNode = {
+  /** voxels contained within this node */
+  voxels: TVoxels;
   /** index of the first child node */
   firstChildIndex: number;
   /** bitmask of which children are present */
   childMask: number;
-  /** voxels contained within this node */
-  leafMask: number;
-  voxels: TVoxels;
-  /** if the firstChildIndex exceeds the max 15 bit unsigned integer, we store the relative address of a 32 bit address */
-  isFarBit: boolean;
+  /** x position of the node */
+  x: number;
+  /** y position of the node */
+  y: number;
+  /** z position of the node */
+  z: number;
+  /** size of the node */
+  size: number;
 };
 
 export type LeafNode = {
   /** 0 if this is a leaf node */
   leafFlag: 0;
-  /** index of the palette color */
-  paletteIndex: number;
+  /** 0-255 red value */
+  red: number;
+  /** 0-255 green value */
+  green: number;
+  /** 0-255 blue value */
+  blue: number;
 };
 
-/** For nodes that exceed the 15 bit unsigned integer limit, we store the address of the first child node */
-export type AddressNode = {
-  /** index of the first child node */
-  firstChildIndex: number;
-};
-
-type OctreeNode = InternalNode | LeafNode | AddressNode;
+type OctreeNode = InternalNode | LeafNode;
 
 /**
  * Handles construction of an Octree for a single voxel object.
@@ -168,61 +147,18 @@ export class Octree {
       }
     }
 
-    // Count the number of valid child octants, so we know how many child nodes to allocate
-    let requiredChildNodes = 0;
-
     // Once we have the valid child octants, create a node for the current octant
     const childMask = childOctants.reduce((mask, octantVoxels, i) => {
       if (octantVoxels) {
-        requiredChildNodes = i + 1;
         return setBit(mask, i);
         // return setBitLE(mask, i);
       }
       return mask;
     }, 0);
 
-    const isAllSameColor = voxels.XYZI.every(
-      (voxel) => voxel.c === voxels.XYZI[0].c,
-    );
-
-    const isParentToMaxDepth = childDepth === this.#maxDepth - 1;
-
-    // If all child octants are filled with the same colour, and we are one level from the smallest voxels, this is a leaf (solid) node
-    if (childMask === 255 && isAllSameColor && isParentToMaxDepth) {
-      this.nodes[startIndex] = {
-        leafFlag: 0,
-        paletteIndex: voxels.XYZI[0].c,
-      };
-      return;
-    }
-
     // Allocate memory for 8 child nodes
-    const firstChildIndex = this.#mallocOctant(requiredChildNodes);
+    const firstChildIndex = this.#mallocOctant();
     const relativeIndex = firstChildIndex - startIndex;
-
-    // The index to store in the parent node
-    let indexToStore = relativeIndex;
-    let isFarBit = false;
-
-    // If the first child index exceeds the max 15 bit unsigned integer, we instead store the pointer to a 32bit address
-    if (relativeIndex > MAX_15_BIT_UNSIGNED_INT) {
-      // let addressNodeIndex = this.#mallocOctant(1);
-      // indexToStore = addressNodeIndex - startIndex;
-      // this.nodes[addressNodeIndex] = {
-      //   firstChildIndex,
-      // };
-      // isFarBit = true;
-      this.nodes[startIndex] = {
-        firstChildIndex: indexToStore,
-        childMask: 0,
-        leafMask: 0,
-        voxels: { ...voxels, SIZE: [objectSize, objectSize, objectSize] },
-        isFarBit,
-      };
-      return;
-    }
-
-    let leafMask = 0;
 
     childOctants.forEach((octantVoxels, i) => {
       if (octantVoxels) {
@@ -232,9 +168,10 @@ export class Octree {
         if (isLeaf) {
           this.nodes[childIndex] = {
             leafFlag: 0,
-            paletteIndex: octantVoxels.XYZI[0].c,
+            red: octantVoxels.RGBA[0].r,
+            green: octantVoxels.RGBA[0].g,
+            blue: octantVoxels.RGBA[0].b,
           };
-          leafMask = setBit(leafMask, i);
         } else {
           const origin = octantIndexToOffset(i);
           const x = offset[0] + origin[0] * childOctantSize;
@@ -247,22 +184,26 @@ export class Octree {
 
     // Create the parent node
     this.nodes[startIndex] = {
-      firstChildIndex: indexToStore,
+      firstChildIndex: relativeIndex,
       childMask,
-      leafMask,
       voxels: { ...voxels, SIZE: [objectSize, objectSize, objectSize] },
-      isFarBit,
+      x: offset[0],
+      y: offset[1],
+      z: offset[2],
+      size: objectSize,
     };
   }
 
   get totalSize() {
-    return this.nodes.length * 4;
+    return this.nodes.length * OCTREE_STRIDE;
   }
 }
 
 const setLeafNode = (dataView: DataView, index: number, node: LeafNode) => {
-  dataView.setUint8(index * 4, 255);
-  dataView.setUint8(index * 4 + 1, node.paletteIndex);
+  dataView.setUint8(index * OCTREE_STRIDE, node.leafFlag);
+  dataView.setUint8(index * OCTREE_STRIDE + 1, node.red);
+  dataView.setUint8(index * OCTREE_STRIDE + 2, node.green);
+  dataView.setUint8(index * OCTREE_STRIDE + 3, node.blue);
 };
 
 export const setInternalNode = (
@@ -270,34 +211,22 @@ export const setInternalNode = (
   index: number,
   node: InternalNode,
 ) => {
-  dataView.setUint8(index * 4, node.childMask);
-  const value = node.isFarBit
-    ? setBit(node.firstChildIndex, 15)
-    : clearBit(node.firstChildIndex, 15);
-  dataView.setUint16(index * 4 + 1, value, true);
-  dataView.setUint8(index * 4 + 3, node.leafMask);
-};
-
-const setAddressNode = (
-  dataView: DataView,
-  index: number,
-  node: AddressNode,
-) => {
-  dataView.setUint32(index * 4, node.firstChildIndex, true);
+  dataView.setUint8(index * OCTREE_STRIDE + 1, node.firstChildIndex);
+  dataView.setUint8(index * OCTREE_STRIDE, node.childMask);
+  dataView.setUint8(index * OCTREE_STRIDE + 2, node.x);
+  dataView.setUint8(index * OCTREE_STRIDE + 3, node.y);
+  dataView.setUint8(index * OCTREE_STRIDE + 4, node.z);
 };
 
 export const octreeToArrayBuffer = (octree: Octree) => {
-  const strideBytes = 4;
   const buffer = new ArrayBuffer(octree.totalSize);
   const view = new DataView(buffer);
 
   octree.nodes.forEach((node, i) => {
     if ("leafFlag" in node) {
       setLeafNode(view, i, node);
-    } else if ("childMask" in node) {
-      setInternalNode(view, i, node);
     } else {
-      setAddressNode(view, i, node);
+      setInternalNode(view, i, node);
     }
   });
 
