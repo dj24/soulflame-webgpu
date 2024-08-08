@@ -244,14 +244,16 @@ fn unpackLeaf(node: u32) -> vec3<u32> {
   * The next 8 bits are the z position
   * The next 8 bits are the size
   */
-fn unpackInternal(node: u32) -> InternalNode {
+fn unpackInternal(node: vec2<u32>) -> InternalNode {
   var output = InternalNode();
-  output.firstChildOffset = node & mask8;
-  output.childMask = (node >> 8u) & mask8;
-  output.x = (node >> 16u) & mask8;
-  output.y = (node >> 24u) & mask8;
-  output.z = (node >> 32u) & mask8;
-  output.size = (node >> 40u) & mask8;
+  let first4Bytes = node.x;
+  let second4Bytes = node.y;
+  output.firstChildOffset = first4Bytes & mask8;
+  output.childMask = (first4Bytes >> 8u) & mask8;
+  output.x = (first4Bytes >> 16u) & mask8;
+  output.y = (first4Bytes >> 24u) & mask8;
+  output.z = second4Bytes & mask8;
+  output.size = (second4Bytes >> 8u) & mask8;
   return output;
 }
 

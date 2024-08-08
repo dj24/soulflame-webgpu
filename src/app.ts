@@ -583,7 +583,7 @@ const computePasses = await Promise.all([
   // getLutPass("luts/Reeve 38.CUBE"),
   // getVignettePass(15.0),
   fullscreenQuad(device),
-  // getBoxOutlinePass(),
+  getBoxOutlinePass(),
 ]);
 beginRenderLoop(device, await Promise.all(computePasses));
 debugUI.setupDebugControls(computePasses);

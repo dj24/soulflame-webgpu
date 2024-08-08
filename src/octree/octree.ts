@@ -111,6 +111,19 @@ export class Octree {
     offset: [x: number, y: number, z: number],
     depth: number,
   ) {
+    // Only one voxel in this octant, so it's a leaf node
+    const isLeaf = voxels.XYZI.length === 1;
+    if (isLeaf) {
+      const paletteIndex = voxels.XYZI[0].c;
+      this.nodes[startIndex] = {
+        leafFlag: 0,
+        red: voxels.RGBA[paletteIndex].r,
+        green: voxels.RGBA[paletteIndex].g,
+        blue: voxels.RGBA[paletteIndex].b,
+      };
+      return;
+    }
+
     // The voxels contained within each child octant
     const childOctants: (TVoxels | null)[] = Array.from(
       { length: 8 },
@@ -127,7 +140,7 @@ export class Octree {
       const y = offset[1] + origin[1] * childOctantSize;
       const z = offset[2] + origin[2] * childOctantSize;
 
-      const octantVoxels = voxels.XYZI.filter(
+      const octantVoxels: TVoxels["XYZI"] = voxels.XYZI.filter(
         (voxel) =>
           voxel.x >= x &&
           voxel.x < x + childOctantSize &&
@@ -142,7 +155,7 @@ export class Octree {
           SIZE: [childOctantSize, childOctantSize, childOctantSize],
           XYZI: octantVoxels,
           RGBA: voxels.RGBA,
-          VOX: voxels.VOX,
+          VOX: octantVoxels.length,
         };
       }
     }
@@ -162,23 +175,12 @@ export class Octree {
 
     childOctants.forEach((octantVoxels, i) => {
       if (octantVoxels) {
-        const isLeaf = octantVoxels.SIZE[0] === 1;
         const childIndex = firstChildIndex + i;
-        // Leaf node
-        if (isLeaf) {
-          this.nodes[childIndex] = {
-            leafFlag: 0,
-            red: octantVoxels.RGBA[0].r,
-            green: octantVoxels.RGBA[0].g,
-            blue: octantVoxels.RGBA[0].b,
-          };
-        } else {
-          const origin = octantIndexToOffset(i);
-          const x = offset[0] + origin[0] * childOctantSize;
-          const y = offset[1] + origin[1] * childOctantSize;
-          const z = offset[2] + origin[2] * childOctantSize;
-          this.#build(octantVoxels, childIndex, [x, y, z], childDepth);
-        }
+        const origin = octantIndexToOffset(i);
+        const x = offset[0] + origin[0] * childOctantSize;
+        const y = offset[1] + origin[1] * childOctantSize;
+        const z = offset[2] + origin[2] * childOctantSize;
+        this.#build(octantVoxels, childIndex, [x, y, z], childDepth);
       }
     });
 
