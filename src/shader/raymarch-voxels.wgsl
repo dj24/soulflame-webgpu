@@ -316,25 +316,32 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
 
     while (stack.head > 0u && iterations < MAX_STEPS) {
       let node = unpackInternal(octreeBuffer[nodeIndex]);
+      // TODO: offset ray origin based on node pos
       let nodeIntersection = boxIntersection(objectRayOrigin, objectRayDirection, vec3(f32(node.size) * 0.5));
-      for(var i = 0; i < 8; i++){
-        if(getBit(node.childMask, i)){
-          let childIndex = getFirstChildIndexFromInternalNode(node, i);
-          let child = octreeBuffer[childIndex];
-          if(isLeaf(child)){
-            let leaf = unpackLeaf(child);
-            if(leaf.x > 0u){
-              output.normal = vec3(0.0);
-              output.colour = colour;
-              output.hit = true;
-              output.t = 0.0;
-              return output;
+      if(nodeIntersection.isHit){
+        for(var i = 0; i < 8; i++){
+          if(getBit(node.childMask, i)){
+            let childIndex = getFirstChildIndexFromInternalNode(node, nodeIndex);
+            let child = octreeBuffer[childIndex];
+            // TODO: add intersection test here
+            if(isLeaf(child)){
+              if(child.x > 0u){
+                output.normal = abs(nodeIntersection.normal);
+                output.colour = unpackLeaf(child);
+                output.hit = true;
+                output.t = nodeIntersection.tNear;
+                return output;
+              }
+            } else {
+              stacku32_push(&stack, childIndex);
             }
-          } else {
-            stacku32_push(&stack, childIndex);
           }
         }
       }
+      else{
+        nodeIndex = stack_pop(&stack);
+      }
+
     }
 
     //TODO: copy the bvh traversal code here
