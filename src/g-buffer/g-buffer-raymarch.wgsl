@@ -154,9 +154,7 @@ fn tracePixel(pixel: vec2<u32>){
     closestIntersection = bvhResult;
 
     let voxelObject = voxelObjects[closestIntersection.voxelObjectIndex];
-    let paletteX = i32(closestIntersection.palettePosition * 255.0);
-    let paletteY = i32(voxelObject.paletteIndex);
-    let albedo = textureLoad(paletteTex, vec2(paletteX, paletteY), 0).rgb;
+    let albedo = closestIntersection.colour;
     let normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(closestIntersection.normal));
     let worldPos = rayOrigin + rayDirection * closestIntersection.t;
     let velocity = getVelocityStatic(worldPos, viewProjections);

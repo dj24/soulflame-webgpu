@@ -213,11 +213,15 @@ export const setInternalNode = (
   index: number,
   node: InternalNode,
 ) => {
-  dataView.setUint8(index * OCTREE_STRIDE + 1, node.firstChildIndex);
-  dataView.setUint8(index * OCTREE_STRIDE, node.childMask);
+  dataView.setUint8(index * OCTREE_STRIDE, node.firstChildIndex);
+  dataView.setUint8(index * OCTREE_STRIDE + 1, node.childMask);
   dataView.setUint8(index * OCTREE_STRIDE + 2, node.x);
   dataView.setUint8(index * OCTREE_STRIDE + 3, node.y);
   dataView.setUint8(index * OCTREE_STRIDE + 4, node.z);
+  dataView.setUint8(index * OCTREE_STRIDE + 5, node.size);
+  if (index === 0) {
+    console.log(node.size);
+  }
 };
 
 export const octreeToArrayBuffer = (octree: Octree) => {

@@ -20,9 +20,6 @@ fn getMaxMipLevel(size: vec3<f32>) -> u32 {
   return u32(log2(max(size.x, max(size.y, size.z))));
 }
 
-struct Brick {
-  voxels: array<u32, 16>
-}
 struct VoxelObject {
   transform: mat4x4<f32>,
   inverseTransform: mat4x4<f32>,
@@ -36,7 +33,7 @@ struct VoxelObject {
 
 struct RayMarchResult {
   voxelObjectIndex: i32,
-  palettePosition: f32,
+  colour: vec3<f32>,
   normal: vec3<f32>,
   hit: bool,
   t: f32,
@@ -63,27 +60,10 @@ fn convert3DTo1D(size: vec3<u32>, position: vec3<u32>) -> u32 {
   return position.x + position.y * size.x + position.z * (size.x * size.y);
 }
 
-
-fn doesBrickContainVoxels(brick: Brick) -> bool {
-  for(var i = 0; i < 16; i++){
-    if(brick.voxels[i] > 0){
-      return true;
-    }
-  }
-  return false;
-}
-
 fn getBit(value: u32, bitIndex: u32) -> bool {
   return (value & (1u << bitIndex)) != 0;
 }
 
-// gets bit in 512bit bitmask in a brick
-// bitIndex is the index of the bit in the bitmask, 0-511
-fn getBitInBrick(brick: Brick, bitIndex: u32) -> bool {
-  let maskIndex = bitIndex / 32;
-  let bitIndexInMask = bitIndex % 32;
-  return getBit(brick.voxels[maskIndex], bitIndexInMask);
-}
 
 fn getScaleFromMatrix(transform: mat4x4<f32>) -> vec3<f32> {
   return vec3<f32>(length(transform[0].xyz), length(transform[1].xyz), length(transform[2].xyz));
@@ -116,7 +96,7 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
         output.normal = objectNormal;
         output.hit = true;
         output.t = tCurrent + EPSILON;
-        output.palettePosition = mipSample0.r;
+        output.colour = vec3<f32>(mipSample0.r, 0,0);
         return output;
     }
 
@@ -334,10 +314,12 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     var stack = stacku32_new();
 
     let node = unpackInternal(octreeBuffer[nodeIndex]);
-    let rootNodeIntersection = boxIntersection(objectRayOrigin, objectRayDirection, vec3(f32(node.size)) * 0.5);
+    let rootNodeIntersection = boxIntersection(objectRayOrigin, objectRayDirection, vec3(f32(node.size) * 0.5));
     if(rootNodeIntersection.isHit){
       output.hit = true;
-      output.normal = vec3(1.0);
+      output.normal = abs(rootNodeIntersection.normal);
+      output.t = rootNodeIntersection.tNear;
+      output.colour = vec3<f32>(1.0);
       return output;
     }
 

@@ -1,5 +1,7 @@
 export const getGpuDevice = async (): Promise<GPUDevice> => {
-  const adapter = await navigator.gpu.requestAdapter();
+  const adapter = await navigator.gpu.requestAdapter({
+    powerPreference: "high-performance",
+  });
   console.log(adapter);
   let device: GPUDevice;
   try {
