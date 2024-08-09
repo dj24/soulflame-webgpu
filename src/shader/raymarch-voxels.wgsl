@@ -201,8 +201,8 @@ const mask8 = 0xFFu;
 const mask16 = 0xFFFFu;
 
 // if first child offset is 0, then it is a leaf
-fn isLeaf(node: u32) -> bool {
-  let firstByte = node & mask8;
+fn isLeaf(node:vec2<u32>) -> bool {
+  let firstByte = node.x & mask8;
   return firstByte == 0;
 }
 
@@ -312,15 +312,29 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     output.t = FAR_PLANE;
     var nodeIndex = 0u;
     var stack = stacku32_new();
+    stacku32_push(&stack, 0);
 
-    let node = unpackInternal(octreeBuffer[nodeIndex]);
-    let rootNodeIntersection = boxIntersection(objectRayOrigin, objectRayDirection, vec3(f32(node.size) * 0.5));
-    if(rootNodeIntersection.isHit){
-      output.hit = true;
-      output.normal = abs(rootNodeIntersection.normal);
-      output.t = rootNodeIntersection.tNear;
-      output.colour = vec3<f32>(1.0);
-      return output;
+    while (stack.head > 0u && iterations < MAX_STEPS) {
+      let node = unpackInternal(octreeBuffer[nodeIndex]);
+      let nodeIntersection = boxIntersection(objectRayOrigin, objectRayDirection, vec3(f32(node.size) * 0.5));
+      for(var i = 0; i < 8; i++){
+        if(getBit(node.childMask, i)){
+          let childIndex = getFirstChildIndexFromInternalNode(node, i);
+          let child = octreeBuffer[childIndex];
+          if(isLeaf(child)){
+            let leaf = unpackLeaf(child);
+            if(leaf.x > 0u){
+              output.normal = vec3(0.0);
+              output.colour = colour;
+              output.hit = true;
+              output.t = 0.0;
+              return output;
+            }
+          } else {
+            stacku32_push(&stack, childIndex);
+          }
+        }
+      }
     }
 
     //TODO: copy the bvh traversal code here
