@@ -184,22 +184,22 @@ fn stacku32_pop(stack: ptr<function, StackU32>) -> u32 {
     return (*stack).arr[(*stack).head];
 }
 
-struct Stack3 {
-  arr: array<vec3<i32>, STACK_LEN>,
+struct Stack2 {
+  arr: array<vec2<u32>, STACK_LEN>,
 	head: u32,
 }
 
-fn stack3_new() -> Stack3 {
-    var arr: array<vec3<i32>, STACK_LEN>;
-    return Stack3(arr, 0u);
+fn stack2_new() -> Stack2 {
+    var arr: array<vec2<u32>, STACK_LEN>;
+    return Stack2(arr, 0u);
 }
 
-fn stack3_push(stack: ptr<function, Stack3>, val: vec3<i32>) {
+fn stack2_push(stack: ptr<function, Stack2>, val: vec2<u32>) {
     (*stack).arr[(*stack).head] = val;
     (*stack).head += 1u;
 }
 
-fn stack3_pop(stack: ptr<function, Stack3>) -> vec3<i32> {
+fn stack2_pop(stack: ptr<function, Stack2>) -> vec2<u32> {
     (*stack).head -= 1u;
     return (*stack).arr[(*stack).head];
 }
@@ -227,11 +227,11 @@ fn isLeaf(node: u32) -> bool {
 }
 
 //2nd, 3rd and 4th bytes are the red, green and blue values
-fn unpackLeaf(node: u32) -> vec3<u32> {
+fn unpackLeaf(node: vec2<u32>) -> vec3<u32> {
   return vec3<u32>(
-    (node >> 8u) & mask8,
-    (node >> 16u) & mask8,
-    (node >> 24u) & mask8
+    (node.x >> 8u) & mask8,
+    (node.x >> 16u) & mask8,
+    (node.x >> 24u) & mask8
   );
 }
 
@@ -332,6 +332,14 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     output.t = FAR_PLANE;
     var nodeIndex = 0u;
     var stack = stacku32_new();
+
+    let node = unpackInternal(octreeBuffer[nodeIndex]);
+    let rootNodeIntersection = boxIntersection(objectRayOrigin, objectRayDirection, vec3(f32(node.size)) * 0.5);
+    if(rootNodeIntersection.isHit){
+      output.hit = true;
+      output.normal = vec3(1.0);
+      return output;
+    }
 
     //TODO: copy the bvh traversal code here
 

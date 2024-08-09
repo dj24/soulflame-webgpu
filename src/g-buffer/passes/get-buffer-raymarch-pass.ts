@@ -143,7 +143,7 @@ export const getBufferRaymarchPipeline = async () => {
           @group(0) @binding(10) var<storage> bvhNodes: array<BVHNode>;
           @group(0) @binding(11) var worldPosTex : texture_storage_2d<rgba32float, write>;
           @group(0) @binding(12) var paletteTex : texture_2d<f32>;
-          @group(0) @binding(13) var<storage> octreeBuffer : array<u32>;
+          @group(0) @binding(13) var<storage> octreeBuffer : array<vec2<u32>>;
           ${getRayDirection}
           ${boxIntersection}
           ${raymarchVoxels}
