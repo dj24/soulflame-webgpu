@@ -67,3 +67,32 @@ test("can follow from root to leaf node", () => {
   }
   expect("leafFlag" in node).toBe(true);
 });
+
+test("following to child node has half the size of the parent node", () => {
+  const XYZI = new Array(4096).fill(0).map((_, i) => ({
+    x: i % 16,
+    y: Math.floor(i / 16),
+    z: 0,
+    c: 0,
+  }));
+  const voxels: TVoxels = {
+    SIZE: [16, 16, 16],
+    XYZI,
+    RGBA: [{ r: 0, g: 0, b: 0, a: 0 }],
+    VOX: XYZI.length,
+  };
+  const octree = new Octree(voxels);
+  let node = octree.nodes[0] as InternalNode;
+  const childIndex = (node as InternalNode).firstChildIndex;
+  const childNode = octree.nodes[childIndex] as InternalNode;
+  expect(childNode).toBeDefined();
+  expect(childNode).toHaveProperty("size");
+  expect(childNode.size).toBe(node.size / 2);
+
+  const grandChildIndex =
+    octree.nodes.indexOf(childNode) + childNode.firstChildIndex;
+  const grandChildNode = octree.nodes[grandChildIndex] as InternalNode;
+  expect(grandChildNode).toBeDefined();
+  expect(grandChildNode).toHaveProperty("size");
+  expect(grandChildNode.size).toBe(childNode.size / 2);
+});

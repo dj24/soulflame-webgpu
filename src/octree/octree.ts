@@ -97,6 +97,7 @@ export class Octree {
     this.#pointer = 0;
     this.#maxDepth = getOctreeDepthFromVoxelBounds(voxels.SIZE);
     this.#build(voxels, 0, [0, 0, 0], 0);
+    console.log(this.nodes.slice(0, 20));
   }
 
   // Allocate memory for 8 nodes, and return the index of the first node
@@ -202,10 +203,10 @@ export class Octree {
 }
 
 const setLeafNode = (dataView: DataView, index: number, node: LeafNode) => {
-  dataView.setUint8(index * OCTREE_STRIDE, node.leafFlag);
-  dataView.setUint8(index * OCTREE_STRIDE + 1, node.red);
-  dataView.setUint8(index * OCTREE_STRIDE + 2, node.green);
-  dataView.setUint8(index * OCTREE_STRIDE + 3, node.blue);
+  dataView.setUint16(index * OCTREE_STRIDE, node.leafFlag);
+  dataView.setUint8(index * OCTREE_STRIDE + 2, node.red);
+  dataView.setUint8(index * OCTREE_STRIDE + 3, node.green);
+  dataView.setUint8(index * OCTREE_STRIDE + 4, node.blue);
 };
 
 export const setInternalNode = (
@@ -213,12 +214,17 @@ export const setInternalNode = (
   index: number,
   node: InternalNode,
 ) => {
-  dataView.setUint8(index * OCTREE_STRIDE, node.firstChildIndex);
-  dataView.setUint8(index * OCTREE_STRIDE + 1, node.childMask);
-  dataView.setUint8(index * OCTREE_STRIDE + 2, node.x);
-  dataView.setUint8(index * OCTREE_STRIDE + 3, node.y);
-  dataView.setUint8(index * OCTREE_STRIDE + 4, node.z);
-  dataView.setUint8(index * OCTREE_STRIDE + 5, node.size);
+  console.assert(
+    node.firstChildIndex < 65536,
+    `First child index of ${node.firstChildIndex} is too large to fit in 2 bytes`,
+  );
+  //TODO: try 24 bit unisnged integer by using bit shifting
+  dataView.setUint16(index * OCTREE_STRIDE, node.firstChildIndex);
+  dataView.setUint8(index * OCTREE_STRIDE + 2, node.childMask);
+  dataView.setUint8(index * OCTREE_STRIDE + 3, node.x);
+  dataView.setUint8(index * OCTREE_STRIDE + 4, node.y);
+  dataView.setUint8(index * OCTREE_STRIDE + 5, node.z);
+  dataView.setUint8(index * OCTREE_STRIDE + 6, node.size);
   if (index === 0) {
     console.log(node.size);
   }
@@ -235,6 +241,10 @@ export const octreeToArrayBuffer = (octree: Octree) => {
       setInternalNode(view, i, node);
     }
   });
+
+  console.debug(
+    `Created octree of size ${(octree.totalSize / 1024 ** 2).toFixed(2)} MB`,
+  );
 
   return buffer;
 };
