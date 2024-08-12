@@ -1,4 +1,4 @@
-import { InternalNode, LeafNode, Octree } from "./octree";
+import { InternalNode, LeafNode, Octree, setLeafNode } from "./octree";
 import { TVoxels } from "../convert-vxm";
 
 test("octree is built in a way to make sure a child node is no more than 255 indices away from its parent", () => {
@@ -95,4 +95,17 @@ test("following to child node has half the size of the parent node", () => {
   expect(grandChildNode).toBeDefined();
   expect(grandChildNode).toHaveProperty("size");
   expect(grandChildNode.size).toBe(childNode.size / 2);
+});
+
+test("leaf node can be set and unpacked correctly", () => {
+  const view = new DataView(new ArrayBuffer(8));
+  setLeafNode(view, 0, { red: 255, green: 128, blue: 64 });
+  const leafFlag = view.getUint16(0);
+  expect(leafFlag).toBe(0);
+  const red = view.getUint8(2);
+  const green = view.getUint8(3);
+  const blue = view.getUint8(4);
+  expect(red).toBe(255);
+  expect(green).toBe(128);
+  expect(blue).toBe(64);
 });

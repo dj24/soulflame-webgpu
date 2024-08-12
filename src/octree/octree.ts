@@ -61,6 +61,8 @@ export type InternalNode = {
   firstChildIndex: number;
   /** bitmask of which children are present */
   childMask: number;
+  /** bitmask of which children are leaf nodes */
+  leafMask: number;
   /** x position of the node */
   x: number;
   /** y position of the node */
@@ -72,8 +74,6 @@ export type InternalNode = {
 };
 
 export type LeafNode = {
-  /** 0 if this is a leaf node */
-  leafFlag: 0;
   /** 0-255 red value */
   red: number;
   /** 0-255 green value */
@@ -117,7 +117,6 @@ export class Octree {
     if (isLeaf) {
       const paletteIndex = voxels.XYZI[0].c;
       this.nodes[startIndex] = {
-        leafFlag: 0,
         red: voxels.RGBA[paletteIndex].r,
         green: voxels.RGBA[paletteIndex].g,
         blue: voxels.RGBA[paletteIndex].b,
@@ -174,6 +173,8 @@ export class Octree {
     const firstChildIndex = this.#mallocOctant();
     const relativeIndex = firstChildIndex - startIndex;
 
+    let leafMask = 0;
+
     childOctants.forEach((octantVoxels, i) => {
       if (octantVoxels) {
         const childIndex = firstChildIndex + i;
@@ -181,6 +182,9 @@ export class Octree {
         const x = offset[0] + origin[0] * childOctantSize;
         const y = offset[1] + origin[1] * childOctantSize;
         const z = offset[2] + origin[2] * childOctantSize;
+        if (octantVoxels.XYZI.length === 1) {
+          leafMask = setBit(leafMask, i);
+        }
         this.#build(octantVoxels, childIndex, [x, y, z], childDepth);
       }
     });
@@ -194,6 +198,7 @@ export class Octree {
       y: offset[1],
       z: offset[2],
       size: objectSize,
+      leafMask,
     };
   }
 
@@ -202,7 +207,11 @@ export class Octree {
   }
 }
 
-const setLeafNode = (dataView: DataView, index: number, node: LeafNode) => {
+export const setLeafNode = (
+  dataView: DataView,
+  index: number,
+  node: LeafNode,
+) => {
   dataView.setUint16(index * OCTREE_STRIDE, 0);
   dataView.setUint8(index * OCTREE_STRIDE + 2, node.red);
   dataView.setUint8(index * OCTREE_STRIDE + 3, node.green);
@@ -221,10 +230,11 @@ export const setInternalNode = (
   //TODO: try 24 bit unisnged integer by using bit shifting
   dataView.setUint16(index * OCTREE_STRIDE, node.firstChildIndex);
   dataView.setUint8(index * OCTREE_STRIDE + 2, node.childMask);
-  dataView.setUint8(index * OCTREE_STRIDE + 3, node.x);
-  dataView.setUint8(index * OCTREE_STRIDE + 4, node.y);
-  dataView.setUint8(index * OCTREE_STRIDE + 5, node.z);
-  dataView.setUint8(index * OCTREE_STRIDE + 6, node.size);
+  dataView.setUint8(index * OCTREE_STRIDE + 3, node.leafMask);
+  dataView.setUint8(index * OCTREE_STRIDE + 4, node.x);
+  dataView.setUint8(index * OCTREE_STRIDE + 5, node.y);
+  dataView.setUint8(index * OCTREE_STRIDE + 6, node.z);
+  dataView.setUint8(index * OCTREE_STRIDE + 7, node.size);
   if (index === 0) {
     console.log(node.size);
   }
@@ -235,7 +245,7 @@ export const octreeToArrayBuffer = (octree: Octree) => {
   const view = new DataView(buffer);
 
   octree.nodes.forEach((node, i) => {
-    if ("leafFlag" in node) {
+    if ("red" in node) {
       setLeafNode(view, i, node);
     } else {
       setInternalNode(view, i, node);
