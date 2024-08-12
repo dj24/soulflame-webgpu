@@ -164,17 +164,8 @@ let logDepth = distanceToLogarithmicDepth(cameraDistance, NEAR_PLANE, FAR_PLANE)
 
 //    textureStore(albedoTex, pixel, vec4(albedo, 1));
 //    if(!bvhResult.hit){
-      var debugColour = vec4(closestIntersection.normal, 1);
-//      var debugColour = vec4(f32(closestIntersection.iterations)/ 8.0);
-       if(closestIntersection.iterations > 16){
-          debugColour = vec4(0,f32(closestIntersection.iterations)/ 128.0,f32(closestIntersection.iterations)/ 128.0,1);
-      }
-      if(closestIntersection.iterations > 32){
-        debugColour = vec4(0,f32(closestIntersection.iterations)/ 128.0,0,1);
-      }
-      if(closestIntersection.iterations > 64){
-        debugColour = vec4(f32(closestIntersection.iterations)/ 128.0,0,0,1);
-      }
+//      var debugColour = vec4(closestIntersection.normal, 1);
+      var debugColour = vec4(f32(closestIntersection.iterations)/ 16.0);
       textureStore(albedoTex, pixel, debugColour);
 //    }
     textureStore(normalTex, pixel, vec4(normal,1));

@@ -182,7 +182,7 @@ export class Octree {
         const x = offset[0] + origin[0] * childOctantSize;
         const y = offset[1] + origin[1] * childOctantSize;
         const z = offset[2] + origin[2] * childOctantSize;
-        if (octantVoxels.XYZI.length === 1) {
+        if (octantVoxels.XYZI.length === 1 && childDepth == this.#maxDepth) {
           leafMask = setBit(leafMask, i);
         }
         this.#build(octantVoxels, childIndex, [x, y, z], childDepth);
