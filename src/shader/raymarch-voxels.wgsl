@@ -318,6 +318,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     while (stack.head > 0u && output.iterations < MAX_STEPS) {
       let node = unpackInternal(octreeBuffer[nodeIndex]);
       let nodeRayOrigin = objectRayOrigin - vec3(f32(node.x), f32(node.y), f32(node.z));
+      let firstChildIndex = getFirstChildIndexFromInternalNode(node, nodeIndex);
 //      let nodeSize = f32(node.size);
 //      let nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(nodeSize * 0.5));
 //      if(nodeIntersection.isHit){
@@ -329,23 +330,23 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
 //      }
 
       for(var i = 0u; i < 8u; i++){
-        // Get absolute buffer index based on the relative first child offset
-        let childIndex = getFirstChildIndexFromInternalNode(node, nodeIndex) + i;
+        let childIndex = firstChildIndex + i;
         let child = octreeBuffer[childIndex];
         // If the child is a leaf, we need to get the position based on the parent and the octant index
-//        if(isLeaf(child)){
-//          // TODO: handle child positioning via index as it's not stored on the node
-//          let unpackedLeaf = unpackLeaf(child);
-//          let red = f32(unpackedLeaf.x) / 255.0;
-//          let green = f32(unpackedLeaf.y) / 255.0;
-//          let blue = f32(unpackedLeaf.z) / 255.0;
-//          // TODO: set output if node is hit
-//          return output;
-//        }
+        //TODO: find why its always a leaf
+        if(isLeaf(child)){
+          // TODO: handle child positioning via index as it's not stored on the node
+          let unpackedLeaf = unpackLeaf(child);
+          let red = f32(unpackedLeaf.x) / 255.0;
+          let green = f32(unpackedLeaf.y) / 255.0;
+          let blue = f32(unpackedLeaf.z) / 255.0;
+          // TODO: set output if node is hit
+          return output;
+        }
         // Check internal node for intersection, if it intersects, push the child to the stack
 //        else{
           let unpackedInternal = unpackInternal(child);
-//          let childRayOrigin = objectRayOrigin - vec3(f32(unpackedInternal.x), f32(unpackedInternal.y), f32(unpackedInternal.z));
+          let childRayOrigin = objectRayOrigin - vec3(f32(unpackedInternal.x), f32(unpackedInternal.y), f32(unpackedInternal.z));
 //          let childNodeIntersection = boxIntersection(childRayOrigin, objectRayDirection, vec3(f32(unpackedInternal.size) * 0.5));
           let childNodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(10.0));
 

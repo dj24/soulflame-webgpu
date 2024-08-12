@@ -203,7 +203,7 @@ export class Octree {
 }
 
 const setLeafNode = (dataView: DataView, index: number, node: LeafNode) => {
-  dataView.setUint16(index * OCTREE_STRIDE, node.leafFlag);
+  dataView.setUint16(index * OCTREE_STRIDE, 0);
   dataView.setUint8(index * OCTREE_STRIDE + 2, node.red);
   dataView.setUint8(index * OCTREE_STRIDE + 3, node.green);
   dataView.setUint8(index * OCTREE_STRIDE + 4, node.blue);
