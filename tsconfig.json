@@ -12,9 +12,16 @@
     "skipLibCheck": true,
     "experimentalDecorators": true,
     "strictNullChecks": false,
+    "baseUrl": "./",
+    "paths": {
+      "@ecs/*": ["src/ecs/*"],
+      "@renderer/*": ["src/renderer/*"],
+    }
   },
+  "exclude": ["./src/renderer/**/*"],
   "typedocOptions": {
   "entryPoints": ["./src/**.ts"],
     "out": "dist/docs"
   }
+
 }
