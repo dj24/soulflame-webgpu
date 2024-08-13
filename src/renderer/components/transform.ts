@@ -12,6 +12,7 @@ export class Transform extends Component {
     this.position = position;
     this.rotation = rotation;
     this.scale = scale;
+    this.#previousTransform = mat4.identity();
   }
 
   get transform() {
@@ -44,10 +45,5 @@ export class Transform extends Component {
 
   get down() {
     return vec3.transformQuat(vec3.create(0, -1, 0), this.rotation);
-  }
-
-  get viewMatrix() {
-    const eye = this.position;
-    return mat4.lookAt(eye, vec3.add(eye, this.direction), this.up);
   }
 }

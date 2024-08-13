@@ -77,11 +77,11 @@ export class BVH {
   #childIndex: number;
   #gpuBuffer: GPUBuffer;
 
-  constructor(device: GPUDevice, voxelObjects: VoxelObject[]) {
+  constructor(device: GPUDevice, boundingBoxes: BoundingBox[]) {
     this.#device = device;
-    this.#allLeafNodes = voxelObjects.map((voxelObject, index) => {
+    this.#allLeafNodes = boundingBoxes.map((boundingBox, index) => {
       return {
-        AABB: voxelObject.AABB,
+        AABB: boundingBox,
         objectIndex: index,
       };
     });
@@ -95,10 +95,10 @@ export class BVH {
     return this.#gpuBuffer;
   }
 
-  update(voxelObjects: VoxelObject[]) {
-    this.#allLeafNodes = voxelObjects.map((voxelObject, index) => {
+  update(boundingBoxes: BoundingBox[]) {
+    this.#allLeafNodes = boundingBoxes.map((boundingBox, index) => {
       return {
-        AABB: voxelObject.AABB,
+        AABB: boundingBox,
         objectIndex: index,
       };
     });

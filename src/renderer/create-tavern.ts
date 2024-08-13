@@ -123,12 +123,8 @@ export const createTavern = async (
 
     voxelObjects.push(
       new VoxelObject({
-        position,
-        rotation,
-        scale,
         size,
         atlasLocation: location,
-        name,
         paletteIndex,
         octreeBufferIndex: octreeOffset,
       }),

@@ -135,7 +135,9 @@ export const getBoxOutlinePass = async (): Promise<RenderPass> => {
       });
       bindGroups.push(bindGroup);
 
-      const m = voxelObjects[i].transform;
+      // const m = voxelObjects[i].transform;
+      // TODO: wip
+      const m = mat4.identity();
       const vp = mat4.mul(
         mat4.scale(camera.projectionMatrix, [-1, 1, 1]),
         getViewMatrix(cameraTransform),

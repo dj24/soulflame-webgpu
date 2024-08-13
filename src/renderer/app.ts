@@ -8,7 +8,7 @@ import { getGBufferPass, OutputTextures } from "./g-buffer/get-g-buffer-pass";
 import { Camera } from "./components/camera";
 import { DebugUI } from "./ui";
 import "./main.css";
-import { Mat4, mat4, vec2, vec3 } from "wgpu-matrix";
+import { Mat4, mat4, quat, vec2, vec3 } from "wgpu-matrix";
 import { fullscreenQuad } from "./fullscreen-quad/fullscreen-quad";
 import { DebugValuesStore } from "./debug-values-store";
 import { createTextureFromImage } from "webgpu-utils";
@@ -17,7 +17,6 @@ import { getFrameTimeTracker } from "./frametime-tracker";
 import { createTavern, voxelObjects } from "./create-tavern";
 import { BVH } from "./bvh";
 import { Light } from "./lights-pass/get-lights-pass";
-import { UpdatedByRenderLoop } from "./decorators/updated-by-render-loop";
 import {
   AlbedoTexture,
   DepthTexture,
@@ -34,6 +33,10 @@ import { resolveTimestampQueries } from "./abstractions/resolve-timestamp-querie
 import { createSkyTexture } from "./abstractions/create-sky-texture";
 import { getGpuDevice } from "./abstractions/get-gpu-device";
 import { Transform } from "@renderer/components/transform";
+import {
+  getVoxelObjectBoundingBox,
+  voxelObjectToArray,
+} from "@renderer/voxel-object";
 
 export const debugValues = new DebugValuesStore();
 export let device: GPUDevice;
@@ -52,7 +55,6 @@ const debugUI = new DebugUI();
 export const frameTimeTracker = getFrameTimeTracker();
 frameTimeTracker.addSample("frame time", 0);
 
-let voxelTextureView: GPUTextureView;
 let skyTexture: GPUTexture;
 
 export type RenderArgs = {
@@ -94,7 +96,6 @@ export type RenderArgs = {
   cameraTransform: Transform;
 };
 
-//TODO: use RenderResult as return type for render functions
 export type RenderPass = {
   /** The function to execute the pass, optionally can return the timestamp query size */
   render: (args: RenderArgs) => void;
@@ -103,43 +104,6 @@ export type RenderPass = {
   /** The size of the timestamp query writes for this pass, optional, will use a size of 2 by default (start and end) */
   timestampLabels?: string[];
 };
-
-const torchPositions: Light["position"][] = [
-  [-16.468910217285156, 2.6069962978363037, -44.74098205566406],
-  [-12.986907958984375, 2.6069962978363037, -44.74098205566406],
-  [-12.131904602050781, 3.019996166229248, -37.079986572265625],
-  [-16.572906494140625, 3.019996166229248, -37.079986572265625],
-  [-6.14190673828125, 3.019996166229248, -37.769989013671875],
-  [-3.7419052124023438, 4.989995956420898, -42.18998718261719],
-  [-8.631904602050781, 4.989995956420898, -27.739990234375],
-  [-8.631904602050781, 13.000996589660645, -39.90599060058594],
-  [-14.261909484863281, 13.000996589660645, -39.459991455078125],
-  [-24.241905212402344, 13.000996589660645, -39.459991455078125],
-  [-26.64190673828125, 13.000996589660645, -41.90998840332031],
-  [-26.367904663085938, 13.000996589660645, -47.74998474121094],
-  [-34.231903076171875, 13.995996475219727, -51.449981689453125],
-  [-35.911903381347656, 13.995996475219727, -51.699981689453125],
-  [-43.89190673828125, 13.995996475219727, -51.699981689453125],
-  [-50.5819091796875, 14.959996223449707, -32.77998352050781],
-  [-42.77190399169922, 12.995996475219727, -26.5479736328125],
-  [-39.40190887451172, 12.995996475219727, -26.5479736328125],
-  [-35.27190399169922, 12.995996475219727, -26.5479736328125],
-  [-28.65190887451172, 12.995996475219727, -25.0999755859375],
-  [-24.13190460205078, 14.989995956420898, -27.79998779296875],
-  [-27.814903259277344, 4.985996246337891, -12.99298095703125],
-  [-27.814903259277344, 4.985996246337891, -5.8699951171875],
-  [-33.27190399169922, 4.985996246337891, -3.629974365234375],
-  [-42.121910095214844, 4.985996246337891, -3.629974365234375],
-  [-50.361907958984375, 4.985996246337891, -12.3699951171875],
-  [-50.361907958984375, 4.985996246337891, -21.29998779296875],
-  [-50.361907958984375, 4.985996246337891, -29.42999267578125],
-  [-35.84690856933594, 3.9849960803985596, -51.3289794921875],
-  [-34.194908142089844, 3.9849960803985596, -51.58198547363281],
-  [-29.941909790039062, 4.9919962882995605, -50.47398376464844],
-  [-23.481903076171875, 4.9919962882995605, -50.47398376464844],
-  [-5.621910095214844, 4.9919962882995605, -50.47398376464844],
-  [-26.703903198242188, 23.975996017456055, -9.089996337890625],
-];
 
 export const getViewMatrix = (transform: Transform) => {
   const eye = transform.position;
@@ -347,9 +311,6 @@ const getMatricesBuffer = (camera: Camera, cameraTransform: Transform) => {
   );
 
   const viewMatrix = getViewMatrix(cameraTransform);
-  // const viewMatrix = mat4.identity();
-
-  console.log(cameraTransform.rotation);
 
   const jitteredViewProjectionMatrix = mat4.mul(
     jitteredProjectionMatrix,
@@ -425,7 +386,15 @@ const getSunDirectionBuffer = () => {
 
 createBlueNoiseTexture();
 
-bvh = new BVH(device, voxelObjects);
+bvh = new BVH(
+  device,
+  voxelObjects.map((voxelObject) => {
+    // TODO: wip
+    const transform = new Transform([0, 0, 0], quat.identity(), [1, 1, 1]);
+    return getVoxelObjectBoundingBox(voxelObject, transform);
+  }),
+);
+
 const cameraPositionBuffer = createFloatUniformBuffer(
   device,
   [0, 0, 0, 0],
@@ -434,7 +403,11 @@ const cameraPositionBuffer = createFloatUniformBuffer(
 
 const getVoxelObjectsBuffer = () => {
   const voxelObjectsArray = voxelObjects.flatMap((voxelObject) =>
-    voxelObject.toArray(),
+    // TODO: wip
+    voxelObjectToArray(
+      voxelObject,
+      new Transform(vec3.create(0, 0, 0), quat.create(), vec3.create(1, 1, 1)),
+    ),
   );
 
   if (transformationMatrixBuffer) {
@@ -479,7 +452,7 @@ export const frame = (
   getMatricesBuffer(camera, cameraTransform);
   getVoxelObjectsBuffer();
 
-  bvh.update(voxelObjects);
+  // bvh.update(voxelObjects);
 
   getTimeBuffer();
   getResolutionBuffer();
@@ -495,8 +468,6 @@ export const frame = (
     resolution[0],
     resolution[1],
   );
-
-  voxelTextureView = volumeAtlas.atlasTextureView;
 
   let beginningOfPassWriteIndex = 0;
 
@@ -521,7 +492,6 @@ export const frame = (
         endOfPassWriteIndex: beginningOfPassWriteIndex + 1,
       };
     }
-    bvh.update(voxelObjects);
 
     if (label) {
       commandEncoder.pushDebugGroup(label);
