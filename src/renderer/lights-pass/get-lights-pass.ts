@@ -1,7 +1,7 @@
 import {
-  camera,
   debugValues,
   device,
+  getViewMatrix,
   RenderArgs,
   RenderPass,
   resolution,
@@ -357,6 +357,8 @@ export const getLightsPass = async (): Promise<RenderPass> => {
     lights,
     blueNoiseTextureView,
     timeBuffer,
+    camera,
+    cameraTransform,
   }: RenderArgs) => {
     let bindGroups = [];
 
@@ -490,7 +492,7 @@ export const getLightsPass = async (): Promise<RenderPass> => {
       mat4.uniformScale(m, light.size, m);
       const vp = mat4.mul(
         mat4.scale(camera.projectionMatrix, [-1, 1, 1]),
-        camera.viewMatrix,
+        getViewMatrix(cameraTransform),
       );
       const mvp = new Float32Array(mat4.mul(vp, m));
       device.queue.writeBuffer(

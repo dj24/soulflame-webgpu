@@ -37,7 +37,11 @@ export abstract class System {
   /**
    * update() is called on the System every frame.
    */
-  public abstract update(entities: Set<Entity>): void;
+  public abstract update(
+    entities: Set<Entity>,
+    time?: number,
+    deltaTime?: number,
+  ): void;
 
   /**
    * The ECS is given to all Systems. Systems contain most of the game
@@ -110,6 +114,7 @@ class ComponentContainer {
  * multiple for different purposes.
  */
 export class ECS {
+  private lastTime = 0;
   // Main state
   private entities = new Map<Entity, ComponentContainer>();
   private systems = new Map<System, Set<Entity>>();
@@ -194,11 +199,12 @@ export class ECS {
    * updates all Systems, then destroys any Entities that were marked
    * for removal.
    */
-  public update(): void {
+  public update(now: number): void {
+    let deltaTime = now - this.lastTime;
     // Update all systems. (Later, we'll add a way to specify the
     // update order.)
     for (let [system, entities] of this.systems.entries()) {
-      system.update(entities);
+      system.update(entities, now, deltaTime);
     }
 
     // Remove any entities that were marked for deletion during the
@@ -206,6 +212,7 @@ export class ECS {
     while (this.entitiesToDestroy.length > 0) {
       this.destroyEntity(this.entitiesToDestroy.pop());
     }
+    this.lastTime = now;
   }
 
   // Private methods for doing internal state checks and mutations.

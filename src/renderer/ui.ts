@@ -1,6 +1,5 @@
-import { camera, canvas, debugValues, RenderPass } from "./app";
+import { debugValues, RenderPass } from "./app";
 import GUI from "lil-gui";
-import { TimingEntries } from "./frametime-tracker";
 
 export class DebugUI {
   gui: GUI;
@@ -8,24 +7,11 @@ export class DebugUI {
   passesFolder: GUI;
 
   constructor() {
-    document.addEventListener("wheel", (event) => {
-      camera.fieldOfView += event.deltaY * 0.001;
-      camera.fieldOfView = Math.max(Math.min(camera.fieldOfView, 2), 0.1);
-    });
-
     this.gui = new GUI();
-
     this.gui
       .add(debugValues, "targetSunRotateY", -3, 3)
       .onChange((value: number) => {
         debugValues.targetSunRotateY = value;
-      })
-      .listen();
-
-    this.gui
-      .add(camera, "fieldOfView", 0.1, 2)
-      .onChange((value: number) => {
-        camera.fieldOfView = value;
       })
       .listen();
 

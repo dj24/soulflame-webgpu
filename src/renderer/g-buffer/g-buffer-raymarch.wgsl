@@ -165,7 +165,7 @@ let logDepth = distanceToLogarithmicDepth(cameraDistance, NEAR_PLANE, FAR_PLANE)
 //    textureStore(albedoTex, pixel, vec4(albedo, 1));
 //    if(!bvhResult.hit){
 //      var debugColour = vec4(closestIntersection.normal, 1);
-      var debugColour = vec4(f32(closestIntersection.iterations)/ 16.0);
+      var debugColour = vec4(f32(closestIntersection.iterations)/ 64.0);
       textureStore(albedoTex, pixel, debugColour);
 //    }
     textureStore(normalTex, pixel, vec4(normal,1));

@@ -1,4 +1,6 @@
-import { Component } from "@ecs/index";
+import { Component } from "@ecs/ecs";
+import { mat4 } from "wgpu-matrix";
+import { resolution } from "@renderer/app";
 
 export class Camera extends Component {
   fieldOfView: number;
@@ -10,5 +12,14 @@ export class Camera extends Component {
     this.fieldOfView = fieldOfView;
     this.near = near;
     this.far = far;
+  }
+
+  get projectionMatrix() {
+    return mat4.perspective(
+      this.fieldOfView,
+      resolution[0] / resolution[1],
+      this.near,
+      this.far,
+    );
   }
 }
