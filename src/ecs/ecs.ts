@@ -149,7 +149,7 @@ export class ECS {
     this.checkE(entity);
   }
 
-  public addComponents(entity: Entity, components: Component[]): void {
+  public addComponents(entity: Entity, ...components: Component[]): void {
     for (let component of components) {
       this.addComponent(entity, component);
     }

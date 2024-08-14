@@ -1,7 +1,7 @@
 import { System, Entity } from "@ecs/ecs";
 import { Transform } from "@renderer/components/transform";
 import { KeyboardControls } from "@input/keyboard-controls";
-import { quat, vec3 } from "wgpu-matrix";
+import { mat4, quat, vec3 } from "wgpu-matrix";
 import { KeyboardControllable } from "@input/components/keyboard-controllable";
 
 export class KeyboardControl extends System {

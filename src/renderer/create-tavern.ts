@@ -10,6 +10,8 @@ import { writeTextureToCanvas } from "./write-texture-to-canvas";
 import { Octree, octreeToArrayBuffer } from "./octree/octree";
 import { ECS } from "@ecs/ecs";
 import { Transform } from "@renderer/components/transform";
+import { GamepadControllable } from "@input/components/gamepad-controllable";
+import { KeyboardControllable } from "@input/components/keyboard-controllable";
 
 type TSceneDefinition = {
   name: string;
@@ -98,18 +100,16 @@ const addVoxelObject = async (
     volumeAtlas.dictionary[name];
 
   const entity = ecs.addEntity();
-  ecs.addComponent(
+  ecs.addComponents(
     entity,
-    new Transform(transform.position, transform.rotation, transform.scale),
-  );
-  ecs.addComponent(
-    entity,
+    transform,
     new VoxelObject({
       size,
       atlasLocation: location,
       paletteIndex,
       octreeBufferIndex: octreeOffset,
     }),
+    new KeyboardControllable(),
   );
 };
 
@@ -130,6 +130,7 @@ export const createTavern = async (
       child.rotation,
       child.scale,
     );
+    console.log({ child });
     await addVoxelObject(device, ecs, volumeAtlas, child.name, transform);
   }
 };

@@ -466,7 +466,15 @@ export const frame = (
   getMatricesBuffer(camera, cameraTransform);
   getVoxelObjectsBuffer(device, ecs, renderableEntities);
 
-  // bvh.update(voxelObjects);
+  bvh = new BVH(
+    device,
+    renderableEntities.map((entity) => {
+      return getVoxelObjectBoundingBox(
+        ecs.getComponents(entity).get(VoxelObject),
+        ecs.getComponents(entity).get(Transform),
+      );
+    }),
+  );
 
   getTimeBuffer();
   getResolutionBuffer();

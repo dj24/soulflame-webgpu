@@ -181,7 +181,12 @@ let logDepth = distanceToLogarithmicDepth(cameraDistance, NEAR_PLANE, FAR_PLANE)
     let diffuseColour = vec3<f32>(0.5, 0.5, 0.5);
     let specularColour = vec3<f32>(0.5, 0.5, 0.5);
     let shininess = 32.0;
-    let shaded = simplePhongShading(normal, lightDirection, lightColour, ambientColour, diffuseColour, specularColour, shininess) * albedo;
+    var shaded = simplePhongShading(normal, lightDirection, lightColour, ambientColour, diffuseColour, specularColour, shininess) * albedo;
+
+    if(all(shaded <= vec3(0.0))){
+      shaded = vec3<f32>(uv.y, uv.y * 0.5, 1.0);
+    }
+
     textureStore(albedoTex, pixel, vec4(shaded, 1));
 //    if(!bvhResult.hit){
 //      var debugColour = vec4(closestIntersection.normal, 1);

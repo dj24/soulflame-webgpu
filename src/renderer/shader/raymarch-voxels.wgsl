@@ -72,6 +72,17 @@ fn getScaleFromMatrix(transform: mat4x4<f32>) -> vec3<f32> {
 
 fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, objectRayOrigin: vec3<f32>, mipLevel: u32) -> RayMarchResult {
   var output = RayMarchResult();
+
+  var intersect = boxIntersection(objectRayOrigin, objectRayDirection,voxelObject.size * 0.5);
+
+  if(intersect.isHit){
+    output.hit = true;
+    output.t = intersect.tNear;
+    output.normal = intersect.normal;
+    output.colour = vec3<f32>(0.0, 1.0, 0.0);
+    return output;
+  }
+
   let rayDirSign = sign(objectRayDirection);
   let atlasLocation = vec3<u32>(voxelObject.atlasLocation);
   var voxelSize = vec3(f32(1 << mipLevel));
@@ -343,7 +354,8 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
         // If the octant is hit by the ray, process it
         if(childNodeIntersection.isHit){
           // Child is a leaf node
-          if(getBit(node.leafMask, i) && childNodeIntersection.tNear < output.t){
+//          if(getBit(node.leafMask, i) && childNodeIntersection.tNear < output.t){
+            if(childNodeIntersection.tNear < output.t){
             output.t = childNodeIntersection.tNear;
             output.hit = true;
             output.normal = abs(childNodeIntersection.normal);

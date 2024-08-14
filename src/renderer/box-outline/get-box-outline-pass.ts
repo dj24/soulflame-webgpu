@@ -2,6 +2,7 @@ import { getViewMatrix, gpuContext, RenderArgs, RenderPass } from "../app";
 import { getCuboidVertices } from "../primitive-meshes/cuboid";
 import { mat4 } from "wgpu-matrix";
 import { VoxelObject } from "@renderer/voxel-object";
+import { Transform } from "@renderer/components/transform";
 
 const vertexStride = 16;
 
@@ -110,6 +111,7 @@ export const getBoxOutlinePass = async (
     let bindGroups = [];
 
     for (let i = 0; i < renderableEntities.length; i++) {
+      const transform = ecs.getComponents(renderableEntities[i]).get(Transform);
       const voxelObject = ecs
         .getComponents(renderableEntities[i])
         .get(VoxelObject);
@@ -136,7 +138,7 @@ export const getBoxOutlinePass = async (
       });
       bindGroups.push(bindGroup);
 
-      const m = mat4.identity();
+      const m = transform.transform;
       const vp = mat4.mul(
         mat4.scale(camera.projectionMatrix, [-1, 1, 1]),
         getViewMatrix(cameraTransform),
