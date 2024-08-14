@@ -73,7 +73,6 @@ export const voxelObjectToArray = (
   voxelObject: VoxelObject,
   transform: Transform,
 ) => {
-  console.log(transform.previousTransform);
   return [
     ...transform.transform,
     ...mat4.invert(transform.transform),

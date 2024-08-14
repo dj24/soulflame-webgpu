@@ -1,11 +1,11 @@
-import { debugValues, device, RenderArgs, RenderPass } from "../app";
+import { debugValues, RenderArgs, RenderPass } from "../app";
 import boxIntersection from "../shader/box-intersection.wgsl";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
 import randomCommon from "../random-common.wgsl";
 import matrices from "../shader/matrices.wgsl";
-import { voxelObjects } from "../create-tavern";
 import { OUTPUT_TEXTURE_FORMAT } from "../constants";
+import { VoxelObject } from "../voxel-object";
 
 const depthEntry: GPUBindGroupLayoutEntry = {
   binding: 0,
@@ -127,6 +127,8 @@ const baseBindGroupLayoutEntries = [
 const NUM_THREADS_X = 1;
 
 type ComputePassArgs = {
+  device: GPUDevice;
+  voxelObjects: VoxelObject[];
   shaderCode: string;
   entryPoint: string;
   label: string;
@@ -139,6 +141,8 @@ type ComputePassArgs = {
  * @param label - The label to use for the compute pass.
  */
 export const createPerObjectPass = async ({
+  device,
+  voxelObjects,
   shaderCode,
   entryPoint,
   label,

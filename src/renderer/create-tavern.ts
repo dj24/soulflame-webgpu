@@ -9,8 +9,6 @@ import { createPaletteTextureFromVoxels } from "./create-texture-from-voxels/cre
 import { writeTextureToCanvas } from "./write-texture-to-canvas";
 import { Octree, octreeToArrayBuffer } from "./octree/octree";
 
-export let voxelObjects: VoxelObject[] = [];
-
 type TSceneDefinition = {
   name: string;
   position: number[];
@@ -83,7 +81,9 @@ const processTavernObject = async (name: string, device: GPUDevice) => {
 export const createTavern = async (
   device: GPUDevice,
   volumeAtlas: VolumeAtlas,
-) => {
+): Promise<VoxelObject[]> => {
+  let voxelObjects: VoxelObject[] = [];
+
   const tavernResponse = await fetch("./Tavern.json");
   const tavernDefinition = (await tavernResponse.json()) as TSceneDefinition;
   const childObjects = tavernDefinition.children.filter((child) =>
@@ -130,6 +130,7 @@ export const createTavern = async (
       }),
     );
   }
-  console.log({ volumes });
   console.debug(`Tavern created with ${voxelObjects.length} items`);
+
+  return voxelObjects;
 };

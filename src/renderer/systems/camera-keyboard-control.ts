@@ -8,7 +8,7 @@ export class CameraKeyboardControl extends System {
   keyboardControls = new KeyboardControls();
   componentsRequired = new Set([Camera, Transform]);
   speed = 0.5;
-  rotationSpeed = 0.05;
+  rotationSpeed = 0.025;
 
   update(entities: Set<Entity>, now: number): void {
     if (entities.size > 1) {

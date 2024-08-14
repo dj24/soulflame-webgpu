@@ -153,6 +153,16 @@ export class ECS {
     return this.entities.get(entity);
   }
 
+  public getEntitieswithComponent(componentClass: Function): Set<Entity> {
+    let entities = new Set<Entity>();
+    for (let [entity, components] of this.entities) {
+      if (components.has(componentClass)) {
+        entities.add(entity);
+      }
+    }
+    return entities;
+  }
+
   public removeComponent(entity: Entity, componentClass: Function): void {
     this.entities.get(entity).delete(componentClass);
     this.checkE(entity);

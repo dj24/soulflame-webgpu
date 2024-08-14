@@ -14,7 +14,6 @@ import { DebugValuesStore } from "./debug-values-store";
 import { createTextureFromImage } from "webgpu-utils";
 import { VolumeAtlas } from "./volume-atlas";
 import { getFrameTimeTracker } from "./frametime-tracker";
-import { createTavern, voxelObjects } from "./create-tavern";
 import { BVH } from "./bvh";
 import { Light } from "./lights-pass/get-lights-pass";
 import {
@@ -31,15 +30,15 @@ import { getBoxOutlinePass } from "./box-outline/get-box-outline-pass";
 import { generateJitter, jitterProjectionMatrix } from "./halton-sequence";
 import { resolveTimestampQueries } from "./abstractions/resolve-timestamp-queries";
 import { createSkyTexture } from "./abstractions/create-sky-texture";
-import { getGpuDevice } from "./abstractions/get-gpu-device";
+
 import { Transform } from "@renderer/components/transform";
 import {
   getVoxelObjectBoundingBox,
+  VoxelObject,
   voxelObjectToArray,
 } from "@renderer/voxel-object";
 
 export const debugValues = new DebugValuesStore();
-export let device: GPUDevice;
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.create(4, 4);
@@ -48,14 +47,13 @@ let startTime = 0;
 export let elapsedTime = startTime;
 export let deltaTime = 0;
 export let frameCount = 0;
-export let volumeAtlas: VolumeAtlas;
+let volumeAtlas: VolumeAtlas;
+export let device: GPUDevice;
 
 const debugUI = new DebugUI();
 
 export const frameTimeTracker = getFrameTimeTracker();
 frameTimeTracker.addSample("frame time", 0);
-
-let skyTexture: GPUTexture;
 
 export type RenderArgs = {
   /** Whether the pass should be executed */
@@ -110,7 +108,32 @@ export const getViewMatrix = (transform: Transform) => {
   return mat4.lookAt(eye, vec3.add(eye, transform.direction), transform.up);
 };
 
-let lights: Light[] = Array.from({ length: 200 }).map(() => {
+let skyTexture: GPUTexture;
+let lights: Light[];
+let computePasses: RenderPass[];
+let normalTexture: GBufferTexture;
+let albedoTexture: GBufferTexture;
+let outputTexture: GBufferTexture;
+let depthTexture: GBufferTexture;
+let velocityTexture: GBufferTexture;
+let worldPositionTexture: GBufferTexture;
+let blueNoiseTextureView: GPUTextureView;
+let timeBuffer: GPUBuffer;
+let resolutionBuffer: GPUBuffer;
+let transformationMatrixBuffer: GPUBuffer;
+let viewProjectionMatricesBuffer: GPUBuffer;
+let sunDirectionBuffer: GPUBuffer;
+let viewProjectionMatricesArray: Float32Array;
+let cameraPositionFloatArray: Float32Array;
+let bvh: BVH;
+let previousJitteredViewProjectionMatrix = mat4.create();
+let timestampQuerySet: GPUQuerySet;
+let timestampQueryBuffer: GPUBuffer;
+let linearSampler: GPUSampler;
+let nearestSampler: GPUSampler;
+let timestampLabels: string[];
+
+lights = Array.from({ length: 200 }).map(() => {
   return {
     position: [Math.random() * -80, Math.random() * 50, Math.random() * -200],
     size: 4,
@@ -120,117 +143,102 @@ let lights: Light[] = Array.from({ length: 200 }).map(() => {
   };
 });
 
-lights = [
-  {
-    position: [-43.8, 5.5, -36],
-    size: 2.2,
-    color: vec3.create(800, 20, 20),
-  },
-  {
-    position: [-36, 5.5, -36],
-    size: 2.2,
-    color: vec3.create(20, 800, 20),
-  },
-  {
-    position: [-25, 5.5, -36],
-    size: 2.2,
-    color: vec3.create(20, 20, 800),
-  },
-];
+export const init = async (
+  device1: GPUDevice,
+  volumeAtlas1: VolumeAtlas,
+  voxelObjects: VoxelObject[],
+) => {
+  // TODO: make sure device is passed via function param instead
+  device = device1;
+  volumeAtlas = volumeAtlas1;
 
-if (!navigator.gpu) {
-  throw new Error("WebGPU not supported");
-}
-
-device = await getGpuDevice();
-skyTexture = createSkyTexture(device);
-volumeAtlas = new VolumeAtlas(device);
-await createTavern(device, volumeAtlas);
-const computePasses = await Promise.all([
-  getClearPass(),
-  // getHelloTrianglePass(),
-  getGBufferPass(),
-  // getShadowsPass(),
-  // getSkyPass(),
-  // getLightsPass(),
-  // getTaaPass(),
-  // getFogPass(),
-  // getBloomPass(),
-  // getMotionBlurPass(),
-  // getTonemapPass(),
-  // getLutPass("luts/Reeve 38.CUBE"),
-  // getVignettePass(15.0),
-  fullscreenQuad(device),
-  getBoxOutlinePass(),
-]);
-
-const timestampLabels = computePasses.reduce((acc, val) => {
-  if (val.timestampLabels) {
-    return acc.concat(val.timestampLabels);
+  if (!navigator.gpu) {
+    throw new Error("WebGPU not supported");
   }
-  return acc.concat(val.label);
-}, []);
 
-debugUI.setupDebugControls(computePasses);
+  cameraPositionBuffer = createFloatUniformBuffer(
+    device,
+    [0, 0, 0, 0],
+    "camera position",
+  );
 
-canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
-canvas.style.imageRendering = "pixelated";
-gpuContext = canvas.getContext("webgpu");
-gpuContext.configure({
-  device,
-  format: navigator.gpu.getPreferredCanvasFormat(),
-  usage: GPUTextureUsage.RENDER_ATTACHMENT,
-});
+  bvh = new BVH(
+    device,
+    voxelObjects.map((voxelObject) => {
+      // TODO: wip
+      const transform = new Transform([0, 0, 0], quat.identity(), [1, 1, 1]);
+      return getVoxelObjectBoundingBox(voxelObject, transform);
+    }),
+  );
 
-let normalTexture: GBufferTexture;
-let albedoTexture: GBufferTexture;
-let outputTexture: GBufferTexture;
-let depthTexture: GBufferTexture;
-let velocityTexture: GBufferTexture;
-let worldPositionTexture: GBufferTexture;
-let blueNoiseTextureView: GPUTextureView;
+  createBlueNoiseTexture(device);
 
-let timeBuffer: GPUBuffer;
-let resolutionBuffer: GPUBuffer;
-let transformationMatrixBuffer: GPUBuffer;
-let viewProjectionMatricesBuffer: GPUBuffer;
-let sunDirectionBuffer: GPUBuffer;
+  console.log(device);
 
-let viewProjectionMatricesArray: Float32Array;
-let cameraPositionFloatArray: Float32Array;
+  skyTexture = createSkyTexture(device);
 
-let bvh: BVH;
-let previousJitteredViewProjectionMatrix = mat4.create();
-let timestampQuerySet: GPUQuerySet;
-let timestampQueryBuffer: GPUBuffer;
+  computePasses = await Promise.all([
+    getClearPass(),
+    // getHelloTrianglePass(),
+    getGBufferPass(),
+    // getShadowsPass(),
+    // getSkyPass(),
+    // getLightsPass(),
+    // getTaaPass(),
+    // getFogPass(),
+    // getBloomPass(),
+    // getMotionBlurPass(),
+    // getTonemapPass(),
+    // getLutPass("luts/Reeve 38.CUBE"),
+    // getVignettePass(15.0),
+    fullscreenQuad(device),
+    getBoxOutlinePass(device, voxelObjects),
+  ]);
 
-const linearSampler = device.createSampler({
-  magFilter: "linear",
-  minFilter: "linear",
-});
+  timestampLabels = computePasses.reduce((acc, val) => {
+    if (val.timestampLabels) {
+      return acc.concat(val.timestampLabels);
+    }
+    return acc.concat(val.label);
+  }, []);
 
-const nearestSampler = device.createSampler({
-  magFilter: "nearest",
-  minFilter: "nearest",
-});
+  debugUI.setupDebugControls(computePasses);
 
-if (device.features.has("timestamp-query")) {
-  timestampQuerySet = device.createQuerySet({
-    type: "timestamp",
-    count: 100, //start and end of each pass
+  canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
+  canvas.style.imageRendering = "pixelated";
+  gpuContext = canvas.getContext("webgpu");
+  gpuContext.configure({
+    device,
+    format: navigator.gpu.getPreferredCanvasFormat(),
+    usage: GPUTextureUsage.RENDER_ATTACHMENT,
   });
-  timestampQueryBuffer = device.createBuffer({
-    label: "timestamp query",
-    size: 8 * timestampQuerySet.count,
-    usage:
-      GPUBufferUsage.QUERY_RESOLVE |
-      GPUBufferUsage.STORAGE |
-      GPUBufferUsage.COPY_SRC |
-      GPUBufferUsage.COPY_DST,
-  });
-}
 
-const init = () => {
+  linearSampler = device.createSampler({
+    magFilter: "linear",
+    minFilter: "linear",
+  });
+
+  nearestSampler = device.createSampler({
+    magFilter: "nearest",
+    minFilter: "nearest",
+  });
+
+  if (device.features.has("timestamp-query")) {
+    timestampQuerySet = device.createQuerySet({
+      type: "timestamp",
+      count: 100, //start and end of each pass
+    });
+    timestampQueryBuffer = device.createBuffer({
+      label: "timestamp query",
+      size: 8 * timestampQuerySet.count,
+      usage:
+        GPUBufferUsage.QUERY_RESOLVE |
+        GPUBufferUsage.STORAGE |
+        GPUBufferUsage.COPY_SRC |
+        GPUBufferUsage.COPY_DST,
+    });
+  }
+
   const { clientWidth, clientHeight } = canvas.parentElement;
   let pixelRatio = 1.0;
   const canvasResolution = vec2.create(
@@ -272,7 +280,7 @@ const getResolutionBuffer = () => {
   }
 };
 
-const createBlueNoiseTexture = async () => {
+const createBlueNoiseTexture = async (device: GPUDevice) => {
   const blueNoiseTexture = await createTextureFromImage(
     device,
     "blue-noise-rg.png",
@@ -384,24 +392,12 @@ const getSunDirectionBuffer = () => {
   }
 };
 
-createBlueNoiseTexture();
+let cameraPositionBuffer: GPUBuffer;
 
-bvh = new BVH(
-  device,
-  voxelObjects.map((voxelObject) => {
-    // TODO: wip
-    const transform = new Transform([0, 0, 0], quat.identity(), [1, 1, 1]);
-    return getVoxelObjectBoundingBox(voxelObject, transform);
-  }),
-);
-
-const cameraPositionBuffer = createFloatUniformBuffer(
-  device,
-  [0, 0, 0, 0],
-  "camera position",
-);
-
-const getVoxelObjectsBuffer = () => {
+const getVoxelObjectsBuffer = (
+  device: GPUDevice,
+  voxelObjects: VoxelObject[],
+) => {
   const voxelObjectsArray = voxelObjects.flatMap((voxelObject) =>
     // TODO: wip
     voxelObjectToArray(
@@ -431,13 +427,16 @@ setInterval(() => {
   debugUI.log(frameTimeTracker.getAverages());
 }, 500);
 
-init();
-
 export const frame = (
   now: number,
   camera: Camera,
   cameraTransform: Transform,
+  voxelObjects: VoxelObject[],
 ) => {
+  if (!device || !computePasses || !volumeAtlas) {
+    return;
+  }
+
   const commandEncoder = device.createCommandEncoder();
   if (startTime === 0) {
     startTime = now;
@@ -450,7 +449,7 @@ export const frame = (
   frameCount++;
 
   getMatricesBuffer(camera, cameraTransform);
-  getVoxelObjectsBuffer();
+  getVoxelObjectsBuffer(device, voxelObjects);
 
   // bvh.update(voxelObjects);
 

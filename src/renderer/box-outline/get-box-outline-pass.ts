@@ -1,17 +1,14 @@
-import {
-  device,
-  getViewMatrix,
-  gpuContext,
-  RenderArgs,
-  RenderPass,
-} from "../app";
-import { voxelObjects } from "../create-tavern";
+import { getViewMatrix, gpuContext, RenderArgs, RenderPass } from "../app";
 import { getCuboidVertices } from "../primitive-meshes/cuboid";
 import { mat4 } from "wgpu-matrix";
+import { VoxelObject } from "@renderer/voxel-object";
 
 const vertexStride = 16;
 
-export const getBoxOutlinePass = async (): Promise<RenderPass> => {
+export const getBoxOutlinePass = async (
+  device: GPUDevice,
+  voxelObjects: VoxelObject[],
+): Promise<RenderPass> => {
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
       {
