@@ -8,6 +8,8 @@ import { createTextureFromVoxels } from "./create-texture-from-voxels/create-tex
 import { createPaletteTextureFromVoxels } from "./create-texture-from-voxels/create-palette-texture-from-voxels";
 import { writeTextureToCanvas } from "./write-texture-to-canvas";
 import { Octree, octreeToArrayBuffer } from "./octree/octree";
+import { ECS } from "@ecs/ecs";
+import { Transform } from "@renderer/components/transform";
 
 type TSceneDefinition = {
   name: string;
@@ -29,7 +31,6 @@ const NAME_ALLOWLIST = [
   "teapot",
   // "debug",
   // "monu10",
-
   // "sponza-small",
   // "Sponza",
   // "Table",
@@ -53,13 +54,16 @@ const NAME_ALLOWLIST = [
   // "Tavern",
 ];
 
-const processTavernObject = async (name: string, device: GPUDevice) => {
+const processNewVoxelImport = async (
+  name: string,
+  device: GPUDevice,
+  volumeAtlas: VolumeAtlas,
+) => {
   console.time(`Fetch ${name}`);
   const response = await fetch(`./Tavern/${name}.vxm`);
   console.timeEnd(`Fetch ${name}`);
 
   const arrayBuffer = await response.arrayBuffer();
-
   const voxels = convertVxm(arrayBuffer);
 
   console.time(`Create texture from voxels for ${name}`);
@@ -75,62 +79,57 @@ const processTavernObject = async (name: string, device: GPUDevice) => {
   const palette = await createPaletteTextureFromVoxels(device, voxels);
   console.timeEnd(`Create palette texture for ${name}`);
 
-  return { name, texture, palette, octreeArrayBuffer };
+  await volumeAtlas.addVolume(texture, palette, name, octreeArrayBuffer);
+};
+
+const addVoxelObject = async (
+  device: GPUDevice,
+  ecs: ECS,
+  volumeAtlas: VolumeAtlas,
+  name: string,
+  transform: Transform,
+) => {
+  // If the volume isn't in the atlas, add it
+  if (!volumeAtlas.dictionary[name]) {
+    await processNewVoxelImport(name, device, volumeAtlas);
+  }
+
+  const { size, location, paletteIndex, octreeOffset } =
+    volumeAtlas.dictionary[name];
+
+  const entity = ecs.addEntity();
+  ecs.addComponent(
+    entity,
+    new Transform(transform.position, transform.rotation, transform.scale),
+  );
+  ecs.addComponent(
+    entity,
+    new VoxelObject({
+      size,
+      atlasLocation: location,
+      paletteIndex,
+      octreeBufferIndex: octreeOffset,
+    }),
+  );
 };
 
 export const createTavern = async (
   device: GPUDevice,
   volumeAtlas: VolumeAtlas,
-): Promise<VoxelObject[]> => {
-  let voxelObjects: VoxelObject[] = [];
-
+  ecs: ECS,
+) => {
   const tavernResponse = await fetch("./Tavern.json");
   const tavernDefinition = (await tavernResponse.json()) as TSceneDefinition;
   const childObjects = tavernDefinition.children.filter((child) =>
     NAME_ALLOWLIST.includes(child.name),
   );
-  const uniqueChildNames = new Set(childObjects.map((child) => child.name));
-  const uniqueChildNamesArray = Array.from(uniqueChildNames);
-
-  console.time("Load all volumes");
-  {
-    let textures = await Promise.all(
-      uniqueChildNamesArray.map((name) => processTavernObject(name, device)),
-    );
-    for (const { name, texture, palette, octreeArrayBuffer } of textures) {
-      console.time(`Add volume for ${name}`);
-      await volumeAtlas.addVolume(texture, palette, name, octreeArrayBuffer);
-      console.timeEnd(`Add volume for ${name}`);
-    }
-  }
-
-  console.timeEnd("Load all volumes");
-  const volumes = volumeAtlas.dictionary;
-  let torchPositions = [];
 
   for (const child of childObjects) {
-    const volume = volumes[child.name];
-    if (!volume) {
-      console.warn(`Volume not found for child ${child.name}, skipping...`);
-      return;
-    }
-    if (child.name === "Candle") {
-      torchPositions.push(child.position);
-    }
-
-    const { position, rotation, scale, name } = child;
-    const { size, location, paletteIndex, octreeOffset } = volume;
-
-    voxelObjects.push(
-      new VoxelObject({
-        size,
-        atlasLocation: location,
-        paletteIndex,
-        octreeBufferIndex: octreeOffset,
-      }),
+    const transform = new Transform(
+      child.position,
+      child.rotation,
+      child.scale,
     );
+    await addVoxelObject(device, ecs, volumeAtlas, child.name, transform);
   }
-  console.debug(`Tavern created with ${voxelObjects.length} items`);
-
-  return voxelObjects;
 };

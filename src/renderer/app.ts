@@ -37,6 +37,7 @@ import {
   VoxelObject,
   voxelObjectToArray,
 } from "@renderer/voxel-object";
+import { ECS, Entity } from "@ecs/ecs";
 
 export const debugValues = new DebugValuesStore();
 export let gpuContext: GPUCanvasContext;
@@ -92,6 +93,10 @@ export type RenderArgs = {
   nearestSampler: GPUSampler;
   camera: Camera;
   cameraTransform: Transform;
+  /** Entities with VoxelObject and Transform components */
+  renderableEntities: Entity[];
+  /** The ECS instance */
+  ecs: ECS;
 };
 
 export type RenderPass = {
@@ -146,7 +151,8 @@ lights = Array.from({ length: 200 }).map(() => {
 export const init = async (
   device1: GPUDevice,
   volumeAtlas1: VolumeAtlas,
-  voxelObjects: VoxelObject[],
+  ecs: ECS,
+  renderableEntities: Entity[],
 ) => {
   // TODO: make sure device is passed via function param instead
   device = device1;
@@ -164,10 +170,11 @@ export const init = async (
 
   bvh = new BVH(
     device,
-    voxelObjects.map((voxelObject) => {
-      // TODO: wip
-      const transform = new Transform([0, 0, 0], quat.identity(), [1, 1, 1]);
-      return getVoxelObjectBoundingBox(voxelObject, transform);
+    renderableEntities.map((entity) => {
+      return getVoxelObjectBoundingBox(
+        ecs.getComponents(entity).get(VoxelObject),
+        ecs.getComponents(entity).get(Transform),
+      );
     }),
   );
 
@@ -192,7 +199,12 @@ export const init = async (
     // getLutPass("luts/Reeve 38.CUBE"),
     // getVignettePass(15.0),
     fullscreenQuad(device),
-    getBoxOutlinePass(device, voxelObjects),
+    getBoxOutlinePass(
+      device,
+      renderableEntities.map((entity) =>
+        ecs.getComponents(entity).get(VoxelObject),
+      ),
+    ),
   ]);
 
   timestampLabels = computePasses.reduce((acc, val) => {
@@ -396,15 +408,17 @@ let cameraPositionBuffer: GPUBuffer;
 
 const getVoxelObjectsBuffer = (
   device: GPUDevice,
-  voxelObjects: VoxelObject[],
+  ecs: ECS,
+  renderableEntities: Entity[],
 ) => {
-  const voxelObjectsArray = voxelObjects.flatMap((voxelObject) =>
-    // TODO: wip
-    voxelObjectToArray(
-      voxelObject,
-      new Transform(vec3.create(0, 0, 0), quat.create(), vec3.create(1, 1, 1)),
-    ),
-  );
+  const voxelObjectsArray = renderableEntities
+    .map((entity) => {
+      return voxelObjectToArray(
+        ecs.getComponents(entity).get(VoxelObject),
+        ecs.getComponents(entity).get(Transform),
+      );
+    })
+    .flat();
 
   if (transformationMatrixBuffer) {
     writeToFloatUniformBuffer(transformationMatrixBuffer, voxelObjectsArray);
@@ -429,9 +443,10 @@ setInterval(() => {
 
 export const frame = (
   now: number,
+  ecs: ECS,
   camera: Camera,
   cameraTransform: Transform,
-  voxelObjects: VoxelObject[],
+  renderableEntities: Entity[],
 ) => {
   if (!device || !computePasses || !volumeAtlas) {
     return;
@@ -449,7 +464,7 @@ export const frame = (
   frameCount++;
 
   getMatricesBuffer(camera, cameraTransform);
-  getVoxelObjectsBuffer(device, voxelObjects);
+  getVoxelObjectsBuffer(device, ecs, renderableEntities);
 
   // bvh.update(voxelObjects);
 
@@ -524,6 +539,8 @@ export const frame = (
       nearestSampler,
       camera,
       cameraTransform,
+      renderableEntities,
+      ecs,
     });
     if (timestampLabels?.length > 0) {
       beginningOfPassWriteIndex += timestampLabels.length * 2;

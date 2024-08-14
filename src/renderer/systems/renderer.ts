@@ -8,32 +8,40 @@ import { VolumeAtlas } from "@renderer/volume-atlas";
 import { VoxelObject } from "@renderer/voxel-object";
 
 export class Renderer extends System {
-  componentsRequired = new Set([Camera, Transform]);
+  componentsRequired = new Set([VoxelObject, Transform]);
   device: GPUDevice;
-  private voxelObjects: VoxelObject[] = [];
 
   constructor() {
     super();
     getGpuDevice().then((device) => {
-      this.device = device;
       const volumeAtlas = new VolumeAtlas(device);
-      createTavern(this.device, volumeAtlas).then((tavern) => {
-        init(this.device, volumeAtlas, tavern);
-        this.voxelObjects = tavern;
+      createTavern(device, volumeAtlas, this.ecs).then((tavern) => {
+        init(
+          device,
+          volumeAtlas,
+          this.ecs,
+          Array.from(this.ecs.getEntitiesithComponent(VoxelObject).values()),
+        );
       });
     });
   }
 
   update(entities: Set<Entity>, now: number): void {
-    if (entities.size > 1) {
-      console.warn("Only one camera can be rendered - ignoring the rest");
-    }
-    const cameraEntity = entities.values().next().value;
-    const components = this.ecs.getComponents(cameraEntity);
-    const cameraComponent = components.get(Camera);
-    const transformComponent = components.get(Transform);
-    const entitiesWithTransform = this.ecs.getEntitieswithComponent(Transform);
+    const camera = this.ecs
+      .getEntitiesithComponent(Camera)
+      .values()
+      .next().value;
 
-    frame(now, cameraComponent, transformComponent, this.voxelObjects);
+    const cameraComponents = this.ecs.getComponents(camera);
+    const cameraComponent = cameraComponents.get(Camera);
+    const transformComponent = cameraComponents.get(Transform);
+
+    frame(
+      now,
+      this.ecs,
+      cameraComponent,
+      transformComponent,
+      Array.from(entities),
+    );
   }
 }

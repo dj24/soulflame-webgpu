@@ -16,6 +16,7 @@
     "paths": {
       "@ecs/*": ["src/ecs/*"],
       "@renderer/*": ["src/renderer/*"],
+      "@input/*": ["src/input/*"],
     }
   },
   "exclude": ["./src/renderer/**/*"],

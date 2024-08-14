@@ -134,6 +134,18 @@ fn reprojectObjectWorldPos(worldPos: vec3<f32>, previousModelMatrix: mat4x4<f32>
   return 0.5 * (clipSpace.xyz / clipSpace.w) + 0.5;
 }
 
+fn simplePhongShading(normal: vec3<f32>, lightDir: vec3<f32>, lightColour: vec3<f32>, ambient: vec3<f32>, diffuse: vec3<f32>, specular: vec3<f32>, shininess: f32) -> vec3<f32> {
+  let nDotL = max(dot(normal, lightDir), 0.0);
+  let diffuseComponent = lightColour * diffuse * nDotL;
+
+  let reflectDir = reflect(-lightDir, normal);
+  let viewDir = normalize(vec3<f32>(0.0, 0.0, 1.0));
+  let spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
+  let specularComponent = lightColour * specular * spec;
+
+  return ambient + diffuseComponent + specularComponent;
+}
+
 fn tracePixel(pixel: vec2<u32>){
    let resolution = textureDimensions(albedoTex);
    var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
@@ -163,10 +175,18 @@ fn tracePixel(pixel: vec2<u32>){
 let logDepth = distanceToLogarithmicDepth(cameraDistance, NEAR_PLANE, FAR_PLANE);
 
 //    textureStore(albedoTex, pixel, vec4(albedo, 1));
+    let lightDirection = normalize(vec3<f32>(0.0, 0.5, 0.5));
+    let lightColour = vec3<f32>(10.0);
+    let ambientColour = vec3<f32>(0.5);
+    let diffuseColour = vec3<f32>(0.5, 0.5, 0.5);
+    let specularColour = vec3<f32>(0.5, 0.5, 0.5);
+    let shininess = 32.0;
+    let shaded = simplePhongShading(normal, lightDirection, lightColour, ambientColour, diffuseColour, specularColour, shininess) * albedo;
+    textureStore(albedoTex, pixel, vec4(shaded, 1));
 //    if(!bvhResult.hit){
 //      var debugColour = vec4(closestIntersection.normal, 1);
-      var debugColour = vec4(f32(closestIntersection.iterations)/ 64.0);
-      textureStore(albedoTex, pixel, debugColour);
+//      var debugColour = vec4(f32(closestIntersection.iterations)/ 64.0);
+//      textureStore(albedoTex, pixel, debugColour);
 //    }
     textureStore(normalTex, pixel, vec4(normal,1));
     textureStore(velocityTex, pixel, vec4(velocity,0,f32(closestIntersection.voxelObjectIndex)));

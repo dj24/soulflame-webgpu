@@ -104,12 +104,16 @@ export const getBoxOutlinePass = async (
     camera,
     timestampWrites,
     cameraTransform,
+    renderableEntities,
+    ecs,
   }: RenderArgs) => {
     let bindGroups = [];
 
-    for (let i = 0; i < voxelObjects.length; i++) {
-      // const vertices = getArrowMesh();
-      const vertices = getCuboidVertices(voxelObjects[i].size);
+    for (let i = 0; i < renderableEntities.length; i++) {
+      const voxelObject = ecs
+        .getComponents(renderableEntities[i])
+        .get(VoxelObject);
+      const vertices = getCuboidVertices(voxelObject.size);
       const bufferOffset = i * 256;
       device.queue.writeBuffer(
         verticesBuffer,
@@ -132,8 +136,6 @@ export const getBoxOutlinePass = async (
       });
       bindGroups.push(bindGroup);
 
-      // const m = voxelObjects[i].transform;
-      // TODO: wip
       const m = mat4.identity();
       const vp = mat4.mul(
         mat4.scale(camera.projectionMatrix, [-1, 1, 1]),
@@ -162,7 +164,7 @@ export const getBoxOutlinePass = async (
     });
 
     passEncoder.setPipeline(pipeline);
-    for (let i = 0; i < voxelObjects.length; i++) {
+    for (let i = 0; i < renderableEntities.length; i++) {
       const bindGroup = bindGroups[i];
       passEncoder.setBindGroup(0, bindGroup);
       passEncoder.setVertexBuffer(

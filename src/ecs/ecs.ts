@@ -149,18 +149,14 @@ export class ECS {
     this.checkE(entity);
   }
 
-  public getComponents(entity: Entity): ComponentContainer {
-    return this.entities.get(entity);
+  public addComponents(entity: Entity, components: Component[]): void {
+    for (let component of components) {
+      this.addComponent(entity, component);
+    }
   }
 
-  public getEntitieswithComponent(componentClass: Function): Set<Entity> {
-    let entities = new Set<Entity>();
-    for (let [entity, components] of this.entities) {
-      if (components.has(componentClass)) {
-        entities.add(entity);
-      }
-    }
-    return entities;
+  public getComponents(entity: Entity): ComponentContainer {
+    return this.entities.get(entity);
   }
 
   public removeComponent(entity: Entity, componentClass: Function): void {
@@ -249,5 +245,15 @@ export class ECS {
       // should not be in system
       this.systems.get(system).delete(entity); // no-op if out
     }
+  }
+
+  public getEntitiesithComponent(componentClass: Function): Set<Entity> {
+    let entities = new Set<Entity>();
+    for (let [entity, components] of this.entities) {
+      if (components.has(componentClass)) {
+        entities.add(entity);
+      }
+    }
+    return entities;
   }
 }
