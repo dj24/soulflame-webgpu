@@ -6,6 +6,7 @@ import { getGpuDevice } from "@renderer/abstractions/get-gpu-device";
 import { createTavern } from "@renderer/create-tavern";
 import { VolumeAtlas } from "@renderer/volume-atlas";
 import { VoxelObject } from "@renderer/voxel-object";
+import { GPUDeviceSingleton } from "@renderer/components/gpu-device-singleton";
 
 export class Renderer extends System {
   componentsRequired = new Set([VoxelObject, Transform]);
@@ -13,6 +14,12 @@ export class Renderer extends System {
 
   constructor() {
     super();
+    // console.log(this.ecs);
+    // const rendererConfig = this.ecs
+    //   .getEntitiesithComponent(GPUDeviceSingleton)
+    //   .values()
+    //   .next().value;
+    // console.log({ rendererConfig });
     getGpuDevice().then((device) => {
       const volumeAtlas = new VolumeAtlas(device);
       createTavern(device, volumeAtlas, this.ecs).then((tavern) => {

@@ -1,6 +1,6 @@
 import { VolumeAtlas } from "./volume-atlas";
 import { generateOctreeMips } from "./create-3d-texture/generate-octree-mips";
-import { mat4 } from "wgpu-matrix";
+import { mat4, quat } from "wgpu-matrix";
 import { VoxelObject } from "./voxel-object";
 import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels";
 import { convertVxm } from "./convert-vxm";
@@ -41,7 +41,7 @@ const NAME_ALLOWLIST = [
   // "BarTop",
   // "BarTopS",
   // "BarTop1",
-  // "Barrel",
+  "Barrel",
   // "Keg",
   // "Candle",
   // "Bed",
@@ -89,7 +89,6 @@ const addVoxelObject = async (
   ecs: ECS,
   volumeAtlas: VolumeAtlas,
   name: string,
-  transform: Transform,
 ) => {
   // If the volume isn't in the atlas, add it
   if (!volumeAtlas.dictionary[name]) {
@@ -99,18 +98,12 @@ const addVoxelObject = async (
   const { size, location, paletteIndex, octreeOffset } =
     volumeAtlas.dictionary[name];
 
-  const entity = ecs.addEntity();
-  ecs.addComponents(
-    entity,
-    transform,
-    new VoxelObject({
-      size,
-      atlasLocation: location,
-      paletteIndex,
-      octreeBufferIndex: octreeOffset,
-    }),
-    new KeyboardControllable(),
-  );
+  return new VoxelObject({
+    size,
+    atlasLocation: location,
+    paletteIndex,
+    octreeBufferIndex: octreeOffset,
+  });
 };
 
 export const createTavern = async (
@@ -123,14 +116,20 @@ export const createTavern = async (
   const childObjects = tavernDefinition.children.filter((child) =>
     NAME_ALLOWLIST.includes(child.name),
   );
-
   for (const child of childObjects) {
-    const transform = new Transform(
-      child.position,
-      child.rotation,
-      child.scale,
+    const voxelObject = await addVoxelObject(
+      device,
+      ecs,
+      volumeAtlas,
+      child.name,
     );
-    console.log({ child });
-    await addVoxelObject(device, ecs, volumeAtlas, child.name, transform);
+
+    const entity = ecs.addEntity();
+    ecs.addComponents(
+      entity,
+      new Transform(child.position, quat.identity(), child.scale),
+      voxelObject,
+      new KeyboardControllable(),
+    );
   }
 };

@@ -95,7 +95,6 @@ export class VolumeAtlas {
         GPUBufferUsage.STORAGE |
         GPUBufferUsage.COPY_DST |
         GPUBufferUsage.COPY_SRC,
-      mappedAtCreation: true,
       label: "Octree buffer",
     });
   }
@@ -254,10 +253,12 @@ export class VolumeAtlas {
     });
 
     // write existing data to the new buffer
-    this.#device.queue.writeBuffer(
+    commandEncoder.copyBufferToBuffer(
+      this.#octreeBuffer,
+      0,
       newOctreeBuffer,
       0,
-      this.#octreeBuffer.getMappedRange(),
+      this.#octreeBuffer.size,
     );
 
     // write new data to the new buffer
@@ -268,9 +269,12 @@ export class VolumeAtlas {
     );
 
     this.#device.queue.submit([commandEncoder.finish()]);
+
     await this.#device.queue.onSubmittedWorkDone();
 
     this.#octreeBuffer = newOctreeBuffer;
+
+    this.#octreeBuffer.unmap();
 
     // DEBUG OCTREE
     {
@@ -287,11 +291,9 @@ export class VolumeAtlas {
         0,
         this.#octreeBuffer.size,
       );
+
       this.#device.queue.submit([copyCommandEncoder.finish()]);
       await this.#device.queue.onSubmittedWorkDone();
-      await copyOctreeBuffer.mapAsync(GPUMapMode.READ);
-      const arrayBuffer = copyOctreeBuffer.getMappedRange(0, 16);
-      console.log(new Uint8Array(arrayBuffer));
     }
 
     this.#atlasTexture = await generateOctreeMips(

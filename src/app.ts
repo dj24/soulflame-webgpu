@@ -7,6 +7,7 @@ import { KeyboardControl } from "@input/systems/keyboard-control";
 import { KeyboardControllable } from "@input/components/keyboard-controllable";
 import { GamepadControl } from "@input/systems/gamepad-control";
 import { GamepadControllable } from "@input/components/gamepad-controllable";
+import { GPUDeviceSingleton } from "@renderer/components/gpu-device-singleton";
 
 const ecs = new ECS();
 
@@ -14,6 +15,9 @@ const ecs = new ECS();
 ecs.addSystem(new Renderer());
 ecs.addSystem(new KeyboardControl());
 ecs.addSystem(new GamepadControl());
+
+const rendererConfig = ecs.addEntity();
+ecs.addComponent(rendererConfig, new GPUDeviceSingleton());
 
 // Camera
 const camera = ecs.addEntity();
@@ -27,6 +31,13 @@ ecs.addComponents(
     quat.identity(),
     vec3.create(1, 1, 1),
   ),
+);
+
+const debug = ecs.addEntity();
+ecs.addComponents(
+  debug,
+  new Transform(vec3.create(0, 0, 0), quat.identity(), vec3.create(1, 1, 1)),
+  new KeyboardControllable(),
 );
 
 // Game loop
