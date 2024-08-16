@@ -32,6 +32,7 @@
     "webpack-dev-server": "^5.0.2"
   },
   "dependencies": {
+    "cannon-es": "^0.20.0",
     "lil-gui": "^0.19.2",
     "motion": "^10.17.0",
     "oimo": "^1.0.9",

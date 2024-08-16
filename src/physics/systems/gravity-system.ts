@@ -2,7 +2,6 @@ import { Entity, System } from "@ecs/ecs";
 import { GravityBox } from "@physics/components/gravity-box";
 import { PhysicsWorldSingleton } from "@physics/components/physics-world-singleton";
 import { Transform } from "@renderer/components/transform";
-import { quat } from "wgpu-matrix";
 
 export class GravitySystem extends System {
   componentsRequired = new Set([GravityBox, Transform]);
