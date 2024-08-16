@@ -3,33 +3,57 @@ import { Camera } from "../components/camera";
 import { Transform } from "../components/transform";
 import { frame, init } from "@renderer/app";
 import { getGpuDevice } from "@renderer/abstractions/get-gpu-device";
-import { createTavern } from "@renderer/create-tavern";
+import { createTavern, createVoxelObject } from "@renderer/create-tavern";
 import { VolumeAtlas } from "@renderer/volume-atlas";
 import { VoxelObject } from "@renderer/voxel-object";
-import { GPUDeviceSingleton } from "@renderer/components/gpu-device-singleton";
+import { quat } from "wgpu-matrix";
+import { KeyboardControllable } from "@input/components/keyboard-controllable";
+import { GravityBox } from "@physics/components/gravity-box";
+import { ImmovableBox } from "@physics/components/immovable-box";
 
 export class Renderer extends System {
   componentsRequired = new Set([VoxelObject, Transform]);
-  device: GPUDevice;
 
   constructor() {
     super();
-    // console.log(this.ecs);
-    // const rendererConfig = this.ecs
-    //   .getEntitiesithComponent(GPUDeviceSingleton)
-    //   .values()
-    //   .next().value;
-    // console.log({ rendererConfig });
-    getGpuDevice().then((device) => {
+    getGpuDevice().then(async (device) => {
       const volumeAtlas = new VolumeAtlas(device);
-      createTavern(device, volumeAtlas, this.ecs).then((tavern) => {
-        init(
-          device,
-          volumeAtlas,
-          this.ecs,
-          Array.from(this.ecs.getEntitiesithComponent(VoxelObject).values()),
-        );
-      });
+      const teapotVoxelObject = await createVoxelObject(
+        device,
+        volumeAtlas,
+        "Teapot",
+        `./Tavern/teapot.vxm`,
+      );
+
+      const teapotEntity = this.ecs.addEntity();
+      this.ecs.addComponents(
+        teapotEntity,
+        new Transform([-70.0, -10, -40], quat.identity(), [1.0, 0.1, 1.0]),
+        teapotVoxelObject,
+        new KeyboardControllable(),
+        new ImmovableBox([1.0, 0.1, 1.0], [-70.0, -10, -40], [0, 0, 0]),
+      );
+      const renderableEntities = [teapotEntity];
+      for (let x = -70; x < 10; x += 4) {
+        for (let y = 10; y < 40; y += 4) {
+          const barrelEntity = this.ecs.addEntity();
+          renderableEntities.push(barrelEntity);
+          const barrelVoxelObject = await createVoxelObject(
+            device,
+            volumeAtlas,
+            `Barrel-${x}${y}`,
+            `./Tavern/barrel.vxm`,
+          );
+          this.ecs.addComponents(
+            barrelEntity,
+            new Transform([x, y, -37], quat.identity(), [0.0625, 0.0625, 0.06]),
+            barrelVoxelObject,
+            new GravityBox([0.0625, 0.0625, 0.06], [x, y, -37], [0, 0, 0]),
+          );
+        }
+      }
+
+      init(device, volumeAtlas, this.ecs, renderableEntities);
     });
   }
 

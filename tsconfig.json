@@ -17,6 +17,7 @@
       "@ecs/*": ["src/ecs/*"],
       "@renderer/*": ["src/renderer/*"],
       "@input/*": ["src/input/*"],
+      "@physics/*": ["src/physics/*"],
     }
   },
   "exclude": ["./src/renderer/**/*"],

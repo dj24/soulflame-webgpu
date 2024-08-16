@@ -8,6 +8,9 @@ import { KeyboardControllable } from "@input/components/keyboard-controllable";
 import { GamepadControl } from "@input/systems/gamepad-control";
 import { GamepadControllable } from "@input/components/gamepad-controllable";
 import { GPUDeviceSingleton } from "@renderer/components/gpu-device-singleton";
+import { GravitySystem } from "@physics/systems/gravity-system";
+import { PhysicsWorldSingleton } from "@physics/components/physics-world-singleton";
+import { KinematicSystem } from "@physics/systems/kinematic-system";
 
 const ecs = new ECS();
 
@@ -15,16 +18,19 @@ const ecs = new ECS();
 ecs.addSystem(new Renderer());
 ecs.addSystem(new KeyboardControl());
 ecs.addSystem(new GamepadControl());
+ecs.addSystem(new GravitySystem());
+ecs.addSystem(new KinematicSystem());
 
-const rendererConfig = ecs.addEntity();
-ecs.addComponent(rendererConfig, new GPUDeviceSingleton());
+const singleton = ecs.addEntity();
+ecs.addComponent(singleton, new GPUDeviceSingleton());
+ecs.addComponent(singleton, new PhysicsWorldSingleton());
 
 // Camera
 const camera = ecs.addEntity();
 ecs.addComponents(
   camera,
   new Camera(90 * (Math.PI / 180), 0.5, 10000),
-  // new KeyboardControllable(),
+  new KeyboardControllable(),
   new GamepadControllable(),
   new Transform(
     vec3.create(-30, 10, -70),

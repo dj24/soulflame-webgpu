@@ -57,46 +57,46 @@ const NAME_ALLOWLIST = [
 ];
 
 const processNewVoxelImport = async (
-  name: string,
+  path: string,
   device: GPUDevice,
   volumeAtlas: VolumeAtlas,
 ) => {
-  console.time(`Fetch ${name}`);
-  const response = await fetch(`./Tavern/${name}.vxm`);
-  console.timeEnd(`Fetch ${name}`);
+  console.time(`Fetch ${path}`);
+  const response = await fetch(path);
+  console.timeEnd(`Fetch ${path}`);
 
   const arrayBuffer = await response.arrayBuffer();
   const voxels = convertVxm(arrayBuffer);
 
-  console.time(`Create texture from voxels for ${name}`);
+  console.time(`Create texture from voxels for ${path}`);
   let texture = await createTextureFromVoxels(device, voxels);
-  console.timeEnd(`Create texture from voxels for ${name}`);
+  console.timeEnd(`Create texture from voxels for ${path}`);
 
-  console.time(`Create octree for ${name}`);
+  console.time(`Create octree for ${path}`);
   const octree = new Octree(voxels);
   const octreeArrayBuffer = octreeToArrayBuffer(octree);
-  console.timeEnd(`Create octree for ${name}`);
+  console.timeEnd(`Create octree for ${path}`);
 
-  console.time(`Create palette texture for ${name}`);
+  console.time(`Create palette texture for ${path}`);
   const palette = await createPaletteTextureFromVoxels(device, voxels);
-  console.timeEnd(`Create palette texture for ${name}`);
+  console.timeEnd(`Create palette texture for ${path}`);
 
-  await volumeAtlas.addVolume(texture, palette, name, octreeArrayBuffer);
+  await volumeAtlas.addVolume(texture, palette, path, octreeArrayBuffer);
 };
 
-const addVoxelObject = async (
+export const createVoxelObject = async (
   device: GPUDevice,
-  ecs: ECS,
   volumeAtlas: VolumeAtlas,
   name: string,
+  path: string,
 ) => {
   // If the volume isn't in the atlas, add it
-  if (!volumeAtlas.dictionary[name]) {
-    await processNewVoxelImport(name, device, volumeAtlas);
+  if (!volumeAtlas.dictionary[path]) {
+    await processNewVoxelImport(path, device, volumeAtlas);
   }
 
   const { size, location, paletteIndex, octreeOffset } =
-    volumeAtlas.dictionary[name];
+    volumeAtlas.dictionary[path];
 
   return new VoxelObject({
     size,
@@ -117,11 +117,11 @@ export const createTavern = async (
     NAME_ALLOWLIST.includes(child.name),
   );
   for (const child of childObjects) {
-    const voxelObject = await addVoxelObject(
+    const voxelObject = await createVoxelObject(
       device,
-      ecs,
       volumeAtlas,
       child.name,
+      `./Tavern/${child.name}.vxm`,
     );
 
     const entity = ecs.addEntity();
