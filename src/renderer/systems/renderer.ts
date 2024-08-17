@@ -28,27 +28,29 @@ export class Renderer extends System {
       const floorEntity = this.ecs.addEntity();
       this.ecs.addComponents(
         floorEntity,
-        new Transform([-80.0, -10, -50], quat.identity(), [1, 1, 1]),
+        new Transform([0, -10, 0], quat.identity(), [10, 10, 10]),
         floorVoxelObject,
         new ImmovableBox(floorVoxelObject.size),
       );
       const renderableEntities = [floorEntity];
       for (let x = -120; x < 30; x += 20) {
-        for (let y = 30; y < 200; y += 30) {
-          const barrelEntity = this.ecs.addEntity();
-          renderableEntities.push(barrelEntity);
-          const barrelVoxelObject = await createVoxelObject(
-            device,
-            volumeAtlas,
-            `Barrel-${x}${y}`,
-            `./Tavern/barrel.vxm`,
-          );
-          this.ecs.addComponents(
-            barrelEntity,
-            new Transform([x, y, -37], quat.identity(), [1, 1, 1]),
-            barrelVoxelObject,
-            new GravityBox(barrelVoxelObject.size),
-          );
+        for (let y = 30; y < 120; y += 30) {
+          for (let z = -50; z < 50; z += 20) {
+            const barrelEntity = this.ecs.addEntity();
+            renderableEntities.push(barrelEntity);
+            const barrelVoxelObject = await createVoxelObject(
+              device,
+              volumeAtlas,
+              `Barrel-${x}${y}${z}`,
+              `./Tavern/barrel.vxm`,
+            );
+            this.ecs.addComponents(
+              barrelEntity,
+              new Transform([x, y, z - 37], quat.identity(), [1, 1, 1]),
+              barrelVoxelObject,
+              new GravityBox(barrelVoxelObject.size),
+            );
+          }
         }
       }
       const player = this.ecs.addEntity();

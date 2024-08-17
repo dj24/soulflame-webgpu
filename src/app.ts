@@ -5,8 +5,6 @@ import { quat, vec3 } from "wgpu-matrix";
 import { Renderer } from "@renderer/systems/renderer";
 import { KeyboardControl } from "@input/systems/keyboard-control";
 import { KeyboardControllable } from "@input/components/keyboard-controllable";
-import { GamepadControl } from "@input/systems/gamepad-control";
-import { GamepadControllable } from "@input/components/gamepad-controllable";
 import { GPUDeviceSingleton } from "@renderer/components/gpu-device-singleton";
 import { GravitySystem } from "@physics/systems/gravity-system";
 import { PhysicsWorldSingleton } from "@physics/components/physics-world-singleton";

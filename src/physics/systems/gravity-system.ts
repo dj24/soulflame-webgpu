@@ -6,7 +6,7 @@ import * as CANNON from "cannon-es";
 
 export class GravitySystem extends System {
   componentsRequired = new Set([GravityBox, Transform]);
-  addedEntities = new Set<Entity>();
+  addedEntities = new Map<Entity, CANNON.Body>();
 
   update(entities: Set<Entity>, now: number, deltaTime: number) {
     const physicsWorldEntity = this.ecs
@@ -23,24 +23,27 @@ export class GravitySystem extends System {
         const gravityBox = components.get(GravityBox);
         const position = components.get(Transform).position;
         const scale = components.get(Transform).scale;
-        const scaledHalfExtents = new CANNON.Vec3(
-          gravityBox.halfExtents.x * scale[0],
-          gravityBox.halfExtents.y * scale[1],
-          gravityBox.halfExtents.z * scale[2],
-        );
-        gravityBox.body.shapes[0] = new CANNON.Box(scaledHalfExtents);
-        gravityBox.body.position.set(position[0], position[1], position[2]);
-        this.addedEntities.add(entity);
-        world.addBody(gravityBox.body);
+        const body = new CANNON.Body({
+          mass: 1,
+          position: new CANNON.Vec3(position[0], position[1], position[2]),
+          shape: new CANNON.Box(
+            new CANNON.Vec3(
+              gravityBox.halfExtents.x * scale[0],
+              gravityBox.halfExtents.y * scale[1],
+              gravityBox.halfExtents.z * scale[2],
+            ),
+          ),
+        });
+        this.addedEntities.set(entity, body);
+        world.addBody(body);
+        gravityBox.bodyId = body.id;
       }
     }
 
     // Remove any entities that have been removed from the ECS.
-    for (const entity of this.addedEntities) {
+    for (const [entity, body] of this.addedEntities) {
       if (!entities.has(entity)) {
-        const components = this.ecs.getComponents(entity);
-        const gravityBox = components.get(GravityBox);
-        world.removeBody(gravityBox.body);
+        world.removeBody(body);
       }
     }
 
@@ -48,11 +51,20 @@ export class GravitySystem extends System {
     world.fixedStep();
 
     // Update the transforms of the entities.
-    for (const entity of entities) {
+    for (const [entity, body] of this.addedEntities) {
       const components = this.ecs.getComponents(entity);
       const gravityBox = components.get(GravityBox);
       const transform = components.get(Transform);
-      const body = gravityBox.body;
+
+      // Update the size of the rigid body to scale
+      body.shapes[0] = new CANNON.Box(
+        new CANNON.Vec3(
+          gravityBox.halfExtents.x * transform.scale[0],
+          gravityBox.halfExtents.y * transform.scale[1],
+          gravityBox.halfExtents.z * transform.scale[2],
+        ),
+      );
+
       const { x, y, z } = body.position;
       const { x: rx, y: ry, z: rz, w: rw } = body.quaternion;
       transform.previousTransform = transform.transform;

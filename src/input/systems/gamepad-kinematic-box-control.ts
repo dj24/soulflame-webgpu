@@ -6,10 +6,18 @@ import { KeyboardControllable } from "@input/components/keyboard-controllable";
 import { GamepadControllable } from "@input/components/gamepad-controllable";
 import { ImmovableBox } from "@physics/components/immovable-box";
 import * as CANNON from "cannon-es";
+import { PhysicsWorldSingleton } from "@physics/components/physics-world-singleton";
 export class GamepadKinematicBoxControl extends System {
   componentsRequired = new Set([ImmovableBox, Transform, GamepadControllable]);
 
   update(entities: Set<Entity>, now: number, deltaTime: number): void {
+    const physicsWorldEntity = this.ecs
+      .getEntitiesithComponent(PhysicsWorldSingleton)
+      .values()
+      .next().value;
+    const components = this.ecs.getComponents(physicsWorldEntity);
+    const world = components.get(PhysicsWorldSingleton).world;
+
     for (const entity of entities) {
       const components = this.ecs.getComponents(entity);
       const kinematicComponent = components.get(ImmovableBox);
@@ -35,18 +43,9 @@ export class GamepadKinematicBoxControl extends System {
         vec3.mulScalar(direction, controllableComponent.speed),
       );
 
-      kinematicComponent.body.shapes[0] = new CANNON.Box(
-        new CANNON.Vec3(
-          kinematicComponent.halfExtents.x * transformComponent.scale[0],
-          kinematicComponent.halfExtents.y * transformComponent.scale[1],
-          kinematicComponent.halfExtents.z * transformComponent.scale[2],
-        ),
-      );
-      kinematicComponent.body.position.set(
-        newPosition[0],
-        newPosition[1],
-        newPosition[2],
-      );
+      world
+        .getBodyById(kinematicComponent.bodyId)
+        .position.set(newPosition[0], newPosition[1], newPosition[2]);
 
       const newRotation = quat.rotateY(
         transformComponent.rotation,
@@ -71,12 +70,14 @@ export class GamepadKinematicBoxControl extends System {
         );
       }
 
-      kinematicComponent.body.quaternion.set(
-        newRotation[0],
-        newRotation[1],
-        newRotation[2],
-        newRotation[3],
-      );
+      world
+        .getBodyById(kinematicComponent.bodyId)
+        .quaternion.set(
+          newRotation[0],
+          newRotation[1],
+          newRotation[2],
+          newRotation[3],
+        );
     }
   }
 }
