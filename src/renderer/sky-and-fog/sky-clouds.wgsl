@@ -127,7 +127,7 @@ fn clouds(p: vec3<f32>, t: f32) -> vec2<f32>
     //let largeWeather = 1.0;
     pCopy.x += t*32;
     var weather = largeWeather*max(0.0,samplePebbles(0.0002*pCopy.zx) - 0.28)/0.72;
-    weather *= smoothstep(0.0, 0.5, cloudHeight) * smoothstep(1.0, 0.5, cloudHeight);
+    weather *= smoothstep(0.0, 0.5, cloudHeight) * smoothstep(0.5,1.0, cloudHeight);
     let cloudShape = pow(weather, 0.3+1.5*smoothstep(0.2, 0.5, cloudHeight));
     if(cloudShape <= 0.0){
         return vec2(0.0, cloudHeight);
@@ -181,7 +181,7 @@ fn lightRay(p: vec3<f32>, phaseFunction: f32, dC: f32, mu: f32, sun_direction: v
         lighRayDen += cloudsResult.x;
         cloudHeightCopy = cloudsResult.y;
     }
-    let scatterAmount = mix(0.008, 1.0, smoothstep(0.96, 0.0, mu));
+    let scatterAmount = mix(0.008, 1.0, smoothstep(0.0,0.96, mu));
     let beersLaw = exp(-stepL*lighRayDen)+0.5*scatterAmount*exp(-0.1*stepL*lighRayDen)+scatterAmount*0.4*exp(-0.02*stepL*lighRayDen);
     return beersLaw * phaseFunction * mix(0.05 + 1.5*pow(min(1.0, dC*8.5), 0.3+5.5*cloudHeightCopy), 1.0, clamp(lighRayDen*0.4, 0.0, 1.0));
 }

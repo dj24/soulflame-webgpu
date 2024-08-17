@@ -38,6 +38,14 @@ import {
   voxelObjectToArray,
 } from "@renderer/voxel-object";
 import { ECS, Entity } from "@ecs/ecs";
+import { getShadowsPass } from "@renderer/shadow-pass/get-shadows-pass";
+import { getTaaPass } from "@renderer/taa-pass/get-taa-pass";
+import { getVignettePass } from "@renderer/get-vignette-pass/get-vignette-pass";
+import { getMotionBlurPass } from "@renderer/motion-blur/motion-blur";
+import { getFogPass } from "@renderer/fog-pass/get-fog-pass";
+import { getSkyPass } from "@renderer/sky-and-fog/get-sky-pass";
+import { getTonemapPass } from "@renderer/tonemap-pass/get-tonemap-pass";
+import { getLutPass } from "@renderer/get-lut-pass/get-lut-pass";
 
 export const debugValues = new DebugValuesStore();
 export let gpuContext: GPUCanvasContext;
@@ -207,12 +215,12 @@ export const init = async (
     // getLutPass("luts/Reeve 38.CUBE"),
     // getVignettePass(15.0),
     fullscreenQuad(device),
-    getBoxOutlinePass(
-      device,
-      renderableEntities.map((entity) =>
-        ecs.getComponents(entity).get(VoxelObject),
-      ),
-    ),
+    // getBoxOutlinePass(
+    //   device,
+    //   renderableEntities.map((entity) =>
+    //     ecs.getComponents(entity).get(VoxelObject),
+    //   ),
+    // ),
   ]);
 
   timestampLabels = computePasses.reduce((acc, val) => {
@@ -246,7 +254,7 @@ export const init = async (
   if (device.features.has("timestamp-query")) {
     timestampQuerySet = device.createQuerySet({
       type: "timestamp",
-      count: 100, //start and end of each pass
+      count: 1000, //start and end of each pass
     });
     timestampQueryBuffer = device.createBuffer({
       label: "timestamp query",

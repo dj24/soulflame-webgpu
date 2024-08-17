@@ -27,6 +27,10 @@ export class Transform extends Component {
     return this.#previousTransform;
   }
 
+  set previousTransform(value: Mat4) {
+    this.#previousTransform = value;
+  }
+
   get direction() {
     return vec3.transformQuat(vec3.create(0, 0, 1), this.rotation);
   }

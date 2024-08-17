@@ -41,9 +41,6 @@ export class KinematicSystem extends System {
       }
     }
 
-    // Step the physics world.
-    world.fixedStep();
-
     // Update the transforms of the entities.
     for (const entity of entities) {
       const components = this.ecs.getComponents(entity);
