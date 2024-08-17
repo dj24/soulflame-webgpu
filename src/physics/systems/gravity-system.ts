@@ -47,7 +47,13 @@ export class GravitySystem extends System {
       const body = gravityBox.body;
       const { x, y, z } = body.position;
       const { x: rx, y: ry, z: rz, w: rw } = body.quaternion;
-      transform.position = [x, y, z];
+
+      const halfExtents = gravityBox.halfExtents;
+      transform.position = [
+        x + halfExtents.x,
+        y + halfExtents.y,
+        z + halfExtents.z,
+      ];
       transform.rotation = [rx, ry, rz, rw];
     }
   }

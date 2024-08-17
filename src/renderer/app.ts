@@ -432,7 +432,6 @@ const getVoxelObjectsBuffer = (
     transformationMatrixBuffer = device.createBuffer({
       size: new Float32Array(voxelObjectsArray).byteLength,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: false,
       label: "voxel objects buffer",
     });
   }
@@ -444,7 +443,6 @@ const getVoxelObjectsBuffer = (
     0, // data offset
     voxelObjectsArray.length * Float32Array.BYTES_PER_ELEMENT,
   );
-  // writeToFloatUniformBuffer(transformationMatrixBuffer, voxelObjectsArray);
 };
 
 setInterval(() => {
@@ -480,9 +478,9 @@ export const frame = (
   getResolutionBuffer();
   getSunDirectionBuffer();
 
-  console.log(
-    ecs.getComponents(renderableEntities[1]).get(Transform).position[1],
-  );
+  // console.log(
+  //   ecs.getComponents(renderableEntities[1]).get(Transform).position[1],
+  // );
 
   bvh.update(
     renderableEntities.map((entity) => {

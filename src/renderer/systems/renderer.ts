@@ -18,24 +18,23 @@ export class Renderer extends System {
     super();
     getGpuDevice().then(async (device) => {
       const volumeAtlas = new VolumeAtlas(device);
-      const teapotVoxelObject = await createVoxelObject(
-        device,
-        volumeAtlas,
-        "Teapot",
-        `./Tavern/teapot.vxm`,
-      );
-
-      const teapotEntity = this.ecs.addEntity();
-      this.ecs.addComponents(
-        teapotEntity,
-        new Transform([-80.0, -10, -50], quat.identity(), [1.0, 0.05, 1.0]),
-        teapotVoxelObject,
-        new KeyboardControllable(),
-        new ImmovableBox([1.0, 0.1, 1.0]),
-      );
-      const renderableEntities = [teapotEntity];
-      for (let x = -70; x < 10; x += 4) {
-        for (let y = 10; y < 60; y += 8) {
+      // const teapotVoxelObject = await createVoxelObject(
+      //   device,
+      //   volumeAtlas,
+      //   "Teapot",
+      //   `./Tavern/teapot.vxm`,
+      // );
+      // const teapotEntity = this.ecs.addEntity();
+      // this.ecs.addComponents(
+      //   teapotEntity,
+      //   new Transform([-80.0, -10, -50], quat.identity(), [1.0, 0.05, 1.0]),
+      //   teapotVoxelObject,
+      //   new KeyboardControllable(),
+      //   new ImmovableBox([1.0, 0.1, 1.0]),
+      // );
+      const renderableEntities = [];
+      for (let x = -70; x < 10; x += 2) {
+        for (let y = 10; y < 20; y += 4) {
           const barrelEntity = this.ecs.addEntity();
           renderableEntities.push(barrelEntity);
           const barrelVoxelObject = await createVoxelObject(
@@ -46,17 +45,9 @@ export class Renderer extends System {
           );
           this.ecs.addComponents(
             barrelEntity,
-            new Transform(
-              [
-                x + Math.random() * 2,
-                y + Math.random() * 2,
-                -37 + Math.random() * 2,
-              ],
-              quat.identity(),
-              [0.0625, 0.0625, 0.06],
-            ),
+            new Transform([x, y, -37], quat.identity(), [1, 1, 1]),
             barrelVoxelObject,
-            new GravityBox([0.0625, 0.0625, 0.06]),
+            new GravityBox([1, 1, 1]),
           );
         }
       }

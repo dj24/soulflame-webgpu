@@ -63,7 +63,6 @@ test("can follow from root to leaf node", () => {
     const relativeIndex = node.firstChildIndex;
     const indexOfCurrentNode = octree.nodes.indexOf(node);
     node = octree.nodes[indexOfCurrentNode + relativeIndex];
-    console.log(node);
   }
   expect("leafFlag" in node).toBe(true);
 });
