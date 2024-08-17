@@ -28,14 +28,14 @@ export class Renderer extends System {
       const teapotEntity = this.ecs.addEntity();
       this.ecs.addComponents(
         teapotEntity,
-        new Transform([-70.0, -10, -40], quat.identity(), [1.0, 0.1, 1.0]),
+        new Transform([-80.0, -10, -50], quat.identity(), [1.0, 0.05, 1.0]),
         teapotVoxelObject,
         new KeyboardControllable(),
-        new ImmovableBox([1.0, 0.1, 1.0], [-70.0, -10, -40], [0, 0, 0]),
+        new ImmovableBox([1.0, 0.1, 1.0]),
       );
       const renderableEntities = [teapotEntity];
       for (let x = -70; x < 10; x += 4) {
-        for (let y = 10; y < 40; y += 4) {
+        for (let y = 10; y < 60; y += 8) {
           const barrelEntity = this.ecs.addEntity();
           renderableEntities.push(barrelEntity);
           const barrelVoxelObject = await createVoxelObject(
@@ -46,9 +46,17 @@ export class Renderer extends System {
           );
           this.ecs.addComponents(
             barrelEntity,
-            new Transform([x, y, -37], quat.identity(), [0.0625, 0.0625, 0.06]),
+            new Transform(
+              [
+                x + Math.random() * 2,
+                y + Math.random() * 2,
+                -37 + Math.random() * 2,
+              ],
+              quat.identity(),
+              [0.0625, 0.0625, 0.06],
+            ),
             barrelVoxelObject,
-            new GravityBox([0.0625, 0.0625, 0.06], [x, y, -37], [0, 0, 0]),
+            new GravityBox([0.0625, 0.0625, 0.06]),
           );
         }
       }

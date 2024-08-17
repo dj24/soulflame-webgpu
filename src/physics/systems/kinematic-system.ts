@@ -1,15 +1,13 @@
 import { Entity, System } from "@ecs/ecs";
-import { GravityBox } from "@physics/components/gravity-box";
 import { PhysicsWorldSingleton } from "@physics/components/physics-world-singleton";
 import { Transform } from "@renderer/components/transform";
-import { quat } from "wgpu-matrix";
 import { ImmovableBox } from "@physics/components/immovable-box";
 
 export class KinematicSystem extends System {
   componentsRequired = new Set([ImmovableBox, Transform]);
   addedEntities = new Set<Entity>();
 
-  update(entities: Set<Entity>) {
+  update(entities: Set<Entity>, now: number, deltaTime: number) {
     const physicsWorldEntity = this.ecs
       .getEntitiesithComponent(PhysicsWorldSingleton)
       .values()
@@ -22,30 +20,33 @@ export class KinematicSystem extends System {
       if (!this.addedEntities.has(entity)) {
         const components = this.ecs.getComponents(entity);
         const immovableBox = components.get(ImmovableBox);
-        console.log("Adding gravity box to physics world");
+        const position = components.get(Transform).position;
+        immovableBox.body.position.set(position[0], position[1], position[2]);
         this.addedEntities.add(entity);
-        world.add(immovableBox.body);
+        world.addBody(immovableBox.body);
       }
     }
 
     // Remove any entities that have been removed from the ECS.
     for (const entity of this.addedEntities) {
       if (!entities.has(entity)) {
-        world.remove(entity);
+        const components = this.ecs.getComponents(entity);
+        const immovableBox = components.get(ImmovableBox);
+        world.removeBody(immovableBox.body);
       }
     }
 
     // Step the physics world.
-    world.step();
+    world.fixedStep();
 
     // Update the transforms of the entities.
     for (const entity of entities) {
       const components = this.ecs.getComponents(entity);
       const immovableBox = components.get(ImmovableBox);
       const transform = components.get(Transform);
-      const body = world.getByName(immovableBox.body.name);
-      const { x, y, z } = body.getPosition();
-      const { x: rx, y: ry, z: rz, w: rw } = body.getQuaternion();
+      const body = immovableBox.body;
+      const { x, y, z } = body.position;
+      const { x: rx, y: ry, z: rz, w: rw } = body.quaternion;
       transform.position = [x, y, z];
       transform.rotation = [rx, ry, rz, rw];
     }

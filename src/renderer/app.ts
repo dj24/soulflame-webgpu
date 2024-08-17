@@ -180,7 +180,15 @@ export const init = async (
 
   createBlueNoiseTexture(device);
 
-  console.log(device);
+  bvh = new BVH(
+    device,
+    renderableEntities.map((entity) => {
+      return getVoxelObjectBoundingBox(
+        ecs.getComponents(entity).get(VoxelObject),
+        ecs.getComponents(entity).get(Transform),
+      );
+    }),
+  );
 
   skyTexture = createSkyTexture(device);
 
@@ -420,14 +428,7 @@ const getVoxelObjectsBuffer = (
     })
     .flat();
 
-  if (transformationMatrixBuffer) {
-    writeToFloatUniformBuffer(transformationMatrixBuffer, voxelObjectsArray);
-  } else {
-    transformationMatrixBuffer = createFloatUniformBuffer(
-      device,
-      voxelObjectsArray,
-      "voxel object",
-    );
+  if (!transformationMatrixBuffer) {
     transformationMatrixBuffer = device.createBuffer({
       size: new Float32Array(voxelObjectsArray).byteLength,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
@@ -435,6 +436,15 @@ const getVoxelObjectsBuffer = (
       label: "voxel objects buffer",
     });
   }
+
+  device.queue.writeBuffer(
+    transformationMatrixBuffer,
+    0, // offset
+    new Float32Array(voxelObjectsArray).buffer,
+    0, // data offset
+    voxelObjectsArray.length * Float32Array.BYTES_PER_ELEMENT,
+  );
+  // writeToFloatUniformBuffer(transformationMatrixBuffer, voxelObjectsArray);
 };
 
 setInterval(() => {
@@ -466,8 +476,15 @@ export const frame = (
   getMatricesBuffer(camera, cameraTransform);
   getVoxelObjectsBuffer(device, ecs, renderableEntities);
 
-  bvh = new BVH(
-    device,
+  getTimeBuffer();
+  getResolutionBuffer();
+  getSunDirectionBuffer();
+
+  console.log(
+    ecs.getComponents(renderableEntities[1]).get(Transform).position[1],
+  );
+
+  bvh.update(
     renderableEntities.map((entity) => {
       return getVoxelObjectBoundingBox(
         ecs.getComponents(entity).get(VoxelObject),
@@ -475,10 +492,6 @@ export const frame = (
       );
     }),
   );
-
-  getTimeBuffer();
-  getResolutionBuffer();
-  getSunDirectionBuffer();
 
   albedoTexture = new AlbedoTexture(device, resolution[0], resolution[1]);
   normalTexture = new NormalTexture(device, resolution[0], resolution[1]);

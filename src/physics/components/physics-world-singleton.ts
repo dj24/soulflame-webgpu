@@ -1,19 +1,17 @@
 import { Component } from "@ecs/ecs";
-// @ts-ignore
-import * as OIMO from "oimo";
 import * as CANNON from "cannon-es";
 
 export class PhysicsWorldSingleton extends Component {
   world = new CANNON.World({
     gravity: new CANNON.Vec3(0, -9.8, 0),
   });
-  // world = new OIMO.World({
-  //   timestep: 1 / 60,
-  //   iterations: 8,
-  //   broadphase: 2, // 1 brute force, 2 sweep and prune, 3 volume tree
-  //   worldscale: 0.05, // scale full world
-  //   random: true, // randomize sample
-  //   info: false, // calculate statistic or not
-  //   gravity: [0, -9.8, 0],
-  // });
+  constructor() {
+    super();
+    const groundBody = new CANNON.Body({
+      type: CANNON.Body.STATIC,
+      shape: new CANNON.Plane(),
+    });
+    groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0); // make it face up
+    this.world.addBody(groundBody);
+  }
 }
