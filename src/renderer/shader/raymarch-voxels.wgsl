@@ -73,15 +73,15 @@ fn getScaleFromMatrix(transform: mat4x4<f32>) -> vec3<f32> {
 fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, objectRayOrigin: vec3<f32>, mipLevel: u32) -> RayMarchResult {
   var output = RayMarchResult();
 
-  var intersect = boxIntersection(objectRayOrigin, objectRayDirection,voxelObject.size * 0.5);
-
-  if(intersect.isHit){
-    output.hit = true;
-    output.t = intersect.tNear;
-    output.normal = intersect.normal;
-    output.colour = vec3<f32>(0.0, 1.0, 0.0);
-    return output;
-  }
+//  var intersect = boxIntersection(objectRayOrigin, objectRayDirection,voxelObject.size * 0.5);
+//
+//  if(intersect.isHit){
+//    output.hit = true;
+//    output.t = intersect.tNear;
+//    output.normal = intersect.normal;
+//    output.colour = vec3<f32>(0.0, 1.0, 0.0);
+//    return output;
+//  }
 
   let rayDirSign = sign(objectRayDirection);
   let atlasLocation = vec3<u32>(voxelObject.atlasLocation);
@@ -122,16 +122,17 @@ fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, object
     objectPos = objectRayOrigin + objectRayDirection * tCurrent;
     currentIndex = vec3<i32>(floor(objectPos / voxelSize) * voxelSize);
     objectNormal = mask * -rayDirSign;
-
-    if(!isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
-        break;
-    }
+//
+//    if(!isInBounds(currentIndex, vec3<i32>(voxelObject.size))){
+//        break;
+//    }
   }
   return output;
 }
 
 fn rayMarchTransformed(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>, mipLevel: u32) -> RayMarchResult {
-      var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
+      let halfExtents = voxelObject.size * 0.5;
+      var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz + halfExtents;
       let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
       return  rayMarchAtMip(voxelObject, objectRayDirection, objectRayOrigin, mipLevel);
 }

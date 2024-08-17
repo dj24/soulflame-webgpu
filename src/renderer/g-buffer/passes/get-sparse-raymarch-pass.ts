@@ -211,9 +211,9 @@ export const getSparseRaymarchPipeline = async () => {
     computePass: GPUComputePassEncoder,
     renderArgs: RenderArgs,
   ) => {
-    if (!bindGroup) {
-      bindGroup = getBindGroup(renderArgs);
-    }
+    // if (!bindGroup) {
+    bindGroup = getBindGroup(renderArgs);
+    // }
     // Raymarch the scene
     computePass.setPipeline(pipeline);
     computePass.setBindGroup(0, bindGroup);

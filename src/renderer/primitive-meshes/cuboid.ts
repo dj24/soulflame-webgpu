@@ -1,15 +1,15 @@
 import { Vec3 } from "wgpu-matrix";
 
 export const getCuboidVertices = (size: Vec3) => {
-  const [x, y, z] = size;
+  const [x, y, z] = [size[0] / 2, size[1] / 2, size[2] / 2];
 
-  const bottomLeftBack = [0, 0, 0, 1];
-  const bottomRightBack = [x, 0, 0, 1];
-  const topLeftBack = [0, y, 0, 1];
-  const topRightBack = [x, y, 0, 1];
-  const bottomLeftFront = [0, 0, z, 1];
-  const bottomRightFront = [x, 0, z, 1];
-  const topLeftFront = [0, y, z, 1];
+  const bottomLeftBack = [-x, -y, -z, 1];
+  const bottomRightBack = [x, -y, -z, 1];
+  const topLeftBack = [-x, y, -z, 1];
+  const topRightBack = [x, y, -z, 1];
+  const bottomLeftFront = [-x, -y, z, 1];
+  const bottomRightFront = [x, -y, z, 1];
+  const topLeftFront = [-x, y, z, 1];
   const topRightFront = [x, y, z, 1];
 
   let backFace = [

@@ -21,7 +21,12 @@ export class GravitySystem extends System {
         const components = this.ecs.getComponents(entity);
         const gravityBox = components.get(GravityBox);
         const position = components.get(Transform).position;
-        gravityBox.body.position.set(position[0], position[1], position[2]);
+        const halfExtents = gravityBox.halfExtents;
+        gravityBox.body.position.set(
+          position[0] - halfExtents.x,
+          position[1] - halfExtents.y,
+          position[2] - halfExtents.z,
+        );
         this.addedEntities.add(entity);
         world.addBody(gravityBox.body);
       }

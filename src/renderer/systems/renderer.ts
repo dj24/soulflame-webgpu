@@ -10,6 +10,7 @@ import { quat } from "wgpu-matrix";
 import { KeyboardControllable } from "@input/components/keyboard-controllable";
 import { GravityBox } from "@physics/components/gravity-box";
 import { ImmovableBox } from "@physics/components/immovable-box";
+import { GamepadControllable } from "@input/components/gamepad-controllable";
 
 export class Renderer extends System {
   componentsRequired = new Set([VoxelObject, Transform]);
@@ -33,8 +34,8 @@ export class Renderer extends System {
       //   new ImmovableBox([1.0, 0.1, 1.0]),
       // );
       const renderableEntities = [];
-      for (let x = -70; x < 10; x += 2) {
-        for (let y = 10; y < 20; y += 4) {
+      for (let x = -120; x < 30; x += 20) {
+        for (let y = 30; y < 200; y += 30) {
           const barrelEntity = this.ecs.addEntity();
           renderableEntities.push(barrelEntity);
           const barrelVoxelObject = await createVoxelObject(
@@ -47,10 +48,30 @@ export class Renderer extends System {
             barrelEntity,
             new Transform([x, y, -37], quat.identity(), [1, 1, 1]),
             barrelVoxelObject,
-            new GravityBox([1, 1, 1]),
+            new GravityBox(barrelVoxelObject.size),
           );
         }
       }
+      const missile = this.ecs.addEntity();
+      renderableEntities.push(missile);
+      const vo = await createVoxelObject(
+        device,
+        volumeAtlas,
+        `missile`,
+        `./Tavern/barrel.vxm`,
+      );
+      this.ecs.addComponents(
+        missile,
+        new Transform([-20, 40, -80], quat.identity(), [1, 1, 1]),
+        await createVoxelObject(
+          device,
+          volumeAtlas,
+          `missile`,
+          `./Tavern/barrel.vxm`,
+        ),
+        new GamepadControllable(),
+        new ImmovableBox(vo.size),
+      );
 
       init(device, volumeAtlas, this.ecs, renderableEntities);
     });

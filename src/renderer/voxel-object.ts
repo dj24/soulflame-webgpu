@@ -51,17 +51,21 @@ export const getVoxelObjectBoundingBox = (
   voxelObject: VoxelObject,
   transform: Transform,
 ) => {
+  const halfExtents = vec3.create(
+    voxelObject.size[0] / 2,
+    voxelObject.size[1] / 2,
+    voxelObject.size[2] / 2,
+  );
   const objectSpaceCorners = [
-    vec3.create(0, 0, 0),
-    vec3.create(0, 0, voxelObject.size[2]),
-    vec3.create(0, voxelObject.size[1], 0),
-    vec3.create(0, voxelObject.size[1], voxelObject.size[2]),
-    vec3.create(voxelObject.size[0], 0, 0),
-    vec3.create(voxelObject.size[0], 0, voxelObject.size[2]),
-    vec3.create(voxelObject.size[0], voxelObject.size[1], 0),
-    vec3.create(voxelObject.size[0], voxelObject.size[1], voxelObject.size[2]),
+    vec3.create(-halfExtents[0], -halfExtents[1], -halfExtents[2]),
+    vec3.create(-halfExtents[0], -halfExtents[1], halfExtents[2]),
+    vec3.create(-halfExtents[0], halfExtents[1], -halfExtents[2]),
+    vec3.create(-halfExtents[0], halfExtents[1], halfExtents[2]),
+    vec3.create(halfExtents[0], -halfExtents[1], -halfExtents[2]),
+    vec3.create(halfExtents[0], -halfExtents[1], halfExtents[2]),
+    vec3.create(halfExtents[0], halfExtents[1], -halfExtents[2]),
+    vec3.create(halfExtents[0], halfExtents[1], halfExtents[2]),
   ];
-
   const worldSpaceCorners = objectSpaceCorners.map((corner) => {
     return vec3.transformMat4(corner, transform.transform);
   });

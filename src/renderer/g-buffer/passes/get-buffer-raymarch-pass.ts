@@ -241,10 +241,11 @@ export const getBufferRaymarchPipeline = async () => {
     screenRayBuffer: GPUBuffer,
     indirectBuffer: GPUBuffer,
   ) => {
-    if (!bindGroup) {
-      bindGroup = getBindGroup(renderArgs);
-      screenRayBindGroup = getScreenRayBindGroup(screenRayBuffer);
-    }
+    // if (!bindGroup) {
+    bindGroup = getBindGroup(renderArgs);
+    screenRayBindGroup = getScreenRayBindGroup(screenRayBuffer);
+    // }
+
     // Raymarch the scene
     computePass.setPipeline(pipeline);
     computePass.setBindGroup(0, bindGroup);

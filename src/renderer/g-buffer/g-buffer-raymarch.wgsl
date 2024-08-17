@@ -166,7 +166,15 @@ fn tracePixel(pixel: vec2<u32>){
     closestIntersection = bvhResult;
 
     let voxelObject = voxelObjects[closestIntersection.voxelObjectIndex];
-    let albedo = closestIntersection.colour;
+//    let albedo = closestIntersection.colour;
+
+    var albedo = vec3<f32>(0.0);
+    if(closestIntersection.hit){
+    let paletteX = i32(closestIntersection.colour.r * 255.0);
+        let paletteY = i32(voxelObject.paletteIndex);
+      albedo = textureLoad(paletteTex, vec2(paletteX, paletteY), 0).rgb;
+    }
+
     let normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(closestIntersection.normal));
     let worldPos = rayOrigin + rayDirection * closestIntersection.t;
     let velocity = getVelocityStatic(worldPos, viewProjections);
@@ -176,11 +184,11 @@ let logDepth = distanceToLogarithmicDepth(cameraDistance, NEAR_PLANE, FAR_PLANE)
 
 //    textureStore(albedoTex, pixel, vec4(albedo, 1));
     let lightDirection = normalize(vec3<f32>(0.0, 0.5, 0.5));
-    let lightColour = vec3<f32>(10.0);
+    let lightColour = vec3<f32>(1.0);
     let ambientColour = vec3<f32>(0.5);
     let diffuseColour = vec3<f32>(0.5, 0.5, 0.5);
     let specularColour = vec3<f32>(0.5, 0.5, 0.5);
-    let shininess = 32.0;
+    let shininess = 1.0;
     var shaded = simplePhongShading(normal, lightDirection, lightColour, ambientColour, diffuseColour, specularColour, shininess) * albedo;
 
     if(all(shaded <= vec3(0.0))){

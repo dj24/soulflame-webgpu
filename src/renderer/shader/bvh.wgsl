@@ -83,14 +83,10 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
         }
         let worldPos = rayOrigin + rayDirection * distanceToLeaf;
         let voxelObject = voxelObjects[node.leftIndex];
-//         var rayMarchResult = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);
+         var rayMarchResult = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);
 //        var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, rayOrigin);
-//        rayMarchResult.voxelObjectIndex = node.leftIndex;
-//        rayMarchResult.t += distanceToLeaf;
-        var rayMarchResult = RayMarchResult();
-        rayMarchResult.t = distanceToLeaf;
-        rayMarchResult.hit = true;
-        rayMarchResult.colour = vec3<f32>(1.0, 0.0, 0.0);
+        rayMarchResult.voxelObjectIndex = node.leftIndex;
+        rayMarchResult.t += distanceToLeaf;
 
         let totalDistance = rayMarchResult.t;
         if(rayMarchResult.hit && totalDistance < closestRayMarchDistance){

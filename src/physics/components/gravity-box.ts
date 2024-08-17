@@ -8,10 +8,8 @@ export class GravityBox extends Component {
 
   constructor(size: Vec3) {
     super();
-
     // TOOD: account for object scale here
-    this.halfExtents = new CANNON.Vec3(size[0] * 1, size[1] * 1, size[2] * 1);
-    console.log(this.halfExtents);
+    this.halfExtents = new CANNON.Vec3(size[0] / 2, size[1] / 2, size[2] / 2);
     this.body = new CANNON.Body({
       mass: 1,
       shape: new CANNON.Box(this.halfExtents),

@@ -92,6 +92,28 @@ export class BVH {
   }
 
   get gpuBuffer() {
+    const debugCopyBuffer = this.#device.createBuffer({
+      size: this.#gpuBuffer.size,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+      mappedAtCreation: false,
+    });
+    const commandEncoder = this.#device.createCommandEncoder();
+    commandEncoder.copyBufferToBuffer(
+      this.#gpuBuffer,
+      0,
+      debugCopyBuffer,
+      0,
+      this.#gpuBuffer.size,
+    );
+    this.#device.queue.submit([commandEncoder.finish()]);
+    debugCopyBuffer.mapAsync(GPUMapMode.READ).then(() => {
+      const debugBufferArray = new Float32Array(
+        debugCopyBuffer.getMappedRange(),
+      );
+      // console.log(
+      //   debugBufferArray.slice(0, stride / Float32Array.BYTES_PER_ELEMENT),
+      // );
+    });
     return this.#gpuBuffer;
   }
 
@@ -103,6 +125,7 @@ export class BVH {
       };
     });
     this.#childIndex = 0;
+    this.#nodes = [];
     this.#build(this.#allLeafNodes, 0);
     this.#writeToGpuBuffer();
   }
@@ -111,12 +134,7 @@ export class BVH {
     if (this.#allLeafNodes.length === 0) {
       return;
     }
-    this.#gpuBuffer = this.#device.createBuffer({
-      size: Math.max(this.#nodes.length, 1) * stride,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: false,
-      label: "bvh buffer",
-    });
+
     const isLeaf = leafNodes.length === 1;
     if (isLeaf) {
       this.#nodes[startIndex] = {
@@ -153,6 +171,16 @@ export class BVH {
   }
 
   #writeToGpuBuffer() {
+    this.#gpuBuffer = this.#device.createBuffer({
+      size: Math.max(this.#nodes.length, 1) * stride,
+      usage:
+        GPUBufferUsage.STORAGE |
+        GPUBufferUsage.COPY_DST |
+        GPUBufferUsage.COPY_SRC,
+      mappedAtCreation: false,
+      label: "bvh buffer",
+    });
+
     this.#nodes.forEach((node, i) => {
       const bufferOffset = i * stride;
       const arrayBuffer = new ArrayBuffer(stride);

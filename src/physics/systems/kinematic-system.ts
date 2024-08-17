@@ -21,7 +21,12 @@ export class KinematicSystem extends System {
         const components = this.ecs.getComponents(entity);
         const immovableBox = components.get(ImmovableBox);
         const position = components.get(Transform).position;
-        immovableBox.body.position.set(position[0], position[1], position[2]);
+        const halfExtents = immovableBox.halfExtents;
+        immovableBox.body.position.set(
+          position[0] - halfExtents.x,
+          position[1] - halfExtents.y,
+          position[2] - halfExtents.z,
+        );
         this.addedEntities.add(entity);
         world.addBody(immovableBox.body);
       }
@@ -47,7 +52,12 @@ export class KinematicSystem extends System {
       const body = immovableBox.body;
       const { x, y, z } = body.position;
       const { x: rx, y: ry, z: rz, w: rw } = body.quaternion;
-      transform.position = [x, y, z];
+      const halfExtents = immovableBox.halfExtents;
+      transform.position = [
+        x + halfExtents.x,
+        y + halfExtents.y,
+        z + halfExtents.z,
+      ];
       transform.rotation = [rx, ry, rz, rw];
     }
   }

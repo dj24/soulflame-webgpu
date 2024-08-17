@@ -11,15 +11,17 @@ import { GPUDeviceSingleton } from "@renderer/components/gpu-device-singleton";
 import { GravitySystem } from "@physics/systems/gravity-system";
 import { PhysicsWorldSingleton } from "@physics/components/physics-world-singleton";
 import { KinematicSystem } from "@physics/systems/kinematic-system";
+import { GamepadKinematicBoxControl } from "@input/systems/gamepad-kinematic-box-control";
 
 const ecs = new ECS();
 
 // Systems
 ecs.addSystem(new Renderer());
 ecs.addSystem(new KeyboardControl());
-ecs.addSystem(new GamepadControl());
+// ecs.addSystem(new GamepadControl());
 ecs.addSystem(new GravitySystem());
 ecs.addSystem(new KinematicSystem());
+ecs.addSystem(new GamepadKinematicBoxControl());
 
 const singleton = ecs.addEntity();
 ecs.addComponent(singleton, new GPUDeviceSingleton());
@@ -31,9 +33,9 @@ ecs.addComponents(
   camera,
   new Camera(90 * (Math.PI / 180), 0.5, 10000),
   new KeyboardControllable(),
-  new GamepadControllable(),
+  // new GamepadControllable(),
   new Transform(
-    vec3.create(-30, 10, -70),
+    vec3.create(-30, 50, -120),
     quat.identity(),
     vec3.create(1, 1, 1),
   ),
