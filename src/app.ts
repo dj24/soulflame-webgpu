@@ -31,11 +31,12 @@ ecs.addComponent(singleton, new PhysicsWorldSingleton());
 const camera = ecs.addEntity();
 ecs.addComponents(
   camera,
-  new Camera(90 * (Math.PI / 180), 0.5, 10000),
+  new Camera({ fieldOfView: 50 * (Math.PI / 180), near: 0.5, far: 10000 }),
+  // new Camera({ size: 1000 }),
   new KeyboardControllable(),
   // new GamepadControllable(),
   new Transform(
-    vec3.create(-30, 50, -120),
+    vec3.create(-30, 50, -200),
     quat.identity(),
     vec3.create(1, 1, 1),
   ),

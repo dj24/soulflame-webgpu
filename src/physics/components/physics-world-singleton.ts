@@ -7,11 +7,11 @@ export class PhysicsWorldSingleton extends Component {
   });
   constructor() {
     super();
-    const groundBody = new CANNON.Body({
-      type: CANNON.Body.STATIC,
-      shape: new CANNON.Plane(),
-    });
-    groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0); // make it face up
-    this.world.addBody(groundBody);
+    // const groundBody = new CANNON.Body({
+    //   type: CANNON.Body.STATIC,
+    //   shape: new CANNON.Plane(),
+    // });
+    // groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0); // make it face up
+    // this.world.addBody(groundBody);
   }
 }

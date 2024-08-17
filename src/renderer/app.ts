@@ -215,12 +215,12 @@ export const init = async (
     // getLutPass("luts/Reeve 38.CUBE"),
     // getVignettePass(15.0),
     fullscreenQuad(device),
-    // getBoxOutlinePass(
-    //   device,
-    //   renderableEntities.map((entity) =>
-    //     ecs.getComponents(entity).get(VoxelObject),
-    //   ),
-    // ),
+    getBoxOutlinePass(
+      device,
+      renderableEntities.map((entity) =>
+        ecs.getComponents(entity).get(VoxelObject),
+      ),
+    ),
   ]);
 
   timestampLabels = computePasses.reduce((acc, val) => {
@@ -319,15 +319,6 @@ const createBlueNoiseTexture = async (device: GPUDevice) => {
   blueNoiseTextureView = blueNoiseTexture.createView();
 };
 
-const getProjectionMatrix = (camera: Camera) => {
-  return mat4.perspective(
-    camera.fieldOfView,
-    resolution[0] / resolution[1],
-    camera.near,
-    camera.far,
-  );
-};
-
 const getInverseProjectionMatrix = (projectionMatrix: Mat4) => {
   return mat4.invert(projectionMatrix);
 };
@@ -337,12 +328,12 @@ const getMatricesBuffer = (camera: Camera, cameraTransform: Transform) => {
     frameCount,
     resolution[0],
     resolution[1],
-    camera.fieldOfView,
+    "fieldOfView" in camera.config ? camera.config.fieldOfView : 90,
     resolution[0] / resolution[1],
-    0.1,
+    "near" in camera.config ? camera.config.near : 0.1,
   );
   const jitteredProjectionMatrix = jitterProjectionMatrix(
-    getProjectionMatrix(camera),
+    camera.projectionMatrix,
     jitter,
   );
 

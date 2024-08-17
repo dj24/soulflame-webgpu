@@ -2,24 +2,44 @@ import { Component } from "@ecs/ecs";
 import { mat4 } from "wgpu-matrix";
 import { resolution } from "@renderer/app";
 
-export class Camera extends Component {
+type PersectiveCameraConfig = {
   fieldOfView: number;
-  near = 0.5;
-  far = 10000;
+  near: number;
+  far: number;
+};
 
-  constructor(fieldOfView: number, near: number, far: number) {
+type OrthographicCameraConfig = {
+  size: number;
+};
+
+type ProjectionType = "perspective" | "orthographic";
+
+type CameraConfig = PersectiveCameraConfig | OrthographicCameraConfig;
+
+export class Camera extends Component {
+  config: CameraConfig;
+
+  constructor(config: CameraConfig) {
     super();
-    this.fieldOfView = fieldOfView;
-    this.near = near;
-    this.far = far;
+    this.config = config;
   }
 
   get projectionMatrix() {
+    if ("size" in this.config) {
+      return mat4.ortho(
+        -resolution[0] / this.config.size,
+        resolution[0] / this.config.size,
+        -resolution[1] / this.config.size,
+        resolution[1] / this.config.size,
+        this.config.size,
+        -this.config.size,
+      );
+    }
     return mat4.perspective(
-      this.fieldOfView,
+      this.config.fieldOfView,
       resolution[0] / resolution[1],
-      this.near,
-      this.far,
+      this.config.near,
+      this.config.far,
     );
   }
 }

@@ -2,6 +2,7 @@ import { Entity, System } from "@ecs/ecs";
 import { GravityBox } from "@physics/components/gravity-box";
 import { PhysicsWorldSingleton } from "@physics/components/physics-world-singleton";
 import { Transform } from "@renderer/components/transform";
+import * as CANNON from "cannon-es";
 
 export class GravitySystem extends System {
   componentsRequired = new Set([GravityBox, Transform]);
@@ -21,12 +22,14 @@ export class GravitySystem extends System {
         const components = this.ecs.getComponents(entity);
         const gravityBox = components.get(GravityBox);
         const position = components.get(Transform).position;
-        const halfExtents = gravityBox.halfExtents;
-        gravityBox.body.position.set(
-          position[0] - halfExtents.x,
-          position[1] - halfExtents.y,
-          position[2] - halfExtents.z,
+        const scale = components.get(Transform).scale;
+        const scaledHalfExtents = new CANNON.Vec3(
+          gravityBox.halfExtents.x * scale[0],
+          gravityBox.halfExtents.y * scale[1],
+          gravityBox.halfExtents.z * scale[2],
         );
+        gravityBox.body.shapes[0] = new CANNON.Box(scaledHalfExtents);
+        gravityBox.body.position.set(position[0], position[1], position[2]);
         this.addedEntities.add(entity);
         world.addBody(gravityBox.body);
       }
@@ -52,14 +55,8 @@ export class GravitySystem extends System {
       const body = gravityBox.body;
       const { x, y, z } = body.position;
       const { x: rx, y: ry, z: rz, w: rw } = body.quaternion;
-
-      const halfExtents = gravityBox.halfExtents;
       transform.previousTransform = transform.transform;
-      transform.position = [
-        x + halfExtents.x,
-        y + halfExtents.y,
-        z + halfExtents.z,
-      ];
+      transform.position = [x, y, z];
       transform.rotation = [rx, ry, rz, rw];
     }
   }

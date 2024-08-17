@@ -19,21 +19,20 @@ export class Renderer extends System {
     super();
     getGpuDevice().then(async (device) => {
       const volumeAtlas = new VolumeAtlas(device);
-      // const teapotVoxelObject = await createVoxelObject(
-      //   device,
-      //   volumeAtlas,
-      //   "Teapot",
-      //   `./Tavern/teapot.vxm`,
-      // );
-      // const teapotEntity = this.ecs.addEntity();
-      // this.ecs.addComponents(
-      //   teapotEntity,
-      //   new Transform([-80.0, -10, -50], quat.identity(), [1.0, 0.05, 1.0]),
-      //   teapotVoxelObject,
-      //   new KeyboardControllable(),
-      //   new ImmovableBox([1.0, 0.1, 1.0]),
-      // );
-      const renderableEntities = [];
+      const floorVoxelObject = await createVoxelObject(
+        device,
+        volumeAtlas,
+        "floor",
+        `./game-jam/floor.vxm`,
+      );
+      const floorEntity = this.ecs.addEntity();
+      this.ecs.addComponents(
+        floorEntity,
+        new Transform([-80.0, -10, -50], quat.identity(), [1, 1, 1]),
+        floorVoxelObject,
+        new ImmovableBox(floorVoxelObject.size),
+      );
+      const renderableEntities = [floorEntity];
       for (let x = -120; x < 30; x += 20) {
         for (let y = 30; y < 200; y += 30) {
           const barrelEntity = this.ecs.addEntity();
@@ -52,23 +51,18 @@ export class Renderer extends System {
           );
         }
       }
-      const missile = this.ecs.addEntity();
-      renderableEntities.push(missile);
+      const player = this.ecs.addEntity();
+      renderableEntities.push(player);
       const vo = await createVoxelObject(
         device,
         volumeAtlas,
-        `missile`,
-        `./Tavern/barrel.vxm`,
+        `player`,
+        `./game-jam/player.vxm`,
       );
       this.ecs.addComponents(
-        missile,
+        player,
         new Transform([-20, 40, -80], quat.identity(), [1, 1, 1]),
-        await createVoxelObject(
-          device,
-          volumeAtlas,
-          `missile`,
-          `./Tavern/barrel.vxm`,
-        ),
+        vo,
         new GamepadControllable(),
         new ImmovableBox(vo.size),
       );

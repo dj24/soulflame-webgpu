@@ -5,11 +5,11 @@ import { quat, vec3 } from "wgpu-matrix";
 import { KeyboardControllable } from "@input/components/keyboard-controllable";
 import { GamepadControllable } from "@input/components/gamepad-controllable";
 import { ImmovableBox } from "@physics/components/immovable-box";
-
+import * as CANNON from "cannon-es";
 export class GamepadKinematicBoxControl extends System {
   componentsRequired = new Set([ImmovableBox, Transform, GamepadControllable]);
 
-  update(entities: Set<Entity>, now: number): void {
+  update(entities: Set<Entity>, now: number, deltaTime: number): void {
     for (const entity of entities) {
       const components = this.ecs.getComponents(entity);
       const kinematicComponent = components.get(ImmovableBox);
@@ -35,18 +35,42 @@ export class GamepadKinematicBoxControl extends System {
         vec3.mulScalar(direction, controllableComponent.speed),
       );
 
-      const halfExtents = kinematicComponent.halfExtents;
-
+      kinematicComponent.body.shapes[0] = new CANNON.Box(
+        new CANNON.Vec3(
+          kinematicComponent.halfExtents.x * transformComponent.scale[0],
+          kinematicComponent.halfExtents.y * transformComponent.scale[1],
+          kinematicComponent.halfExtents.z * transformComponent.scale[2],
+        ),
+      );
       kinematicComponent.body.position.set(
-        newPosition[0] - halfExtents.x,
-        newPosition[1] - halfExtents.y,
-        newPosition[2] - halfExtents.z,
+        newPosition[0],
+        newPosition[1],
+        newPosition[2],
       );
 
       const newRotation = quat.rotateY(
         transformComponent.rotation,
         controllableComponent.rotationSpeed * gamepad.axes[2],
       );
+
+      const isButtonAPressed = gamepad.buttons[0].pressed;
+      const isButtonBPressed = gamepad.buttons[1].pressed;
+
+      const scaleSpeed = 0.001 * deltaTime;
+
+      if (isButtonAPressed) {
+        transformComponent.scale = vec3.add(
+          transformComponent.scale,
+          vec3.create(scaleSpeed, scaleSpeed, scaleSpeed),
+        );
+      }
+      if (isButtonBPressed) {
+        transformComponent.scale = vec3.sub(
+          transformComponent.scale,
+          vec3.create(scaleSpeed, scaleSpeed, scaleSpeed),
+        );
+      }
+
       kinematicComponent.body.quaternion.set(
         newRotation[0],
         newRotation[1],

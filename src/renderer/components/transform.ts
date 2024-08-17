@@ -17,8 +17,8 @@ export class Transform extends Component {
 
   get transform() {
     let m = mat4.identity();
-    mat4.translate(m, this.position, m);
     mat4.scale(m, this.scale, m);
+    mat4.translate(m, this.position, m);
     mat4.multiply(m, mat4.fromQuat(this.rotation), m);
     return m;
   }
