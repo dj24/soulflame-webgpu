@@ -24,7 +24,8 @@ export class GravitySystem extends System {
         const position = components.get(Transform).position;
         const scale = components.get(Transform).scale;
         const body = new CANNON.Body({
-          mass: 1,
+          angularFactor: gravityBox.angularFactor,
+          mass: gravityBox.mass,
           position: new CANNON.Vec3(position[0], position[1], position[2]),
           shape: new CANNON.Box(
             new CANNON.Vec3(

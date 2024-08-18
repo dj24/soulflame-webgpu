@@ -11,6 +11,9 @@ import { KeyboardControllable } from "@input/components/keyboard-controllable";
 import { GravityBox } from "@physics/components/gravity-box";
 import { ImmovableBox } from "@physics/components/immovable-box";
 import { GamepadControllable } from "@input/components/gamepad-controllable";
+import { Arena } from "../../components/arena";
+import { PlayerBodySpring } from "../../components/player-body-spring";
+import * as CANNON from "cannon-es";
 
 export class Renderer extends System {
   componentsRequired = new Set([VoxelObject, Transform]);
@@ -30,14 +33,13 @@ export class Renderer extends System {
         floorEntity,
         new Transform([0, -10, 0], quat.identity(), [10, 10, 10]),
         floorVoxelObject,
-        new ImmovableBox(floorVoxelObject.size),
+        new Arena(),
+        new GravityBox(floorVoxelObject.size, 5),
       );
-      const renderableEntities = [floorEntity];
-      for (let x = -120; x < 30; x += 20) {
-        for (let y = 30; y < 120; y += 30) {
-          for (let z = -50; z < 50; z += 20) {
+      for (let x = -160; x < 160; x += 40) {
+        for (let y = 40; y < 160; y += 40) {
+          for (let z = -160; z < 160; z += 40) {
             const barrelEntity = this.ecs.addEntity();
-            renderableEntities.push(barrelEntity);
             const barrelVoxelObject = await createVoxelObject(
               device,
               volumeAtlas,
@@ -53,8 +55,8 @@ export class Renderer extends System {
           }
         }
       }
+      // Add player
       const player = this.ecs.addEntity();
-      renderableEntities.push(player);
       const vo = await createVoxelObject(
         device,
         volumeAtlas,
@@ -63,13 +65,30 @@ export class Renderer extends System {
       );
       this.ecs.addComponents(
         player,
-        new Transform([-20, 40, -80], quat.identity(), [1, 1, 1]),
+        new Transform([-20, 30, -80], quat.identity(), [1, 1, 1]),
         vo,
         new GamepadControllable(),
-        new ImmovableBox(vo.size),
+        // new ImmovableBox(vo.size),
+        new GravityBox(vo.size, 5, new CANNON.Vec3(1, 0, 1)),
+        new PlayerBodySpring(),
       );
 
-      init(device, volumeAtlas, this.ecs, renderableEntities);
+      // Add sword
+      const sword = this.ecs.addEntity();
+      const swordVo = await createVoxelObject(
+        device,
+        volumeAtlas,
+        `sword`,
+        `./game-jam/wooden-sword.vxm`,
+      );
+      this.ecs.addComponents(
+        sword,
+        new Transform([-20, 30, -80], quat.identity(), [3, 3, 3]),
+        swordVo,
+        new GravityBox(swordVo.size),
+      );
+
+      init(device, volumeAtlas, this.ecs, []);
     });
   }
 

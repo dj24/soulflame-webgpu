@@ -10,6 +10,9 @@ import { GravitySystem } from "@physics/systems/gravity-system";
 import { PhysicsWorldSingleton } from "@physics/components/physics-world-singleton";
 import { KinematicSystem } from "@physics/systems/kinematic-system";
 import { GamepadKinematicBoxControl } from "@input/systems/gamepad-kinematic-box-control";
+import { ArenaTiltSystem } from "./systems/arena-tilt-system";
+import { GamepadGravityBoxControl } from "@input/systems/gamepad-gravity-box-control";
+import { PlayerBodySpringSystem } from "./systems/player-body-spring-system";
 
 const ecs = new ECS();
 
@@ -20,6 +23,9 @@ ecs.addSystem(new KeyboardControl());
 ecs.addSystem(new GravitySystem());
 ecs.addSystem(new KinematicSystem());
 ecs.addSystem(new GamepadKinematicBoxControl());
+ecs.addSystem(new ArenaTiltSystem());
+ecs.addSystem(new GamepadGravityBoxControl());
+ecs.addSystem(new PlayerBodySpringSystem());
 
 const singleton = ecs.addEntity();
 ecs.addComponent(singleton, new GPUDeviceSingleton());
@@ -29,13 +35,10 @@ ecs.addComponent(singleton, new PhysicsWorldSingleton());
 const camera = ecs.addEntity();
 ecs.addComponents(
   camera,
-  new Camera({ fieldOfView: 50 * (Math.PI / 180), near: 0.5, far: 10000 }),
-  // new Camera({ size: 1000 }),
-  new KeyboardControllable(),
-  // new GamepadControllable(),
+  new Camera({ fieldOfView: 30 * (Math.PI / 180), near: 0.5, far: 10000 }),
   new Transform(
-    vec3.create(-30, 50, -200),
-    quat.identity(),
+    vec3.create(0, 400, -370),
+    quat.fromEuler(50 * (Math.PI / 180), 0, 0, "xyz"),
     vec3.create(1, 1, 1),
   ),
 );
