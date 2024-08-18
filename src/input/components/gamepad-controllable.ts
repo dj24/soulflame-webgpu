@@ -1,7 +1,13 @@
 import { Component } from "@ecs/ecs";
 
 export class GamepadControllable extends Component {
-  speed = 1000.0;
-  rotationSpeed = 0.0255;
+  speed = 1.0;
+  rotationSpeed = 0.025;
   player = 0;
+  constructor(player = 0, speed = 1.0, rotationSpeed = 0.025) {
+    super();
+    this.player = player;
+    this.speed = speed;
+    this.rotationSpeed = rotationSpeed;
+  }
 }

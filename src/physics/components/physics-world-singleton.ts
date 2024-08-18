@@ -3,7 +3,7 @@ import * as CANNON from "cannon-es";
 
 export class PhysicsWorldSingleton extends Component {
   world = new CANNON.World({
-    gravity: new CANNON.Vec3(0, -98, 0),
+    gravity: new CANNON.Vec3(0, -150, 0),
   });
   constructor() {
     super();

@@ -1,20 +1,15 @@
 import { Entity, System } from "@ecs/ecs";
 import { GravityBox } from "@physics/components/gravity-box";
-import { PhysicsWorldSingleton } from "@physics/components/physics-world-singleton";
 import { Transform } from "@renderer/components/transform";
 import * as CANNON from "cannon-es";
+import { getPhysicsWorld } from "../../abstractions/get-physics-world";
 
 export class GravitySystem extends System {
   componentsRequired = new Set([GravityBox, Transform]);
   addedEntities = new Map<Entity, CANNON.Body>();
 
   update(entities: Set<Entity>, now: number, deltaTime: number) {
-    const physicsWorldEntity = this.ecs
-      .getEntitiesithComponent(PhysicsWorldSingleton)
-      .values()
-      .next().value;
-    const components = this.ecs.getComponents(physicsWorldEntity);
-    const world = components.get(PhysicsWorldSingleton).world;
+    const world = getPhysicsWorld(this.ecs);
 
     // Add any new entities to the physics world.
     for (const entity of entities) {
@@ -22,6 +17,7 @@ export class GravitySystem extends System {
         const components = this.ecs.getComponents(entity);
         const gravityBox = components.get(GravityBox);
         const position = components.get(Transform).position;
+        const rotation = components.get(Transform).rotation;
         const scale = components.get(Transform).scale;
         const body = new CANNON.Body({
           angularFactor: gravityBox.angularFactor,
@@ -33,6 +29,12 @@ export class GravitySystem extends System {
               gravityBox.halfExtents.y * scale[1],
               gravityBox.halfExtents.z * scale[2],
             ),
+          ),
+          quaternion: new CANNON.Quaternion(
+            rotation[0],
+            rotation[1],
+            rotation[2],
+            rotation[3],
           ),
         });
         this.addedEntities.set(entity, body);
