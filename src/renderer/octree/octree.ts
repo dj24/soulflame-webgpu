@@ -97,7 +97,23 @@ export class Octree {
     this.#pointer = 0;
     this.#maxDepth = getOctreeDepthFromVoxelBounds(voxels.SIZE);
     this.#build(voxels, 0, [0, 0, 0], 0);
-    console.log(this.nodes.slice(0, 50));
+
+    //Debug by following root to leaf via first child index
+    let nodes: OctreeNode[] = [];
+    let pointer = 0;
+    while (true) {
+      let node = this.nodes[pointer];
+      if (!node) {
+        console.log(`Node ${pointer} is null`);
+        break;
+      }
+      nodes.push(node);
+      if ("red" in node) {
+        break;
+      }
+      pointer += node.firstChildIndex;
+    }
+    console.log(nodes);
   }
 
   // Allocate memory for 8 nodes, and return the index of the first node
