@@ -97,7 +97,7 @@ export class Octree {
     this.#pointer = 0;
     this.#maxDepth = getOctreeDepthFromVoxelBounds(voxels.SIZE);
     this.#build(voxels, 0, [0, 0, 0], 0);
-    console.log(this.nodes.slice(0, 20));
+    console.log(this.nodes.slice(0, 50));
   }
 
   // Allocate memory for 8 nodes, and return the index of the first node

@@ -321,21 +321,33 @@ fn getPlaneIntersections(rayOrigin: vec3<f32>, rayDirection:vec3<f32>, nodeSize:
 }
 
 
-//fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) -> RayMarchResult {
-//    var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz;
-//    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-//    var output = RayMarchResult();
-//
-//    // Set the initial t value to the far plane - essentially an out of bounds value
-//    output.t = FAR_PLANE;
-//
-//    // Create a stack to hold the indices of the nodes we need to check
-//    var stack = stacku32_new();
-//
-//    // Push the root node index onto the stack
-//    stacku32_push(&stack, 0);
-//
-//    // Main loop
+fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) -> RayMarchResult {
+    let halfExtents = voxelObject.size * 0.5;
+    var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz + halfExtents;
+    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+    var output = RayMarchResult();
+
+    let node = unpackInternal(octreeBuffer[40]);
+    let nodeRayOrigin = objectRayOrigin - vec3(f32(node.x), f32(node.y), f32(node.z));
+    let rootNodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(f32(node.size) * 0.5));
+    if(rootNodeIntersection.isHit){
+     output.t = rootNodeIntersection.tNear;
+      output.hit = true;
+      output.normal = abs(rootNodeIntersection.normal);
+      output.colour = vec3<f32>(0.0, 1.0, 0.0);
+      return output;
+    }
+
+    // Set the initial t value to the far plane - essentially an out of bounds value
+    output.t = FAR_PLANE;
+
+    // Create a stack to hold the indices of the nodes we need to check
+    var stack = stacku32_new();
+
+    // Push the root node index onto the stack
+    stacku32_push(&stack, 0);
+
+    // Main loop
 //    while (stack.head > 0u && output.iterations < MAX_STEPS) {
 //      let nodeIndex = stacku32_pop(&stack);
 //      let node = unpackInternal(octreeBuffer[nodeIndex]);
@@ -375,8 +387,8 @@ fn getPlaneIntersections(rayOrigin: vec3<f32>, rayDirection:vec3<f32>, nodeSize:
 //      // Increment the number of iterations for the loop and debug purposes
 //      output.iterations += 1u;
 //    }
-//    return output;
-//}
+    return output;
+}
 
 
 const colours = array<vec3<f32>, 8>(

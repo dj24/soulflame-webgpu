@@ -201,16 +201,16 @@ export const init = async (
     // getFogPass(),
     // getBloomPass(),
     // getMotionBlurPass(),
-    getTonemapPass(),
+    // getTonemapPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
     // getVignettePass(15.0),
     fullscreenQuad(device),
-    // getBoxOutlinePass(
-    //   device,
-    //   renderableEntities.map((entity) =>
-    //     ecs.getComponents(entity).get(VoxelObject),
-    //   ),
-    // ),
+    getBoxOutlinePass(
+      device,
+      renderableEntities.map((entity) =>
+        ecs.getComponents(entity).get(VoxelObject),
+      ),
+    ),
   ]);
 
   timestampLabels = computePasses.reduce((acc, val) => {
