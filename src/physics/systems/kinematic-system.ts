@@ -33,6 +33,7 @@ export class KinematicSystem extends System {
               immovableBox.halfExtents.z * transform.scale[2],
             ),
           ),
+          ...immovableBox.options,
         });
         this.addedEntities.set(entity, body);
         immovableBox.bodyId = body.id;

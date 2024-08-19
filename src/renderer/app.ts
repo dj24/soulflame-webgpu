@@ -176,16 +176,6 @@ export const init = async (
     "camera position",
   );
 
-  bvh = new BVH(
-    device,
-    renderableEntities.map((entity) => {
-      return getVoxelObjectBoundingBox(
-        ecs.getComponents(entity).get(VoxelObject),
-        ecs.getComponents(entity).get(Transform),
-      );
-    }),
-  );
-
   createBlueNoiseTexture(device);
 
   bvh = new BVH(
@@ -211,7 +201,7 @@ export const init = async (
     // getFogPass(),
     // getBloomPass(),
     // getMotionBlurPass(),
-    // getTonemapPass(),
+    getTonemapPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
     // getVignettePass(15.0),
     fullscreenQuad(device),
@@ -230,7 +220,7 @@ export const init = async (
     return acc.concat(val.label);
   }, []);
 
-  debugUI.setupDebugControls(computePasses);
+  // debugUI.setupDebugControls(computePasses);
 
   canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
   canvas.style.imageRendering = "pixelated";
@@ -427,9 +417,10 @@ const getVoxelObjectsBuffer = (
     })
     .flat();
 
-  if (!transformationMatrixBuffer) {
+  const size = new Float32Array(voxelObjectsArray).byteLength;
+  if (!transformationMatrixBuffer || size !== transformationMatrixBuffer.size) {
     transformationMatrixBuffer = device.createBuffer({
-      size: new Float32Array(voxelObjectsArray).byteLength,
+      size,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       label: "voxel objects buffer",
     });
@@ -505,13 +496,13 @@ export const frame = (
 
   computePasses.forEach((computePass, index) => {
     const { render, label } = computePass;
-    if (
-      debugUI.passesFolder.controllers
-        .find((controller) => controller.property === label)
-        ?.getValue() === false
-    ) {
-      return;
-    }
+    // if (
+    //   debugUI.passesFolder.controllers
+    //     .find((controller) => controller.property === label)
+    //     ?.getValue() === false
+    // ) {
+    //   return;
+    // }
 
     if (device.features.has("timestamp-query")) {
       commandEncoder.clearBuffer(timestampQueryBuffer);

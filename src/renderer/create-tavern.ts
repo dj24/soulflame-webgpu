@@ -99,6 +99,7 @@ export const createVoxelObject = async (
     volumeAtlas.dictionary[path];
 
   return new VoxelObject({
+    name,
     size,
     atlasLocation: location,
     paletteIndex,

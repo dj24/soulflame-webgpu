@@ -40,6 +40,14 @@ export class GravitySystem extends System {
         this.addedEntities.set(entity, body);
         world.addBody(body);
         gravityBox.bodyId = body.id;
+        // body.addEventListener("collide", () => {
+        //   const audio = document.getElementById(
+        //     "clink-audio",
+        //   ) as HTMLAudioElement;
+        //   audio.volume = 0.2;
+        //   audio.currentTime = 0;
+        //   audio.play();
+        // });
       }
     }
 
@@ -56,6 +64,10 @@ export class GravitySystem extends System {
     // Update the transforms of the entities.
     for (const [entity, body] of this.addedEntities) {
       const components = this.ecs.getComponents(entity);
+      if (!components) {
+        continue;
+      }
+
       const gravityBox = components.get(GravityBox);
       const transform = components.get(Transform);
 

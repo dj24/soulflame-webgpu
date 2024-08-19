@@ -17,6 +17,10 @@ import { PlayerLookAtSystem } from "./systems/player-look-at-system";
 import { SpringSystem } from "./systems/spring-system";
 import { SwordSystem } from "./systems/sword-system";
 import { HingeSystem } from "./systems/hinge-system";
+import { FollowTargetSystem } from "@input/systems/follow-target-system";
+import { SpawnerSystem } from "@input/systems/spawner-system";
+import { BombSystem } from "./systems/bomb-system";
+import { PlayerHealthSystem } from "./systems/player-health-system";
 
 const ecs = new ECS();
 
@@ -25,13 +29,17 @@ ecs.addSystem(new Renderer());
 ecs.addSystem(new KeyboardControl());
 ecs.addSystem(new GravitySystem());
 ecs.addSystem(new KinematicSystem());
-ecs.addSystem(new GamepadKinematicBoxControl());
+// ecs.addSystem(new GamepadKinematicBoxControl());
 ecs.addSystem(new ArenaTiltSystem());
 ecs.addSystem(new PlayerControlSystem());
 ecs.addSystem(new PlayerLookAtSystem());
 ecs.addSystem(new SpringSystem());
 ecs.addSystem(new SwordSystem());
 ecs.addSystem(new HingeSystem());
+ecs.addSystem(new FollowTargetSystem());
+ecs.addSystem(new SpawnerSystem());
+ecs.addSystem(new BombSystem());
+ecs.addSystem(new PlayerHealthSystem());
 
 const singleton = ecs.addEntity();
 ecs.addComponent(singleton, new GPUDeviceSingleton());
@@ -43,7 +51,7 @@ ecs.addComponents(
   camera,
   new Camera({ fieldOfView: 50 * (Math.PI / 180), near: 0.5, far: 10000 }),
   new Transform(
-    vec3.create(0, 300, -300),
+    vec3.create(0, 250, -250),
     quat.fromEuler(50 * (Math.PI / 180), 0, 0, "xyz"),
     vec3.create(1, 1, 1),
   ),

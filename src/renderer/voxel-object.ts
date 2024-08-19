@@ -27,23 +27,27 @@ export class VoxelObject extends Component {
   paletteIndex: number;
   /** Index of the object in the octree buffer */
   octreeBufferIndex: number;
+  name: string;
 
   constructor({
     size,
     atlasLocation,
     paletteIndex,
     octreeBufferIndex,
+    name,
   }: {
     size: Vec3;
     atlasLocation: Vec3;
     paletteIndex: number;
     octreeBufferIndex: number;
+    name: string;
   }) {
     super();
     this.size = size;
     this.atlasLocation = atlasLocation;
     this.paletteIndex = paletteIndex;
     this.octreeBufferIndex = octreeBufferIndex;
+    this.name = name;
   }
 }
 

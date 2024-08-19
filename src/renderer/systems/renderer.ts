@@ -19,6 +19,10 @@ import { Spring } from "../../components/spring";
 import { Sword } from "../../components/sword";
 import { Player } from "../../components/player";
 import { Hinge } from "../../components/hinge";
+import { FollowTarget } from "../../components/follow-target";
+import { Spawner } from "@input/components/spawner";
+
+const PLAYER_MASS = 2;
 
 export class Renderer extends System {
   componentsRequired = new Set([VoxelObject, Transform]);
@@ -44,30 +48,41 @@ export class Renderer extends System {
         new Transform([0, -10, 0], quat.identity(), [10, 10, 10]),
         floorVoxelObject,
         new Arena(),
-        new GravityBox(floorVoxelObject.size, 5),
+        new ImmovableBox(floorVoxelObject.size),
+        // new GravityBox(floorVoxelObject.size, 20),
       );
 
-      // Debug barrels
-      for (let x = -160; x < 160; x += 40) {
-        for (let y = 40; y < 80; y += 40) {
-          for (let z = -160; z < 160; z += 40) {
-            const barrelEntity = this.ecs.addEntity();
-            const barrelVoxelObject = await createVoxelObject(
-              device,
-              volumeAtlas,
-              `Barrel-${x}${y}${z}`,
-              `./Tavern/barrel.vxm`,
-            );
-            this.ecs.addComponents(
-              barrelEntity,
-              new Transform([x, y, z - 37], quat.identity(), [1, 1, 1]),
-              barrelVoxelObject,
-              new GravityBox(barrelVoxelObject.size),
-            );
-          }
-        }
-      }
+      const potVoxels = await createVoxelObject(
+        device,
+        volumeAtlas,
+        `Pot`,
+        `./game-jam/Pot4.vxm`,
+      );
+      const dragonVoxels = await createVoxelObject(
+        device,
+        volumeAtlas,
+        `Dragon`,
+        `./game-jam/Dragon.vxm`,
+      );
 
+      const potionVoxels = await createVoxelObject(
+        device,
+        volumeAtlas,
+        `Potion`,
+        `./game-jam/HealthPotion.vxm`,
+      );
+      const bombVoxels = await createVoxelObject(
+        device,
+        volumeAtlas,
+        `Bomb`,
+        `./game-jam/bomb.vxm`,
+      );
+
+      const spawner = this.ecs.addEntity();
+      this.ecs.addComponents(
+        spawner,
+        new Spawner([potVoxels, dragonVoxels, potionVoxels, bombVoxels]),
+      );
       // Add sword
       const sword = this.ecs.addEntity();
       // Add player
@@ -83,22 +98,19 @@ export class Renderer extends System {
         sword,
         new Transform(
           [-20, 30, -80],
-          quat.fromEuler(0, 90, 0, "xyz"),
-          [2, 2, 2],
+          quat.fromEuler(0, 90 * (Math.PI / 180), 0, "xyz"),
+          [1.1, 1.1, 1.1],
         ),
         swordVo,
-        new GravityBox(swordVo.size, 2, new CANNON.Vec3(1, 1, 1)),
+        new ImmovableBox(swordVo.size, {
+          isTrigger: true,
+        }),
         new Sword(player),
         new GamepadControllable(0),
-        new Spring(
+        new FollowTarget(
           player,
-          sword,
-          new CANNON.Vec3(16, 4, 4),
-          new CANNON.Vec3(0, 0, 0),
-          {
-            stiffness: 200,
-            damping: 5,
-          },
+          vec3.create(24, 12, -2),
+          quat.fromEuler(0, 90 * (Math.PI / 180), -90 * (Math.PI / 180), "zxy"),
         ),
       );
 
@@ -110,31 +122,35 @@ export class Renderer extends System {
       );
       this.ecs.addComponents(
         player,
-        new Transform([-20, 30, -80], quat.identity(), [1, 1, 1]),
-        new Player(),
+        new Transform([-20, 30, -80], quat.identity(), [1.2, 1.2, 1.2]),
+        new Player(sword),
         vo,
         new GamepadControllable(0),
-        new GravityBox(vo.size, 10, new CANNON.Vec3(0, 0, 0)),
-        new Hinge(player, sword, {
-          // collideConnected: false,
-          pivotA: new CANNON.Vec3(0, 4, 4),
-          pivotB: new CANNON.Vec3(0, -16, 0),
-          axisA: new CANNON.Vec3(0, 1, 0),
-          axisB: new CANNON.Vec3(0, 0, 1),
-        }),
-        // new Spring(
-        //   player,
-        //   sword,
-        //   new CANNON.Vec3(8, 0, 0),
-        //   new CANNON.Vec3(0, -8, 0),
-        //   {
-        //     stiffness: 200,
-        //   },
-        // ),
+        new GravityBox(vo.size, PLAYER_MASS, new CANNON.Vec3(0, 0, 0)),
       );
 
       //Add Player 2
       const player2 = this.ecs.addEntity();
+      const sword2 = this.ecs.addEntity();
+      this.ecs.addComponents(
+        sword2,
+        new Transform(
+          [-20, 30, -80],
+          quat.fromEuler(0, 90 * (Math.PI / 180), 0, "xyz"),
+          [1.1, 1.1, 1.1],
+        ),
+        swordVo,
+        new ImmovableBox(swordVo.size, {
+          isTrigger: true,
+        }),
+        new Sword(player2),
+        new GamepadControllable(1),
+        new FollowTarget(
+          player2,
+          vec3.create(24, 12, -2),
+          quat.fromEuler(0, 90 * (Math.PI / 180), -90 * (Math.PI / 180), "zxy"),
+        ),
+      );
       const vo2 = await createVoxelObject(
         device,
         volumeAtlas,
@@ -143,11 +159,11 @@ export class Renderer extends System {
       );
       this.ecs.addComponents(
         player2,
-        new Transform([20, 30, -60], quat.identity(), [1, 1, 1]),
+        new Transform([20, 30, -60], quat.identity(), [1.2, 1.2, 1.2]),
         vo2,
         new GamepadControllable(1),
-        new GravityBox(vo.size, 10, new CANNON.Vec3(0, 0, 0)),
-        new Player(),
+        new GravityBox(vo.size, PLAYER_MASS, new CANNON.Vec3(0, 0, 0)),
+        new Player(-1),
       );
 
       init(device, volumeAtlas, this.ecs, []);
