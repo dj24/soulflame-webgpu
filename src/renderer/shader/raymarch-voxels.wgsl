@@ -201,14 +201,13 @@ struct InternalNode {
   firstChildOffset: u32,
   childMask: u32,
   leafMask: u32,
-  x: u32,
-  y: u32,
-  z: u32,
+  position: vec3<u32>,
   size: u32,
 }
 
-fn getFirstChildIndexFromInternalNode(node: InternalNode, index: u32) -> u32 {
-  return index + node.firstChildOffset;
+struct LeafNode {
+  colour: vec3<u32>,
+  position: vec3<u32>,
 }
 
 const mask8 = 0xFFu;
@@ -220,14 +219,19 @@ fn isLeaf(node:vec2<u32>) -> bool {
 }
 
 //3nd, 4rd and 5th bytes are the red, green and blue values
-fn unpackLeaf(node: vec2<u32>) -> vec3<u32> {
-  let firstByte = node.x;
-  let secondByte = node.y;
-  return vec3<u32>(
-    (node[0] >> 16u) & mask8,
-    (node[0] >> 24u) & mask8,
-    node[1] & mask8
-  );
+fn unpackLeaf(node: vec2<u32>) -> LeafNode {
+  var output = LeafNode();
+  let first4Bytes = node.x;
+  let second4Bytes = node.y;
+  let r = (first4Bytes >> 16u) & mask8;
+  let g = (first4Bytes >> 24u) & mask8;
+  let b = second4Bytes & mask8;
+  let x = (second4Bytes >> 8u) & mask8;
+  let y = (second4Bytes >> 16u) & mask8;
+  let z = (second4Bytes >> 24u) & mask8;
+  output.colour = vec3<u32>(r, g, b);
+  output.position = vec3<u32>(x, y, z);
+  return output;
 }
 
 /**
@@ -246,9 +250,10 @@ fn unpackInternal(node: vec2<u32>) -> InternalNode {
   output.firstChildOffset = first4Bytes & mask16;
   output.childMask = (first4Bytes >> 16u) & mask8;
   output.leafMask = (first4Bytes >> 24u) & mask8;
-  output.x = second4Bytes & mask8;
-  output.y = (second4Bytes >> 8u) & mask8;
-  output.z = (second4Bytes >> 16u) & mask8;
+  let x = second4Bytes & mask8;
+  let y = (second4Bytes >> 8u) & mask8;
+  let z = (second4Bytes >> 16u) & mask8;
+  output.position = vec3<u32>(x, y, z);
   output.size = (second4Bytes >> 24u) & mask8;
   return output;
 }
@@ -327,16 +332,16 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
     var output = RayMarchResult();
 
-    let node = unpackInternal(octreeBuffer[40]);
-    let nodeRayOrigin = objectRayOrigin - vec3(f32(node.x), f32(node.y), f32(node.z));
-    let rootNodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(f32(node.size) * 0.5));
-    if(rootNodeIntersection.isHit){
-     output.t = rootNodeIntersection.tNear;
-      output.hit = true;
-      output.normal = abs(rootNodeIntersection.normal);
-      output.colour = vec3<f32>(0.0, 1.0, 0.0);
-      return output;
-    }
+//    let node = unpackInternal(octreeBuffer[40]);
+//    let nodeRayOrigin = objectRayOrigin - vec3(f32(node.x), f32(node.y), f32(node.z));
+//    let rootNodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(f32(node.size) * 0.5));
+//    if(rootNodeIntersection.isHit){
+//     output.t = rootNodeIntersection.tNear;
+//      output.hit = true;
+//      output.normal = abs(rootNodeIntersection.normal);
+//      output.colour = vec3<f32>(0.0, 1.0, 0.0);
+//      return output;
+//    }
 
     // Set the initial t value to the far plane - essentially an out of bounds value
     output.t = FAR_PLANE;
@@ -348,45 +353,48 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     stacku32_push(&stack, 0);
 
     // Main loop
-//    while (stack.head > 0u && output.iterations < MAX_STEPS) {
-//      let nodeIndex = stacku32_pop(&stack);
-//      let node = unpackInternal(octreeBuffer[nodeIndex]);
-//      let nodeRayOrigin = objectRayOrigin - vec3(f32(node.x), f32(node.y), f32(node.z));
-//      let firstChildIndex = getFirstChildIndexFromInternalNode(node, nodeIndex);
-//
-//      // Check each child octant of the node for intersections
-//      for(var i = 0u; i < 8u; i++){
-//        // If the child is not present, skip it
-//        if(!getBit(node.childMask, i)){
-//          continue;
-//        }
-//        let octantPosition = octantIndexToOffset(i);
-//        let childRayOrigin = nodeRayOrigin - vec3(f32(node.size) * 0.5) * vec3<f32>(octantPosition);
-//        let childNodeIntersection = boxIntersection(childRayOrigin, objectRayDirection, vec3(f32(node.size) * 0.25));
-//
-//        // If the octant is hit by the ray, process it
-//        if(childNodeIntersection.isHit){
-//          // Child is a leaf node
-////          if(getBit(node.leafMask, i) && childNodeIntersection.tNear < output.t){
-//            if(childNodeIntersection.tNear < output.t){
-//            output.t = childNodeIntersection.tNear;
-//            output.hit = true;
-//            output.normal = abs(childNodeIntersection.normal);
-//            output.colour = vec3<f32>(0.0, 1.0, 0.0);
+    while (stack.head > 0u && output.iterations < MAX_STEPS) {
+      let nodeIndex = stacku32_pop(&stack);
+      let node = octreeBuffer[nodeIndex];
+
+      if(isLeaf(node)){
+        let leafNode = unpackLeaf(node);
+        let leafRayOrigin = objectRayOrigin - vec3(f32(leafNode.position.x), f32(leafNode.position.y), f32(leafNode.position.z));
+        let leafIntersection = boxIntersection(leafRayOrigin, objectRayDirection, vec3(1.0));
+        if(leafIntersection.isHit){
+          output.hit = true;
+          output.t = leafIntersection.tNear;
+          output.normal = leafIntersection.normal;
+          output.colour = vec3<f32>(leafNode.colour) / 255.0;
+          return output;
+        }
+      }
+      else{
+        let internalNode = unpackInternal(node);
+        let nodeRayOrigin = objectRayOrigin - vec3(f32(internalNode.position.x), f32(internalNode.position.y), f32(internalNode.position.z));
+        // Check node for intersections, if it is hit, push the children onto the stack
+        let nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(f32(internalNode.size)));
+        if(nodeIntersection.isHit){
+            output.hit = true;
+            output.t = nodeIntersection.tNear;
+            output.normal = nodeIntersection.normal;
+            output.colour = vec3(1.0,0,0);
+            return output;
+//          for(var i = 0u; i < 8u; i++){
+//            // If the child is not present, skip it
+//            if(getBit(internalNode.childMask, i)){
+//               let childIndex = nodeIndex + internalNode.firstChildOffset + i;
+//               stacku32_push(&stack, childIndex);
+//            }
 //          }
-//          // Child is an internal node, push it to the stack
-//          stacku32_push(&stack, firstChildIndex + i);
-//        }
-//      }
-//
-//      // We hit a leaf node, so we can break out of the loop
-//      if(output.hit){
-//        return output;
-//      }
-//
-//      // Increment the number of iterations for the loop and debug purposes
-//      output.iterations += 1u;
-//    }
+        }
+      }
+
+
+
+      // Increment the number of iterations for the loop and debug purposes
+      output.iterations += 1u;
+    }
     return output;
 }
 

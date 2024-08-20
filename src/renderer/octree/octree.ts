@@ -80,6 +80,12 @@ export type LeafNode = {
   green: number;
   /** 0-255 blue value */
   blue: number;
+  /** x position of the node */
+  x: number;
+  /** y position of the node */
+  y: number;
+  /** z position of the node */
+  z: number;
 };
 
 type OctreeNode = InternalNode | LeafNode;
@@ -113,9 +119,7 @@ export class Octree {
       }
       for (let i = 0; i < 8; i++) {
         if (getBit(node.childMask, i)) {
-          console.log(
-            `Child ${i} of node ${pointer} is at ${node.firstChildIndex + i}`,
-          );
+          console.log(`Child ${i} of node ${pointer} is at ${pointer}`);
           pointer += node.firstChildIndex + i;
           break;
         }
@@ -144,6 +148,9 @@ export class Octree {
         red: voxels.RGBA[paletteIndex].r,
         green: voxels.RGBA[paletteIndex].g,
         blue: voxels.RGBA[paletteIndex].b,
+        x: offset[0],
+        y: offset[1],
+        z: offset[2],
       };
       return;
     }
@@ -206,7 +213,7 @@ export class Octree {
         const x = offset[0] + origin[0] * childOctantSize;
         const y = offset[1] + origin[1] * childOctantSize;
         const z = offset[2] + origin[2] * childOctantSize;
-        if (objectSize === 1) {
+        if (objectSize === 2) {
           leafMask = setBit(leafMask, i);
         }
         this.#build(octantVoxels, childIndex, [x, y, z], childDepth);
@@ -240,6 +247,9 @@ export const setLeafNode = (
   dataView.setUint8(index * OCTREE_STRIDE + 2, node.red);
   dataView.setUint8(index * OCTREE_STRIDE + 3, node.green);
   dataView.setUint8(index * OCTREE_STRIDE + 4, node.blue);
+  dataView.setUint8(index * OCTREE_STRIDE + 5, node.x);
+  dataView.setUint8(index * OCTREE_STRIDE + 6, node.y);
+  dataView.setUint8(index * OCTREE_STRIDE + 7, node.z);
 };
 
 export const setInternalNode = (

@@ -37,7 +37,7 @@ export const fullscreenQuad = async (
         {
           binding: 1,
           // resource: args.outputTextures.finalTexture.view,
-          resource: args.outputTextures.normalTexture.view,
+          resource: args.outputTextures.albedoTexture.view,
         },
       ],
     });

@@ -9,6 +9,7 @@ import { GPUDeviceSingleton } from "@renderer/components/gpu-device-singleton";
 import { GravitySystem } from "@physics/systems/gravity-system";
 import { PhysicsWorldSingleton } from "@physics/components/physics-world-singleton";
 import { KinematicSystem } from "@physics/systems/kinematic-system";
+import { GamepadControllable } from "@input/components/gamepad-controllable";
 
 const ecs = new ECS();
 
@@ -30,6 +31,7 @@ ecs.addComponents(
     quat.fromEuler(30 * (Math.PI / 180), 0, 0, "xyz"),
     vec3.create(1, 1, 1),
   ),
+  new KeyboardControllable(),
 );
 
 const debug = ecs.addEntity();
