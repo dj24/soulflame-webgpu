@@ -1,5 +1,5 @@
 import { TVoxels } from "../convert-vxm";
-import { setBit } from "./bitmask";
+import { getBit, setBit } from "./bitmask";
 
 export const octantPositions = [
   [0, 0, 0],
@@ -111,7 +111,15 @@ export class Octree {
       if ("red" in node) {
         break;
       }
-      pointer += node.firstChildIndex;
+      for (let i = 0; i < 8; i++) {
+        if (getBit(node.childMask, i)) {
+          console.log(
+            `Child ${i} of node ${pointer} is at ${node.firstChildIndex + i}`,
+          );
+          pointer += node.firstChildIndex + i;
+          break;
+        }
+      }
     }
     console.log(nodes);
   }
@@ -129,7 +137,7 @@ export class Octree {
     depth: number,
   ) {
     // Only one voxel in this octant, so it's a leaf node
-    const isLeaf = voxels.XYZI.length === 1;
+    const isLeaf = voxels.SIZE[0] === 1;
     if (isLeaf) {
       const paletteIndex = voxels.XYZI[0].c;
       this.nodes[startIndex] = {
@@ -198,7 +206,7 @@ export class Octree {
         const x = offset[0] + origin[0] * childOctantSize;
         const y = offset[1] + origin[1] * childOctantSize;
         const z = offset[2] + origin[2] * childOctantSize;
-        if (octantVoxels.XYZI.length === 1 && childDepth == this.#maxDepth) {
+        if (objectSize === 1) {
           leafMask = setBit(leafMask, i);
         }
         this.#build(octantVoxels, childIndex, [x, y, z], childDepth);
