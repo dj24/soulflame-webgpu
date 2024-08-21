@@ -126,6 +126,13 @@ export class Octree {
       }
     }
     console.log(nodes);
+    const leafNodes = this.nodes
+      .filter((node) => "red" in node)
+      .map((node) => ({
+        index: this.nodes.indexOf(node),
+        ...node,
+      }));
+    console.log(leafNodes);
   }
 
   // Allocate memory for 8 nodes, and return the index of the first node
@@ -287,7 +294,7 @@ export const octreeToArrayBuffer = (octree: Octree) => {
   });
 
   console.debug(
-    `Created octree of size ${(octree.totalSize / 1024 ** 2).toFixed(2)} MB`,
+    `Created octree of size ${(octree.totalSize / 1024 ** 2).toFixed(3)} MB`,
   );
 
   return buffer;

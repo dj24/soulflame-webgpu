@@ -16,9 +16,6 @@ fn transformPosition(transform: mat4x4<f32>, position: vec3<f32>) -> vec3<f32> {
     return worldPosition;
 }
 
-fn getMaxMipLevel(size: vec3<f32>) -> u32 {
-  return u32(log2(max(size.x, max(size.y, size.z))));
-}
 
 struct VoxelObject {
   transform: mat4x4<f32>,
@@ -44,26 +41,9 @@ fn isInBounds(position: vec3<i32>, size: vec3<i32>) -> bool {
   return all(position >= vec3(0)) && all(position <= size - vec3(1));
 }
 
-fn getMipLevelFromVoxelSize(voxelSize: vec3<f32>) -> u32 {
-  return u32(log2(max(voxelSize.x, max(voxelSize.y, voxelSize.z))));
-}
-
-fn convert1DTo3D(size: vec3<u32>, index: u32) -> vec3<u32> {
-  return vec3(
-    index % size.x,
-    index / size.y,
-    index / (size.x * size.y)
-  );
-}
-
-fn convert3DTo1D(size: vec3<u32>, position: vec3<u32>) -> u32 {
-  return position.x + position.y * size.x + position.z * (size.x * size.y);
-}
-
 fn getBit(value: u32, bitIndex: u32) -> bool {
   return (value & (1u << bitIndex)) != 0;
 }
-
 
 fn getScaleFromMatrix(transform: mat4x4<f32>) -> vec3<f32> {
   return vec3<f32>(length(transform[0].xyz), length(transform[1].xyz), length(transform[2].xyz));
@@ -177,25 +157,6 @@ fn stacku32_pop(stack: ptr<function, StackU32>) -> u32 {
     return (*stack).arr[(*stack).head];
 }
 
-struct Stack2 {
-  arr: array<vec2<u32>, STACK_LEN>,
-	head: u32,
-}
-
-fn stack2_new() -> Stack2 {
-    var arr: array<vec2<u32>, STACK_LEN>;
-    return Stack2(arr, 0u);
-}
-
-fn stack2_push(stack: ptr<function, Stack2>, val: vec2<u32>) {
-    (*stack).arr[(*stack).head] = val;
-    (*stack).head += 1u;
-}
-
-fn stack2_pop(stack: ptr<function, Stack2>) -> vec2<u32> {
-    (*stack).head -= 1u;
-    return (*stack).arr[(*stack).head];
-}
 
 struct InternalNode {
   firstChildOffset: u32,
@@ -218,7 +179,16 @@ fn isLeaf(node:vec2<u32>) -> bool {
   return (node[0] & mask16) == 0;
 }
 
-//3nd, 4rd and 5th bytes are the red, green and blue values
+/**
+  * Unpacks a leaf node from a 32 bit integer
+  * First 16 bits are the leaf flag (0)
+  * The next 8 bits are the red component
+  * The next 8 bits are the green component
+  * The next 8 bits are the blue component
+  * The next 8 bits are the x position
+  * The next 8 bits are the y position
+  * The next 8 bits are the z position
+  */
 fn unpackLeaf(node: vec2<u32>) -> LeafNode {
   var output = LeafNode();
   let first4Bytes = node.x;
@@ -256,30 +226,6 @@ fn unpackInternal(node: vec2<u32>) -> InternalNode {
   output.position = vec3<u32>(x, y, z);
   output.size = (second4Bytes >> 24u) & mask8;
   return output;
-}
-
-fn getNodeSizeAtDepth(rootSize: u32, depth: u32) -> u32 {
-  return rootSize >> depth;
-}
-
-fn octantIndexToOffset(index: u32) -> vec3<u32> {
-  return vec3<u32>(
-    select(0u, 1u, (index & 1u) != 0u),
-    select(0u, 1u, (index & 2u) != 0u),
-    select(0u, 1u, (index & 4u) != 0u)
-  );
-}
-
-fn octantOffsetToIndex(offset: vec3<u32>) -> u32 {
-  return offset.x + offset.y * 2u + offset.z * 4u;
-}
-
-fn ceilToPowerOfTwo(value: f32) -> f32 {
-  return pow(2.0, ceil(log2(value)));
-}
-
-fn max3(value: vec3<f32>) -> f32 {
-  return max(value.x, max(value.y, value.z));
 }
 
 fn planeIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, planeNormal: vec3<f32>, planeDistance: f32) -> f32 {
@@ -332,16 +278,44 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
     var output = RayMarchResult();
 
-//    let node = unpackInternal(octreeBuffer[40]);
-//    let nodeRayOrigin = objectRayOrigin - vec3(f32(node.x), f32(node.y), f32(node.z));
-//    let rootNodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(f32(node.size) * 0.5));
-//    if(rootNodeIntersection.isHit){
-//     output.t = rootNodeIntersection.tNear;
-//      output.hit = true;
-//      output.normal = abs(rootNodeIntersection.normal);
-//      output.colour = vec3<f32>(0.0, 1.0, 0.0);
-//      return output;
-//    }
+
+    var node = octreeBuffer[0];
+    if(isLeaf(node)){
+        let leafNode = unpackLeaf(node);
+        let leafRayOrigin = objectRayOrigin - vec3(f32(leafNode.position.x), f32(leafNode.position.y), f32(leafNode.position.z));
+        let leafIntersection = boxIntersection(leafRayOrigin, objectRayDirection, vec3(0.5));
+        if(leafIntersection.isHit){
+         output.t = leafIntersection.tNear;
+          output.hit = true;
+          output.normal = abs(leafIntersection.normal);
+          output.colour = vec3<f32>(leafNode.colour) / 255.0;
+          return output;
+        }
+    }
+    else{
+        var internalNode = unpackInternal(node);
+        var nodeRayOrigin = objectRayOrigin - vec3(f32(internalNode.position.x), f32(internalNode.position.y), f32(internalNode.position.z));
+        var nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(f32(internalNode.size) * 0.5));
+        // TODO: fix this
+        if(nodeIntersection.isHit){
+            for(var i = 0u; i < 8u; i++){
+                if(getBit(internalNode.childMask, i)){
+                  node = octreeBuffer[internalNode.firstChildOffset + i];
+                  var internalNode = unpackInternal(node);
+                  var nodeRayOrigin = objectRayOrigin - vec3(f32(internalNode.position.x), f32(internalNode.position.y), f32(internalNode.position.z));
+                  var nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(f32(internalNode.size) * 0.5));
+                  if(nodeIntersection.isHit){
+                      output.t = nodeIntersection.tNear;
+                      output.hit = true;
+                      output.normal = abs(nodeIntersection.normal);
+                      output.colour = vec3(1.0, 0.0, 0.0);
+                      return output;
+                  }
+                }
+            }
+
+        }
+    }
 
     // Set the initial t value to the far plane - essentially an out of bounds value
     output.t = FAR_PLANE;
@@ -360,7 +334,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       if(isLeaf(node)){
         let leafNode = unpackLeaf(node);
         let leafRayOrigin = objectRayOrigin - vec3(f32(leafNode.position.x), f32(leafNode.position.y), f32(leafNode.position.z));
-        let leafIntersection = boxIntersection(leafRayOrigin, objectRayDirection, vec3(1.0));
+        let leafIntersection = boxIntersection(leafRayOrigin, objectRayDirection, vec3(0.5));
         if(leafIntersection.isHit){
           output.hit = true;
           output.t = leafIntersection.tNear;
@@ -373,20 +347,15 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
         let internalNode = unpackInternal(node);
         let nodeRayOrigin = objectRayOrigin - vec3(f32(internalNode.position.x), f32(internalNode.position.y), f32(internalNode.position.z));
         // Check node for intersections, if it is hit, push the children onto the stack
-        let nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(f32(internalNode.size)));
+        let nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(f32(internalNode.size) * 0.5));
         if(nodeIntersection.isHit){
-            output.hit = true;
-            output.t = nodeIntersection.tNear;
-            output.normal = nodeIntersection.normal;
-            output.colour = vec3(1.0,0,0);
-            return output;
-//          for(var i = 0u; i < 8u; i++){
-//            // If the child is not present, skip it
-//            if(getBit(internalNode.childMask, i)){
-//               let childIndex = nodeIndex + internalNode.firstChildOffset + i;
-//               stacku32_push(&stack, childIndex);
-//            }
-//          }
+          for(var i = 0u; i < 8u; i++){
+            // If the child is not present, skip it
+            if(getBit(internalNode.childMask, i)){
+               let childIndex = nodeIndex + internalNode.firstChildOffset + i;
+               stacku32_push(&stack, childIndex);
+            }
+          }
         }
       }
 

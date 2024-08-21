@@ -209,5 +209,9 @@ export const createTextureFromVoxels = async (
 
   device.queue.submit([commandEncoder.finish()]);
   await device.queue.onSubmittedWorkDone();
+
+  const mb = totalVoxels / 1024 / 1024;
+
+  console.log(`Created texture of size ${mb.toFixed(3)} MB`);
   return texture;
 };

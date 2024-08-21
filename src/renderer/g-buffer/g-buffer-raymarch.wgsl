@@ -166,14 +166,14 @@ fn tracePixel(pixel: vec2<u32>){
     closestIntersection = bvhResult;
 
     let voxelObject = voxelObjects[closestIntersection.voxelObjectIndex];
-//    let albedo = closestIntersection.colour;
-
-    var albedo = vec3<f32>(0.0);
-    if(closestIntersection.hit){
-        let paletteX = i32(closestIntersection.colour.r * 255.0);
-        let paletteY = i32(voxelObject.paletteIndex);
-        albedo = textureLoad(paletteTex, vec2(paletteX, paletteY), 0).rgb;
-    }
+    let albedo = closestIntersection.colour;
+//
+//    var albedo = vec3<f32>(0.0);
+//    if(closestIntersection.hit){
+//        let paletteX = i32(closestIntersection.colour.r * 255.0);
+//        let paletteY = i32(voxelObject.paletteIndex);
+//        albedo = textureLoad(paletteTex, vec2(paletteX, paletteY), 0).rgb;
+//    }
 
     let normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(closestIntersection.normal));
     let worldPos = rayOrigin + rayDirection * closestIntersection.t;
