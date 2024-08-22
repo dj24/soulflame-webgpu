@@ -3,7 +3,7 @@ import { Camera } from "../components/camera";
 import { Transform } from "../components/transform";
 import { frame, init } from "@renderer/app";
 import { getGpuDevice } from "@renderer/abstractions/get-gpu-device";
-import { createTavern, createVoxelObject } from "@renderer/create-tavern";
+import { createVoxelObject } from "@renderer/create-tavern";
 import { VolumeAtlas } from "@renderer/volume-atlas";
 import { VoxelObject } from "@renderer/voxel-object";
 import { quat, vec3 } from "wgpu-matrix";
@@ -24,7 +24,7 @@ export class Renderer extends System {
         device,
         volumeAtlas,
         `Dragon`,
-        `./fox.vxm`,
+        `./Tavern/teapot.vxm`,
       );
 
       const dragon = this.ecs.addEntity();

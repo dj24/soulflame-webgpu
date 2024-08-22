@@ -250,7 +250,7 @@ export const setLeafNode = (
   index: number,
   node: LeafNode,
 ) => {
-  dataView.setUint16(index * OCTREE_STRIDE, 0);
+  dataView.setUint16(index * OCTREE_STRIDE, 0, true);
   dataView.setUint8(index * OCTREE_STRIDE + 2, node.red);
   dataView.setUint8(index * OCTREE_STRIDE + 3, node.green);
   dataView.setUint8(index * OCTREE_STRIDE + 4, node.blue);
@@ -269,7 +269,7 @@ export const setInternalNode = (
     `First child index of ${node.firstChildIndex} is too large to fit in 2 bytes`,
   );
   //TODO: try 24 bit unisnged integer by using bit shifting
-  dataView.setUint16(index * OCTREE_STRIDE, node.firstChildIndex);
+  dataView.setUint16(index * OCTREE_STRIDE, node.firstChildIndex, true);
   dataView.setUint8(index * OCTREE_STRIDE + 2, node.childMask);
   dataView.setUint8(index * OCTREE_STRIDE + 3, node.leafMask);
   dataView.setUint8(index * OCTREE_STRIDE + 4, node.x);
