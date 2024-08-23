@@ -317,6 +317,27 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       let nodeOrigin = vec3(f32(internalNode.position.x), f32(internalNode.position.y), f32(internalNode.position.z));
       let nodeRayOrigin = objectRayOrigin - nodeOrigin;
 
+      let nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(f32(internalNode.size) * 0.5));
+      if(!nodeIntersection.isHit){
+        continue;
+      }
+      let intersectionPoint = objectRayOrigin + objectRayDirection * nodeIntersection.tNear;
+      let childNodeSize = internalNode.size >> 1u;
+      let centerOfChild = vec3(f32(internalNode.size) * 0.5);
+      let hitOctant = vec3<u32>(intersectionPoint >= centerOfChild);
+      let hitIndex = octantOffsetToIndex(vec3<u32>(hitOctant));
+      if(getBit(internalNode.childMask, hitIndex)){
+        if(internalNode.size == 64u){
+          output.hit = true;
+          output.t = nodeIntersection.tNear;
+          output.normal = getDebugColour(i32(hitIndex));
+          output.colour = getDebugColour(i32(hitIndex));
+          return output;
+        }
+        let childIndex = nodeIndex + internalNode.firstChildOffset + hitIndex;
+         stacku32_push(&stack, childIndex);
+      }
+
       // Use planes to find the "inner" intersections
       let planeIntersections = getPlaneIntersections(nodeRayOrigin, objectRayDirection, f32(internalNode.size));
 
@@ -335,18 +356,10 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
         let hitOctant = vec3<u32>(hitPosition >= centerOfChild);
         let hitIndex = octantOffsetToIndex(vec3<u32>(hitOctant));
 
-//        if(getBit(internalNode.leafMask, hitIndex)){
-//          // TODO: unpack leaf node here
-//          output.hit = true;
-//          output.t = sortedIntersections[i];
-//          output.normal = getDebugColour(i32(hitIndex));
-//          output.colour = getDebugColour(i32(hitIndex));
-////            return output;
-//        }
 
         // If the child is present, push it onto the stack
         if(getBit(internalNode.childMask, hitIndex)){
-            if(internalNode.size == 128u){
+            if(internalNode.size == 64u){
               output.hit = true;
               output.t = sortedIntersections[i];
               output.normal = getDebugColour(i32(hitIndex));
