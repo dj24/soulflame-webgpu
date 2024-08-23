@@ -49,7 +49,6 @@ fn getScaleFromMatrix(transform: mat4x4<f32>) -> vec3<f32> {
   return vec3<f32>(length(transform[0].xyz), length(transform[1].xyz), length(transform[2].xyz));
 }
 
-
 fn rayMarchAtMip(voxelObject: VoxelObject, objectRayDirection: vec3<f32>, objectRayOrigin: vec3<f32>, mipLevel: u32) -> RayMarchResult {
   var output = RayMarchResult();
 
@@ -295,47 +294,11 @@ fn getPlaneIntersections(rayOrigin: vec3<f32>, rayDirection:vec3<f32>, nodeSize:
     return vec3<f32>(xPlaneIntersection, yPlaneIntersection, zPlaneIntersection);
 }
 
-
 fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) -> RayMarchResult {
     let halfExtents = voxelObject.size * 0.5;
     var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz + halfExtents;
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
     var output = RayMarchResult();
-
-
-    let node = octreeBuffer[1];
-    let internalNode = unpackInternal(node);
-    let nodeOrigin = vec3(f32(internalNode.position.x), f32(internalNode.position.y), f32(internalNode.position.z));
-    let nodeRayOrigin = objectRayOrigin - nodeOrigin;
-
-    // Use planes to find the "inner" intersections
-    let planeIntersections = getPlaneIntersections(nodeRayOrigin, objectRayDirection, f32(internalNode.size));
-
-    // Get the closest plane intersection
-    let sortedIntersections = sort3Asc(planeIntersections.x, planeIntersections.y, planeIntersections.z);
-
-    for(var i = 0u; i < 3u; i++){
-        // If the closest intersection is outside the bounds of the node, we are done
-        if(sortedIntersections[i] > 9999.0){
-            break;
-        }
-
-        let childNodeSize = internalNode.size >> 1u;
-        let centerOfChild = vec3(f32(internalNode.size) * 0.5);
-        let hitPosition = objectRayOrigin + objectRayDirection * sortedIntersections[i] - EPSILON;
-        let hitOctant = vec3<u32>(hitPosition >= centerOfChild);
-        let hitIndex = octantOffsetToIndex(vec3<u32>(hitOctant));
-        if(getBit(internalNode.childMask, hitIndex)){
-          output.hit = true;
-          output.t = sortedIntersections[i];
-          output.normal = getDebugColour(i32(hitIndex));
-          output.colour = getDebugColour(i32(hitIndex));
-          return output;
-        }
-
-
-    }
-
 
     // Set the initial t value to the far plane - essentially an out of bounds value
     output.t = FAR_PLANE;
@@ -350,59 +313,58 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     while (stack.head > 0u && output.iterations < MAX_STEPS) {
       let nodeIndex = stacku32_pop(&stack);
       let node = octreeBuffer[nodeIndex];
+      let internalNode = unpackInternal(node);
+      let nodeOrigin = vec3(f32(internalNode.position.x), f32(internalNode.position.y), f32(internalNode.position.z));
+      let nodeRayOrigin = objectRayOrigin - nodeOrigin;
 
-      if(isLeaf(node)){
-        let leafNode = unpackLeaf(node);
-        let leafRayOrigin = objectRayOrigin - vec3(f32(leafNode.position.x), f32(leafNode.position.y), f32(leafNode.position.z));
-        let leafIntersection = boxIntersection(leafRayOrigin, objectRayDirection, vec3(0.5));
-        if(leafIntersection.isHit){
-          output.hit = true;
-          output.t = leafIntersection.tNear;
-          output.normal = leafIntersection.normal;
-          output.colour = vec3<f32>(leafNode.colour) / 255.0;
-          return output;
+      // Use planes to find the "inner" intersections
+      let planeIntersections = getPlaneIntersections(nodeRayOrigin, objectRayDirection, f32(internalNode.size));
+
+      // Get the closest plane intersection
+      let sortedIntersections = sort3Asc(planeIntersections.x, planeIntersections.y, planeIntersections.z);
+
+      for(var i = 0u; i < 3u; i++){
+        // If the closest intersection is outside the bounds of the node, we are done
+        if(sortedIntersections[i] > 9999.0){
+            break;
         }
-      }
-      else{
-        let internalNode = unpackInternal(node);
-        let nodeOrigin = vec3(f32(internalNode.position.x), f32(internalNode.position.y), f32(internalNode.position.z));
-        let nodeRayOrigin = objectRayOrigin - nodeOrigin;
-        // Check node for intersections, if it is hit, push the children onto the stack
-        let nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(f32(internalNode.size) * 0.5));
-        if(nodeIntersection.isHit){
-          // Use planes to find the "inner" intersections
-          let planeIntersections = getPlaneIntersections(nodeRayOrigin, objectRayDirection, f32(internalNode.size));
+        let childNodeSize = internalNode.size >> 1u;
+        let centerOfChild = vec3(f32(internalNode.size) * 0.5);
+        // TODO: find way to enter the correct node
+        let hitPosition = objectRayOrigin + objectRayDirection * sortedIntersections[i] - EPSILON;
+        let hitOctant = vec3<u32>(hitPosition >= centerOfChild);
+        let hitIndex = octantOffsetToIndex(vec3<u32>(hitOctant));
 
-          // Get the closest plane intersection
-          let sortedIntersections = sort3Asc(planeIntersections.x, planeIntersections.y, planeIntersections.z);
+//        if(getBit(internalNode.leafMask, hitIndex)){
+//          // TODO: unpack leaf node here
+//          output.hit = true;
+//          output.t = sortedIntersections[i];
+//          output.normal = getDebugColour(i32(hitIndex));
+//          output.colour = getDebugColour(i32(hitIndex));
+////            return output;
+//        }
 
-          for(var i = 0u; i < 3u; i++){
-              // If the closest intersection is outside the bounds of the node, we are done
-              if(sortedIntersections[i] > 9999.0){
-                  break;
-              }
-
-            let childNodeSize = internalNode.size >> 1u;
-            let centerOfChild = nodeOrigin + vec3(f32(childNodeSize) * 0.5);
-            let hitPosition = objectRayOrigin + objectRayDirection * sortedIntersections[i] - EPSILON;
-            let hitOctant = vec3<u32>(hitPosition >= centerOfChild);
-            let hitIndex = octantOffsetToIndex(vec3<u32>(hitOctant));
-
-            // If the child is present, push it onto the stack
-            if(getBit(internalNode.childMask, hitIndex)){
-
-               let childIndex = nodeIndex + internalNode.firstChildOffset + i;
-               stacku32_push(&stack, childIndex);
+        // If the child is present, push it onto the stack
+        if(getBit(internalNode.childMask, hitIndex)){
+            if(internalNode.size == 128u){
+              output.hit = true;
+              output.t = sortedIntersections[i];
+              output.normal = getDebugColour(i32(hitIndex));
+              output.colour = getDebugColour(i32(hitIndex));
+              return output;
             }
-          }
+           let childIndex = nodeIndex + internalNode.firstChildOffset + hitIndex;
+           stacku32_push(&stack, childIndex);
         }
       }
-
 
 
       // Increment the number of iterations for the loop and debug purposes
       output.iterations += 1u;
     }
+    output.t = 1;
+//    output.normal = vec3(f32(output.iterations) / 128.0);
+//    output.colour = vec3(f32(output.iterations) / 128.0);
     return output;
 }
 
