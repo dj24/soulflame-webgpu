@@ -255,43 +255,61 @@ fn planeIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, planeNormal:
   return -(dot(rayOrigin,planeNormal)+planeDistance)/dot(rayDirection,planeNormal);
 }
 
-fn sort3Asc(a: f32, b: f32, c: f32) -> vec3<f32> {
-  return vec3<f32>(
-    min(a, min(b, c)),
-    max(min(a, b), min(max(a, b), c)),
-    max(a, max(b, c))
-  );
+struct PlaneIntersection {
+  tNear: f32,
+  side: vec3<i32>
 }
 
-fn sort3Desc(a: f32, b: f32, c: f32) -> vec3<f32> {
-  return vec3<f32>(
-    max(a, max(b, c)),
-    max(min(a, b), min(max(a, b), c)),
-    min(a, min(b, c))
-  );
+
+fn sort3Asc(a: PlaneIntersection, b: PlaneIntersection, c: PlaneIntersection) -> array<PlaneIntersection, 3> {
+  if(a.tNear < b.tNear){
+    if(a.tNear < c.tNear){
+      if(b.tNear < c.tNear){
+        return array<PlaneIntersection, 3>(a, b, c);
+      } else {
+        return array<PlaneIntersection, 3>(a, c, b);
+      }
+    } else {
+      return array<PlaneIntersection, 3>(c, a, b);
+    }
+  } else {
+    if(b.tNear < c.tNear){
+      if(a.tNear < c.tNear){
+        return array<PlaneIntersection, 3>(b, a, c);
+      } else {
+        return array<PlaneIntersection, 3>(b, c, a);
+      }
+    } else {
+      return array<PlaneIntersection, 3>(c, b, a);
+    }
+  }
 }
 
-fn getPlaneIntersections(rayOrigin: vec3<f32>, rayDirection:vec3<f32>, nodeSize: f32) -> vec3<f32> {
+fn getPlaneIntersections(rayOrigin: vec3<f32>, rayDirection:vec3<f32>, nodeSize: f32) -> array<PlaneIntersection, 3> {
     let boxExtents = nodeSize * 0.5;
 
-    var yPlaneIntersection = planeIntersection(rayOrigin, rayDirection, vec3(0.0, -1, 0.0), boxExtents);
-    var xPlaneIntersection = planeIntersection(rayOrigin, rayDirection, vec3(-1, 0.0, 0.0), boxExtents);
-    var zPlaneIntersection = planeIntersection(rayOrigin, rayDirection, vec3(0.0, 0.0, -1), boxExtents);
+    var yPlaneIntersectionTNear = planeIntersection(rayOrigin, rayDirection, vec3(0.0, -1, 0.0), boxExtents);
+    var xPlaneIntersectionTNear  = planeIntersection(rayOrigin, rayDirection, vec3(-1, 0.0, 0.0), boxExtents);
+    var zPlaneIntersectionTNear  = planeIntersection(rayOrigin, rayDirection, vec3(0.0, 0.0, -1), boxExtents);
 
     // If the intersection is outside the bounds of the node, set it to a large value to ignore it
-    let yPlaneHitPosition = rayOrigin + rayDirection * yPlaneIntersection - EPSILON;
+    let yPlaneHitPosition = rayOrigin + rayDirection * yPlaneIntersectionTNear  - EPSILON;
     if(any(yPlaneHitPosition < vec3(0.0)) || any(yPlaneHitPosition > vec3(f32(nodeSize)))){
-      yPlaneIntersection = 10000.0;
+      yPlaneIntersectionTNear  = 10000.0;
     }
-    let xPlaneHitPosition = rayOrigin + rayDirection * xPlaneIntersection - EPSILON;
+    let xPlaneHitPosition = rayOrigin + rayDirection * xPlaneIntersectionTNear  - EPSILON;
     if(any(xPlaneHitPosition < vec3(0.0)) || any(xPlaneHitPosition > vec3(f32(nodeSize)))){
-      xPlaneIntersection = 10000.0;
+      xPlaneIntersectionTNear  = 10000.0;
     }
-    let zPlaneHitPosition = rayOrigin + rayDirection * zPlaneIntersection - EPSILON;
+    let zPlaneHitPosition = rayOrigin + rayDirection * zPlaneIntersectionTNear  - EPSILON;
     if(any(zPlaneHitPosition < vec3(0.0)) || any(zPlaneHitPosition > vec3(f32(nodeSize)))){
-      zPlaneIntersection = 10000.0;
+      zPlaneIntersectionTNear  = 10000.0;
     }
-    return vec3<f32>(xPlaneIntersection, yPlaneIntersection, zPlaneIntersection);
+
+    let xPlaneIntersection = PlaneIntersection(xPlaneIntersectionTNear, vec3<i32>(i32(rayOrigin.x > nodeSize * 0.5), 0, 0));
+    let yPlaneIntersection = PlaneIntersection(yPlaneIntersectionTNear, vec3<i32>(0, i32(rayOrigin.y > nodeSize * 0.5), 0));
+    let zPlaneIntersection = PlaneIntersection(zPlaneIntersectionTNear, vec3<i32>(0, 0, i32(rayOrigin.z > nodeSize * 0.5)));
+    return array<PlaneIntersection, 3>(xPlaneIntersection, yPlaneIntersection, zPlaneIntersection);
 }
 
 fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) -> RayMarchResult {
@@ -321,47 +339,51 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       if(!nodeIntersection.isHit){
         continue;
       }
-      let intersectionPoint = objectRayOrigin + objectRayDirection * nodeIntersection.tNear;
-      let childNodeSize = internalNode.size >> 1u;
-      let centerOfChild = vec3(f32(internalNode.size) * 0.5);
-      let hitOctant = vec3<u32>(intersectionPoint >= centerOfChild);
-      let hitIndex = octantOffsetToIndex(vec3<u32>(hitOctant));
-      if(getBit(internalNode.childMask, hitIndex)){
-        if(internalNode.size == 64u){
-          output.hit = true;
-          output.t = nodeIntersection.tNear;
-          output.normal = getDebugColour(i32(hitIndex));
-          output.colour = getDebugColour(i32(hitIndex));
-          return output;
-        }
-        let childIndex = nodeIndex + internalNode.firstChildOffset + hitIndex;
-         stacku32_push(&stack, childIndex);
-      }
+      // Get octant hit on the surface of the nodes bounding box
+//      let intersectionPoint = objectRayOrigin + objectRayDirection * nodeIntersection.tNear;
+//      let childNodeSize = internalNode.size >> 1u;
+//      let centerOfChild = vec3(f32(internalNode.size) * 0.5);
+//      let hitOctant = vec3<u32>(intersectionPoint >= centerOfChild);
+//      let hitIndex = octantOffsetToIndex(vec3<u32>(hitOctant));
+//      if(getBit(internalNode.childMask, hitIndex)){
+//        // Debug
+//        if(internalNode.size == 128u){
+//          output.hit = true;
+//          output.t = nodeIntersection.tNear;
+//          output.normal = getDebugColour(i32(hitIndex));
+//          output.colour = getDebugColour(i32(hitIndex));
+//          return output;
+//        }
+//        let childIndex = nodeIndex + internalNode.firstChildOffset + hitIndex;
+//         stacku32_push(&stack, childIndex);
+//      }
 
       // Use planes to find the "inner" intersections
       let planeIntersections = getPlaneIntersections(nodeRayOrigin, objectRayDirection, f32(internalNode.size));
 
       // Get the closest plane intersection
-      let sortedIntersections = sort3Asc(planeIntersections.x, planeIntersections.y, planeIntersections.z);
+      let sortedIntersections = sort3Asc(planeIntersections[0], planeIntersections[1], planeIntersections[2]);
 
       for(var i = 0u; i < 3u; i++){
         // If the closest intersection is outside the bounds of the node, we are done
-        if(sortedIntersections[i] > 9999.0){
+        if(sortedIntersections[i].tNear > 9999.0){
             break;
         }
         let childNodeSize = internalNode.size >> 1u;
         let centerOfChild = vec3(f32(internalNode.size) * 0.5);
         // TODO: find way to enter the correct node
-        let hitPosition = objectRayOrigin + objectRayDirection * sortedIntersections[i] - EPSILON;
+        // use side to determine which octant to enter
+        let hitPosition = objectRayOrigin + objectRayDirection * sortedIntersections[i].tNear - EPSILON;
         let hitOctant = vec3<u32>(hitPosition >= centerOfChild);
         let hitIndex = octantOffsetToIndex(vec3<u32>(hitOctant));
 
 
         // If the child is present, push it onto the stack
         if(getBit(internalNode.childMask, hitIndex)){
-            if(internalNode.size == 64u){
+            // Debug
+            if(internalNode.size == 128u){
               output.hit = true;
-              output.t = sortedIntersections[i];
+              output.t = sortedIntersections[i].tNear;
               output.normal = getDebugColour(i32(hitIndex));
               output.colour = getDebugColour(i32(hitIndex));
               return output;
@@ -375,9 +397,6 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       // Increment the number of iterations for the loop and debug purposes
       output.iterations += 1u;
     }
-    output.t = 1;
-//    output.normal = vec3(f32(output.iterations) / 128.0);
-//    output.colour = vec3(f32(output.iterations) / 128.0);
     return output;
 }
 
