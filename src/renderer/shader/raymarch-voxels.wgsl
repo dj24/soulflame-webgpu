@@ -305,10 +305,13 @@ fn getPlaneIntersections(rayOrigin: vec3<f32>, rayDirection:vec3<f32>, nodeSize:
     if(any(zPlaneHitPosition < vec3(0.0)) || any(zPlaneHitPosition > vec3(f32(nodeSize)))){
       zPlaneIntersectionTNear  = 10000.0;
     }
+    let xSign = sign(rayOrigin.x - nodeSize * 0.5);
+    let ySign = sign(rayOrigin.y - nodeSize * 0.5);
+    let zSign = sign(rayOrigin.z - nodeSize * 0.5);
 
-    let xPlaneIntersection = PlaneIntersection(xPlaneIntersectionTNear, vec3<i32>(i32(rayOrigin.x > nodeSize * 0.5), 0, 0));
-    let yPlaneIntersection = PlaneIntersection(yPlaneIntersectionTNear, vec3<i32>(0, i32(rayOrigin.y > nodeSize * 0.5), 0));
-    let zPlaneIntersection = PlaneIntersection(zPlaneIntersectionTNear, vec3<i32>(0, 0, i32(rayOrigin.z > nodeSize * 0.5)));
+    let xPlaneIntersection = PlaneIntersection(xPlaneIntersectionTNear, vec3(i32(xSign), 0, 0));
+    let yPlaneIntersection = PlaneIntersection(yPlaneIntersectionTNear, vec3(0, i32(ySign), 0));
+    let zPlaneIntersection = PlaneIntersection(zPlaneIntersectionTNear, vec3(0, 0, i32(zSign)));
     return array<PlaneIntersection, 3>(xPlaneIntersection, yPlaneIntersection, zPlaneIntersection);
 }
 
@@ -340,23 +343,23 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
         continue;
       }
       // Get octant hit on the surface of the nodes bounding box
-//      let intersectionPoint = objectRayOrigin + objectRayDirection * nodeIntersection.tNear;
-//      let childNodeSize = internalNode.size >> 1u;
-//      let centerOfChild = vec3(f32(internalNode.size) * 0.5);
-//      let hitOctant = vec3<u32>(intersectionPoint >= centerOfChild);
-//      let hitIndex = octantOffsetToIndex(vec3<u32>(hitOctant));
-//      if(getBit(internalNode.childMask, hitIndex)){
-//        // Debug
-//        if(internalNode.size == 128u){
+      let intersectionPoint = objectRayOrigin + objectRayDirection * nodeIntersection.tNear;
+      let childNodeSize = internalNode.size >> 1u;
+      let centerOfChild = vec3(f32(internalNode.size) * 0.5);
+      let hitOctant = vec3<u32>(intersectionPoint >= centerOfChild);
+      let hitIndex = octantOffsetToIndex(vec3<u32>(hitOctant));
+      if(getBit(internalNode.childMask, hitIndex)){
+        // Debug
+//        if(internalNode.size == 4u){
 //          output.hit = true;
 //          output.t = nodeIntersection.tNear;
-//          output.normal = getDebugColour(i32(hitIndex));
-//          output.colour = getDebugColour(i32(hitIndex));
+//          output.normal = vec3<f32>(hitOctant) + vec3(0.05);
+//          output.colour = vec3<f32>(hitOctant) + vec3(0.05);
 //          return output;
 //        }
-//        let childIndex = nodeIndex + internalNode.firstChildOffset + hitIndex;
-//         stacku32_push(&stack, childIndex);
-//      }
+        let childIndex = nodeIndex + internalNode.firstChildOffset + hitIndex;
+         stacku32_push(&stack, childIndex);
+      }
 
       // Use planes to find the "inner" intersections
       let planeIntersections = getPlaneIntersections(nodeRayOrigin, objectRayDirection, f32(internalNode.size));
@@ -371,19 +374,16 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
         }
         let childNodeSize = internalNode.size >> 1u;
         let centerOfChild = vec3(f32(internalNode.size) * 0.5);
-        // TODO: find way to enter the correct node
-        // use side to determine which octant to enter
-        var hitPosition = objectRayOrigin + objectRayDirection * sortedIntersections[i].tNear - EPSILON;
-        let sideOffset = vec3<f32>(sortedIntersections[i].side) * 10.0;
+        var hitPosition = objectRayOrigin + objectRayDirection * sortedIntersections[i].tNear;
+        let sideOffset = vec3<f32>(sortedIntersections[i].side) * EPSILON;
         hitPosition -= sideOffset;
         let hitOctant = vec3<u32>(hitPosition >= centerOfChild);
         let hitIndex = octantOffsetToIndex(vec3<u32>(hitOctant));
 
-
         // If the child is present, push it onto the stack
         if(getBit(internalNode.childMask, hitIndex)){
             // Debug
-            if(internalNode.size == 128u){
+            if(internalNode.size == 64u){
               output.hit = true;
               output.t = sortedIntersections[i].tNear;
               output.normal = vec3<f32>(hitOctant) + vec3(0.05);
@@ -394,7 +394,6 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
            stacku32_push(&stack, childIndex);
         }
       }
-
 
       // Increment the number of iterations for the loop and debug purposes
       output.iterations += 1u;
