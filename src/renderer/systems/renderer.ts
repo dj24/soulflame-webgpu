@@ -24,7 +24,7 @@ export class Renderer extends System {
         device,
         volumeAtlas,
         `Dragon`,
-        `./Tavern/teapot.vxm`,
+        `./Tavern/dragon.vxm`,
       );
 
       const dragon = this.ecs.addEntity();
