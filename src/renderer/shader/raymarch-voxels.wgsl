@@ -373,7 +373,9 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
         let centerOfChild = vec3(f32(internalNode.size) * 0.5);
         // TODO: find way to enter the correct node
         // use side to determine which octant to enter
-        let hitPosition = objectRayOrigin + objectRayDirection * sortedIntersections[i].tNear - EPSILON;
+        var hitPosition = objectRayOrigin + objectRayDirection * sortedIntersections[i].tNear - EPSILON;
+        let sideOffset = vec3<f32>(sortedIntersections[i].side) * 10.0;
+        hitPosition -= sideOffset;
         let hitOctant = vec3<u32>(hitPosition >= centerOfChild);
         let hitIndex = octantOffsetToIndex(vec3<u32>(hitOctant));
 
@@ -384,8 +386,8 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
             if(internalNode.size == 128u){
               output.hit = true;
               output.t = sortedIntersections[i].tNear;
-              output.normal = getDebugColour(i32(hitIndex));
-              output.colour = getDebugColour(i32(hitIndex));
+              output.normal = vec3<f32>(hitOctant) + vec3(0.05);
+              output.colour = vec3<f32>(hitOctant) + vec3(0.05);
               return output;
             }
            let childIndex = nodeIndex + internalNode.firstChildOffset + hitIndex;
