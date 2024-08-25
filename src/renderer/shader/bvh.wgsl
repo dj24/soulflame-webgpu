@@ -71,11 +71,6 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
     }
     // valid leaf, raymarch it
     else if(node.objectCount == 1){
-//        closestIntersection.t = 10.0;
-//        closestIntersection.hit = true;
-//        closestIntersection.normal = vec3<f32>(0.0, 0.0, 0.0);
-//        closestIntersection.colour = vec3<f32>(0.0, 0.0, 0.0);
-//        return closestIntersection;
         let distanceToLeaf = getDistanceToNode(rayOrigin, rayDirection, node);
         if(distanceToLeaf > closestRayMarchDistance){
           nodeIndex = stack_pop(&stack);
@@ -88,16 +83,17 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
 //        rayMarchResult.voxelObjectIndex = node.leftIndex;
 
         let totalDistance = rayMarchResult.t + distanceToLeaf;
-        if(rayMarchResult.hit && totalDistance < closestRayMarchDistance){
+        if(rayMarchResult.hit){
           closestIntersection = rayMarchResult;
           closestRayMarchDistance = totalDistance;
+          break;
         }
 
         nodeIndex = stack_pop(&stack);
     }
 
     iterations += 1;
-//    closestIntersection.colour += vec3<f32>(0.0075);
+    closestIntersection.colour += vec3<f32>(0.075);
   }
 
   return closestIntersection;

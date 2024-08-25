@@ -27,14 +27,32 @@ export class Renderer extends System {
         `./Tavern/dragon.vxm`,
       );
 
-      const dragon = this.ecs.addEntity();
-      this.ecs.addComponent(dragon, new VoxelObject(dragonVoxels));
-      this.ecs.addComponent(
-        dragon,
-        new Transform([0, 0, 0], quat.identity(), [1, 1, 1]),
+      const teaPotVoxels = await createVoxelObject(
+        device,
+        volumeAtlas,
+        `TeaPot`,
+        `./Tavern/teapot.vxm`,
       );
 
-      init(device, volumeAtlas, this.ecs, [dragon]);
+      let renderables = [];
+
+      for (let x = -1200; x <= 1200; x += 150) {
+        for (let z = 0; z <= 2400; z += 150) {
+          const newEntity = this.ecs.addEntity();
+          // if (Math.random() > 0.5) {
+          this.ecs.addComponent(newEntity, new VoxelObject(dragonVoxels));
+          // } else {
+          //   this.ecs.addComponent(newEntity, new VoxelObject(dragonVoxels));
+          // }
+          this.ecs.addComponent(
+            newEntity,
+            new Transform([x, 0, z], quat.identity(), [1, 1, 1]),
+          );
+          renderables.push(newEntity);
+        }
+      }
+
+      init(device, volumeAtlas, this.ecs, renderables);
     });
   }
 

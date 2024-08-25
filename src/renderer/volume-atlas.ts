@@ -196,7 +196,6 @@ export class VolumeAtlas {
       textureSizeBytes:
         volume.width * volume.height * volume.depthOrArrayLayers,
     };
-
     // Copy the old palette texture into the new larger one
     const newPaletteTexture = this.#device.createTexture({
       size: {
@@ -275,26 +274,6 @@ export class VolumeAtlas {
     this.#octreeBuffer = newOctreeBuffer;
 
     this.#octreeBuffer.unmap();
-
-    // DEBUG OCTREE
-    {
-      const copyOctreeBuffer = this.#device.createBuffer({
-        label: "Octree buffer copy",
-        size: this.#octreeBuffer.size,
-        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-      });
-      const copyCommandEncoder = this.#device.createCommandEncoder();
-      copyCommandEncoder.copyBufferToBuffer(
-        this.#octreeBuffer,
-        0,
-        copyOctreeBuffer,
-        0,
-        this.#octreeBuffer.size,
-      );
-
-      this.#device.queue.submit([copyCommandEncoder.finish()]);
-      await this.#device.queue.onSubmittedWorkDone();
-    }
 
     this.#atlasTexture = await generateOctreeMips(
       this.#device,

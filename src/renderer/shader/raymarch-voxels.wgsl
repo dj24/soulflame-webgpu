@@ -308,8 +308,9 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz + halfExtents;
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
     var output = RayMarchResult();
+    let distanceToRoot = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5).tNear;
 
-    output.hit = true;
+//    output.hit = true;
 
     // Set the initial t value to the far plane - essentially an out of bounds value
     output.t = FAR_PLANE;
@@ -318,7 +319,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     var stack = stacku32_new();
 
     // Push the root node index onto the stack
-    stacku32_push(&stack, 0);
+    stacku32_push(&stack, voxelObject.octreeBufferIndex);
 
     // Main loop
     while (stack.head > 0u && output.iterations < MAX_STEPS) {
@@ -346,13 +347,32 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       // Get the size of the node to get the center for plane intersections
       let nodeSize = f32(internalNode.size);
 
+
+
       // Check if the ray intersects the node, if not, skip it
       let nodeOrigin = vec3<f32>(internalNode.position);
       let nodeRayOrigin = objectRayOrigin - nodeOrigin;
       let nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(nodeSize * 0.5));
-      if(!nodeIntersection.isHit){
+      let isOriginInside = all(nodeRayOrigin >= vec3(0.0)) && all(nodeRayOrigin <= vec3(nodeSize));
+      if(!nodeIntersection.isHit && !isOriginInside){
         continue;
       }
+
+      /// TEMP LOD
+//      if(nodeSize <= 4.0 && distanceToRoot > 1000.0){
+//        output.hit = true;
+//        output.t = nodeIntersection.tNear;
+//        output.normal = nodeIntersection.normal;
+//        output.colour = vec3<f32>(1.0, 0.0, 0.0);
+//        return output;
+//    }
+//      if(nodeSize <= 2.0 && distanceToRoot > 500.0){
+//          output.hit = true;
+//          output.t = nodeIntersection.tNear;
+//          output.normal = nodeIntersection.normal;
+//          output.colour = vec3<f32>(0.0, 1.0, 0.0);
+//          return output;
+//      }
 
       let centerOfChild = vec3(nodeSize* 0.5);
 

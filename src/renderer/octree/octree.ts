@@ -90,6 +90,8 @@ export type LeafNode = {
 
 type OctreeNode = InternalNode | LeafNode;
 
+let averageFirstChildIndex = 0;
+
 /**
  * Handles construction of an Octree for a single voxel object.
  */
@@ -103,36 +105,8 @@ export class Octree {
     this.#pointer = 0;
     this.#maxDepth = getOctreeDepthFromVoxelBounds(voxels.SIZE);
     this.#build(voxels, 0, [0, 0, 0], 0);
-
-    //Debug by following root to leaf via first child index
-    let nodes: OctreeNode[] = [];
-    let pointer = 0;
-    while (true) {
-      let node = this.nodes[pointer];
-      if (!node) {
-        console.log(`Node ${pointer} is null`);
-        break;
-      }
-      nodes.push(node);
-      if ("red" in node) {
-        break;
-      }
-      for (let i = 0; i < 8; i++) {
-        if (getBit(node.childMask, i)) {
-          console.log(`Child ${i} of node ${pointer} is at ${pointer}`);
-          pointer += node.firstChildIndex + i;
-          break;
-        }
-      }
-    }
-    console.log(nodes);
-    const leafNodes = this.nodes
-      .filter((node) => "red" in node)
-      .map((node) => ({
-        index: this.nodes.indexOf(node),
-        ...node,
-      }));
-    console.log(leafNodes);
+    averageFirstChildIndex /= this.nodes.length;
+    console.log(`Average first child index: ${averageFirstChildIndex}`);
   }
 
   // Allocate memory for 8 nodes, and return the index of the first node
@@ -198,20 +172,21 @@ export class Octree {
       }
     }
 
+    // We can save space by only allocating up to the last child node
+    let requiredChildNodes = 0;
+
     // Once we have the valid child octants, create a node for the current octant
     const childMask = childOctants.reduce((mask, octantVoxels, i) => {
       if (octantVoxels) {
+        requiredChildNodes = i + 1;
         return setBit(mask, i);
-        // return setBitLE(mask, i);
       }
       return mask;
     }, 0);
 
-    // Allocate memory for 8 child nodes
-    const firstChildIndex = this.#mallocOctant();
+    // Allocate memory for child nodes
+    const firstChildIndex = this.#mallocOctant(requiredChildNodes);
     const relativeIndex = firstChildIndex - startIndex;
-
-    let leafMask = 0;
 
     childOctants.forEach((octantVoxels, i) => {
       if (octantVoxels) {
@@ -220,12 +195,11 @@ export class Octree {
         const x = offset[0] + origin[0] * childOctantSize;
         const y = offset[1] + origin[1] * childOctantSize;
         const z = offset[2] + origin[2] * childOctantSize;
-        if (objectSize === 2) {
-          leafMask = setBit(leafMask, i);
-        }
         this.#build(octantVoxels, childIndex, [x, y, z], childDepth);
       }
     });
+
+    averageFirstChildIndex += firstChildIndex;
 
     // Create the parent node
     this.nodes[startIndex] = {
@@ -236,7 +210,7 @@ export class Octree {
       y: offset[1],
       z: offset[2],
       size: objectSize,
-      leafMask,
+      leafMask: 0,
     };
   }
 
