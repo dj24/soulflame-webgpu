@@ -10,7 +10,7 @@ export class DebugValuesStore {
     this.#scale = new NumberAnimation(1);
     this.#translateX = new NumberAnimation(0);
     this.#rotateY = new NumberAnimation(0);
-    this.#sunRotateY = new NumberAnimation(-3.0);
+    this.#sunRotateY = new NumberAnimation(0.8);
   }
 
   set targetScale(value: number) {

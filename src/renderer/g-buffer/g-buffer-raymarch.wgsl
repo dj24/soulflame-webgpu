@@ -183,23 +183,23 @@ fn tracePixel(pixel: vec2<u32>){
 let logDepth = distanceToLogarithmicDepth(cameraDistance, NEAR_PLANE, FAR_PLANE);
 
 //    textureStore(albedoTex, pixel, vec4(albedo, 1));
-//    let lightDirection = normalize(vec3<f32>(0.0, 0.5, 0.5));
-//    let lightColour = vec3<f32>(1.0);
-//    let ambientColour = vec3<f32>(0.5);
-//    let diffuseColour = vec3<f32>(0.2);
-//    let specularColour = vec3<f32>(0.5);
-//    let shininess = 1.0;
-//    var shaded = simplePhongShading(normal, lightDirection, lightColour, ambientColour, diffuseColour, specularColour, shininess) * albedo;
-//    if(all(shaded <= vec3(0.0))){
-//      shaded = vec3<f32>(uv.y, uv.y * 0.5, 1.0);
-//    }
-//    textureStore(albedoTex, pixel, vec4(shaded, 1));
+    let lightDirection = normalize(vec3<f32>(0.0, 0.5, 0.5));
+    let lightColour = vec3<f32>(1.0);
+    let ambientColour = vec3<f32>(0.5);
+    let diffuseColour = vec3<f32>(0.2);
+    let specularColour = vec3<f32>(0.5);
+    let shininess = 1.0;
+    var shaded = simplePhongShading(normal, lightDirection, lightColour, ambientColour, diffuseColour, specularColour, shininess) * albedo;
+    if(all(shaded <= vec3(0.0))){
+      shaded = vec3<f32>(uv.y, uv.y * 0.5, 1.0);
+    }
+    textureStore(albedoTex, pixel, vec4(shaded, 1));
 //    if(!bvhResult.hit){
 //      var debugColour = vec4(closestIntersection.normal, 1);
 //      var debugColour = vec4(f32(closestIntersection.iterations)/ 64.0);
 //      textureStore(albedoTex, pixel, debugColour);
 //    }
-    textureStore(albedoTex, pixel, vec4(albedo, 1));
+//    textureStore(albedoTex, pixel, vec4(albedo, 1));
     textureStore(normalTex, pixel, vec4(normal,1));
     textureStore(velocityTex, pixel, vec4(velocity,0,f32(closestIntersection.voxelObjectIndex)));
     textureStore(depthWrite, pixel, vec4(logDepth));

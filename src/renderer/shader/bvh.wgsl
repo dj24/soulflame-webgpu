@@ -158,7 +158,7 @@ fn rayMarchBVHShadows(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, mipLevel: u
          }
          let worldPos = rayOrigin + rayDirection * distanceToLeaf;
          let voxelObject = voxelObjects[node.leftIndex];
-//         var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, worldPos, 3);
+//         var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, worldPos);
          var rayMarchResult = rayMarchTransformed(voxelObject, rayDirection, worldPos, mipLevel);
          rayMarchResult.t += distanceToLeaf;
 //
