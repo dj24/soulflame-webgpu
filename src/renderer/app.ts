@@ -194,14 +194,14 @@ export const init = async (
     getClearPass(),
     // getHelloTrianglePass(),
     getGBufferPass(),
-    // getShadowsPass(),
+    getShadowsPass(),
     // getSkyPass(),
     // getLightsPass(),
-    // getTaaPass(),
+    getTaaPass(),
     // getFogPass(),
     // getBloomPass(),
     // getMotionBlurPass(),
-    // getTonemapPass(),
+    getTonemapPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
     // getVignettePass(15.0),
     fullscreenQuad(device),
@@ -439,6 +439,8 @@ setInterval(() => {
   debugUI.log(frameTimeTracker.getAverages());
 }, 500);
 
+let lastEntityCount = 0;
+
 export const frame = (
   now: number,
   ecs: ECS,
@@ -472,14 +474,18 @@ export const frame = (
   //   ecs.getComponents(renderableEntities[1]).get(Transform).position[1],
   // );
 
-  bvh.update(
-    renderableEntities.map((entity) => {
-      return getVoxelObjectBoundingBox(
-        ecs.getComponents(entity).get(VoxelObject),
-        ecs.getComponents(entity).get(Transform),
-      );
-    }),
-  );
+  if (lastEntityCount !== renderableEntities.length) {
+    bvh.update(
+      renderableEntities.map((entity) => {
+        return getVoxelObjectBoundingBox(
+          ecs.getComponents(entity).get(VoxelObject),
+          ecs.getComponents(entity).get(Transform),
+        );
+      }),
+    );
+  }
+
+  lastEntityCount = renderableEntities.length;
 
   albedoTexture = new AlbedoTexture(device, resolution[0], resolution[1]);
   normalTexture = new NormalTexture(device, resolution[0], resolution[1]);

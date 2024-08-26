@@ -126,7 +126,7 @@ fn main(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
   let pixel = vec2<i32>(GlobalInvocationID.xy);
-  let result = tracePixel(pixel, 2, vec2(0));
+  let result = tracePixel(pixel, 1, vec2(0));
   textureStore(outputTex, pixel, vec4(result, 1.0));
 }
 
@@ -198,121 +198,12 @@ const BLUR_RADIUS = 2.0;
 const GOLDEN_RATIO = 1.61803398875;
 
 @compute @workgroup_size(16, 8, 1)
-fn denoise(
-  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
-) {
-  let texSize = textureDimensions(outputTex);
-  let texelSize = 1.0 / vec2<f32>(texSize);
-  let pixel = vec2<i32>(GlobalInvocationID.xy);
-  let uv = (vec2<f32>(pixel) + vec2(0.5)) / vec2<f32>(texSize);
-  let albedoSample = textureLoad(albedoTex, pixel, 0);
-  let normalRef = textureLoad(normalTex, pixel, 0).rgb;
-  let depthRef = textureLoad(depthTex, pixel, 0).r;
-  let shadowRef = textureLoad(intermediaryTexture, pixel, 0);
-
-  // Temporal sampling
-  let uvVelocity: vec2<f32> = textureLoad(velocityAndWaterTex, pixel, 0).xy;
-  let previousUv = uv - uvVelocity;
-  let previousPixel = vec2<i32>(previousUv * vec2<f32>(texSize));
-  var previousShadow = textureSampleLevel(previousTex, linearSampler, previousUv, 0);
-
-
-  // Clamp the history sample to the min and max of the 3x3 neighborhood
-  var minCol = shadowRef;
-  var maxCol = shadowRef;
-  for (var x: i32 = -1; x <= 1; x = x + 1) {
-      for (var y: i32 = -1; y <= 1; y = y + 1) {
-          let neighbourPixel = clamp(vec2(i32(pixel.x) + x, i32(pixel.y) + y), vec2(0), vec2(i32(texSize.x - 1), i32(texSize.y - 1)));
-          let s = textureLoad(intermediaryTexture, neighbourPixel, 0);
-          minCol = min(minCol, s);
-          maxCol = max(maxCol, s);
-      }
-  }
-  previousShadow = clamp(previousShadow, minCol, maxCol);
-
-  // Get variance of the 3x3 neighborhood
-  let previousShadowNeighbourhood = array<vec3<f32>, 9>(
-    textureLoad(intermediaryTexture, vec2<i32>(previousPixel), 0).rgb,
-    textureLoad(intermediaryTexture, vec2<i32>(previousPixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[0], 0).rgb,
-    textureLoad(intermediaryTexture, vec2<i32>(previousPixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[1], 0).rgb,
-    textureLoad(intermediaryTexture, vec2<i32>(previousPixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[2], 0).rgb,
-    textureLoad(intermediaryTexture, vec2<i32>(previousPixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[3], 0).rgb,
-    textureLoad(intermediaryTexture, vec2<i32>(previousPixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[4], 0).rgb,
-    textureLoad(intermediaryTexture, vec2<i32>(previousPixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[5], 0).rgb,
-    textureLoad(intermediaryTexture, vec2<i32>(previousPixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[6], 0).rgb,
-    textureLoad(intermediaryTexture, vec2<i32>(previousPixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[7], 0).rgb
-  );
-
-  let variance = clamp(calculateVariance(previousShadowNeighbourhood), 0.0, 1.0);
-
-  // Bilateral blur
-  var outputColour = shadowRef;
-  var totalWeight = 1.0;
-  let golden_angle = 137.5; // The golden angle in degrees
-  let taps = i32(clamp(variance * 16.0, 0, 16));
-//  let taps = 8;
-
-  for(var i = 0; i <= taps; i++){
-      let angle = (golden_angle * f32(i)) % 360.0;
-      let radius = f32(i) * 0.66;
-      let sampleUV = polarToCartesian(angle, radius) * texelSize + uv;
-      let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
-      let normalSample = textureSampleLevel(normalTex, nearestSampler, sampleUV, 0.0).rgb;
-      let depthLoad = textureLoad(depthTex, samplePixel, 0).r;
-      let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0);
-      let normalWeight = dot(normalSample, normalRef);
-      let depthWeight = clamp(1.0 - abs(depthRef - depthLoad) * DEPTH_SENSITIVITY, 0.0, 1.0);
-      let weight = depthWeight * normalWeight;
-//      let weight = normalWeight;
-      totalWeight += weight;
-      outputColour += shadowSample * weight;
-  }
-  outputColour /= totalWeight;
-//  textureStore(outputTex, pixel, vec4(variance * 16.0));
-//  textureStore(outputTex, pixel, shadowRef);
-  textureStore(outputTex, pixel, mix(shadowRef, previousShadow, 0.9));
-//  textureStore(outputTex, pixel, mix(outputColour, previousShadow, 0.5));
-//  textureStore(outputTex, pixel, vec4(f32(taps)));
-//  textureStore(outputTex, pixel, vec4(totalWeight / f32(taps)));
-//  textureStore(outputTex, pixel, vec4(shadowVariance * 32.0));
-}
-
-@compute @workgroup_size(16, 8, 1)
 fn composite(
   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
 ) {
-  let texSize = textureDimensions(outputTex);
-  let texelSize = 1.0 / vec2<f32>(texSize);
   let pixel = vec2<i32>(GlobalInvocationID.xy);
   let shadowRef = textureLoad(intermediaryTexture, pixel, 0);
-  let depthRef = textureLoad(depthTex, pixel, 0).r;
-  let normalRef = textureLoad(normalTex, pixel, 0).rgb;
-  let uv = (vec2<f32>(pixel) + vec2(0.5)) / vec2<f32>(texSize);
-
-  // Bilateral blur
-  var outputColour = shadowRef;
-  var totalWeight = 1.0;
-  let golden_angle = 137.5; // The golden angle in degrees
-  let taps = 8;
-
-   for(var i = 0; i <= taps; i++){
-       let angle = (golden_angle * f32(i)) % 360.0;
-       let radius =  f32(i);
-       let sampleUV = polarToCartesian(angle, radius) * texelSize + uv;
-       let samplePixel = vec2<i32>(sampleUV * vec2<f32>(texSize));
-       let normalSample = textureSampleLevel(normalTex, nearestSampler, sampleUV, 0.0).rgb;
-       let depthLoad = textureLoad(depthTex, samplePixel, 0).r;
-       let shadowSample = textureSampleLevel(intermediaryTexture, linearSampler, sampleUV, 0.0);
-       let normalWeight = dot(normalSample, normalRef);
-       let depthWeight = clamp(1.0 - abs(depthRef - depthLoad) * DEPTH_SENSITIVITY, 0.0, 1.0);
-       let weight = normalWeight;
-       totalWeight += weight;
-       outputColour += shadowSample * weight;
-    }
-    outputColour /= totalWeight;
-
   let albedoRef = textureLoad(albedoTex, pixel, 0);
-//   textureStore(outputTex, pixel,outputColour);
-//  textureStore(outputTex, pixel,shadowRef * albedoRef);
-  textureStore(outputTex, pixel,outputColour * albedoRef);
+
+  textureStore(outputTex, pixel, shadowRef * albedoRef);
 }

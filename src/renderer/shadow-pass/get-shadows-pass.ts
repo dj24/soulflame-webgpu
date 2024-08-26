@@ -160,11 +160,11 @@ const skyCubeTextureEntry: GPUBindGroupLayoutEntry = {
   },
 };
 
-const previousIntermediaryTextureEntry: GPUBindGroupLayoutEntry = {
+const octreeBufferEntry: GPUBindGroupLayoutEntry = {
   binding: 19,
   visibility: GPUShaderStage.COMPUTE,
-  texture: {
-    sampleType: "float",
+  buffer: {
+    type: "read-only-storage",
   },
 };
 
@@ -189,7 +189,7 @@ export const baseBindGroupLayoutEntries = [
   worldPosEntry,
   albedoEntry,
   skyCubeTextureEntry,
-  previousIntermediaryTextureEntry,
+  octreeBufferEntry,
 ];
 
 export const shadowCode = `
@@ -218,7 +218,8 @@ struct Time {
 @group(0) @binding(16) var worldPosTex : texture_2d<f32>;
 @group(0) @binding(17) var albedoTex : texture_2d<f32>;
 @group(0) @binding(18) var skyCube : texture_cube<f32>;
-@group(0) @binding(19) var previousTex : texture_2d<f32>;
+@group(0) @binding(19) var<storage, read> octreeBuffer : array<vec2<u32>>;
+
 
 const DOWNSCALE = 1;
 ${matrices}
@@ -263,10 +264,6 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
   let previousIntermediaryTexture: GPUTexture;
   let previousIntermediaryTextureView: GPUTextureView;
 
-  let counterBuffer: GPUBuffer;
-  let indirectBuffer: GPUBuffer;
-  let screenRayBuffer: GPUBuffer;
-
   let nearestSampler = device.createSampler({
     magFilter: "nearest",
     minFilter: "nearest",
@@ -277,10 +274,7 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
     minFilter: "linear",
   });
 
-  const denoisePass = await getDenoisePass();
   const compositePass = await getCompositePass();
-  const interpolatePass = await getInterpolatePass();
-  const bufferPass = await getBufferPass();
 
   const render = (renderArgs: RenderArgs) => {
     const {
@@ -296,38 +290,6 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
       bvhBuffer,
       commandEncoder,
     } = renderArgs;
-    if (!indirectBuffer) {
-      indirectBuffer = device.createBuffer({
-        size: 3 * 4,
-        usage:
-          GPUBufferUsage.INDIRECT |
-          GPUBufferUsage.STORAGE |
-          GPUBufferUsage.COPY_SRC |
-          GPUBufferUsage.COPY_DST,
-      });
-      counterBuffer = device.createBuffer({
-        size: 4,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-      });
-      const uint32 = new Uint32Array(3);
-      uint32[0] = 1; // The X value
-      uint32[1] = 1; // The Y value
-      uint32[2] = 1; // The Z value
-      // Write values into a GPUBuffer
-      device.queue.writeBuffer(indirectBuffer, 0, uint32, 0, uint32.length);
-
-      const { width, height } = renderArgs.outputTextures.finalTexture;
-      // Groups of 4x4 rays are traced
-      const maxScreenRays = (width / 2) * (height / 2);
-      const bufferSizeBytes = ceilToNearestMultipleOf(maxScreenRays * 4, 4);
-      screenRayBuffer = device.createBuffer({
-        size: bufferSizeBytes,
-        usage:
-          GPUBufferUsage.STORAGE |
-          GPUBufferUsage.COPY_DST |
-          GPUBufferUsage.COPY_SRC,
-      });
-    }
 
     if (!copyOutputTexture) {
       copyOutputTexture = device.createTexture({
@@ -383,10 +345,6 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
         mipLevelCount: 1,
       });
     }
-
-    commandEncoder.clearBuffer(indirectBuffer, 0, 4);
-    commandEncoder.clearBuffer(counterBuffer, 0, 4);
-    commandEncoder.clearBuffer(screenRayBuffer);
 
     commandEncoder.copyTextureToTexture(
       {
@@ -487,7 +445,9 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
       },
       {
         binding: 19,
-        resource: previousIntermediaryTextureView,
+        resource: {
+          buffer: volumeAtlas.octreeBuffer,
+        },
       },
     ];
 
@@ -498,7 +458,7 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
         ...baseEntries,
         {
           binding: 2, // output texture
-          resource: intermediaryTextureViewMip1,
+          resource: intermediaryTextureView,
         },
       ],
     };
@@ -512,79 +472,13 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
     computePass.setPipeline(effectPipeline);
     computePass.setBindGroup(0, bindGroup);
     const groupsX = Math.ceil(
-      outputTextures.finalTexture.width / NUM_THREADS_X / 2,
+      outputTextures.finalTexture.width / NUM_THREADS_X,
     );
     const groupsY = Math.ceil(
-      outputTextures.finalTexture.height / NUM_THREADS_Y / 2,
+      outputTextures.finalTexture.height / NUM_THREADS_Y,
     );
     computePass.dispatchWorkgroups(groupsX, groupsY);
     computePass.end();
-
-    // Interpolate
-    {
-      computePass = commandEncoder.beginComputePass({
-        label: "shadow interpolate",
-        timestampWrites: {
-          querySet: timestampWrites.querySet,
-          beginningOfPassWriteIndex:
-            timestampWrites.beginningOfPassWriteIndex + 2,
-          endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 2,
-        },
-      });
-      interpolatePass(
-        computePass,
-        renderArgs,
-        copyIntermediaryTextureView,
-        intermediaryTextureViewMip1,
-        indirectBuffer,
-        screenRayBuffer,
-        counterBuffer,
-      );
-      computePass.end();
-    }
-
-    // Trace full resolution (adapative)
-    {
-      computePass = commandEncoder.beginComputePass({
-        label: "shadow full res",
-        timestampWrites: {
-          querySet: timestampWrites.querySet,
-          beginningOfPassWriteIndex:
-            timestampWrites.beginningOfPassWriteIndex + 4,
-          endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 4,
-        },
-      });
-      bufferPass(
-        computePass,
-        screenRayBuffer,
-        indirectBuffer,
-        copyIntermediaryTextureView,
-        intermediaryTextureView,
-        renderArgs,
-      );
-      computePass.end();
-    }
-
-    //Denoise
-    {
-      computePass = commandEncoder.beginComputePass({
-        label: "shadow denoise",
-        timestampWrites: {
-          querySet: timestampWrites.querySet,
-          beginningOfPassWriteIndex:
-            timestampWrites.beginningOfPassWriteIndex + 6,
-          endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 6,
-        },
-      });
-      denoisePass(
-        computePass,
-        baseEntries,
-        copyIntermediaryTexture,
-        copyIntermediaryTextureView,
-        intermediaryTextureView,
-      );
-      computePass.end();
-    }
 
     // Composite into image
     {
@@ -606,21 +500,6 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
       );
       computePass.end();
     }
-
-    // Last texture in the ping-pong was the copy texture, so we use it as our history texture
-    commandEncoder.copyTextureToTexture(
-      {
-        texture: intermediaryTexture,
-      },
-      {
-        texture: previousIntermediaryTexture,
-      },
-      {
-        width: intermediaryTexture.width,
-        height: intermediaryTexture.height,
-        depthOrArrayLayers: 1, // Copy one layer (z-axis slice)
-      },
-    );
   };
   return {
     render,

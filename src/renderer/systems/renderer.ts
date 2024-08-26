@@ -34,16 +34,29 @@ export class Renderer extends System {
         `./Tavern/teapot.vxm`,
       );
 
-      let renderables = [];
+      // let teaPot = this.ecs.addEntity();
+      // this.ecs.addComponent(teaPot, new VoxelObject(teaPotVoxels));
+      // this.ecs.addComponent(
+      //   teaPot,
+      //   new Transform([50, 0, 0], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
+      // );
+      //
+      // let dragon = this.ecs.addEntity();
+      // this.ecs.addComponent(dragon, new VoxelObject(dragonVoxels));
+      // this.ecs.addComponent(
+      //   dragon,
+      //   new Transform([-50, 0, 0], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
+      // );
 
-      for (let x = -600; x <= 600; x += 150) {
+      //
+      for (let x = -1200; x <= 1200; x += 150) {
         for (let z = 0; z <= 1200; z += 150) {
           const newEntity = this.ecs.addEntity();
-          // if (Math.random() > 0.5) {
-          this.ecs.addComponent(newEntity, new VoxelObject(dragonVoxels));
-          // } else {
-          //   this.ecs.addComponent(newEntity, new VoxelObject(dragonVoxels));
-          // }
+          if (Math.random() > 0.5) {
+            this.ecs.addComponent(newEntity, new VoxelObject(dragonVoxels));
+          } else {
+            this.ecs.addComponent(newEntity, new VoxelObject(dragonVoxels));
+          }
           this.ecs.addComponent(
             newEntity,
             new Transform(
@@ -52,11 +65,10 @@ export class Renderer extends System {
               [1, 1, 1],
             ),
           );
-          renderables.push(newEntity);
         }
       }
 
-      init(device, volumeAtlas, this.ecs, renderables);
+      init(device, volumeAtlas, this.ecs, []);
     });
   }
 
