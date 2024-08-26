@@ -24,7 +24,7 @@ export class Renderer extends System {
         device,
         volumeAtlas,
         `Dragon`,
-        `./fox.vxm`,
+        `./Tavern/dragon.vxm`,
       );
 
       const teaPotVoxels = await createVoxelObject(
@@ -36,8 +36,8 @@ export class Renderer extends System {
 
       let renderables = [];
 
-      for (let x = -1200; x <= 1200; x += 150) {
-        for (let z = 0; z <= 2400; z += 150) {
+      for (let x = -600; x <= 600; x += 150) {
+        for (let z = 0; z <= 1200; z += 150) {
           const newEntity = this.ecs.addEntity();
           // if (Math.random() > 0.5) {
           this.ecs.addComponent(newEntity, new VoxelObject(dragonVoxels));

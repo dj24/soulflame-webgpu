@@ -1,16 +1,5 @@
 import { TVoxels } from "../convert-vxm";
-import { getBit, setBit } from "./bitmask";
-
-export const octantPositions = [
-  [0, 0, 0],
-  [1, 0, 0],
-  [0, 1, 0],
-  [1, 1, 0],
-  [0, 0, 1],
-  [1, 0, 1],
-  [0, 1, 1],
-  [1, 1, 1],
-];
+import { setBit } from "./bitmask";
 
 /** Returns the depth of the octree required to contain the given voxel bounds */
 export const getOctreeDepthFromVoxelBounds = (size: TVoxels["SIZE"]) => {
@@ -21,10 +10,6 @@ const OCTREE_STRIDE = 8;
 
 export const bitmaskToString = (bitmask: number, bits = 8) => {
   return bitmask.toString(2).padStart(bits, "0");
-};
-
-export const bitmaskToStringLE = (bitmask: number, bits = 8) => {
-  return bitmask.toString(2).padStart(bits, "0").split("").reverse().join("");
 };
 
 /** Converts an octant index to an offset in the parent octant
@@ -239,13 +224,12 @@ export const setInternalNode = (
   node: InternalNode,
 ) => {
   console.assert(
-    node.firstChildIndex < 65536,
-    `First child index of ${node.firstChildIndex} is too large to fit in 2 bytes`,
+    node.firstChildIndex < 2 ** 24 - 1,
+    `First child index of ${node.firstChildIndex} is too large to fit in 3 bytes`,
   );
   //TODO: try 24 bit unisnged integer by using bit shifting
-  dataView.setUint16(index * OCTREE_STRIDE, node.firstChildIndex, true);
-  dataView.setUint8(index * OCTREE_STRIDE + 2, node.childMask);
-  dataView.setUint8(index * OCTREE_STRIDE + 3, node.leafMask);
+  dataView.setUint32(index * OCTREE_STRIDE, node.firstChildIndex, true);
+  dataView.setUint8(index * OCTREE_STRIDE + 3, node.childMask);
   dataView.setUint8(index * OCTREE_STRIDE + 4, node.x);
   dataView.setUint8(index * OCTREE_STRIDE + 5, node.y);
   dataView.setUint8(index * OCTREE_STRIDE + 6, node.z);

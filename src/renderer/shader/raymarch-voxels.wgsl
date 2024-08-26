@@ -162,7 +162,6 @@ fn stacku32_pop(stack: ptr<function, StackU32>) -> u32 {
 struct InternalNode {
   firstChildOffset: u32,
   childMask: u32,
-  leafMask: u32,
   position: vec3<u32>,
   size: u32,
 }
@@ -174,6 +173,7 @@ struct LeafNode {
 
 const mask8 = 0xFFu;
 const mask16 = 0xFFFFu;
+const mask24 = 0xFFFFFFu;
 
 // if first child offset is 0, then it is a leaf
 fn isLeaf(node:vec2<u32>) -> bool {
@@ -207,7 +207,7 @@ fn unpackLeaf(node: vec2<u32>) -> LeafNode {
 
 /**
   * Unpacks an internal node from a 32 bit integer
-  * First 16 bits are the firstChildOffset
+  * First 24 bits are the firstChildOffset
   * The next 8 bits are the child mask
   * The next 8 bits are the x position
   * The next 8 bits are the y position
@@ -218,9 +218,8 @@ fn unpackInternal(node: vec2<u32>) -> InternalNode {
   var output = InternalNode();
   let first4Bytes = node.x;
   let second4Bytes = node.y;
-  output.firstChildOffset = first4Bytes & 0xFFFFu;
-  output.childMask = (first4Bytes >> 16u) & mask8;
-  output.leafMask = (first4Bytes >> 24u) & mask8;
+  output.firstChildOffset = first4Bytes & mask24;
+  output.childMask = (first4Bytes >> 24u) & mask8;
   let x = second4Bytes & mask8;
   let y = (second4Bytes >> 8u) & mask8;
   let z = (second4Bytes >> 16u) & mask8;
@@ -310,8 +309,6 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     var output = RayMarchResult();
     let distanceToRoot = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5).tNear;
 
-//    output.hit = true;
-
     // Set the initial t value to the far plane - essentially an out of bounds value
     output.t = FAR_PLANE;
 
@@ -328,6 +325,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       let node = octreeBuffer[nodeIndex];
 
       if(isLeaf(node)){
+        // TODO: find out how to get normal without extra intersection
         let leafNode = unpackLeaf(node);
         let nodeOrigin = vec3(f32(leafNode.position.x), f32(leafNode.position.y), f32(leafNode.position.z));
         let nodeRayOrigin = objectRayOrigin - nodeOrigin;

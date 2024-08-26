@@ -29,18 +29,6 @@ const getAABB = (voxelObjects: LeafNode[]) => {
   return { min, max };
 };
 
-const getNodeSAHCost = (voxelObjects: LeafNode[]) => {
-  const aaBB = getAABB(voxelObjects);
-  const area =
-    (aaBB.max[0] - aaBB.min[0]) *
-    (aaBB.max[1] - aaBB.min[1]) *
-    (aaBB.max[2] - aaBB.min[2]);
-  return voxelObjects.length * area;
-};
-
-const SAH_WEIGHT = 1;
-const BALANCE_WEIGHT = 1;
-
 // Splits the objects into 8 octants
 const splitOctants = (voxelObjects: LeafNode[]) => {};
 
@@ -75,15 +63,6 @@ export class BVH8 {
       return;
     }
 
-    const isLeaf = leafNodes.length === 1;
-    if (isLeaf) {
-      this.#nodes[startIndex] = {
-        firstChildRelativeIndex: 0,
-        AABBMax: leafNodes[0].AABB.max,
-        AABBMin: leafNodes[0].AABB.min,
-      };
-      return;
-    }
     const AABB = getAABB(leafNodes);
   }
 }
