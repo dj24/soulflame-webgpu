@@ -1,19 +1,19 @@
 
 // TODO: offset in object space instead of world space to scale with object size
 fn diffuseRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>, voxelObjectSize: f32) -> bool {
-  let rayOrigin = worldPos  + normal * 0.005;
+  let rayOrigin = worldPos;
   return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 0).hit;
 }
 
 fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>, voxelObjectSize: f32) -> bool {
-  let rayOrigin = worldPos + normal * 0.005;
+  let rayOrigin = worldPos;
   return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 0).hit;
 }
 
 
 const SUN_COLOR = vec3(0.6,0.5,0.4) * 100.0;
 const MOON_COLOR = vec3<f32>(0.5, 0.5, 1.0);
-const MIN_RADIANCE = 0.5;
+const MIN_RADIANCE = 0.0;
 const SUBPIXEL_SAMPLE_POSITIONS: array<vec2<f32>, 8> = array<vec2<f32>, 8>(
   vec2<f32>(0.25, 0.25),
   vec2<f32>(0.75, 0.25),
@@ -28,8 +28,8 @@ const BLUE_NOISE_SIZE = 511;
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const SHADOW_ACNE_OFFSET: f32 = 0.001;
-const SCATTER_AMOUNT: f32 = 0.03;
-const POSITION_SCATTER_AMOUNT: f32 = 0.02;
+const SCATTER_AMOUNT: f32 = 0.00;
+const POSITION_SCATTER_AMOUNT: f32 = 0.00;
 
 struct Light {
   direction: vec3<f32>,
@@ -91,8 +91,8 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32, blueNoiseOffset: vec2
   var radiance = vec3(MIN_RADIANCE);
 
   // Calculate the probability of sampling the sun
-//  let sunProbability = 0.0;
-  let sunProbability = clamp(dot(normalSample, sunDirection) * 0.5, 0.0, 1.0) * 0.5;
+  let sunProbability = 1.0;
+//  let sunProbability = clamp(dot(normalSample, sunDirection) * 0.5, 0.0, 1.0) * 0.5;
 //  let sunProbability = select(0.0, select(0.2, 0.5, uv.x > 0.66), uv.x > 0.33);
   // Calculate the probability of sampling the diffuse light
   let diffuseProbability = 1.0 - sunProbability;
@@ -113,8 +113,8 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32, blueNoiseOffset: vec2
   } else{
      var diffuseDirection = randomInCosineWeightedHemisphere(r, normalSample);
      if(!diffuseRay(sampleWorldPos, diffuseDirection, normalSample, voxelObjectScale)){
-//          let sky = textureSampleLevel(skyCube, linearSampler, diffuseDirection, 0.0) * 2.0;
-          let sky = vec4(2.0);
+          let sky = textureSampleLevel(skyCube, linearSampler, diffuseDirection, 0.0) * 2.0;
+//          let sky = vec4(3.0);
           radiance = clamp(vec3(sky.rgb), vec3(MIN_RADIANCE), maxDiffuseIntensity);
       }
   }

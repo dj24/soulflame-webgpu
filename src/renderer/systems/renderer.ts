@@ -20,18 +20,18 @@ export class Renderer extends System {
       gpu.device = device;
       gpu.volumeAtlas = volumeAtlas;
 
-      const dragonVoxels = await createVoxelObject(
-        device,
-        volumeAtlas,
-        `Dragon`,
-        `./Tavern/Dragon.vxm`,
-      );
-
       const teaPotVoxels = await createVoxelObject(
         device,
         volumeAtlas,
         `TeaPot`,
         `./Tavern/teapot.vxm`,
+      );
+
+      const dragonVoxels = await createVoxelObject(
+        device,
+        volumeAtlas,
+        `Dragon`,
+        `./Tavern/Dragon.vxm`,
       );
 
       // let teaPot = this.ecs.addEntity();
@@ -48,15 +48,25 @@ export class Renderer extends System {
       //   new Transform([-50, 0, 0], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
       // );
 
-      //
-      for (let x = -1200; x <= 1200; x += 150) {
-        for (let z = 0; z <= 1200; z += 150) {
+      const giantTeaPot = this.ecs.addEntity();
+      this.ecs.addComponent(giantTeaPot, new VoxelObject(teaPotVoxels));
+      this.ecs.addComponent(
+        giantTeaPot,
+        new Transform(
+          [0, -3090, 0],
+          quat.fromEuler(180 * (Math.PI / 180), 0, 0, "xyz"),
+          [100, 100, 100],
+        ),
+      );
+
+      for (let x = -2400; x <= 2400; x += 150) {
+        for (let z = -2400; z <= 2400; z += 150) {
           const newEntity = this.ecs.addEntity();
-          if (Math.random() > 0.5) {
-            this.ecs.addComponent(newEntity, new VoxelObject(dragonVoxels));
-          } else {
-            this.ecs.addComponent(newEntity, new VoxelObject(dragonVoxels));
-          }
+          // if (Math.random() > 0.5) {
+          this.ecs.addComponent(newEntity, new VoxelObject(teaPotVoxels));
+          // } else {
+          //   this.ecs.addComponent(newEntity, new VoxelObject(dragonVoxels));
+          // }
           this.ecs.addComponent(
             newEntity,
             new Transform(

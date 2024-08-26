@@ -302,7 +302,15 @@ fn getPlaneIntersections(rayOrigin: vec3<f32>, rayDirection:vec3<f32>, nodeSize:
     return vec3(xPlaneIntersectionTNear, yPlaneIntersectionTNear, zPlaneIntersectionTNear);
 }
 
-fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>) -> RayMarchResult {
+const DISTANCE_THRESHOLDS =
+  array<vec2<f32>, 4>(
+    vec2<f32>(2.0, 500),
+    vec2<f32>(4.0, 1000),
+    vec2<f32>(8.0, 1500),
+    vec2<f32>(16.0, 2000)
+  );
+
+fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>, minNodeSize: f32) -> RayMarchResult {
     let halfExtents = voxelObject.size * 0.5;
     var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz + halfExtents;
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
@@ -346,7 +354,6 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       let nodeSize = f32(internalNode.size);
 
 
-
       // Check if the ray intersects the node, if not, skip it
       let nodeOrigin = vec3<f32>(internalNode.position);
       let nodeRayOrigin = objectRayOrigin - nodeOrigin;
@@ -356,21 +363,24 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
         continue;
       }
 
-      /// TEMP LOD
-//      if(nodeSize <= 4.0 && distanceToRoot > 1000.0){
-//        output.hit = true;
-//        output.t = nodeIntersection.tNear;
-//        output.normal = nodeIntersection.normal;
-//        output.colour = vec3<f32>(1.0, 0.0, 0.0);
-//        return output;
-//    }
-//      if(nodeSize <= 2.0 && distanceToRoot > 500.0){
+      if(f32(internalNode.size) <= minNodeSize){
+        output.hit = true;
+        output.t = nodeIntersection.tNear;
+        output.normal = nodeIntersection.normal;
+        output.colour = vec3(1,0,0);
+        return output;
+      }
+
+//      for(var i = 0u; i < 4u; i++){
+//        if(f32(internalNode.size) <= DISTANCE_THRESHOLDS[i].x && distanceToRoot > DISTANCE_THRESHOLDS[i].y){
 //          output.hit = true;
 //          output.t = nodeIntersection.tNear;
 //          output.normal = nodeIntersection.normal;
-//          output.colour = vec3<f32>(0.0, 1.0, 0.0);
+//          output.colour = vec3(1);
 //          return output;
+//        }
 //      }
+
 
       let centerOfChild = vec3(nodeSize* 0.5);
 
@@ -401,7 +411,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       }
 
       // Get octant hit on the surface of the nodes bounding box
-      let intersectionPoint = nodeRayOrigin + objectRayDirection * nodeIntersection.tNear - EPSILON;
+      let intersectionPoint = nodeRayOrigin + objectRayDirection * nodeIntersection.tNear;
       let hitOctant = vec3<u32>(intersectionPoint >= centerOfChild);
       let hitIndex = octantOffsetToIndex(vec3<u32>(hitOctant));
 

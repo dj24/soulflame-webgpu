@@ -154,15 +154,15 @@ fn tracePixel(pixel: vec2<u32>){
     var closestIntersection = RayMarchResult();
 
     let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
-//    if(!bvhResult.hit){
-//      textureStore(albedoTex, pixel, vec4(0));
-//      textureStore(normalTex, pixel, vec4(0));
-//      textureStore(depthWrite, pixel, vec4(0));
-//      let worldPos = rayOrigin + skyDomeIntersection(rayOrigin, rayDirection) * rayDirection;
-//      let velocity = getVelocityStatic(worldPos, viewProjections);
-//      textureStore(velocityTex, pixel, vec4(velocity,0, -1.0));
-//      return;
-//    }
+    if(!bvhResult.hit){
+      textureStore(albedoTex, pixel, vec4(0));
+      textureStore(normalTex, pixel, vec4(0));
+      textureStore(depthWrite, pixel, vec4(0));
+      let worldPos = rayOrigin + skyDomeIntersection(rayOrigin, rayDirection) * rayDirection;
+      let velocity = getVelocityStatic(worldPos, viewProjections);
+      textureStore(velocityTex, pixel, vec4(velocity,0, -1.0));
+      return;
+    }
     closestIntersection = bvhResult;
 
     let voxelObject = voxelObjects[closestIntersection.voxelObjectIndex];
