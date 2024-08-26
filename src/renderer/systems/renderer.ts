@@ -24,7 +24,7 @@ export class Renderer extends System {
         device,
         volumeAtlas,
         `Dragon`,
-        `./Tavern/dragon.vxm`,
+        `./fox.vxm`,
       );
 
       const teaPotVoxels = await createVoxelObject(
@@ -46,7 +46,11 @@ export class Renderer extends System {
           // }
           this.ecs.addComponent(
             newEntity,
-            new Transform([x, 0, z], quat.identity(), [1, 1, 1]),
+            new Transform(
+              [x + Math.random() * 50, 0, z + Math.random() * 50],
+              quat.identity(),
+              [1, 1, 1],
+            ),
           );
           renderables.push(newEntity);
         }

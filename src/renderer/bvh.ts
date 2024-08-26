@@ -41,7 +41,7 @@ const getNodeSAHCost = (voxelObjects: LeafNode[]) => {
 };
 
 const SAH_WEIGHT = 1;
-const BALANCE_WEIGHT = 1000;
+const BALANCE_WEIGHT = 1;
 
 const splitObjectsBySAH = (voxelObjects: LeafNode[]) => {
   let minCost = Infinity;

@@ -81,6 +81,7 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
 //         var rayMarchResult = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);
         var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, rayOrigin);
 //        rayMarchResult.voxelObjectIndex = node.leftIndex;
+//               var rayMarchResult = RayMarchResult();
 
         let totalDistance = rayMarchResult.t + distanceToLeaf;
         if(rayMarchResult.hit){
