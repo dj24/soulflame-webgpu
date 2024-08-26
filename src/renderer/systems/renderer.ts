@@ -24,7 +24,7 @@ export class Renderer extends System {
         device,
         volumeAtlas,
         `Dragon`,
-        `./Tavern/dragon.vxm`,
+        `./Tavern/Dragon.vxm`,
       );
 
       const teaPotVoxels = await createVoxelObject(
