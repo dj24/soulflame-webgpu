@@ -1,19 +1,6 @@
-
-// TODO: offset in object space instead of world space to scale with object size
-fn diffuseRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>, voxelObjectSize: f32) -> bool {
-  let rayOrigin = worldPos;
-  return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 0).hit;
-}
-
-fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>, voxelObjectSize: f32) -> bool {
-  let rayOrigin = worldPos;
-  return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 0).hit;
-}
-
-
 const SUN_COLOR = vec3(0.6,0.5,0.4) * 100.0;
 const MOON_COLOR = vec3<f32>(0.5, 0.5, 1.0);
-const MIN_RADIANCE = 0.0;
+const MIN_RADIANCE = 1.0;
 const SUBPIXEL_SAMPLE_POSITIONS: array<vec2<f32>, 8> = array<vec2<f32>, 8>(
   vec2<f32>(0.25, 0.25),
   vec2<f32>(0.75, 0.25),
@@ -27,9 +14,20 @@ const SUBPIXEL_SAMPLE_POSITIONS: array<vec2<f32>, 8> = array<vec2<f32>, 8>(
 const BLUE_NOISE_SIZE = 511;
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
-const SHADOW_ACNE_OFFSET: f32 = 0.001;
-const SCATTER_AMOUNT: f32 = 0.00;
+const SHADOW_ACNE_OFFSET: f32 = 0.01;
+const SCATTER_AMOUNT: f32 = 0.05;
 const POSITION_SCATTER_AMOUNT: f32 = 0.00;
+
+// TODO: offset in object space instead of world space to scale with object size
+fn diffuseRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>, voxelObjectSize: f32) -> bool {
+  let rayOrigin = worldPos;
+  return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 0).hit;
+}
+
+fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>, voxelObjectSize: f32) -> bool {
+  let rayOrigin = worldPos + normal * SHADOW_ACNE_OFFSET;
+  return rayMarchBVHShadows(rayOrigin, shadowRayDirection,0).hit;
+}
 
 struct Light {
   direction: vec3<f32>,
@@ -70,11 +68,10 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32, blueNoiseOffset: vec2
   let axisScales = getScaleFromMatrix(voxelObject.transform);
   let voxelObjectScale = axisScales.x * axisScales.y * axisScales.z;
 
-  let depthSample = textureLoad(depthTex, pixel, 0).r;
-  if(depthSample < 0.00001){ // SKY
+  let distanceToSurface = length(worldPosSample.rgb);
+  if(distanceToSurface > 9999.0){ // SKY
     return vec3(0.0);
   }
-  let rayDirection = calculateRayDirection(uv, viewProjections.inverseViewProjection);
   var worldPos = worldPosSample.rgb;
   var samplePixel = pixel;
   samplePixel.x += i32(time.frame) * 32;
@@ -87,40 +84,18 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32, blueNoiseOffset: vec2
     blueNoisePixel.x = BLUE_NOISE_SIZE - blueNoisePixel.x;
   }
   var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
-  let sampleWorldPos = worldPos + randomInPlanarUnitDisk(r, normalSample) * POSITION_SCATTER_AMOUNT;
-  var radiance = vec3(MIN_RADIANCE);
 
-  // Calculate the probability of sampling the sun
-  let sunProbability = 1.0;
-//  let sunProbability = clamp(dot(normalSample, sunDirection) * 0.5, 0.0, 1.0) * 0.5;
-//  let sunProbability = select(0.0, select(0.2, 0.5, uv.x > 0.66), uv.x > 0.33);
-  // Calculate the probability of sampling the diffuse light
-  let diffuseProbability = 1.0 - sunProbability;
+  let maxSunIntensity = vec3(128.0);
+  // TODO: push to buffer instead and evaluate in a separate pass
 
-  let maxDiffuseIntensity = vec3(4.0);
-  let maxSunIntensity = vec3(32.0);
-
-// TODO: push to buffer instead and evaluate in a separate pass
-  if(r.x < sunProbability){
-    let shadowRayDirection = sunDirection + randomInCosineWeightedHemisphere(r, sunDirection) * SCATTER_AMOUNT;
-    if(!shadowRay(sampleWorldPos, shadowRayDirection, normalSample, voxelObjectScale)){
-      let viewDirection = normalize(cameraPosition - worldPos);
-      let diffuse = max(dot(normalSample, sunDirection), 0.0);
-      let specular = pow(max(dot(normalSample, normalize(sunDirection + viewDirection)), 0.0), 32.0);
-      let lightIntensity = clamp(SUN_COLOR * (diffuse + specular), vec3(MIN_RADIANCE), maxSunIntensity);
-      radiance = lightIntensity;
-    }
-  } else{
-     var diffuseDirection = randomInCosineWeightedHemisphere(r, normalSample);
-     if(!diffuseRay(sampleWorldPos, diffuseDirection, normalSample, voxelObjectScale)){
-          let sky = textureSampleLevel(skyCube, linearSampler, diffuseDirection, 0.0) * 2.0;
-//          let sky = vec4(3.0);
-          radiance = clamp(vec3(sky.rgb), vec3(MIN_RADIANCE), maxDiffuseIntensity);
-      }
-  }
-
-  return radiance;
-
+  let shadowRayDirection = sunDirection + randomInCosineWeightedHemisphere(r, sunDirection) * SCATTER_AMOUNT;
+//  radiance = abs(worldPos) % 8.0 * 0.125;
+  let isInShadow = shadowRay(worldPos, shadowRayDirection, normalSample, voxelObjectScale);
+  let viewDirection = normalize(cameraPosition - worldPos);
+  let diffuse = max(dot(normalSample, sunDirection), 0.0);
+  let specular = pow(max(dot(normalSample, normalize(sunDirection + viewDirection)), 0.0), 32.0);
+  let lightIntensity = clamp(SUN_COLOR * (diffuse + specular), vec3(MIN_RADIANCE), select(vec3(maxSunIntensity), vec3(MIN_RADIANCE), isInShadow));
+  return lightIntensity;
 }
 
 @compute @workgroup_size(16, 8, 1)

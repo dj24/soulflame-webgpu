@@ -1,13 +1,11 @@
 import { device, RenderPass, RenderArgs } from "../app";
 import { GBufferTexture } from "../abstractions/g-buffer-texture";
 import { getWorldPosReconstructionPipeline } from "./passes/get-world-pos-reconstruction-pass";
-import { getInterpolatePipeline } from "./passes/get-interpolation-pass";
 import { getSparseRaymarchPipeline } from "./passes/get-sparse-raymarch-pass";
 import {
   copyGBufferTexture,
   createCopyOfGBufferTexture,
 } from "../abstractions/copy-g-buffer-texture";
-import { getBufferRaymarchPipeline } from "./passes/get-buffer-raymarch-pass";
 
 export type OutputTextures = {
   finalTexture: GBufferTexture;
@@ -24,10 +22,7 @@ const ceilToNearestMultipleOf = (n: number, multiple: number) => {
 };
 
 export const getGBufferPass = async (): Promise<RenderPass> => {
-  const worldPosReconstruct = await getWorldPosReconstructionPipeline();
   const sparseRayMarch = await getSparseRaymarchPipeline();
-  const interpolate = await getInterpolatePipeline();
-  const bufferMarch = await getBufferRaymarchPipeline();
 
   let copyTextures: Partial<
     Record<keyof OutputTextures, GBufferTexture | null>
@@ -92,69 +87,11 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     let computePass = commandEncoder.beginComputePass({ timestampWrites });
     sparseRayMarch(computePass, renderArgs);
     computePass.end();
-
-    // Copy
-    Object.keys(copyTextures).forEach((key: keyof OutputTextures) => {
-      const source = renderArgs.outputTextures[key] as GBufferTexture;
-      const destination = copyTextures[key] as GBufferTexture;
-      copyGBufferTexture(commandEncoder, source, destination);
-    });
-
-    // Interpolate
-    // computePass = commandEncoder.beginComputePass({
-    //   timestampWrites: {
-    //     querySet: timestampWrites.querySet,
-    //     beginningOfPassWriteIndex:
-    //       timestampWrites.beginningOfPassWriteIndex + 2,
-    //     endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 2,
-    //   },
-    // });
-    // interpolate(
-    //   computePass,
-    //   renderArgs,
-    //   copyTextures.albedoTexture.view,
-    //   copyTextures.velocityTexture.view,
-    //   copyTextures.depthTexture.view,
-    //   copyTextures.normalTexture.view,
-    //   indirectBuffer,
-    //   screenRayBuffer,
-    //   counterBuffer,
-    // );
-    // computePass.end();
-
-    // Full raymarch
-    computePass = commandEncoder.beginComputePass({
-      timestampWrites: {
-        querySet: timestampWrites.querySet,
-        beginningOfPassWriteIndex:
-          timestampWrites.beginningOfPassWriteIndex + 4,
-        endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 4,
-      },
-    });
-    bufferMarch(computePass, renderArgs, screenRayBuffer, indirectBuffer);
-    computePass.end();
-
-    // World pos reconstruct
-    computePass = commandEncoder.beginComputePass({
-      timestampWrites: {
-        querySet: timestampWrites.querySet,
-        beginningOfPassWriteIndex:
-          timestampWrites.beginningOfPassWriteIndex + 6,
-        endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 6,
-      },
-    });
-    worldPosReconstruct(computePass, renderArgs);
-    computePass.end();
   };
 
   return {
     render,
     label: "primary rays",
-    timestampLabels: [
-      "sparse raymarch",
-      "interpolate",
-      "full raymarch",
-      "world pos reconstruct",
-    ],
+    timestampLabels: ["full raymarch"],
   };
 };

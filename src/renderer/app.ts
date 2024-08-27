@@ -192,15 +192,13 @@ export const init = async (
 
   computePasses = await Promise.all([
     getClearPass(),
-    // getHelloTrianglePass(),
     getGBufferPass(),
     getShadowsPass(),
-    getSkyPass(),
-    // getLightsPass(),
-    // getFogPass(),
+    // getSkyPass(),
     // getBloomPass(),
-    getTonemapPass(),
     getTaaPass(),
+    getTonemapPass(),
+
     // getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
     // getVignettePass(15.0),
@@ -220,7 +218,7 @@ export const init = async (
     return acc.concat(val.label);
   }, []);
 
-  // debugUI.setupDebugControls(computePasses);
+  debugUI.setupDebugControls(computePasses);
 
   canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
   canvas.style.imageRendering = "pixelated";
@@ -342,6 +340,7 @@ const getMatricesBuffer = (camera: Camera, cameraTransform: Transform) => {
     ...mat4.invert(previousJitteredViewProjectionMatrix),
     ...jitteredProjectionMatrix,
     ...mat4.invert(jitteredProjectionMatrix),
+    ...viewMatrix,
   ]);
   if (!viewProjectionMatricesBuffer) {
     viewProjectionMatricesBuffer = device.createBuffer({
@@ -384,7 +383,7 @@ const getSunDirectionBuffer = () => {
 
   // Multiply the existing direction vector by the rotation matrix
   const newDirection = vec3.normalize(
-    vec3.transformMat4(vec3.create(0, 0.5, 0.8), rotationMatrix),
+    vec3.transformMat4(vec3.create(0, 0.5, -0.5), rotationMatrix),
   );
 
   if (sunDirectionBuffer) {
@@ -502,13 +501,13 @@ export const frame = (
 
   computePasses.forEach((computePass, index) => {
     const { render, label } = computePass;
-    // if (
-    //   debugUI.passesFolder.controllers
-    //     .find((controller) => controller.property === label)
-    //     ?.getValue() === false
-    // ) {
-    //   return;
-    // }
+    if (
+      debugUI.passesFolder.controllers
+        .find((controller) => controller.property === label)
+        ?.getValue() === false
+    ) {
+      return;
+    }
 
     if (device.features.has("timestamp-query")) {
       commandEncoder.clearBuffer(timestampQueryBuffer);

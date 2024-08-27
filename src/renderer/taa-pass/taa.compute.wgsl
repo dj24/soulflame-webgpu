@@ -86,7 +86,7 @@ const NEIGHBORHOOD_SAMPLE_POSITIONS = array<vec2<i32>, 8>(
 //@group(0) @binding(9) var<uniform> viewProjectionMatrices : ViewProjectionMatrices;
 
 const DEPTH_THRESHOLD : f32 = 4.0;
-const MIN_SOURCE_BLEND = 0.2;
+const MIN_SOURCE_BLEND = 0.05;
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
@@ -115,7 +115,6 @@ fn main(
 
     let worldPos = textureLoad(worldPosTex, id.xy, 0).xyz;
     let worldPosPrev = textureLoad(worldPosTex, previousPixel, 0).xyz;
-
 
     var depthAtPreviousPixel: f32 = textureLoad(Depth, previousPixel, 0).r;
 
@@ -154,5 +153,4 @@ fn main(
     let result: vec3<f32> = (sourceSample * sourceWeight + historySample * historyWeight) / max(sourceWeight + historyWeight, 0.0001);
 
     textureStore(HistoryWrite, id.xy, vec4<f32>(result, 1.0));
-
 }

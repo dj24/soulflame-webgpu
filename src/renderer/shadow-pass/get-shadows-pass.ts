@@ -504,12 +504,6 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
   return {
     render,
     label,
-    timestampLabels: [
-      "shadow trace",
-      "shadow interpolate",
-      "full res shadow",
-      "shadow denoise",
-      "shadow composite",
-    ],
+    timestampLabels: ["shadow trace", "shadow composite"],
   };
 };

@@ -316,6 +316,9 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
     var output = RayMarchResult();
     let distanceToRoot = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5).tNear;
+    if(distanceToRoot > FAR_PLANE){
+      return output;
+    }
 
     // Set the initial t value to the far plane - essentially an out of bounds value
     output.t = FAR_PLANE;
@@ -353,12 +356,14 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       // Get the size of the node to get the center for plane intersections
       let nodeSize = f32(internalNode.size);
 
-
       // Check if the ray intersects the node, if not, skip it
       let nodeOrigin = vec3<f32>(internalNode.position);
       let nodeRayOrigin = objectRayOrigin - nodeOrigin;
       let nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(nodeSize * 0.5));
       let isOriginInside = all(nodeRayOrigin >= vec3(0.0)) && all(nodeRayOrigin <= vec3(nodeSize));
+
+      let distanceToNode = nodeIntersection.tNear;
+
       if(!nodeIntersection.isHit && !isOriginInside){
         continue;
       }

@@ -4,7 +4,8 @@ struct ViewProjectionMatrices {
   inverseViewProjection : mat4x4<f32>,
   previousInverseViewProjection : mat4x4<f32>,
   projection : mat4x4<f32>,
-  inverseProjection: mat4x4<f32>
+  inverseProjection: mat4x4<f32>,
+  viewMatrix : mat4x4<f32>,
 };
 
 
@@ -121,88 +122,59 @@ fn intersectSphere(origin: vec3<f32>, dir: vec3<f32>, spherePos: vec3<f32>, sphe
 }
 
 fn skyDomeIntersection(ro: vec3<f32>, rd: vec3<f32>) -> f32 {
-    return intersectSphere(ro, rd, vec3<f32>(0.0, 0.0, 0.0), 100.0);
+    return intersectSphere(ro, rd, vec3<f32>(0.0, 0.0, 0.0), FAR_PLANE);
 }
 
-fn reprojectWorldPos(worldPos: vec3<f32>, viewProjections: ViewProjectionMatrices) -> vec3<f32> {
-  let clipSpace = viewProjections.previousViewProjection * vec4(worldPos.xyz, 1.0);
-  return 0.5 * (clipSpace.xyz / clipSpace.w) + 0.5;
-}
-
-fn reprojectObjectWorldPos(worldPos: vec3<f32>, previousModelMatrix: mat4x4<f32>, viewProjections: ViewProjectionMatrices) -> vec3<f32> {
-  let clipSpace = viewProjections.previousViewProjection * previousModelMatrix * vec4(worldPos.xyz, 1.0);
-  return 0.5 * (clipSpace.xyz / clipSpace.w) + 0.5;
-}
-
-fn simplePhongShading(normal: vec3<f32>, lightDir: vec3<f32>, lightColour: vec3<f32>, ambient: vec3<f32>, diffuse: vec3<f32>, specular: vec3<f32>, shininess: f32) -> vec3<f32> {
-  let nDotL = max(dot(normal, lightDir), 0.0);
-  let diffuseComponent = lightColour * diffuse * nDotL;
-
-  let reflectDir = reflect(-lightDir, normal);
-  let viewDir = normalize(vec3<f32>(0.0, 0.0, 1.0));
-  let spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
-  let specularComponent = lightColour * specular * spec;
-
-  return ambient + diffuseComponent + specularComponent;
-}
+const BLUE_NOISE_SIZE = 511;
 
 fn tracePixel(pixel: vec2<u32>){
    let resolution = textureDimensions(albedoTex);
    var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
-   let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
-    var rayOrigin = cameraPosition;
-    var closestIntersection = RayMarchResult();
+   var rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
 
-    let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
-    if(!bvhResult.hit){
-      textureStore(albedoTex, pixel, vec4(0));
-      textureStore(normalTex, pixel, vec4(0));
-      textureStore(depthWrite, pixel, vec4(0));
-      let worldPos = rayOrigin + skyDomeIntersection(rayOrigin, rayDirection) * rayDirection;
-      let velocity = getVelocityStatic(worldPos, viewProjections);
-      textureStore(velocityTex, pixel, vec4(velocity,0, -1.0));
-      return;
+    // DOF
+    let blueNoiseOffset = vec2<u32>(0);
+    var blueNoisePixel = pixel;
+    blueNoisePixel.x += time.frame * 32;
+    blueNoisePixel.y += time.frame * 16;
+    blueNoisePixel = (blueNoisePixel + blueNoiseOffset) % BLUE_NOISE_SIZE;
+    if(time.frame % 2 == 0){
+      blueNoisePixel.y = BLUE_NOISE_SIZE - blueNoisePixel.y;
     }
-    closestIntersection = bvhResult;
+    if(time.frame % 3 == 0){
+      blueNoisePixel.x = BLUE_NOISE_SIZE - blueNoisePixel.x;
+    }
+    var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
+    let aperture = 0.3;
+    let focalDistance = 100.0;
+    let randomOffset = randomInUnitDisk(r) * aperture;
+    let cameraRight = vec3(viewProjections.viewMatrix[0].x, viewProjections.viewMatrix[1].x, viewProjections.viewMatrix[2].x);
+    let cameraUp = vec3(viewProjections.viewMatrix[0].y, viewProjections.viewMatrix[1].y, viewProjections.viewMatrix[2].y);
+    let rayOrigin = cameraPosition + randomOffset.x * cameraRight + randomOffset.y * cameraUp;
+    let focalPoint = cameraPosition + normalize(rayDirection) * focalDistance;
+    rayDirection = normalize(focalPoint - rayOrigin);
 
-    let voxelObject = voxelObjects[closestIntersection.voxelObjectIndex];
-    let albedo = closestIntersection.colour;
-//
-//    var albedo = vec3<f32>(0.0);
-//    if(closestIntersection.hit){
-//        let paletteX = i32(closestIntersection.colour.r * 255.0);
-//        let paletteY = i32(voxelObject.paletteIndex);
-//        albedo = textureLoad(paletteTex, vec2(paletteX, paletteY), 0).rgb;
-//    }
+    var closestIntersection = RayMarchResult();
+    var worldPos = vec3(0.0);
+    var normal = vec3(0.0);
+    var albedo = vec3(0.0);
+    var velocity = vec2(0.0);
+    let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
+    if(bvhResult.hit){
+      let voxelObject = voxelObjects[bvhResult.voxelObjectIndex];
+      albedo = bvhResult.colour;
+      normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(bvhResult.normal));
+      worldPos = rayOrigin + rayDirection * bvhResult.t;
+    }
+    else{
+      worldPos = rayOrigin + skyDomeIntersection(rayOrigin, rayDirection) * rayDirection;
+    }
+    velocity = getVelocityStatic(worldPos, viewProjections);
 
-    let normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(closestIntersection.normal));
-    let worldPos = rayOrigin + rayDirection * closestIntersection.t;
-    let velocity = getVelocityStatic(worldPos, viewProjections);
-    let cameraDistance = closestIntersection.t;
-//    let normalisedDepth = distanceToReversedLinearDepth(cameraDistance, NEAR_PLANE, FAR_PLANE);
-let logDepth = distanceToLogarithmicDepth(cameraDistance, NEAR_PLANE, FAR_PLANE);
-
-//    textureStore(albedoTex, pixel, vec4(albedo, 1));
-//    let lightDirection = normalize(vec3<f32>(0.0, 0.5, 0.5));
-//    let lightColour = vec3<f32>(1.0);
-//    let ambientColour = vec3<f32>(0.5);
-//    let diffuseColour = vec3<f32>(0.2);
-//    let specularColour = vec3<f32>(0.5);
-//    let shininess = 1.0;
-//    var shaded = simplePhongShading(normal, lightDirection, lightColour, ambientColour, diffuseColour, specularColour, shininess) * albedo;
-//    if(all(shaded <= vec3(0.0))){
-//      shaded = vec3<f32>(uv.y, uv.y * 0.5, 1.0);
-//    }
-//    textureStore(albedoTex, pixel, vec4(shaded, 1));
-//    if(!bvhResult.hit){
-//      var debugColour = vec4(closestIntersection.normal, 1);
-//      var debugColour = vec4(f32(closestIntersection.iterations)/ 64.0);
-//      textureStore(albedoTex, pixel, debugColour);
-//    }
     textureStore(albedoTex, pixel, vec4(albedo, 1));
     textureStore(normalTex, pixel, vec4(normal,1));
-    textureStore(velocityTex, pixel, vec4(velocity,0,f32(closestIntersection.voxelObjectIndex)));
-    textureStore(depthWrite, pixel, vec4(logDepth));
+    textureStore(velocityTex, pixel, vec4(velocity,0,f32(bvhResult.voxelObjectIndex)));
+    textureStore(worldPosTex, pixel, vec4(worldPos,0));
 }
 
 @compute @workgroup_size(16, 8, 1)

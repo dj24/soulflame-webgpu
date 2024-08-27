@@ -89,9 +89,7 @@ export const getWorldPosReconstructionPipeline = async () => {
             if(depth == 0.0) {
               worldPos = vec3<f32>(0.0, 0.0, 0.0);
             }
-            
-            //let normal = computeNormalImproved(vec2<i32>(pixel)); 
-            //textureStore(normalTex, pixel, vec4(normal, 1));
+           
             textureStore(worldPosTex, pixel, vec4(worldPos, 1));
           }
 `,

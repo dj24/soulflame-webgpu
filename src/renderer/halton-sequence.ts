@@ -23,8 +23,8 @@ export function generateJitter(
   const frustumHeight = 2 * Math.tan(fov / 2) * nearPlane;
   const frustumWidth = frustumHeight * aspectRatio;
 
-  const jitterScaleX = 2.0 / viewportWidth;
-  const jitterScaleY = 2.0 / viewportHeight;
+  const jitterScaleX = 1.0 / viewportWidth;
+  const jitterScaleY = 1.0 / viewportHeight;
 
   const jitterX = (halton(frameIndex, 2) - 0.5) * jitterScaleX * frustumWidth;
   const jitterY = (halton(frameIndex, 3) - 0.5) * jitterScaleY * frustumHeight;
