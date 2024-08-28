@@ -465,14 +465,9 @@ export const frame = (
 
   getMatricesBuffer(camera, cameraTransform);
   getVoxelObjectsBuffer(device, ecs, renderableEntities);
-
   getTimeBuffer();
   getResolutionBuffer();
   getSunDirectionBuffer();
-
-  // console.log(
-  //   ecs.getComponents(renderableEntities[1]).get(Transform).position[1],
-  // );
 
   if (lastEntityCount !== renderableEntities.length) {
     bvh.update(

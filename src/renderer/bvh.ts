@@ -93,28 +93,30 @@ export class BVH {
   }
 
   get gpuBuffer() {
-    const debugCopyBuffer = this.#device.createBuffer({
-      size: this.#gpuBuffer.size,
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-      mappedAtCreation: false,
-    });
-    const commandEncoder = this.#device.createCommandEncoder();
-    commandEncoder.copyBufferToBuffer(
-      this.#gpuBuffer,
-      0,
-      debugCopyBuffer,
-      0,
-      this.#gpuBuffer.size,
-    );
-    this.#device.queue.submit([commandEncoder.finish()]);
-    debugCopyBuffer.mapAsync(GPUMapMode.READ).then(() => {
-      const debugBufferArray = new Float32Array(
-        debugCopyBuffer.getMappedRange(),
+    if (!this.#gpuBuffer) {
+      const debugCopyBuffer = this.#device.createBuffer({
+        size: this.#gpuBuffer.size,
+        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+        mappedAtCreation: false,
+      });
+      const commandEncoder = this.#device.createCommandEncoder();
+      commandEncoder.copyBufferToBuffer(
+        this.#gpuBuffer,
+        0,
+        debugCopyBuffer,
+        0,
+        this.#gpuBuffer.size,
       );
-      // console.log(
-      //   debugBufferArray.slice(0, stride / Float32Array.BYTES_PER_ELEMENT),
-      // );
-    });
+      this.#device.queue.submit([commandEncoder.finish()]);
+      debugCopyBuffer.mapAsync(GPUMapMode.READ).then(() => {
+        const debugBufferArray = new Float32Array(
+          debugCopyBuffer.getMappedRange(),
+        );
+        // console.log(
+        //   debugBufferArray.slice(0, stride / Float32Array.BYTES_PER_ELEMENT),
+        // );
+      });
+    }
     return this.#gpuBuffer;
   }
 

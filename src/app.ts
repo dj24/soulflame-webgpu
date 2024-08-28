@@ -42,9 +42,8 @@ ecs.addComponents(
 );
 
 // Game loop
-const update = (now: number) => {
-  ecs.update(now);
-  requestAnimationFrame(update);
+const update = () => {
+  ecs.update(performance.now());
 };
 
-requestAnimationFrame(update);
+setInterval(update, 1000 / 60);
