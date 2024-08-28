@@ -24,7 +24,7 @@ export class Renderer extends System {
         device,
         volumeAtlas,
         `Dragon`,
-        `./Tavern/Dragon.vxm`,
+        `./Tavern/Tavern.vxm`,
       );
 
       const teaPotVoxels = await createVoxelObject(
@@ -59,8 +59,8 @@ export class Renderer extends System {
       //   ),
       // );
 
-      for (let x = -2400; x <= 2400; x += 200) {
-        for (let z = -2400; z <= 2400; z += 200) {
+      for (let x = -600; x <= 600; x += 100) {
+        for (let z = -600; z <= 600; z += 100) {
           const newEntity = this.ecs.addEntity();
           // if (Math.random() > 0.5) {
           this.ecs.addComponent(newEntity, new VoxelObject(dragonVoxels));
@@ -71,7 +71,7 @@ export class Renderer extends System {
             newEntity,
             new Transform(
               [x + Math.random() * 50, 0, z + Math.random() * 50],
-              quat.identity(),
+              quat.fromEuler(0, 180, 0, "xyz"),
               [1, 1, 1],
             ),
           );

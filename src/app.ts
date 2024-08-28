@@ -14,8 +14,8 @@ import { GamepadControllable } from "@input/components/gamepad-controllable";
 const ecs = new ECS();
 
 // Systems
-ecs.addSystem(new Renderer());
 ecs.addSystem(new KeyboardControl());
+ecs.addSystem(new Renderer());
 
 const singleton = ecs.addEntity();
 ecs.addComponent(singleton, new GPUDeviceSingleton());

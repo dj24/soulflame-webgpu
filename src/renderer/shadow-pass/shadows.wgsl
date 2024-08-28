@@ -17,6 +17,7 @@ const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const SHADOW_ACNE_OFFSET: f32 = 0.01;
 const SCATTER_AMOUNT: f32 = 0.05;
 const POSITION_SCATTER_AMOUNT: f32 = 0.00;
+const SKY_INTENSITY: f32 = 50.0;
 
 // TODO: offset in object space instead of world space to scale with object size
 fn diffuseRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>, voxelObjectSize: f32) -> bool {
@@ -61,6 +62,7 @@ const SAMPLE_OFFSETS: array<vec2<i32>, 4> = array<vec2<i32>, 4>(
 
 fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32, blueNoiseOffset: vec2<i32>) -> vec3<f32>{
   let pixel = outputPixel * downscaleFactor;
+  let albedoRef = textureLoad(albedoTex, pixel, 0);
   let uv = (vec2<f32>(outputPixel) + vec2(0.5)) / vec2<f32>(textureDimensions(outputTex));
   var normalSample = textureLoad(normalTex, pixel, 0).rgb;
   let worldPosSample = textureLoad(worldPosTex, pixel, 0);
@@ -70,7 +72,7 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32, blueNoiseOffset: vec2
 
   let distanceToSurface = length(worldPosSample.rgb);
   if(distanceToSurface > 9999.0){ // SKY
-    return vec3(0.0);
+    return albedoRef.rgb * SKY_INTENSITY;
   }
   var worldPos = worldPosSample.rgb;
   var samplePixel = pixel;
@@ -95,7 +97,7 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32, blueNoiseOffset: vec2
   let diffuse = max(dot(normalSample, sunDirection), 0.0);
   let specular = pow(max(dot(normalSample, normalize(sunDirection + viewDirection)), 0.0), 32.0);
   let lightIntensity = clamp(SUN_COLOR * (diffuse + specular), vec3(MIN_RADIANCE), select(vec3(maxSunIntensity), vec3(MIN_RADIANCE), isInShadow));
-  return lightIntensity;
+  return lightIntensity * albedoRef.rgb;
 }
 
 @compute @workgroup_size(16, 8, 1)
@@ -180,7 +182,6 @@ fn composite(
 ) {
   let pixel = vec2<i32>(GlobalInvocationID.xy);
   let shadowRef = textureLoad(intermediaryTexture, pixel, 0);
-  let albedoRef = textureLoad(albedoTex, pixel, 0);
 
-  textureStore(outputTex, pixel, shadowRef * albedoRef);
+  textureStore(outputTex, pixel, shadowRef);
 }

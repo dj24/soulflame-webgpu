@@ -223,6 +223,12 @@ ${shaderCode}`;
             dimension: "cube",
           }),
         },
+        {
+          binding: 19,
+          resource: {
+            buffer: volumeAtlas.octreeBuffer,
+          },
+        },
       ];
 
       const bindGroupDescriptor: GPUBindGroupDescriptor = {

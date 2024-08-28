@@ -196,10 +196,11 @@ export const init = async (
     getShadowsPass(),
     // getSkyPass(),
     // getBloomPass(),
+    // getFogPass(),
     getTaaPass(),
     getTonemapPass(),
 
-    // getMotionBlurPass(),
+    getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
     // getVignettePass(15.0),
     fullscreenQuad(device),
@@ -383,7 +384,7 @@ const getSunDirectionBuffer = () => {
 
   // Multiply the existing direction vector by the rotation matrix
   const newDirection = vec3.normalize(
-    vec3.transformMat4(vec3.create(0, 0.5, -0.5), rotationMatrix),
+    vec3.transformMat4(vec3.create(0, 0.2, -0.5), rotationMatrix),
   );
 
   if (sunDirectionBuffer) {

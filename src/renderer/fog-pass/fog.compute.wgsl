@@ -1,10 +1,10 @@
 
 const BLUE_NOISE_SIZE = 511;
-const MAX_DISTANCE = 50.0;
+const MAX_DISTANCE = 100.0;
 const START_DISTANCE = 0.0;
 const EXTINCTION = vec3(.06, .03, .02);
 const FORWARD_SCATTER = 0.1;
-const STEPS = 8.0;
+const STEPS = 12.0;
 const NEAR  = 0.5;
 const FAR = 10000.0;
 const LIGHT_INTENSITY = 32.0;
@@ -30,18 +30,12 @@ fn main(
   var pixel = GlobalInvocationID.xy;
   let uv = vec2<f32>(pixel) / vec2<f32>(textureDimensions(outputTex));
   let gBufferPixel = pixel * DOWNSCALE;
-  let depthSample = textureLoad(depthTex, gBufferPixel, 0).r;
-  var distanceFromCamera = logarithmicDepthToDistance(depthSample, NEAR, FAR);
+  let worldPos = textureLoad(worldPosTex, gBufferPixel, 0).xyz;
+  var distanceFromCamera = distance(cameraPosition, worldPos);
   let normalSample = textureLoad(normalTex, gBufferPixel, 0).xyz;
-
-// TODO: fix depth instead
-  if(depthSample < 0.001){
-    distanceFromCamera = MAX_DISTANCE;
-  }
-
   distanceFromCamera = min(distanceFromCamera, MAX_DISTANCE);
   var stepLength = distanceFromCamera / STEPS;
-  let rayDir = calculateRayDirection(uv,viewProjections.inverseViewProjection);
+  let rayDir = normalize(worldPos - cameraPosition);
   var blueNoisePixel = vec2<i32>(pixel);
   blueNoisePixel.x += i32(time.frame) * 32;
   blueNoisePixel.y += i32(time.frame) * 16;
@@ -61,18 +55,6 @@ fn main(
   var stepAbsorption = exp(-EXTINCTION * stepLength);
   var stepColour = vec3(1.0 - stepAbsorption) * henyeyGreenstein(dot(rayDir, sunDirection), FORWARD_SCATTER);
   var positionAlongRay = rayOrigin;
-
-//   if(distanceFromCamera >= MAX_DISTANCE){
-////      for(var i = 0; i < i32(STEPS); i++){
-////
-////       absorption *= stepAbsorption;
-////       var directLight = LIGHT_INTENSITY;
-////        volColour += stepColour * absorption * directLight;
-////      }
-//      textureStore(outputTex, pixel, vec4<f32>(100.0, 0.0, 0.0, 1.0));
-//      return;
-//    }
-
   for(var i = 0; i < i32(STEPS); i++){
    positionAlongRay += rayDir * stepLength;
    absorption *= stepAbsorption;
@@ -111,5 +93,6 @@ fn composite(
     totalFog += fogAmount.rgb * BLUR_SAMPLE_POSITIONS_AND_GAUSSIAN_WEIGHTS[i].z;
   }
   let output = (totalFog + colourSample).rgb;
+
   textureStore(outputTex, GlobalInvocationID.xy, vec4(output, 1));
 }
