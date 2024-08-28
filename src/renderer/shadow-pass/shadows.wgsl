@@ -15,7 +15,7 @@ const BLUE_NOISE_SIZE = 511;
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const SHADOW_ACNE_OFFSET: f32 = 0.01;
-const SCATTER_AMOUNT: f32 = 0.05;
+const SCATTER_AMOUNT: f32 = 0.02;
 const POSITION_SCATTER_AMOUNT: f32 = 0.00;
 const SKY_INTENSITY: f32 = 50.0;
 
@@ -25,7 +25,14 @@ fn diffuseRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f
   return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 0).hit;
 }
 
-fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>, voxelObjectSize: f32) -> bool {
+fn calculateScreenSpaceUV(worldPos: vec3<f32>, viewProjection: mat4x4<f32>) -> vec2<f32> {
+  let clipPos = viewProjection * vec4(worldPos, 1.0);
+  var ndc = clipPos.xy / clipPos.w;
+  let uv = ndc * -0.5 + 0.5;
+  return uv;
+}
+
+fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>) -> bool {
   let rayOrigin = worldPos + normal * SHADOW_ACNE_OFFSET;
   return rayMarchBVHShadows(rayOrigin, shadowRayDirection,0).hit;
 }
@@ -66,15 +73,12 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32, blueNoiseOffset: vec2
   let uv = (vec2<f32>(outputPixel) + vec2(0.5)) / vec2<f32>(textureDimensions(outputTex));
   var normalSample = textureLoad(normalTex, pixel, 0).rgb;
   let worldPosSample = textureLoad(worldPosTex, pixel, 0);
-  let voxelObject = voxelObjects[i32(worldPosSample.a)];
-  let axisScales = getScaleFromMatrix(voxelObject.transform);
-  let voxelObjectScale = axisScales.x * axisScales.y * axisScales.z;
 
   let distanceToSurface = length(worldPosSample.rgb);
   if(distanceToSurface > 9999.0){ // SKY
     return albedoRef.rgb * SKY_INTENSITY;
   }
-  var worldPos = worldPosSample.rgb;
+  var worldPos = cameraPosition + worldPosSample.rgb;
   var samplePixel = pixel;
   samplePixel.x += i32(time.frame) * 32;
   samplePixel.y += i32(time.frame) * 16;
@@ -90,14 +94,35 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32, blueNoiseOffset: vec2
   let maxSunIntensity = vec3(128.0);
   // TODO: push to buffer instead and evaluate in a separate pass
 
-  let shadowRayDirection = sunDirection + randomInCosineWeightedHemisphere(r, sunDirection) * SCATTER_AMOUNT;
+  let shadowRayDirection = normalize(sunDirection + randomInCosineWeightedHemisphere(r, sunDirection) * SCATTER_AMOUNT);
+
 //  radiance = abs(worldPos) % 8.0 * 0.125;
-  let isInShadow = shadowRay(worldPos, shadowRayDirection, normalSample, voxelObjectScale);
+//  let isInShadow = shadowRay(worldPos, shadowRayDirection, normalSample);
   let viewDirection = normalize(cameraPosition - worldPos);
   let diffuse = max(dot(normalSample, sunDirection), 0.0);
   let specular = pow(max(dot(normalSample, normalize(sunDirection + viewDirection)), 0.0), 32.0);
-  let lightIntensity = clamp(SUN_COLOR * (diffuse + specular), vec3(MIN_RADIANCE), select(vec3(maxSunIntensity), vec3(MIN_RADIANCE), isInShadow));
-  return lightIntensity * albedoRef.rgb;
+//  var lightIntensity = clamp(SUN_COLOR * (diffuse + specular), vec3(MIN_RADIANCE), select(vec3(maxSunIntensity), vec3(MIN_RADIANCE), isInShadow));
+var lightIntensity = vec3(50.0);
+
+  // Cosine weighted hemisphere sampling ambient occulsion
+  let randomDirection = normalize(normalSample + randomInCosineWeightedHemisphere(r, normalSample) * 1.0);
+  let rayStepLength = 0.1;
+  for(var i = 1; i < 8; i ++){
+    let stepWorldPos = worldPos + randomDirection * rayStepLength * f32(i);
+    let stepUV = calculateScreenSpaceUV(stepWorldPos, viewProjections.viewProjection);
+    let stepPixel = vec2<i32>(stepUV * vec2<f32>(textureDimensions(outputTex)));
+    let stepSurfaceWorldPos = textureLoad(worldPosTex, stepPixel, 0).rgb;
+    let stepDistanceToSurface = length(stepSurfaceWorldPos);
+    if(stepDistanceToSurface < distanceToSurface - 0.5){
+      lightIntensity =vec3(0.0);
+      break;
+    }
+  }
+//  return normalSample * 50.0;
+//  return randomDirection * 20.0;
+return abs(worldPos) % 8.0;
+//  return lightIntensity;
+//    return vec3(distanceToSurface * 0.01);
 }
 
 @compute @workgroup_size(16, 8, 1)

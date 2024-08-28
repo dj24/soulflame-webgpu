@@ -487,8 +487,8 @@ export const getShadowsPass = async (): Promise<RenderPass> => {
         timestampWrites: {
           querySet: timestampWrites.querySet,
           beginningOfPassWriteIndex:
-            timestampWrites.beginningOfPassWriteIndex + 8,
-          endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 8,
+            timestampWrites.beginningOfPassWriteIndex + 2,
+          endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 2,
         },
       });
       compositePass(

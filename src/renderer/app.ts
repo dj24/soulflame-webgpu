@@ -197,7 +197,7 @@ export const init = async (
     // getSkyPass(),
     // getBloomPass(),
     // getFogPass(),
-    getTaaPass(),
+    // getTaaPass(),
     getTonemapPass(),
 
     getMotionBlurPass(),
@@ -378,14 +378,8 @@ const getMatricesBuffer = (camera: Camera, cameraTransform: Transform) => {
 };
 
 const getSunDirectionBuffer = () => {
-  // Create a rotation matrix for the Y angle
-  const rotationMatrix = mat4.identity();
-  mat4.rotateY(rotationMatrix, debugValues.sunRotateY, rotationMatrix);
-
   // Multiply the existing direction vector by the rotation matrix
-  const newDirection = vec3.normalize(
-    vec3.transformMat4(vec3.create(0, 0.2, -0.5), rotationMatrix),
-  );
+  const newDirection = vec3.create(0.5, 1, -0.5);
 
   if (sunDirectionBuffer) {
     writeToFloatUniformBuffer(sunDirectionBuffer, [
@@ -465,9 +459,14 @@ export const frame = (
 
   getMatricesBuffer(camera, cameraTransform);
   getVoxelObjectsBuffer(device, ecs, renderableEntities);
+
   getTimeBuffer();
   getResolutionBuffer();
   getSunDirectionBuffer();
+
+  // console.log(
+  //   ecs.getComponents(renderableEntities[1]).get(Transform).position[1],
+  // );
 
   if (lastEntityCount !== renderableEntities.length) {
     bvh.update(
@@ -552,8 +551,8 @@ export const frame = (
       renderableEntities,
       ecs,
     });
-    if (timestampLabels?.length > 0) {
-      beginningOfPassWriteIndex += timestampLabels.length * 2;
+    if (computePass.timestampLabels?.length > 0) {
+      beginningOfPassWriteIndex += computePass.timestampLabels.length * 2;
     } else {
       beginningOfPassWriteIndex += 2;
     }

@@ -71,7 +71,7 @@ export class Renderer extends System {
             newEntity,
             new Transform(
               [x + Math.random() * 50, 0, z + Math.random() * 50],
-              quat.fromEuler(0, 180, 0, "xyz"),
+              quat.fromEuler(0, (Math.PI / 180) * 180, 0, "xyz"),
               [1, 1, 1],
             ),
           );
