@@ -46,6 +46,8 @@ import { getFogPass } from "@renderer/fog-pass/get-fog-pass";
 import { getSkyPass } from "@renderer/sky-and-fog/get-sky-pass";
 import { getTonemapPass } from "@renderer/tonemap-pass/get-tonemap-pass";
 import { getLutPass } from "@renderer/get-lut-pass/get-lut-pass";
+import { getSimpleFogPass } from "@renderer/simple-fog-pass/get-simple-fog-pass";
+import { getGlobalIlluminationPass } from "@renderer/get-global-illumination/get-global-illumination-pass";
 
 export const debugValues = new DebugValuesStore();
 export let gpuContext: GPUCanvasContext;
@@ -105,6 +107,8 @@ export type RenderArgs = {
   renderableEntities: Entity[];
   /** The ECS instance */
   ecs: ECS;
+  /** The GPU device */
+  device: GPUDevice;
 };
 
 export type RenderPass = {
@@ -196,11 +200,12 @@ export const init = async (
     getShadowsPass(),
     // getSkyPass(),
     // getBloomPass(),
-    // getFogPass(),
+    getGlobalIlluminationPass(),
+    getSimpleFogPass(),
     getTaaPass(),
     getTonemapPass(),
 
-    // getMotionBlurPass(),
+    getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
     // getVignettePass(15.0),
     fullscreenQuad(device),
@@ -378,8 +383,10 @@ const getMatricesBuffer = (camera: Camera, cameraTransform: Transform) => {
 };
 
 const getSunDirectionBuffer = () => {
-  // Multiply the existing direction vector by the rotation matrix
-  const newDirection = vec3.create(0.5, 1, -0.5);
+  // Rotate sun over time
+  let x = Math.cos(elapsedTime / 5000);
+  let z = Math.sin(elapsedTime / 5000);
+  const newDirection = vec3.create(x, 1, z);
 
   if (sunDirectionBuffer) {
     writeToFloatUniformBuffer(sunDirectionBuffer, [
@@ -550,6 +557,7 @@ export const frame = (
       cameraTransform,
       renderableEntities,
       ecs,
+      device,
     });
     if (computePass.timestampLabels?.length > 0) {
       beginningOfPassWriteIndex += computePass.timestampLabels.length * 2;

@@ -7,44 +7,6 @@ fn rcp(x: f32) -> f32 {
     return 1.0 / x;
 }
 
-fn mitchell_netravali_weight(x: f32) -> f32 {
-    let B = 1.0 / 3.0;
-    let C = 1.0 / 3.0;
-    let absX = abs(x);
-    if (absX < 1.0) {
-        return ((12.0 - 9.0 * B - 6.0 * C) * absX * absX * absX +
-                (-18.0 + 12.0 * B + 6.0 * C) * absX * absX +
-                (6.0 - 2.0 * B)) / 6.0;
-    } else if (absX < 2.0) {
-        return ((-B - 6.0 * C) * absX * absX * absX +
-                (6.0 * B + 30.0 * C) * absX * absX +
-                (-12.0 * B - 48.0 * C) * absX +
-                (8.0 * B + 24.0 * C)) / 6.0;
-    } else {
-        return 0.0;
-    }
-}
-
-fn mitchell_netravali_sample(tex: texture_2d<f32>, samp: sampler, uv: vec2<f32>, texelSize: vec2<f32>) -> vec4<f32> {
-    var color: vec4<f32> = vec4<f32>(0.0);
-    var totalWeight: f32 = 0.0;
-
-    for (var dy: i32 = -1; dy <= 2; dy = dy + 1) {
-        for (var dx: i32 = -1; dx <= 2; dx = dx + 1) {
-            let offset = vec2<f32>(f32(dx), f32(dy));
-            let sampleCoord = uv + offset * texelSize;
-            let weight = mitchell_netravali_weight(offset.x) * mitchell_netravali_weight(offset.y);
-
-            // Use nearest-neighbor sampling
-            color = color + textureSampleLevel(tex, samp, sampleCoord, 0) * weight;
-            totalWeight = totalWeight + weight;
-        }
-    }
-
-    // Normalize the final color
-    return color / totalWeight;
-}
-
 struct ViewProjectionMatrices {
   viewProjection : mat4x4<f32>,
   previousViewProjection : mat4x4<f32>,
@@ -86,7 +48,7 @@ const NEIGHBORHOOD_SAMPLE_POSITIONS = array<vec2<i32>, 8>(
 //@group(0) @binding(9) var<uniform> viewProjectionMatrices : ViewProjectionMatrices;
 
 const DEPTH_THRESHOLD : f32 = 4.0;
-const MIN_SOURCE_BLEND = 0.01;
+const MIN_SOURCE_BLEND = 0.05;
 
 @compute @workgroup_size(8, 8, 1)
 fn main(

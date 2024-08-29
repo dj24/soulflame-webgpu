@@ -8,13 +8,6 @@ export class DebugUI {
 
   constructor() {
     this.gui = new GUI();
-    this.gui
-      .add(debugValues, "targetSunRotateY", -3, 3)
-      .onChange((value: number) => {
-        debugValues.targetSunRotateY = value;
-      })
-      .listen();
-
     this.timingsFolder = this.gui.addFolder("timings");
     this.passesFolder = this.gui.addFolder("passes");
   }
