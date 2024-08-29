@@ -197,7 +197,7 @@ export const init = async (
     // getSkyPass(),
     // getBloomPass(),
     // getFogPass(),
-    // getTaaPass(),
+    getTaaPass(),
     getTonemapPass(),
 
     // getMotionBlurPass(),
