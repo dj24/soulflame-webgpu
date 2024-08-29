@@ -175,7 +175,7 @@ fn tracePixel(pixel: vec2<u32>){
     textureStore(albedoTex, pixel, vec4(albedo, 1));
     textureStore(normalTex, pixel, vec4(normal,1));
     textureStore(velocityTex, pixel, vec4(velocity,0,f32(bvhResult.voxelObjectIndex)));
-    textureStore(worldPosTex, pixel, vec4(worldPos - cameraPosition,0));
+    textureStore(worldPosTex, pixel, vec4(worldPos,0));
 }
 
 @compute @workgroup_size(16, 8, 1)

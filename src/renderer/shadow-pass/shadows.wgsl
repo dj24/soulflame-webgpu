@@ -25,11 +25,14 @@ fn diffuseRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f
   return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 0).hit;
 }
 
-fn calculateScreenSpaceUV(worldPos: vec3<f32>, viewProjection: mat4x4<f32>) -> vec2<f32> {
+fn calculateNDC(worldPos: vec3<f32>, viewProjection: mat4x4<f32>) -> vec3<f32> {
   let clipPos = viewProjection * vec4(worldPos, 1.0);
-  var ndc = clipPos.xy / clipPos.w;
-  let uv = ndc * -0.5 + 0.5;
-  return uv;
+  return clipPos.xyz / clipPos.w;
+}
+
+fn calculateNDCDirection(worldDirection: vec3<f32>, viewProjection: mat4x4<f32>) -> vec3<f32> {
+  let clipDirection = viewProjection * vec4(worldDirection, 0.0);
+  return clipDirection.xyz / clipDirection.w;
 }
 
 fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>) -> bool {
@@ -70,15 +73,13 @@ const SAMPLE_OFFSETS: array<vec2<i32>, 4> = array<vec2<i32>, 4>(
 fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32, blueNoiseOffset: vec2<i32>) -> vec3<f32>{
   let pixel = outputPixel * downscaleFactor;
   let albedoRef = textureLoad(albedoTex, pixel, 0);
-  let uv = (vec2<f32>(outputPixel) + vec2(0.5)) / vec2<f32>(textureDimensions(outputTex));
   var normalSample = textureLoad(normalTex, pixel, 0).rgb;
   let worldPosSample = textureLoad(worldPosTex, pixel, 0);
+  let uv = vec2<f32>(pixel) / vec2<f32>(textureDimensions(outputTex));
 
-  let distanceToSurface = length(worldPosSample.rgb);
-  if(distanceToSurface > 9999.0){ // SKY
-    return albedoRef.rgb * SKY_INTENSITY;
-  }
-  var worldPos = cameraPosition + worldPosSample.rgb;
+  let distanceToSurface = length(worldPosSample.rgb - cameraPosition);
+  var worldPos = worldPosSample.rgb;
+
   var samplePixel = pixel;
   samplePixel.x += i32(time.frame) * 32;
   samplePixel.y += i32(time.frame) * 16;
@@ -97,7 +98,7 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32, blueNoiseOffset: vec2
   let shadowRayDirection = normalize(sunDirection + randomInCosineWeightedHemisphere(r, sunDirection) * SCATTER_AMOUNT);
 
 //  radiance = abs(worldPos) % 8.0 * 0.125;
-//  let isInShadow = shadowRay(worldPos, shadowRayDirection, normalSample);
+  let isInShadow = shadowRay(worldPos, shadowRayDirection, normalSample);
   let viewDirection = normalize(cameraPosition - worldPos);
   let diffuse = max(dot(normalSample, sunDirection), 0.0);
   let specular = pow(max(dot(normalSample, normalize(sunDirection + viewDirection)), 0.0), 32.0);
@@ -105,24 +106,35 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32, blueNoiseOffset: vec2
 var lightIntensity = vec3(50.0);
 
   // Cosine weighted hemisphere sampling ambient occulsion
-  let randomDirection = normalize(normalSample + randomInCosineWeightedHemisphere(r, normalSample) * 1.0);
-  let rayStepLength = 0.1;
-  for(var i = 1; i < 8; i ++){
-    let stepWorldPos = worldPos + randomDirection * rayStepLength * f32(i);
-    let stepUV = calculateScreenSpaceUV(stepWorldPos, viewProjections.viewProjection);
-    let stepPixel = vec2<i32>(stepUV * vec2<f32>(textureDimensions(outputTex)));
-    let stepSurfaceWorldPos = textureLoad(worldPosTex, stepPixel, 0).rgb;
-    let stepDistanceToSurface = length(stepSurfaceWorldPos);
-    if(stepDistanceToSurface < distanceToSurface - 0.5){
-      lightIntensity =vec3(0.0);
-      break;
-    }
+  let ndc = calculateNDC(worldPos, viewProjections.viewProjection);
+  let rayStepLength = 0.0;
+  let rayDirection = normalize(normalSample + randomInCosineWeightedHemisphere(r, normalSample));
+  let worldPosRayEnd = worldPos + rayDirection * rayStepLength;
+  let ndcRayEnd = calculateNDC(worldPosRayEnd, viewProjections.viewProjection);
+  let ndcRayDirection = ndcRayEnd - ndc;
+
+  let stepNDC = ndc + ndcRayDirection;
+  let stepUV = stepNDC.xy * -0.5 + 0.5;
+  let stepPixel = vec2<i32>(stepUV * vec2<f32>(textureDimensions(outputTex)));
+
+  let uv2 = ndc.xy * -0.5 + 0.5;
+  let pixel2 = vec2<i32>(uv2 * vec2<f32>(textureDimensions(outputTex)));
+
+
+  let stepSurfaceWorldPos = textureLoad(worldPosTex, stepPixel, 0).rgb;
+  let worldPosSample2 = textureLoad(worldPosTex, stepPixel, 0);
+  let stepDistanceToSurface = length(stepSurfaceWorldPos - cameraPosition);
+  let distanceToSurface2 = length(worldPosSample2.rgb - cameraPosition);
+
+  if(stepDistanceToSurface < distanceToSurface){
+    lightIntensity =vec3(0.0);
   }
+
 //  return normalSample * 50.0;
 //  return randomDirection * 20.0;
-return abs(worldPos) % 8.0;
+//return abs(worldPos) % 8.0;
 //  return lightIntensity;
-//    return vec3(distanceToSurface * 0.01);
+    return select(vec3(distanceToSurface2 * 0.01), vec3(stepDistanceToSurface * 0.01), uv.x > 0.5);
 }
 
 @compute @workgroup_size(16, 8, 1)
