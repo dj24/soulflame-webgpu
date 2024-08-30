@@ -6,6 +6,7 @@ import raymarchVoxels from "../../shader/raymarch-voxels.wgsl";
 import bvh from "../../shader/bvh.wgsl";
 import gBufferRaymarch from "../g-buffer-raymarch.wgsl";
 import depth from "../../shader/depth.wgsl";
+import { copyGBufferTexture } from "../../abstractions/copy-g-buffer-texture";
 
 export const getBufferRaymarchPipeline = async () => {
   const normalEntry: GPUBindGroupLayoutEntry = {
@@ -21,7 +22,7 @@ export const getBufferRaymarchPipeline = async () => {
     binding: 5,
     visibility: GPUShaderStage.COMPUTE,
     storageTexture: {
-      format: "rgba8unorm",
+      format: "rgba16float",
       viewDimension: "2d",
     },
   };
@@ -136,7 +137,7 @@ export const getBufferRaymarchPipeline = async () => {
           @group(0) @binding(2) var<uniform> cameraPosition : vec3<f32>;
           @group(0) @binding(3) var<storage> voxelObjects : array<VoxelObject>;
           @group(0) @binding(4) var normalTex : texture_storage_2d<rgba16float, write>;
-          @group(0) @binding(5) var albedoTex : texture_storage_2d<rgba8unorm, write>;
+          @group(0) @binding(5) var albedoTex : texture_storage_2d<rgba16float, write>;
           @group(0) @binding(6) var depthWrite : texture_storage_2d<${DEPTH_FORMAT}, write>;
           @group(0) @binding(7) var velocityTex : texture_storage_2d<rgba16float, write>;
           @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;

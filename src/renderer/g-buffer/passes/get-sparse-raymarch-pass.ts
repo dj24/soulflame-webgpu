@@ -38,7 +38,7 @@ export const getSparseRaymarchPipeline = async () => {
     binding: 5,
     visibility: GPUShaderStage.COMPUTE,
     storageTexture: {
-      format: "rgba8unorm",
+      format: "rgba16float",
       viewDimension: "2d",
     },
   };
@@ -148,7 +148,7 @@ export const getSparseRaymarchPipeline = async () => {
           @group(0) @binding(2) var<uniform> cameraPosition : vec3<f32>;
           @group(0) @binding(3) var<storage> voxelObjects : array<VoxelObject>;
           @group(0) @binding(4) var normalTex : texture_storage_2d<rgba16float, write>;
-          @group(0) @binding(5) var albedoTex : texture_storage_2d<rgba8unorm, write>;
+          @group(0) @binding(5) var albedoTex : texture_storage_2d<rgba16float, write>;
           @group(0) @binding(6) var worldPosTex : texture_storage_2d<rgba32float, write>;
           @group(0) @binding(7) var velocityTex : texture_storage_2d<rgba16float, write>;
           @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;

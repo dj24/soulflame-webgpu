@@ -12,7 +12,7 @@ export const getInterpolatePipeline = async () => {
         binding: 0,
         visibility: GPUShaderStage.COMPUTE,
         storageTexture: {
-          format: "rgba8unorm",
+          format: "rgba16float",
           viewDimension: "2d",
         },
       },

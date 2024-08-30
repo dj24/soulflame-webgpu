@@ -114,7 +114,7 @@ const bindGroupLayoutDescriptor2: GPUBindGroupLayoutDescriptor = {
 
 const lpvTextureDescriptor: GPUTextureDescriptor = {
   size: {
-    width: VOLUME_SIZE,
+    width: VOLUME_SIZE * 3, // red, green, blue
     height: VOLUME_SIZE,
     depthOrArrayLayers: VOLUME_SIZE,
   },

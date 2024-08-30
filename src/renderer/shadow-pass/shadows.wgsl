@@ -80,10 +80,6 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32, blueNoiseOffset: vec2
   let distanceToSurface = length(worldPosSample.rgb - cameraPosition);
   var worldPos = worldPosSample.rgb;
 
-  if(distanceToSurface > 9999.0){
-   return albedoRef.rgb * SKY_COLOUR;
-  }
-
   var samplePixel = pixel;
   samplePixel.x += i32(time.frame) * 32;
   samplePixel.y += i32(time.frame) * 16;
@@ -102,13 +98,14 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32, blueNoiseOffset: vec2
   let shadowRayDirection = normalize(sunDirection + randomInCosineWeightedHemisphere(r, sunDirection) * SCATTER_AMOUNT);
 
   let isInShadow = shadowRay(worldPos, shadowRayDirection, normalSample);
-  let viewDirection = normalize(cameraPosition - worldPos);
-  let diffuse = max(dot(normalSample, sunDirection), 0.0);
-  let specular = pow(max(dot(normalSample, normalize(sunDirection + viewDirection)), 0.0), 32.0);
-  var lightIntensity = clamp(SUN_COLOR * (diffuse + specular), vec3(MIN_RADIANCE), select(vec3(maxSunIntensity), vec3(MIN_RADIANCE), isInShadow));
 
+  let inputRef = textureLoad(inputTex, pixel, 0);
 
-  return lightIntensity * albedoRef.rgb;
+  if(isInShadow){
+    return inputRef.rgb;
+  }
+
+  return SUN_COLOR;
 }
 
 @compute @workgroup_size(16, 8, 1)
@@ -193,6 +190,7 @@ fn composite(
 ) {
   let pixel = vec2<i32>(GlobalInvocationID.xy);
   let shadowRef = textureLoad(intermediaryTexture, pixel, 0);
+  let inputRef = textureLoad(inputTex, pixel, 0);
 
-  textureStore(outputTex, pixel, shadowRef);
+  textureStore(outputTex, pixel, shadowRef * inputRef);
 }

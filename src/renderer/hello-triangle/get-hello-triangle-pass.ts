@@ -109,7 +109,7 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
       entryPoint: "main",
       targets: [
         // albedo
-        { format: "rgba8unorm" },
+        { format: "rgba16float" },
         // normal
         { format: "rgba16float" },
         // world position

@@ -48,6 +48,7 @@ import { getTonemapPass } from "@renderer/tonemap-pass/get-tonemap-pass";
 import { getLutPass } from "@renderer/get-lut-pass/get-lut-pass";
 import { getSimpleFogPass } from "@renderer/simple-fog-pass/get-simple-fog-pass";
 import { getGlobalIlluminationPass } from "@renderer/get-global-illumination/get-global-illumination-pass";
+import { copyGBufferTexture } from "@renderer/abstractions/copy-g-buffer-texture";
 
 export const debugValues = new DebugValuesStore();
 export let gpuContext: GPUCanvasContext;
@@ -197,10 +198,23 @@ export const init = async (
   computePasses = await Promise.all([
     getClearPass(),
     getGBufferPass(),
-    getShadowsPass(),
+    (async () => {
+      return {
+        render: (renderArgs: RenderArgs) => {
+          copyGBufferTexture(
+            renderArgs.commandEncoder,
+            renderArgs.outputTextures.albedoTexture,
+            renderArgs.outputTextures.finalTexture,
+          );
+        },
+      };
+    })(),
+
     // getSkyPass(),
-    // getBloomPass(),
+
     getGlobalIlluminationPass(),
+    getShadowsPass(),
+    // getBloomPass(),
     getSimpleFogPass(),
     getTaaPass(),
     getTonemapPass(),

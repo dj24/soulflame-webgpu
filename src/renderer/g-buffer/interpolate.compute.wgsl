@@ -19,7 +19,7 @@ struct VoxelObject {
 }
 
 // Textures
-@group(0) @binding(0) var albedoTex : texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(0) var albedoTex : texture_storage_2d<rgba16float, write>;
 @group(0) @binding(1) var albedoCopyTex : texture_2d<f32>;
 @group(0) @binding(2) var velocityTex : texture_storage_2d<rgba16float, write>;
 @group(0) @binding(3) var velocityCopyTex : texture_2d<f32>;

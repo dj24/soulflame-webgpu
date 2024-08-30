@@ -65,7 +65,7 @@ export type GBufferTexture = InstanceType<
   ReturnType<typeof gBufferTextureFactory>
 >;
 
-export const AlbedoTexture = gBufferTextureFactory("albedo", "rgba8unorm");
+export const AlbedoTexture = gBufferTextureFactory("albedo", "rgba16float");
 export const NormalTexture = gBufferTextureFactory("normal", "rgba16float");
 export const DepthTexture = gBufferTextureFactory(
   "depth",
