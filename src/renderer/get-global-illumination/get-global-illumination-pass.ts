@@ -1,12 +1,77 @@
 import { RenderArgs, RenderPass } from "../app";
-import computeLPV from "./lpv.compute.wgsl";
+import compositeLPV from "./lpv.compute.wgsl";
+import fillLPV from "./fill-lpv.compute.wgsl";
+import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
+import bvh from "../shader/bvh.wgsl";
+import boxIntersection from "../shader/box-intersection.wgsl";
 const VOLUME_SIZE = 32;
 const LABEL = "global illumination";
 
-const layoutEntries: GPUBindGroupLayoutEntry[] = [
-  // World position texture
+const fillLayoutEntries: GPUBindGroupLayoutEntry[] = [
+  // LPV texture
+  {
+    binding: 0,
+    visibility: GPUShaderStage.COMPUTE,
+    storageTexture: {
+      format: "rgba32float",
+      viewDimension: "3d",
+    },
+  },
+  // Camera position
+  {
+    binding: 1,
+    visibility: GPUShaderStage.COMPUTE,
+    buffer: {
+      type: "uniform",
+    },
+  },
+  // Sun direction
   {
     binding: 2,
+    visibility: GPUShaderStage.COMPUTE,
+    buffer: {
+      type: "uniform",
+    },
+  },
+  // BVH buffer
+  {
+    binding: 3,
+    visibility: GPUShaderStage.COMPUTE,
+    buffer: {
+      type: "read-only-storage",
+    },
+  },
+  // Octree buffer
+  {
+    binding: 4,
+    visibility: GPUShaderStage.COMPUTE,
+    buffer: {
+      type: "read-only-storage",
+    },
+  },
+  // Voxel objects
+  {
+    binding: 5,
+    visibility: GPUShaderStage.COMPUTE,
+    buffer: {
+      type: "read-only-storage",
+    },
+  },
+];
+
+const compositeLayoutEntries: GPUBindGroupLayoutEntry[] = [
+  // LPV texture
+  {
+    binding: 0,
+    visibility: GPUShaderStage.COMPUTE,
+    texture: {
+      sampleType: "unfilterable-float",
+      viewDimension: "3d",
+    },
+  },
+  // World position texture
+  {
+    binding: 1,
     visibility: GPUShaderStage.COMPUTE,
     texture: {
       sampleType: "unfilterable-float",
@@ -14,7 +79,7 @@ const layoutEntries: GPUBindGroupLayoutEntry[] = [
   },
   // Normal texture
   {
-    binding: 3,
+    binding: 2,
     visibility: GPUShaderStage.COMPUTE,
     texture: {
       sampleType: "float",
@@ -22,7 +87,7 @@ const layoutEntries: GPUBindGroupLayoutEntry[] = [
   },
   // Output texture
   {
-    binding: 4,
+    binding: 3,
     visibility: GPUShaderStage.COMPUTE,
     storageTexture: {
       format: "rgba16float",
@@ -31,15 +96,7 @@ const layoutEntries: GPUBindGroupLayoutEntry[] = [
   },
   // Camera position
   {
-    binding: 5,
-    visibility: GPUShaderStage.COMPUTE,
-    buffer: {
-      type: "uniform",
-    },
-  },
-  // Sun direction
-  {
-    binding: 6,
+    binding: 4,
     visibility: GPUShaderStage.COMPUTE,
     buffer: {
       type: "uniform",
@@ -47,30 +104,12 @@ const layoutEntries: GPUBindGroupLayoutEntry[] = [
   },
 ];
 
-const writeLPVEntry: GPUBindGroupLayoutEntry = {
-  binding: 1,
-  visibility: GPUShaderStage.COMPUTE,
-  storageTexture: {
-    format: "rgba32float",
-    viewDimension: "3d",
-  },
-};
-
-const readLPVEntry: GPUBindGroupLayoutEntry = {
-  binding: 0,
-  visibility: GPUShaderStage.COMPUTE,
-  texture: {
-    sampleType: "unfilterable-float",
-    viewDimension: "3d",
-  },
-};
-
 const bindGroupLayoutDescriptor1: GPUBindGroupLayoutDescriptor = {
-  entries: [...layoutEntries, writeLPVEntry],
+  entries: fillLayoutEntries,
 };
 
 const bindGroupLayoutDescriptor2: GPUBindGroupLayoutDescriptor = {
-  entries: [...layoutEntries, readLPVEntry],
+  entries: compositeLayoutEntries,
 };
 
 const lpvTextureDescriptor: GPUTextureDescriptor = {
@@ -104,40 +143,43 @@ export const getGlobalIlluminationPass = async (): Promise<RenderPass> => {
       lightPropagationTexture =
         renderArgs.device.createTexture(lpvTextureDescriptor);
       lightPropagationTextureView = lightPropagationTexture.createView();
-      const baseEntries = [
-        {
-          binding: 2,
-          resource: renderArgs.outputTextures.worldPositionTexture.view,
-        },
-        {
-          binding: 3,
-          resource: renderArgs.outputTextures.normalTexture.view,
-        },
-        {
-          binding: 4,
-          resource: renderArgs.outputTextures.finalTexture.view,
-        },
-        {
-          binding: 5,
-          resource: {
-            buffer: renderArgs.cameraPositionBuffer,
-          },
-        },
-        {
-          binding: 6,
-          resource: {
-            buffer: renderArgs.sunDirectionBuffer,
-          },
-        },
-      ];
       bindGroup1 = renderArgs.device.createBindGroup({
         layout: bindGroupLayout1,
         entries: [
           {
-            binding: 1,
+            binding: 0,
             resource: lightPropagationTextureView,
           },
-          ...baseEntries,
+          {
+            binding: 1,
+            resource: {
+              buffer: renderArgs.cameraPositionBuffer,
+            },
+          },
+          {
+            binding: 2,
+            resource: {
+              buffer: renderArgs.sunDirectionBuffer,
+            },
+          },
+          {
+            binding: 3,
+            resource: {
+              buffer: renderArgs.bvhBuffer,
+            },
+          },
+          {
+            binding: 4,
+            resource: {
+              buffer: renderArgs.volumeAtlas.octreeBuffer,
+            },
+          },
+          {
+            binding: 5,
+            resource: {
+              buffer: renderArgs.transformationMatrixBuffer,
+            },
+          },
         ],
       });
       bindGroup2 = renderArgs.device.createBindGroup({
@@ -147,7 +189,24 @@ export const getGlobalIlluminationPass = async (): Promise<RenderPass> => {
             binding: 0,
             resource: lightPropagationTextureView,
           },
-          ...baseEntries,
+          {
+            binding: 1,
+            resource: renderArgs.outputTextures.worldPositionTexture.view,
+          },
+          {
+            binding: 2,
+            resource: renderArgs.outputTextures.normalTexture.view,
+          },
+          {
+            binding: 3,
+            resource: renderArgs.outputTextures.finalTexture.view,
+          },
+          {
+            binding: 4,
+            resource: {
+              buffer: renderArgs.cameraPositionBuffer,
+            },
+          },
         ],
       });
 
@@ -159,16 +218,21 @@ export const getGlobalIlluminationPass = async (): Promise<RenderPass> => {
         compute: {
           module: renderArgs.device.createShaderModule({
             code: `
-            @group(0) @binding(0) var lpvTexRead :  texture_3d<f32>;
-            @group(0) @binding(1) var lpvTexWrite : texture_storage_3d<rgba32float, write>;
-            @group(0) @binding(2) var worldPosTex : texture_2d<f32>;
-            @group(0) @binding(3) var normalTex : texture_2d<f32>;
-            @group(0) @binding(4) var outputTex : texture_storage_2d<rgba16float, write>;
-            @group(0) @binding(5) var<uniform> cameraPosition : vec3<f32>;
-            @group(0) @binding(6) var<uniform> sunDirection : vec3<f32>;
-            ${computeLPV}`,
+            const LPV_SCALE = 10;
+            
+            ${bvh}
+            @group(0) @binding(0) var lpvTexWrite : texture_storage_3d<rgba32float, write>;
+            @group(0) @binding(1) var<uniform> cameraPosition : vec3<f32>;
+            @group(0) @binding(2) var<uniform> sunDirection : vec3<f32>;
+            @group(0) @binding(3) var<storage, read> bvhNodes : array<BVHNode>;
+            @group(0) @binding(4) var<storage, read> octreeBuffer : array<vec2<u32>>;
+            @group(0) @binding(5) var<storage> voxelObjects : array<VoxelObject>;
+
+            ${boxIntersection}
+            ${raymarchVoxels}
+            ${fillLPV}`,
           }),
-          entryPoint: "fill",
+          entryPoint: "main",
         },
       });
       compositePipeline = renderArgs.device.createComputePipeline({
@@ -179,16 +243,15 @@ export const getGlobalIlluminationPass = async (): Promise<RenderPass> => {
         compute: {
           module: renderArgs.device.createShaderModule({
             code: `
+            const LPV_SCALE = 10;
             @group(0) @binding(0) var lpvTexRead :  texture_3d<f32>;
-            @group(0) @binding(1) var lpvTexWrite : texture_storage_3d<rgba32float, write>;
-            @group(0) @binding(2) var worldPosTex : texture_2d<f32>;
-            @group(0) @binding(3) var normalTex : texture_2d<f32>;
-            @group(0) @binding(4) var outputTex : texture_storage_2d<rgba16float, write>;
-            @group(0) @binding(5) var<uniform> cameraPosition : vec3<f32>;
-            @group(0) @binding(6) var<uniform> sunDirection : vec3<f32>;
-            ${computeLPV}`,
+            @group(0) @binding(1) var worldPosTex : texture_2d<f32>;
+            @group(0) @binding(2) var normalTex : texture_2d<f32>;
+            @group(0) @binding(3) var outputTex : texture_storage_2d<rgba16float, write>;
+            @group(0) @binding(4) var<uniform> cameraPosition : vec3<f32>;
+            ${compositeLPV}`,
           }),
-          entryPoint: "composite",
+          entryPoint: "main",
         },
       });
     }
