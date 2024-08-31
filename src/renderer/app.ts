@@ -200,6 +200,7 @@ export const init = async (
     getGBufferPass(),
     (async () => {
       return {
+        label: "copy albedo",
         render: (renderArgs: RenderArgs) => {
           copyGBufferTexture(
             renderArgs.commandEncoder,
@@ -213,9 +214,9 @@ export const init = async (
     // getSkyPass(),
 
     getGlobalIlluminationPass(),
-    getShadowsPass(),
+    // getShadowsPass(),
     // getBloomPass(),
-    getSimpleFogPass(),
+    // getSimpleFogPass(),
     getTaaPass(),
     getTonemapPass(),
 

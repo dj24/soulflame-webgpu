@@ -13,7 +13,7 @@ const fillLayoutEntries: GPUBindGroupLayoutEntry[] = [
     binding: 0,
     visibility: GPUShaderStage.COMPUTE,
     storageTexture: {
-      format: "rgba32float",
+      format: "rgba16float",
       viewDimension: "3d",
     },
   },
@@ -65,7 +65,7 @@ const compositeLayoutEntries: GPUBindGroupLayoutEntry[] = [
     binding: 0,
     visibility: GPUShaderStage.COMPUTE,
     texture: {
-      sampleType: "unfilterable-float",
+      sampleType: "float",
       viewDimension: "3d",
     },
   },
@@ -102,6 +102,12 @@ const compositeLayoutEntries: GPUBindGroupLayoutEntry[] = [
       type: "uniform",
     },
   },
+  // Linear sampler
+  {
+    binding: 5,
+    visibility: GPUShaderStage.COMPUTE,
+    sampler: {},
+  },
 ];
 
 const bindGroupLayoutDescriptor1: GPUBindGroupLayoutDescriptor = {
@@ -119,7 +125,7 @@ const lpvTextureDescriptor: GPUTextureDescriptor = {
     depthOrArrayLayers: VOLUME_SIZE,
   },
   dimension: "3d",
-  format: "rgba32float",
+  format: "rgba16float",
   usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
 };
 
@@ -128,6 +134,7 @@ export const getGlobalIlluminationPass = async (): Promise<RenderPass> => {
   let lightPropagationTextureView: GPUTextureView;
   let bindGroup1: GPUBindGroup;
   let bindGroup2: GPUBindGroup;
+  let linearSampler: GPUSampler;
   let fillPipeline: GPUComputePipeline;
   let compositePipeline: GPUComputePipeline;
 
@@ -140,6 +147,10 @@ export const getGlobalIlluminationPass = async (): Promise<RenderPass> => {
       const bindGroupLayout2 = renderArgs.device.createBindGroupLayout(
         bindGroupLayoutDescriptor2,
       );
+      const linearSampler = renderArgs.device.createSampler({
+        magFilter: "linear",
+        minFilter: "linear",
+      });
       lightPropagationTexture =
         renderArgs.device.createTexture(lpvTextureDescriptor);
       lightPropagationTextureView = lightPropagationTexture.createView();
@@ -207,6 +218,10 @@ export const getGlobalIlluminationPass = async (): Promise<RenderPass> => {
               buffer: renderArgs.cameraPositionBuffer,
             },
           },
+          {
+            binding: 5,
+            resource: linearSampler,
+          },
         ],
       });
 
@@ -221,7 +236,7 @@ export const getGlobalIlluminationPass = async (): Promise<RenderPass> => {
             const LPV_SCALE = 10;
             
             ${bvh}
-            @group(0) @binding(0) var lpvTexWrite : texture_storage_3d<rgba32float, write>;
+            @group(0) @binding(0) var lpvTexWrite : texture_storage_3d<rgba16float, write>;
             @group(0) @binding(1) var<uniform> cameraPosition : vec3<f32>;
             @group(0) @binding(2) var<uniform> sunDirection : vec3<f32>;
             @group(0) @binding(3) var<storage, read> bvhNodes : array<BVHNode>;
@@ -249,6 +264,7 @@ export const getGlobalIlluminationPass = async (): Promise<RenderPass> => {
             @group(0) @binding(2) var normalTex : texture_2d<f32>;
             @group(0) @binding(3) var outputTex : texture_storage_2d<rgba16float, write>;
             @group(0) @binding(4) var<uniform> cameraPosition : vec3<f32>;
+            @group(0) @binding(5) var linearSampler : sampler;
             ${compositeLPV}`,
           }),
           entryPoint: "main",
@@ -264,7 +280,7 @@ export const getGlobalIlluminationPass = async (): Promise<RenderPass> => {
       pass.setPipeline(fillPipeline);
       pass.setBindGroup(0, bindGroup1);
       pass.dispatchWorkgroups(
-        lightPropagationTexture.width / 4,
+        32 / 4,
         lightPropagationTexture.height / 4,
         lightPropagationTexture.depthOrArrayLayers / 4,
       );

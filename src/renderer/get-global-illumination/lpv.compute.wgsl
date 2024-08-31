@@ -15,6 +15,7 @@ fn main(
 ) {
   let pixel = id.xy;
   let worldPos = textureLoad(worldPosTex, pixel, 0).xyz;
+  let lpvTexDim = textureDimensions(lpvTexRead);
 
   if(distance(worldPos, cameraPosition) > 9999.0){
     return;
@@ -27,10 +28,13 @@ fn main(
     return;
   }
 
-  let lpvVoxel = vec3<u32>(lpvPos);
-  let lpvSampleR = textureLoad(lpvTexRead, lpvVoxel, 0);
-  let lpvSampleG = textureLoad(lpvTexRead, lpvVoxel + vec3<u32>(32, 0, 0), 0);
-  let lpvSampleB = textureLoad(lpvTexRead, lpvVoxel + vec3<u32>(64, 0, 0), 0);
+  let lpvRedUV = vec3(lpvPos.x / 96., lpvPos.y / 32., lpvPos.z / 32.);
+  let lpvGreenUV = vec3(lpvPos.x / 96., lpvPos.y / 32., lpvPos.z / 32.) + vec3(1.0 / 3.0, 0.0, 0.0);
+  let lpvBlueUV = vec3(lpvPos.x / 96., lpvPos.y / 32., lpvPos.z / 32.) + vec3(2.0 / 3.0, 0.0, 0.0);
+
+  let lpvSampleR = textureSampleLevel(lpvTexRead, linearSampler, lpvRedUV, 0.);
+  let lpvSampleG = textureSampleLevel(lpvTexRead, linearSampler, lpvGreenUV, 0.);
+  let lpvSampleB = textureSampleLevel(lpvTexRead, linearSampler, lpvBlueUV, 0.);
 
   let normal = textureLoad(normalTex, pixel, 0).xyz;
   let shBasis = SHBasis(normal);
