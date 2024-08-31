@@ -70,7 +70,7 @@ export class Renderer extends System {
           this.ecs.addComponent(
             newEntity,
             new Transform(
-              [x + Math.random() * 50, 30, z + Math.random() * 50],
+              [x, 30, z],
               quat.fromEuler(0, (Math.PI / 180) * 180, 0, "xyz"),
               [1, 1, 1],
             ),

@@ -15,7 +15,7 @@ fn main(
 ) {
   let pixel = id.xy;
   let worldPos = textureLoad(worldPosTex, pixel, 0).xyz;
-  let lpvTexDim = textureDimensions(lpvTexRead);
+  let lpvTexDim = vec3<f32>(textureDimensions(lpvTexRead));
 
   if(distance(worldPos, cameraPosition) > 9999.0){
     return;
@@ -24,13 +24,13 @@ fn main(
   let relativeToCameraPos = worldPos;
   let lpvPos = relativeToCameraPos / LPV_SCALE;
 
-  if(any(lpvPos < vec3(0.0)) || any(lpvPos > vec3(32.0))){
+  if(any(lpvPos < vec3(0.0)) || any(lpvPos > vec3(lpvTexDim.z))){
     return;
   }
 
-  let lpvRedUV = vec3(lpvPos.x / 96., lpvPos.y / 32., lpvPos.z / 32.);
-  let lpvGreenUV = vec3(lpvPos.x / 96., lpvPos.y / 32., lpvPos.z / 32.) + vec3(1.0 / 3.0, 0.0, 0.0);
-  let lpvBlueUV = vec3(lpvPos.x / 96., lpvPos.y / 32., lpvPos.z / 32.) + vec3(2.0 / 3.0, 0.0, 0.0);
+  let lpvRedUV = lpvPos / lpvTexDim;
+  let lpvGreenUV = (lpvPos + vec3(lpvTexDim.z + 1., 0.0, 0.0)) / lpvTexDim;
+  let lpvBlueUV = (lpvPos + vec3(lpvTexDim.z * 2. + 2., 0.0, 0.0)) / lpvTexDim;
 
   let lpvSampleR = textureSampleLevel(lpvTexRead, linearSampler, lpvRedUV, 0.);
   let lpvSampleG = textureSampleLevel(lpvTexRead, linearSampler, lpvGreenUV, 0.);
@@ -44,5 +44,8 @@ fn main(
 
 
   //TODO: multiply by input sample
-  textureStore(outputTex, pixel, vec4<f32>(lightR, lightG, lightB, 1.0));
+  let light = vec3<f32>(lightR, lightG, lightB);
+  let currentColour = textureLoad(currentOutputTexture, pixel, 0).xyz;
+
+  textureStore(outputTex, pixel, vec4<f32>(light, 1.0));
 }

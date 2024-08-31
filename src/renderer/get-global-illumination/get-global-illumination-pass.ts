@@ -3,8 +3,15 @@ import compositeLPV from "./lpv.compute.wgsl";
 import fillLPV from "./fill-lpv.compute.wgsl";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import bvh from "../shader/bvh.wgsl";
+import randomCommon from "../random-common.wgsl";
 import boxIntersection from "../shader/box-intersection.wgsl";
-const VOLUME_SIZE = 32;
+import {
+  copyGBufferTexture,
+  createCopyOfGBufferTexture,
+} from "@renderer/abstractions/copy-g-buffer-texture";
+import { GBufferTexture } from "@renderer/abstractions/g-buffer-texture";
+const VOLUME_SIZE = 64;
+const VOLUME_SCALE = 5;
 const LABEL = "global illumination";
 
 const fillLayoutEntries: GPUBindGroupLayoutEntry[] = [
@@ -55,6 +62,23 @@ const fillLayoutEntries: GPUBindGroupLayoutEntry[] = [
     visibility: GPUShaderStage.COMPUTE,
     buffer: {
       type: "read-only-storage",
+    },
+  },
+  // Time buffer
+  {
+    binding: 6,
+    visibility: GPUShaderStage.COMPUTE,
+    buffer: {
+      type: "uniform",
+    },
+  },
+  // Previous lpv texture
+  {
+    binding: 7,
+    visibility: GPUShaderStage.COMPUTE,
+    texture: {
+      sampleType: "float",
+      viewDimension: "3d",
     },
   },
 ];
@@ -108,6 +132,14 @@ const compositeLayoutEntries: GPUBindGroupLayoutEntry[] = [
     visibility: GPUShaderStage.COMPUTE,
     sampler: {},
   },
+  // Current output texture
+  {
+    binding: 6,
+    visibility: GPUShaderStage.COMPUTE,
+    texture: {
+      sampleType: "float",
+    },
+  },
 ];
 
 const bindGroupLayoutDescriptor1: GPUBindGroupLayoutDescriptor = {
@@ -120,23 +152,29 @@ const bindGroupLayoutDescriptor2: GPUBindGroupLayoutDescriptor = {
 
 const lpvTextureDescriptor: GPUTextureDescriptor = {
   size: {
-    width: VOLUME_SIZE * 3, // red, green, blue
+    width: VOLUME_SIZE * 3 + 2, // red, green, blue, 1 gap between each to prevent bleeding
     height: VOLUME_SIZE,
     depthOrArrayLayers: VOLUME_SIZE,
   },
   dimension: "3d",
   format: "rgba16float",
-  usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+  usage:
+    GPUTextureUsage.STORAGE_BINDING |
+    GPUTextureUsage.TEXTURE_BINDING |
+    GPUTextureUsage.COPY_SRC |
+    GPUTextureUsage.COPY_DST,
 };
 
 export const getGlobalIlluminationPass = async (): Promise<RenderPass> => {
   let lightPropagationTexture: GPUTexture;
   let lightPropagationTextureView: GPUTextureView;
+  let previousLightPropagationTexture: GPUTexture;
+  let previousLightPropagationTextureView: GPUTextureView;
   let bindGroup1: GPUBindGroup;
   let bindGroup2: GPUBindGroup;
-  let linearSampler: GPUSampler;
   let fillPipeline: GPUComputePipeline;
   let compositePipeline: GPUComputePipeline;
+  let copiedOutputTexture: GBufferTexture;
 
   const render = (renderArgs: RenderArgs) => {
     // Create resources once
@@ -151,9 +189,18 @@ export const getGlobalIlluminationPass = async (): Promise<RenderPass> => {
         magFilter: "linear",
         minFilter: "linear",
       });
+      copiedOutputTexture = createCopyOfGBufferTexture(
+        renderArgs.device,
+        renderArgs.outputTextures.finalTexture,
+      );
       lightPropagationTexture =
         renderArgs.device.createTexture(lpvTextureDescriptor);
       lightPropagationTextureView = lightPropagationTexture.createView();
+      previousLightPropagationTexture =
+        renderArgs.device.createTexture(lpvTextureDescriptor);
+      previousLightPropagationTextureView =
+        previousLightPropagationTexture.createView();
+
       bindGroup1 = renderArgs.device.createBindGroup({
         layout: bindGroupLayout1,
         entries: [
@@ -191,6 +238,16 @@ export const getGlobalIlluminationPass = async (): Promise<RenderPass> => {
               buffer: renderArgs.transformationMatrixBuffer,
             },
           },
+          {
+            binding: 6,
+            resource: {
+              buffer: renderArgs.timeBuffer,
+            },
+          },
+          {
+            binding: 7,
+            resource: previousLightPropagationTextureView,
+          },
         ],
       });
       bindGroup2 = renderArgs.device.createBindGroup({
@@ -222,6 +279,10 @@ export const getGlobalIlluminationPass = async (): Promise<RenderPass> => {
             binding: 5,
             resource: linearSampler,
           },
+          {
+            binding: 6,
+            resource: copiedOutputTexture.view,
+          },
         ],
       });
 
@@ -233,15 +294,24 @@ export const getGlobalIlluminationPass = async (): Promise<RenderPass> => {
         compute: {
           module: renderArgs.device.createShaderModule({
             code: `
-            const LPV_SCALE = 10;
+            const LPV_SCALE = ${VOLUME_SCALE};
             
+            struct Time {
+              frame: u32,
+              deltaTime: f32,
+              elapsed: f32
+            };
+                        
             ${bvh}
+            ${randomCommon}
             @group(0) @binding(0) var lpvTexWrite : texture_storage_3d<rgba16float, write>;
             @group(0) @binding(1) var<uniform> cameraPosition : vec3<f32>;
             @group(0) @binding(2) var<uniform> sunDirection : vec3<f32>;
             @group(0) @binding(3) var<storage, read> bvhNodes : array<BVHNode>;
             @group(0) @binding(4) var<storage, read> octreeBuffer : array<vec2<u32>>;
             @group(0) @binding(5) var<storage> voxelObjects : array<VoxelObject>;
+            @group(0) @binding(6) var<uniform> time : Time;
+            @group(0) @binding(7) var previousLpvTex : texture_3d<f32>;
 
             ${boxIntersection}
             ${raymarchVoxels}
@@ -258,19 +328,26 @@ export const getGlobalIlluminationPass = async (): Promise<RenderPass> => {
         compute: {
           module: renderArgs.device.createShaderModule({
             code: `
-            const LPV_SCALE = 10;
+            const LPV_SCALE = ${VOLUME_SCALE};
             @group(0) @binding(0) var lpvTexRead :  texture_3d<f32>;
             @group(0) @binding(1) var worldPosTex : texture_2d<f32>;
             @group(0) @binding(2) var normalTex : texture_2d<f32>;
             @group(0) @binding(3) var outputTex : texture_storage_2d<rgba16float, write>;
             @group(0) @binding(4) var<uniform> cameraPosition : vec3<f32>;
             @group(0) @binding(5) var linearSampler : sampler;
+            @group(0) @binding(6) var currentOutputTexture : texture_2d<f32>;
             ${compositeLPV}`,
           }),
           entryPoint: "main",
         },
       });
     }
+
+    copyGBufferTexture(
+      renderArgs.commandEncoder,
+      renderArgs.outputTextures.finalTexture,
+      copiedOutputTexture,
+    );
 
     // Fill the light propagation volume
     {
@@ -306,6 +383,23 @@ export const getGlobalIlluminationPass = async (): Promise<RenderPass> => {
         1,
       );
       pass.end();
+    }
+
+    // Copy the light propagation texture to the previous light propagation texture
+    {
+      renderArgs.commandEncoder.copyTextureToTexture(
+        {
+          texture: lightPropagationTexture,
+        },
+        {
+          texture: previousLightPropagationTexture,
+        },
+        {
+          width: lightPropagationTexture.width,
+          height: lightPropagationTexture.height,
+          depthOrArrayLayers: lightPropagationTexture.depthOrArrayLayers,
+        },
+      );
     }
   };
 

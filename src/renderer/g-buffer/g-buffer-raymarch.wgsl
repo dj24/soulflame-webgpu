@@ -167,7 +167,7 @@ fn tracePixel(pixel: vec2<u32>){
       worldPos = rayOrigin + rayDirection * bvhResult.t;
     }
     else{
-      albedo = mix(vec3<f32>(0.0, 0.4, 0.8), vec3<f32>(0.6, 0.8, 1.0), uv.y);
+      albedo = vec3(0.0);
       worldPos = rayOrigin + skyDomeIntersection(rayOrigin, rayDirection) * rayDirection;
     }
     velocity = getVelocityStatic(worldPos, viewProjections);
