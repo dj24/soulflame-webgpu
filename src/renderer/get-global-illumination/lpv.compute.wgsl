@@ -47,5 +47,5 @@ fn main(
   let light = vec3<f32>(lightR, lightG, lightB);
   let currentColour = textureLoad(currentOutputTexture, pixel, 0).xyz;
 
-  textureStore(outputTex, pixel, vec4<f32>(light, 1.0));
+  textureStore(outputTex, pixel, vec4<f32>(light * currentColour, 1.0));
 }

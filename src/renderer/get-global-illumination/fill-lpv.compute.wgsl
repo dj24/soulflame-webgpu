@@ -8,8 +8,8 @@ fn SHBasis(lightDir: vec3<f32>) -> vec4<f32> {
     return vec4<f32>(sh0, sh1, sh2, sh3);
 }
 
-const SUN_COLOUR = vec3<f32>(1.);
-const POINT_LIGHT_COLOUR = vec3<f32>(800., 0,1000.);
+const SUN_COLOUR = vec3<f32>(20.);
+const POINT_LIGHT_COLOUR = vec3<f32>(8000.);
 const VOXEL_CORNERS = array<vec3<f32>, 8>(
   vec3<f32>(0.0, 0.0, 0.0),
   vec3<f32>(1.0, 0.0, 0.0),
@@ -21,7 +21,7 @@ const VOXEL_CORNERS = array<vec3<f32>, 8>(
   vec3<f32>(1.0, 1.0, 1.0)
 );
 
-const PREVIOUS_BLEND = 0.05;
+const PREVIOUS_BLEND = 0.01;
 
 @compute @workgroup_size(4, 4, 4)
 fn main(
@@ -69,9 +69,9 @@ fn main(
   let previousGreenBasis = textureLoad(previousLpvTex, voxel + vec3<u32>(lpvTexDim.z + 1, 0, 0), 0);
   let previousBlueBasis = textureLoad(previousLpvTex, voxel + vec3<u32>(lpvTexDim.z * 2 + 2, 0, 0), 0);
 
-  let currentRedBasis = lightSHBasisR + sunSHBasisR;
-  let currentGreenBasis =  lightSHBasisG + sunSHBasisG;
-  let currentBlueBasis = lightSHBasisB + sunSHBasisB;
+  let currentRedBasis = sunSHBasisR;
+  let currentGreenBasis =  sunSHBasisG;
+  let currentBlueBasis = sunSHBasisB;
 
   let redBasis = mix(previousRedBasis, currentRedBasis, PREVIOUS_BLEND);
   let greenBasis = mix(previousGreenBasis, currentGreenBasis, PREVIOUS_BLEND);

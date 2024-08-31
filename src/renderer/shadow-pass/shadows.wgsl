@@ -1,4 +1,4 @@
-const SUN_COLOR = vec3(0.6,0.5,0.4) * 100.0;
+const SUN_COLOR = vec3(0.6,0.5,0.4) * 20.0;
 const MOON_COLOR = vec3<f32>(0.5, 0.5, 1.0);
 const MIN_RADIANCE = 0.0;
 const SUBPIXEL_SAMPLE_POSITIONS: array<vec2<f32>, 8> = array<vec2<f32>, 8>(
@@ -17,7 +17,6 @@ const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const SHADOW_ACNE_OFFSET: f32 = 0.01;
 const SCATTER_AMOUNT: f32 = 0.02;
 const POSITION_SCATTER_AMOUNT: f32 = 0.00;
-const SKY_INTENSITY: f32 = 50.0;
 
 // TODO: offset in object space instead of world space to scale with object size
 fn diffuseRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>, voxelObjectSize: f32) -> bool {
