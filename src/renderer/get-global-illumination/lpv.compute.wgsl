@@ -17,10 +17,6 @@ fn main(
   let worldPos = textureLoad(worldPosTex, pixel, 0).xyz;
   let lpvTexDim = vec3<f32>(textureDimensions(lpvTexRead));
 
-  if(distance(worldPos, cameraPosition) > 9999.0){
-    return;
-  }
-
   let relativeToCameraPos = worldPos;
   let lpvPos = relativeToCameraPos / LPV_SCALE;
 
@@ -42,10 +38,10 @@ fn main(
   let lightG = max(0., dot(shBasis, lpvSampleG));
   let lightB = max(0., dot(shBasis, lpvSampleB));
 
-
-  //TODO: multiply by input sample
   let light = vec3<f32>(lightR, lightG, lightB);
   let currentColour = textureLoad(currentOutputTexture, pixel, 0).xyz;
 
-  textureStore(outputTex, pixel, vec4<f32>(light * currentColour, 1.0));
+  let output = light * currentColour;
+
+  textureStore(outputTex, pixel, vec4<f32>(output, 1.0));
 }

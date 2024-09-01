@@ -8,8 +8,8 @@ fn SHBasis(lightDir: vec3<f32>) -> vec4<f32> {
     return vec4<f32>(sh0, sh1, sh2, sh3);
 }
 
-const SUN_COLOUR = vec3<f32>(20.);
-const POINT_LIGHT_COLOUR = vec3<f32>(8000.);
+const SUN_COLOUR = vec3<f32>(1.);
+const POINT_LIGHT_COLOUR = vec3<f32>(400., 100., 100.);
 const VOXEL_CORNERS = array<vec3<f32>, 8>(
   vec3<f32>(0.0, 0.0, 0.0),
   vec3<f32>(1.0, 0.0, 0.0),
@@ -21,45 +21,29 @@ const VOXEL_CORNERS = array<vec3<f32>, 8>(
   vec3<f32>(1.0, 1.0, 1.0)
 );
 
-const PREVIOUS_BLEND = 0.01;
+const PREVIOUS_BLEND = 0.02;
 
 @compute @workgroup_size(4, 4, 4)
 fn main(
     @builtin(global_invocation_id) voxel : vec3<u32>
 ) {
   let lpvTexDim = textureDimensions(lpvTexWrite);
-  let pointLightPos = vec3<f32>(sin(time.elapsed) * 160. + 80.,40.0,160.);
+  let pointLightPos = vec3<f32>(15.,22.0, 95.);
   let voxelOrigin = vec3<f32>(voxel) * f32(LPV_SCALE);
-  let voxelCenter = voxelOrigin + randomInUnitSphere(vec2(time.elapsed, -time.elapsed)) * f32(LPV_SCALE);
+  let voxelCenter = voxelOrigin + vec3(f32(LPV_SCALE) * 0.5) + randomInUnitSphere(vec2(time.elapsed, -time.elapsed)) * f32(LPV_SCALE) * 0.5;
   let pointLightDir = normalize(pointLightPos - voxelCenter);
-//  var pointLightAttenuation = 1.0 / length(pointLightPos - voxelCenter);
-//
-  var pointLightAttenuation = 0.0;
+  var pointLightAttenuation = 1.0 / length(pointLightPos - voxelCenter);
 
-  var sunLightAttenuation = 0.0;
 
-  // If any of the corners are not in shadow, apply the light
-//  for(var i = 0u; i < 8u; i = i + 1u){
-//    let corner = VOXEL_CORNERS[i];
-//    let cornerWorldPos = voxelOrigin + corner * f32(LPV_SCALE);
-//    let cornerLightDir = normalize(pointLightPos - cornerWorldPos);
-//    if(!rayMarchBVH(cornerWorldPos, cornerLightDir).hit){
-//      pointLightAttenuation = 1.0 / length(pointLightPos - voxelCenter);
-//      break;
-//    }
-//  }
-
-  if(!rayMarchBVH(voxelCenter, pointLightDir).hit){
-    pointLightAttenuation = 1.0 / length(pointLightPos - voxelCenter);
+  var sunLightAttenuation = vec3(50.0);
+  let sunRayMarch = rayMarchBVH(voxelCenter, sunDirection);
+  if(sunRayMarch.hit){
+    sunLightAttenuation = sunRayMarch.colour * 10.0;
   }
 
-  if(!rayMarchBVH(voxelCenter, sunDirection).hit){
-    sunLightAttenuation = 1.0;
-  }
-
-  let sunSHBasisR = SHBasis(sunDirection) * SUN_COLOUR.r * sunLightAttenuation;
-  let sunSHBasisG = SHBasis(sunDirection) * SUN_COLOUR.g * sunLightAttenuation;
-  let sunSHBasisB = SHBasis(sunDirection) * SUN_COLOUR.b * sunLightAttenuation;
+  let sunSHBasisR = SHBasis(sunDirection) * SUN_COLOUR.r * sunLightAttenuation.r;
+  let sunSHBasisG = SHBasis(sunDirection) * SUN_COLOUR.g * sunLightAttenuation.g;
+  let sunSHBasisB = SHBasis(sunDirection) * SUN_COLOUR.b * sunLightAttenuation.b;
 
   let lightSHBasisR = SHBasis(pointLightDir) * POINT_LIGHT_COLOUR.r * pointLightAttenuation;
   let lightSHBasisG = SHBasis(pointLightDir) * POINT_LIGHT_COLOUR.g * pointLightAttenuation;
@@ -69,9 +53,9 @@ fn main(
   let previousGreenBasis = textureLoad(previousLpvTex, voxel + vec3<u32>(lpvTexDim.z + 1, 0, 0), 0);
   let previousBlueBasis = textureLoad(previousLpvTex, voxel + vec3<u32>(lpvTexDim.z * 2 + 2, 0, 0), 0);
 
-  let currentRedBasis = sunSHBasisR;
-  let currentGreenBasis =  sunSHBasisG;
-  let currentBlueBasis = sunSHBasisB;
+  let currentRedBasis =  sunSHBasisR + lightSHBasisR;
+  let currentGreenBasis = sunSHBasisG + lightSHBasisG;
+  let currentBlueBasis = sunSHBasisB + lightSHBasisB;
 
   let redBasis = mix(previousRedBasis, currentRedBasis, PREVIOUS_BLEND);
   let greenBasis = mix(previousGreenBasis, currentGreenBasis, PREVIOUS_BLEND);

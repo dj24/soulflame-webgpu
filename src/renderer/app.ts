@@ -216,7 +216,7 @@ export const init = async (
     getGlobalIlluminationPass(),
     getShadowsPass(),
     // getBloomPass(),
-    getSimpleFogPass(),
+    // getSimpleFogPass(),
     getTaaPass(),
     getTonemapPass(),
 

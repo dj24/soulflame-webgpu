@@ -11,7 +11,7 @@ import {
 } from "@renderer/abstractions/copy-g-buffer-texture";
 import { GBufferTexture } from "@renderer/abstractions/g-buffer-texture";
 const VOLUME_SIZE = 64;
-const VOLUME_SCALE = 5;
+const VOLUME_SCALE = 4;
 const LABEL = "global illumination";
 
 const fillLayoutEntries: GPUBindGroupLayoutEntry[] = [

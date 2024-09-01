@@ -13,9 +13,8 @@ const SUBPIXEL_SAMPLE_POSITIONS: array<vec2<f32>, 8> = array<vec2<f32>, 8>(
 );
 const BLUE_NOISE_SIZE = 511;
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
-const SKY_COLOUR: vec3<f32> = vec3<f32>(0.6, 0.8, 0.9);
 const SHADOW_ACNE_OFFSET: f32 = 0.01;
-const SCATTER_AMOUNT: f32 = 0.02;
+const SCATTER_AMOUNT: f32 = 0.05;
 const POSITION_SCATTER_AMOUNT: f32 = 0.00;
 
 // TODO: offset in object space instead of world space to scale with object size
@@ -189,7 +188,8 @@ fn composite(
 ) {
   let pixel = vec2<i32>(GlobalInvocationID.xy);
   let shadowRef = textureLoad(intermediaryTexture, pixel, 0);
+  let albedoRef = textureLoad(albedoTex, pixel, 0);
   let inputRef = textureLoad(inputTex, pixel, 0);
 
-  textureStore(outputTex, pixel, shadowRef * inputRef);
+  textureStore(outputTex, pixel, shadowRef * albedoRef + inputRef);
 }
