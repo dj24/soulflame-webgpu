@@ -68,20 +68,12 @@ const processNewVoxelImport = async (
   const arrayBuffer = await response.arrayBuffer();
   const voxels = convertVxm(arrayBuffer);
 
-  console.time(`Create texture from voxels for ${path}`);
-  let texture = await createTextureFromVoxels(device, voxels);
-  console.timeEnd(`Create texture from voxels for ${path}`);
-
   console.time(`Create octree for ${path}`);
   const octree = new Octree(voxels);
   const octreeArrayBuffer = octreeToArrayBuffer(octree);
   console.timeEnd(`Create octree for ${path}`);
 
-  console.time(`Create palette texture for ${path}`);
-  const palette = await createPaletteTextureFromVoxels(device, voxels);
-  console.timeEnd(`Create palette texture for ${path}`);
-
-  await volumeAtlas.addVolume(texture, palette, path, octreeArrayBuffer);
+  await volumeAtlas.addVolume(path, voxels.SIZE, octreeArrayBuffer);
 };
 
 export const createVoxelObject = async (

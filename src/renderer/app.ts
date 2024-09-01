@@ -36,7 +36,7 @@ import {
   getVoxelObjectBoundingBox,
   VoxelObject,
   voxelObjectToArray,
-  writeToDataView,
+  voxelObjectToDataView,
 } from "@renderer/voxel-object";
 import { ECS, Entity } from "@ecs/ecs";
 import { getShadowsPass } from "@renderer/shadow-pass/get-shadows-pass";
@@ -184,15 +184,7 @@ export const init = async (
 
   createBlueNoiseTexture(device);
 
-  bvh = new BVH(
-    device,
-    renderableEntities.map((entity) => {
-      return getVoxelObjectBoundingBox(
-        ecs.getComponents(entity).get(VoxelObject),
-        ecs.getComponents(entity).get(Transform),
-      );
-    }),
-  );
+  bvh = new BVH(device, []);
 
   skyTexture = createSkyTexture(device);
 
@@ -211,16 +203,12 @@ export const init = async (
         },
       };
     })(),
-
-    // getSkyPass(),
-
     // getGlobalIlluminationPass(),
-    getShadowsPass(),
+    // getShadowsPass(),
     // getBloomPass(),
     // getSimpleFogPass(),
     getTaaPass(),
-    getTonemapPass(),
-
+    // getTonemapPass(),
     getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
     // getVignettePass(15.0),
@@ -436,31 +424,24 @@ const getVoxelObjectsBuffer = (
     });
   }
 
-  const dataView = new DataView(
-    new ArrayBuffer(size * Float32Array.BYTES_PER_ELEMENT),
-  );
-  renderableEntities.forEach((entity, index) => {
-    writeToDataView(
-      dataView,
-      index * stride,
-      ecs.getComponents(entity).get(VoxelObject),
-      ecs.getComponents(entity).get(Transform),
-    );
-  });
-
   renderableEntities.forEach((entity, index) => {
     const buffer = new Float32Array(
       voxelObjectToArray(
         ecs.getComponents(entity).get(VoxelObject),
         ecs.getComponents(entity).get(Transform),
       ),
-    );
+    ).buffer;
+    // const buffer = voxelObjectToDataView(
+    //   ecs.getComponents(entity).get(VoxelObject),
+    //   ecs.getComponents(entity).get(Transform),
+    // ).buffer;
+
     device.queue.writeBuffer(
       transformationMatrixBuffer,
       index * stride * Float32Array.BYTES_PER_ELEMENT, // offset
       buffer,
       0, // data offset
-      buffer.length,
+      buffer.byteLength,
     );
   });
 };
@@ -504,16 +485,16 @@ export const frame = (
   //   ecs.getComponents(renderableEntities[1]).get(Transform).position[1],
   // );
 
-  if (lastEntityCount !== renderableEntities.length) {
-    bvh.update(
-      renderableEntities.map((entity) => {
-        return getVoxelObjectBoundingBox(
-          ecs.getComponents(entity).get(VoxelObject),
-          ecs.getComponents(entity).get(Transform),
-        );
-      }),
-    );
-  }
+  // if (lastEntityCount !== renderableEntities.length) {
+  bvh.update(
+    renderableEntities.map((entity) => {
+      return getVoxelObjectBoundingBox(
+        ecs.getComponents(entity).get(VoxelObject),
+        ecs.getComponents(entity).get(Transform),
+      );
+    }),
+  );
+  // }
 
   lastEntityCount = renderableEntities.length;
 

@@ -82,9 +82,7 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
         var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, rayOrigin, 0.0);
         let totalDistance = rayMarchResult.t + distanceToLeaf;
         if(rayMarchResult.hit){
-          closestIntersection = rayMarchResult;
-          closestRayMarchDistance = totalDistance;
-          break;
+          return rayMarchResult;
         }
 
         nodeIndex = stack_pop(&stack);
@@ -153,7 +151,6 @@ fn rayMarchBVHShadows(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, mipLevel: u
          let worldPos = rayOrigin + rayDirection * distanceToLeaf;
          let voxelObject = voxelObjects[node.leftIndex];
          var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, worldPos, 1.0);
-//         var rayMarchResult = rayMarchTransformed(voxelObject, rayDirection, worldPos, mipLevel);
          let totalDistance = rayMarchResult.t + distanceToLeaf;
          if(rayMarchResult.hit){
            return rayMarchResult;
@@ -163,7 +160,6 @@ fn rayMarchBVHShadows(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, mipLevel: u
      }
 
      iterations += 1;
- //    closestIntersection.colour += vec3<f32>(0.0075);
    }
 
    return closestIntersection;

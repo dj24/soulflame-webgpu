@@ -88,7 +88,6 @@ export class BVH {
     this.#childIndex = 0;
     this.#nodes = [];
     this.#build(this.#allLeafNodes, 0);
-    console.log(this.#nodes);
     this.#writeToGpuBuffer();
   }
 

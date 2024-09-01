@@ -104,9 +104,8 @@ export class VolumeAtlas {
   }
 
   addVolume = async (
-    volume: GPUTexture,
-    palette: GPUTexture,
     label: string,
+    size: Vec3,
     octreeArrayBuffer: ArrayBuffer,
   ) => {
     if (this.#dictionary[label]) {
@@ -117,132 +116,16 @@ export class VolumeAtlas {
 
     const commandEncoder = this.#device.createCommandEncoder();
 
-    const { width, height, depthOrArrayLayers } = volume;
-    const roundedWidth = ceilToNearestMultipleOf(width, MIN_VOLUME_SIZE);
-    const roundedHeight = ceilToNearestMultipleOf(height, MIN_VOLUME_SIZE);
-    const roundedDepth = ceilToNearestMultipleOf(
-      depthOrArrayLayers,
-      MIN_VOLUME_SIZE,
-    );
-
-    const newWidth = this.#atlasTexture.width + roundedWidth;
-    if (newWidth > this.#device.limits.maxTextureDimension3D) {
-      throw new Error(
-        `Error adding volume to atlas: adding volume would exceed device max texture dimension of ${this.#device.limits.maxTextureDimension3D}`,
-      );
-    }
-
-    const newHeight = Math.max(this.#atlasTexture.height, roundedHeight);
-    const newDepth = Math.max(
-      this.#atlasTexture.depthOrArrayLayers,
-      roundedDepth,
-    );
-    const newAtlasTexture = this.#device.createTexture({
-      size: {
-        width: newWidth,
-        height: newHeight,
-        depthOrArrayLayers: newDepth,
-      },
-      mipLevelCount: this.#atlasTexture.mipLevelCount,
-      ...descriptorPartial,
-      label: `${this.#atlasTexture.label}, ${volume.label || "unnamed volume"}`,
-    });
-
-    const atlasLocationX = this.#atlasTexture.width;
-
-    // Copy the old atlas texture into the new larger one
-    commandEncoder.copyTextureToTexture(
-      {
-        texture: this.#atlasTexture,
-      },
-      {
-        texture: newAtlasTexture,
-      },
-      {
-        width: this.#atlasTexture.width,
-        height: this.#atlasTexture.height,
-        depthOrArrayLayers: this.#atlasTexture.depthOrArrayLayers,
-      },
-    );
-
-    commandEncoder.copyTextureToTexture(
-      {
-        texture: volume,
-        mipLevel: 0,
-        origin: { x: 0, y: 0, z: 0 }, // Specify the source origin
-      },
-      {
-        texture: newAtlasTexture,
-        mipLevel: 0,
-        origin: { x: atlasLocationX, y: 0, z: 0 }, // Specify the destination origin (z-axis slice)
-      },
-      {
-        width: volume.width,
-        height: volume.height,
-        depthOrArrayLayers: volume.depthOrArrayLayers,
-      },
-    );
-
-    this.#atlasTexture = newAtlasTexture;
-
-    const paletteIndex = this.#paletteTexture.height;
+    const [width, height, depth] = size;
 
     this.#dictionary[label] = {
-      location: [atlasLocationX, 0, 0],
-      size: [width, height, depthOrArrayLayers],
-      paletteIndex,
-      octreeOffset: this.#octreeBuffer.size,
+      location: [0, 0, 0],
+      size: [width, height, depth],
+      paletteIndex: 0,
+      octreeOffset: this.#octreeBuffer.size / 4,
       octreeSizeBytes: octreeArrayBuffer.byteLength,
-      textureSizeBytes:
-        volume.width * volume.height * volume.depthOrArrayLayers,
+      textureSizeBytes: width * height * depth,
     };
-    // Copy the old palette texture into the new larger one
-    const newPaletteTexture = this.#device.createTexture({
-      size: {
-        width: PALETTE_WIDTH,
-        height: this.#paletteTexture.height + 1,
-        depthOrArrayLayers: 1,
-      },
-      format: "rgba8unorm",
-      usage:
-        GPUTextureUsage.COPY_SRC |
-        GPUTextureUsage.COPY_DST |
-        GPUTextureUsage.TEXTURE_BINDING,
-      label: "Palette texture",
-      mipLevelCount: 1,
-    });
-
-    commandEncoder.copyTextureToTexture(
-      {
-        texture: this.#paletteTexture,
-      },
-      {
-        texture: newPaletteTexture,
-      },
-      {
-        width: PALETTE_WIDTH,
-        height: this.#paletteTexture.height,
-        depthOrArrayLayers: 1,
-      },
-    );
-
-    // Add the new palette to the palette texture
-    commandEncoder.copyTextureToTexture(
-      {
-        texture: palette,
-      },
-      {
-        texture: newPaletteTexture,
-        origin: { x: 0, y: paletteIndex, z: 0 },
-      },
-      {
-        width: PALETTE_WIDTH,
-        height: 1,
-        depthOrArrayLayers: 1,
-      },
-    );
-
-    this.#paletteTexture = newPaletteTexture;
 
     // Resize the octree buffer to fit the new data
     const newOctreeBuffer = this.#device.createBuffer({
@@ -260,14 +143,16 @@ export class VolumeAtlas {
       this.#octreeBuffer.size,
     );
 
+    this.#device.queue.submit([commandEncoder.finish()]);
+
+    console.log(`writing at offset ${this.#octreeBuffer.size}`);
+
     // write new data to the new buffer
     this.#device.queue.writeBuffer(
       newOctreeBuffer,
       this.#octreeBuffer.size,
       octreeArrayBuffer,
     );
-
-    this.#device.queue.submit([commandEncoder.finish()]);
 
     await this.#device.queue.onSubmittedWorkDone();
 

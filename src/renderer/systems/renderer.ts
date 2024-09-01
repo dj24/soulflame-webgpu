@@ -20,12 +20,18 @@ export class Renderer extends System {
       gpu.device = device;
       gpu.volumeAtlas = volumeAtlas;
 
-      const dragonVoxels = await createVoxelObject(
-        device,
-        volumeAtlas,
-        `Dragon`,
-        `./Tavern/dragon.vxm`,
-      );
+      // const sponzaVoxels = await createVoxelObject(
+      //   device,
+      //   volumeAtlas,
+      //   `Sponza`,
+      //   `./terrain.vxm`,
+      // );
+      // let sponza = this.ecs.addEntity();
+      // this.ecs.addComponent(sponza, new VoxelObject(sponzaVoxels));
+      // this.ecs.addComponent(
+      //   sponza,
+      //   new Transform([50, 0, 0], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
+      // );
 
       const teaPotVoxels = await createVoxelObject(
         device,
@@ -33,30 +39,24 @@ export class Renderer extends System {
         `TeaPot`,
         `./Tavern/teapot.vxm`,
       );
-
       let teaPot = this.ecs.addEntity();
       this.ecs.addComponent(teaPot, new VoxelObject(teaPotVoxels));
       this.ecs.addComponent(
         teaPot,
         new Transform([50, 0, 0], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
       );
-
-      let dragon = this.ecs.addEntity();
-      this.ecs.addComponent(dragon, new VoxelObject(dragonVoxels));
-      this.ecs.addComponent(
-        dragon,
-        new Transform([-50, 0, 0], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
-      );
-
-      // const giantTeaPot = this.ecs.addEntity();
-      // this.ecs.addComponent(giantTeaPot, new VoxelObject(teaPotVoxels));
+      //
+      // const dragonVoxels = await createVoxelObject(
+      //   device,
+      //   volumeAtlas,
+      //   `Dragon`,
+      //   `./Tavern/dragon.vxm`,
+      // );
+      // let dragon = this.ecs.addEntity();
+      // this.ecs.addComponent(dragon, new VoxelObject(dragonVoxels));
       // this.ecs.addComponent(
-      //   giantTeaPot,
-      //   new Transform(
-      //     [0, -3090, 0],
-      //     quat.fromEuler(180 * (Math.PI / 180), 0, 0, "xyz"),
-      //     [100, 100, 100],
-      //   ),
+      //   dragon,
+      //   new Transform([-50, 0, 0], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
       // );
 
       // for (let x = -600; x <= 600; x += 150) {
