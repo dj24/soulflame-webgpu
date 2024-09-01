@@ -89,11 +89,33 @@ export const voxelObjectToArray = (
     ...voxelObject.size,
     0.0, //padding for 4 byte stride
     ...voxelObject.atlasLocation,
-    // 0.0, //padding for 4 byte stride
     voxelObject.paletteIndex,
     0.0, //padding for 4 byte stride
     0.0, //padding for 4 byte stride
     0.0, //padding for 4 byte stride
     voxelObject.octreeBufferIndex,
   ];
+};
+
+export const writeToDataView = (
+  dataView: DataView,
+  offset: number,
+  voxelObject: VoxelObject,
+  transform: Transform,
+) => {
+  const array = voxelObjectToArray(voxelObject, transform);
+  console.log(array.length);
+  for (let i = 0; i < array.length; i++) {
+    dataView.setFloat32(offset + i * 4, array[i], true);
+  }
+  const debugArray = [];
+  for (let i = 0; i < array.length; i++) {
+    debugArray.push(dataView.getFloat32(offset + i * 4, true));
+  }
+  // console.log("writeToDataView:", debugArray);
+  dataView.setUint32(
+    offset + (array.length - 1) * 4,
+    voxelObject.octreeBufferIndex,
+    true,
+  );
 };

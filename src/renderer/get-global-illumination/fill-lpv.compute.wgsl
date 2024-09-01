@@ -39,6 +39,12 @@ fn main(
   let sunRayMarch = rayMarchBVH(voxelCenter, sunDirection);
   if(sunRayMarch.hit){
     sunLightAttenuation = sunRayMarch.colour * 10.0;
+    let hitPos = voxelCenter + sunDirection * sunRayMarch.t;
+    let reflectedDir = reflect(sunDirection, sunRayMarch.normal);
+    let secondBounce = rayMarchBVH(hitPos, reflectedDir);
+    if(secondBounce.hit){
+      sunLightAttenuation *= secondBounce.colour * 5.0;
+    }
   }
 
   let sunSHBasisR = SHBasis(sunDirection) * SUN_COLOUR.r * sunLightAttenuation.r;
@@ -53,9 +59,9 @@ fn main(
   let previousGreenBasis = textureLoad(previousLpvTex, voxel + vec3<u32>(lpvTexDim.z + 1, 0, 0), 0);
   let previousBlueBasis = textureLoad(previousLpvTex, voxel + vec3<u32>(lpvTexDim.z * 2 + 2, 0, 0), 0);
 
-  let currentRedBasis =  sunSHBasisR + lightSHBasisR;
-  let currentGreenBasis = sunSHBasisG + lightSHBasisG;
-  let currentBlueBasis = sunSHBasisB + lightSHBasisB;
+  let currentRedBasis =  sunSHBasisR;
+  let currentGreenBasis = sunSHBasisG;
+  let currentBlueBasis = sunSHBasisB;
 
   let redBasis = mix(previousRedBasis, currentRedBasis, PREVIOUS_BLEND);
   let greenBasis = mix(previousGreenBasis, currentGreenBasis, PREVIOUS_BLEND);

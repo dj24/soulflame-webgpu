@@ -227,7 +227,6 @@ export const setInternalNode = (
     node.firstChildIndex < 2 ** 24 - 1,
     `First child index of ${node.firstChildIndex} is too large to fit in 3 bytes`,
   );
-  //TODO: try 24 bit unisnged integer by using bit shifting
   dataView.setUint32(index * OCTREE_STRIDE, node.firstChildIndex, true);
   dataView.setUint8(index * OCTREE_STRIDE + 3, node.childMask);
   dataView.setUint8(index * OCTREE_STRIDE + 4, node.x);

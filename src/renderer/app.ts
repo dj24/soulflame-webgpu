@@ -36,6 +36,7 @@ import {
   getVoxelObjectBoundingBox,
   VoxelObject,
   voxelObjectToArray,
+  writeToDataView,
 } from "@renderer/voxel-object";
 import { ECS, Entity } from "@ecs/ecs";
 import { getShadowsPass } from "@renderer/shadow-pass/get-shadows-pass";
@@ -213,7 +214,7 @@ export const init = async (
 
     // getSkyPass(),
 
-    getGlobalIlluminationPass(),
+    // getGlobalIlluminationPass(),
     getShadowsPass(),
     // getBloomPass(),
     // getSimpleFogPass(),
@@ -424,31 +425,44 @@ const getVoxelObjectsBuffer = (
   ecs: ECS,
   renderableEntities: Entity[],
 ) => {
-  const voxelObjectsArray = renderableEntities
-    .map((entity) => {
-      return voxelObjectToArray(
-        ecs.getComponents(entity).get(VoxelObject),
-        ecs.getComponents(entity).get(Transform),
-      );
-    })
-    .flat();
-
-  const size = new Float32Array(voxelObjectsArray).byteLength;
+  // TODO: reduce the stride
+  const stride = 76;
+  const size = stride * renderableEntities.length;
   if (!transformationMatrixBuffer || size !== transformationMatrixBuffer.size) {
     transformationMatrixBuffer = device.createBuffer({
-      size,
+      size: size * Float32Array.BYTES_PER_ELEMENT,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       label: "voxel objects buffer",
     });
   }
 
-  device.queue.writeBuffer(
-    transformationMatrixBuffer,
-    0, // offset
-    new Float32Array(voxelObjectsArray).buffer,
-    0, // data offset
-    voxelObjectsArray.length * Float32Array.BYTES_PER_ELEMENT,
+  const dataView = new DataView(
+    new ArrayBuffer(size * Float32Array.BYTES_PER_ELEMENT),
   );
+  renderableEntities.forEach((entity, index) => {
+    writeToDataView(
+      dataView,
+      index * stride,
+      ecs.getComponents(entity).get(VoxelObject),
+      ecs.getComponents(entity).get(Transform),
+    );
+  });
+
+  renderableEntities.forEach((entity, index) => {
+    const buffer = new Float32Array(
+      voxelObjectToArray(
+        ecs.getComponents(entity).get(VoxelObject),
+        ecs.getComponents(entity).get(Transform),
+      ),
+    );
+    device.queue.writeBuffer(
+      transformationMatrixBuffer,
+      index * stride * Float32Array.BYTES_PER_ELEMENT, // offset
+      buffer,
+      0, // data offset
+      buffer.length,
+    );
+  });
 };
 
 setInterval(() => {
