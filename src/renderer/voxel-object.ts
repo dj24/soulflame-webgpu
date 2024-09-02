@@ -106,10 +106,6 @@ export const voxelObjectToDataView = (
     dataView.setFloat32(i * 4, array[i], true);
   }
   // Uint32 for the octree buffer index
-  dataView.setUint32(
-    (array.length - 1) * 4,
-    voxelObject.octreeBufferIndex,
-    true,
-  );
+  dataView.setUint32(array.length * 4, voxelObject.octreeBufferIndex, true);
   return dataView;
 };
