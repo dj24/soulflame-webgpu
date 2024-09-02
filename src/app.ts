@@ -10,12 +10,14 @@ import { GravitySystem } from "@physics/systems/gravity-system";
 import { PhysicsWorldSingleton } from "@physics/components/physics-world-singleton";
 import { KinematicSystem } from "@physics/systems/kinematic-system";
 import { GamepadControllable } from "@input/components/gamepad-controllable";
+import { GamepadKinematicBoxControl } from "@input/systems/gamepad-kinematic-box-control";
 
 const ecs = new ECS();
 
 // Systems
 ecs.addSystem(new KeyboardControl());
 ecs.addSystem(new Renderer());
+ecs.addSystem(new GamepadKinematicBoxControl());
 
 const singleton = ecs.addEntity();
 ecs.addComponent(singleton, new GPUDeviceSingleton());

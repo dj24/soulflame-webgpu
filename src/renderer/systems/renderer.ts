@@ -8,6 +8,8 @@ import { VolumeAtlas } from "@renderer/volume-atlas";
 import { VoxelObject } from "@renderer/voxel-object";
 import { quat, vec3 } from "wgpu-matrix";
 import { getGPUDeviceSingleton } from "../../abstractions/get-gpu-device-singleton";
+import { GamepadControllable } from "@input/components/gamepad-controllable";
+import { ImmovableBox } from "@physics/components/immovable-box";
 
 export class Renderer extends System {
   componentsRequired = new Set([VoxelObject, Transform]);
@@ -39,12 +41,15 @@ export class Renderer extends System {
         `Dragon`,
         `./Tavern/dragon.vxm`,
       );
+
       let dragon = this.ecs.addEntity();
       this.ecs.addComponent(dragon, new VoxelObject(dragonVoxels));
       this.ecs.addComponent(
         dragon,
         new Transform([-50, 0, 0], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
       );
+      this.ecs.addComponent(dragon, new GamepadControllable());
+      this.ecs.addComponent(dragon, new ImmovableBox(dragonVoxels.size));
 
       const teaPotVoxels = await createVoxelObject(
         device,
@@ -52,32 +57,25 @@ export class Renderer extends System {
         `TeaPot`,
         `./Tavern/teapot.vxm`,
       );
-      let teaPot = this.ecs.addEntity();
-      this.ecs.addComponent(teaPot, new VoxelObject(teaPotVoxels));
-      this.ecs.addComponent(
-        teaPot,
-        new Transform([50, 0, 0], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
-      );
-      //
 
-      // for (let x = -600; x <= 600; x += 150) {
-      //   for (let z = -600; z <= 600; z += 150) {
-      //     const newEntity = this.ecs.addEntity();
-      //     // if (Math.random() > 0.5) {
-      //     this.ecs.addComponent(newEntity, new VoxelObject(teaPotVoxels));
-      //     // } else {
-      //     //   this.ecs.addComponent(newEntity, new VoxelObject(dragonVoxels));
-      //     // }
-      //     this.ecs.addComponent(
-      //       newEntity,
-      //       new Transform(
-      //         [x, 30, z],
-      //         quat.fromEuler(0, (Math.PI / 180) * 180, 0, "xyz"),
-      //         [1, 1, 1],
-      //       ),
-      //     );
-      //   }
-      // }
+      for (let x = -300; x <= 300; x += 150) {
+        for (let z = -300; z <= 300; z += 150) {
+          const newEntity = this.ecs.addEntity();
+          if (Math.random() > 0.5) {
+            this.ecs.addComponent(newEntity, new VoxelObject(teaPotVoxels));
+          } else {
+            this.ecs.addComponent(newEntity, new VoxelObject(dragonVoxels));
+          }
+          this.ecs.addComponent(
+            newEntity,
+            new Transform(
+              [x, 30, z],
+              quat.fromEuler(0, (Math.PI / 180) * 180, 0, "xyz"),
+              [1, 1, 1],
+            ),
+          );
+        }
+      }
 
       init(device, volumeAtlas, this.ecs, []);
     });

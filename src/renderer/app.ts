@@ -425,16 +425,10 @@ const getVoxelObjectsBuffer = (
   }
 
   renderableEntities.forEach((entity, index) => {
-    const buffer = new Float32Array(
-      voxelObjectToArray(
-        ecs.getComponents(entity).get(VoxelObject),
-        ecs.getComponents(entity).get(Transform),
-      ),
+    const buffer = voxelObjectToDataView(
+      ecs.getComponents(entity).get(VoxelObject),
+      ecs.getComponents(entity).get(Transform),
     ).buffer;
-    // const buffer = voxelObjectToDataView(
-    //   ecs.getComponents(entity).get(VoxelObject),
-    //   ecs.getComponents(entity).get(Transform),
-    // ).buffer;
 
     device.queue.writeBuffer(
       transformationMatrixBuffer,

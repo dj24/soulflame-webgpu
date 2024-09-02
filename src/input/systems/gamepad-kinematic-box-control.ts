@@ -43,9 +43,13 @@ export class GamepadKinematicBoxControl extends System {
         vec3.mulScalar(direction, controllableComponent.speed),
       );
 
-      world
-        .getBodyById(kinematicComponent.bodyId)
-        .position.set(newPosition[0], newPosition[1], newPosition[2]);
+      const bodyInWorld = world.getBodyById(kinematicComponent.bodyId);
+
+      if (!bodyInWorld) {
+        continue;
+      }
+
+      bodyInWorld.position.set(newPosition[0], newPosition[1], newPosition[2]);
 
       const newRotation = quat.rotateY(
         transformComponent.rotation,

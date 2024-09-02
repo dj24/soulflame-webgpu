@@ -1,4 +1,5 @@
 const BRICK_SIZE = 8;
+const MAX_BVH_STEPS = 32;
 const MAX_STEPS = 256;
 
 
@@ -33,63 +34,54 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
   stack_push(&stack, 0);
 
   var iterations = 0;
-  var nodeIndex = 0;
   var closestRayMarchDistance = FAR_PLANE;
 
-  while (stack.head > 0u && iterations < MAX_STEPS) {
+  while (stack.head > 0u && iterations < MAX_BVH_STEPS) {
+    let nodeIndex = stack_pop(&stack);
     let node = bvhNodes[nodeIndex];
     if(node.objectCount > 1){
       let leftNode = bvhNodes[node.leftIndex];
       let rightNode = bvhNodes[node.rightIndex];
       let leftDist = getDistanceToNode(rayOrigin, rayDirection, leftNode);
       let rightDist = getDistanceToNode(rayOrigin, rayDirection, rightNode);
-      let hitLeft = leftDist >= 0.0;
-      let hitRight = rightDist >= 0.0;
+      let hitLeft = leftDist >= 0.0 && leftDist < closestIntersection.t;
+      let hitRight = rightDist >= 0.0 && rightDist < closestIntersection.t;
       if(hitLeft){
-        var nearIndex = node.leftIndex;
         // We hit both left and right, choose the closest one
         if(hitRight){
           if(leftDist < rightDist){
             // left is closer, push right to stack
             stack_push(&stack, node.rightIndex);
+            stack_push(&stack, node.leftIndex);
           } else {
             // right is closer, push left to stack
             stack_push(&stack, node.leftIndex);
-            nearIndex = node.rightIndex;
+            stack_push(&stack, node.rightIndex);
           }
         }
-        nodeIndex = nearIndex;
       }
       // We only hit the right Node
       else if(hitRight){
-        nodeIndex = node.rightIndex;
+        stack_push(&stack, node.rightIndex);
       }
-      // We didn't hit any node, pop the stack
-      else{
-        nodeIndex = stack_pop(&stack);
+      else if(hitLeft){
+        stack_push(&stack, node.leftIndex);
       }
     }
     // valid leaf, raymarch it
     else if(node.objectCount == 1){
         let distanceToLeaf = getDistanceToNode(rayOrigin, rayDirection, node);
-        if(distanceToLeaf > closestRayMarchDistance){
-          nodeIndex = stack_pop(&stack);
+        if(distanceToLeaf > closestIntersection.t){
           continue;
         }
-        let worldPos = rayOrigin + rayDirection * distanceToLeaf;
         let voxelObject = voxelObjects[node.leftIndex];
-//         var rayMarchResult = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);
         var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, rayOrigin, 0.0);
-        let totalDistance = rayMarchResult.t + distanceToLeaf;
-        if(rayMarchResult.hit){
-          return rayMarchResult;
+        if(rayMarchResult.hit && rayMarchResult.t < closestIntersection.t){
+           closestIntersection = rayMarchResult;
         }
-
-        nodeIndex = stack_pop(&stack);
     }
-
     iterations += 1;
-//    closestIntersection.colour += vec3<f32>(0.075);
+    closestIntersection.colour += vec3<f32>(0.075);
   }
 
   return closestIntersection;

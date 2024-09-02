@@ -90,9 +90,6 @@ export const voxelObjectToArray = (
     0.0, //padding for 4 byte stride
     ...voxelObject.atlasLocation,
     voxelObject.paletteIndex,
-    voxelObject.octreeBufferIndex,
-    0.0, //padding for 4 byte stride
-    0.0, //padding for 4 byte stride
   ];
 };
 
@@ -101,11 +98,37 @@ export const voxelObjectToDataView = (
   transform: Transform,
 ) => {
   const array = voxelObjectToArray(voxelObject, transform);
-  const dataView = new DataView(new ArrayBuffer(array.length * 4));
+  const byteLength = (array.length + 1) * 4; // +1 for the octree buffer index
+  const dataView = new DataView(new ArrayBuffer(byteLength));
   for (let i = 0; i < array.length - 1; i++) {
     dataView.setFloat32(i * 4, array[i], true);
   }
-  // Uint32 for the octree buffer index
-  dataView.setUint32(array.length * 4, voxelObject.octreeBufferIndex, true);
+  dataView.setUint32(byteLength - 4, voxelObject.octreeBufferIndex, true);
   return dataView;
+};
+
+export const dataViewToVoxelObject = (dataView: DataView): VoxelObject => {
+  const transform = mat4.create();
+  const previousTransform = mat4.create();
+  const size = vec3.create();
+  const atlasLocation = vec3.create();
+  const paletteIndex = dataView.getUint32(48, true);
+  const octreeBufferIndex = dataView.getUint32(52, true);
+  for (let i = 0; i < 16; i++) {
+    transform[i] = dataView.getFloat32(i * 4, true);
+    previousTransform[i] = dataView.getFloat32((i + 16) * 4, true);
+  }
+  for (let i = 32; i < 35; i++) {
+    size[i - 32] = dataView.getFloat32(i * 4, true);
+  }
+  for (let i = 35; i < 38; i++) {
+    atlasLocation[i - 35] = dataView.getFloat32(i * 4, true);
+  }
+  return new VoxelObject({
+    size,
+    atlasLocation,
+    paletteIndex,
+    octreeBufferIndex,
+    name: "",
+  });
 };
