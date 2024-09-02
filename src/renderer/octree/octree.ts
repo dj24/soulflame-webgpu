@@ -92,6 +92,7 @@ export class Octree {
     this.#build(voxels, 0, [0, 0, 0], 0);
     averageFirstChildIndex /= this.nodes.length;
     console.log(`Average first child index: ${averageFirstChildIndex}`);
+    console.log(this.nodes.slice(0, 10));
   }
 
   // Allocate memory for 8 nodes, and return the index of the first node
@@ -232,25 +233,18 @@ export const setInternalNode = (
   dataView.setUint8(index * OCTREE_STRIDE + 4, node.x);
   dataView.setUint8(index * OCTREE_STRIDE + 5, node.y);
   dataView.setUint8(index * OCTREE_STRIDE + 6, node.z);
-  dataView.setUint8(index * OCTREE_STRIDE + 7, node.size);
+  dataView.setUint8(index * OCTREE_STRIDE + 7, Math.log2(node.size));
 };
 
 export const octreeToArrayBuffer = (octree: Octree) => {
   const buffer = new ArrayBuffer(octree.totalSize + OCTREE_STRIDE);
   const view = new DataView(buffer);
 
-  const magic = "OCTR";
-  console.log(`Writing magic number ${magic}`);
-  view.setUint8(0, magic.charCodeAt(0));
-  view.setUint8(1, magic.charCodeAt(1));
-  view.setUint8(2, magic.charCodeAt(2));
-  view.setUint8(3, magic.charCodeAt(3));
-
   octree.nodes.forEach((node, i) => {
     if ("red" in node) {
-      setLeafNode(view, i + 1, node);
+      setLeafNode(view, i, node);
     } else {
-      setInternalNode(view, i + 1, node);
+      setInternalNode(view, i, node);
     }
   });
 

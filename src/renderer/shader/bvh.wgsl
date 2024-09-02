@@ -1,5 +1,5 @@
 const BRICK_SIZE = 8;
-const MAX_BVH_STEPS = 32;
+const MAX_BVH_STEPS = 64;
 const MAX_STEPS = 256;
 
 
@@ -46,18 +46,15 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
       let rightDist = getDistanceToNode(rayOrigin, rayDirection, rightNode);
       let hitLeft = leftDist >= 0.0 && leftDist < closestIntersection.t;
       let hitRight = rightDist >= 0.0 && rightDist < closestIntersection.t;
-      if(hitLeft){
-        // We hit both left and right, choose the closest one
-        if(hitRight){
-          if(leftDist < rightDist){
-            // left is closer, push right to stack
-            stack_push(&stack, node.rightIndex);
-            stack_push(&stack, node.leftIndex);
-          } else {
-            // right is closer, push left to stack
-            stack_push(&stack, node.leftIndex);
-            stack_push(&stack, node.rightIndex);
-          }
+      if(hitLeft && hitRight){
+        if(leftDist < rightDist){
+          // left is closer, push right to stack
+          stack_push(&stack, node.rightIndex);
+          stack_push(&stack, node.leftIndex);
+        } else {
+          // right is closer, push left to stack
+          stack_push(&stack, node.leftIndex);
+          stack_push(&stack, node.rightIndex);
         }
       }
       // We only hit the right Node
@@ -76,12 +73,12 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
         }
         let voxelObject = voxelObjects[node.leftIndex];
         var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, rayOrigin, 0.0);
-        if(rayMarchResult.hit && rayMarchResult.t < closestIntersection.t){
+//        if(rayMarchResult.hit && rayMarchResult.t < closestIntersection.t){
            closestIntersection = rayMarchResult;
-        }
+//        }
     }
     iterations += 1;
-    closestIntersection.colour += vec3<f32>(0.075);
+//    closestIntersection.colour += vec3<f32>(0.05);
   }
 
   return closestIntersection;

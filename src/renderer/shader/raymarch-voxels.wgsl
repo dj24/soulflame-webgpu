@@ -155,7 +155,7 @@ fn unpackInternal(node: vec2<u32>) -> InternalNode {
   let y = (second4Bytes >> 8u) & mask8;
   let z = (second4Bytes >> 16u) & mask8;
   output.position = vec3<u32>(x, y, z);
-  output.size = (second4Bytes >> 24u) & mask8;
+  output.size = 1u << ((second4Bytes >> 24u) & mask8); // 2 raised to the power of the size
   return output;
 }
 
@@ -246,6 +246,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz + halfExtents;
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
     var output = RayMarchResult();
+
     let distanceToRoot = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5).tNear;
     if(distanceToRoot > FAR_PLANE){
       return output;
@@ -259,10 +260,11 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
 
     // Push the root node index onto the stack
 //    stacku32_push(&stack, 84688 + 1u);
-    stacku32_push(&stack, voxelObject.octreeBufferIndex + 1u);
+    stacku32_push(&stack, voxelObject.octreeBufferIndex);
 
     // Main loop
     while (stack.head > 0u && output.iterations < MAX_STEPS) {
+      output.colour += vec3(0.02);
       output.iterations += 1u;
       let nodeIndex = stacku32_pop(&stack);
       let node = octreeBuffer[nodeIndex];
@@ -273,13 +275,11 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
         let nodeOrigin = vec3(f32(leafNode.position.x), f32(leafNode.position.y), f32(leafNode.position.z));
         let nodeRayOrigin = objectRayOrigin - nodeOrigin;
         let nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(0.5));
-        if(nodeIntersection.isHit){
-          output.hit = true;
-          output.t = nodeIntersection.tNear;
-          output.normal = nodeIntersection.normal;
-          output.colour = vec3<f32>(leafNode.colour) / 255.0;
-          return output;
-        }
+        output.hit = true;
+        output.t = nodeIntersection.tNear;
+        output.normal = nodeIntersection.normal;
+//          output.colour = vec3<f32>(leafNode.colour) / 255.0;
+        return output;
       }
 
       // Get the current nodes data
@@ -295,18 +295,23 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       let isOriginInside = all(nodeRayOrigin >= vec3(0.0)) && all(nodeRayOrigin <= vec3(nodeSize));
 
       let distanceToNode = nodeIntersection.tNear;
+//      output.colour = distanceToNode * vec3(0.001);
+
+      if(distanceToNode < 0.0){
+        continue;
+      }
 
       if(!nodeIntersection.isHit && !isOriginInside){
         continue;
       }
 
-      if(f32(internalNode.size) <= minNodeSize){
-        output.hit = true;
-        output.t = nodeIntersection.tNear;
-        output.normal = nodeIntersection.normal;
-        output.colour = vec3(1,0,0);
-        return output;
-      }
+//      if(f32(internalNode.size) <= minNodeSize){
+//        output.hit = true;
+//        output.t = nodeIntersection.tNear;
+//        output.normal = nodeIntersection.normal;
+//        output.colour = vec3(1,0,0);
+//        return output;
+//      }
 
 //      for(var i = 0u; i < 4u; i++){
 //        if(f32(internalNode.size) <= DISTANCE_THRESHOLDS[i].x && distanceToRoot > DISTANCE_THRESHOLDS[i].y){
@@ -317,7 +322,6 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
 //          return output;
 //        }
 //      }
-
 
       let centerOfChild = vec3(nodeSize* 0.5);
 

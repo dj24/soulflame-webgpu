@@ -44,8 +44,15 @@ ecs.addComponents(
 );
 
 // Game loop
+// const update = () => {
+//   ecs.update(performance.now());
+// };
+//
+// setInterval(update, 1000 / 60);
+
 const update = () => {
   ecs.update(performance.now());
+  requestAnimationFrame(update);
 };
 
-setInterval(update, 1000 / 60);
+update();
