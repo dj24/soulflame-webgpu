@@ -258,7 +258,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     var stack = stacku32_new();
 
     // Push the root node index onto the stack
-    stacku32_push(&stack, voxelObject.octreeBufferIndex);
+    stacku32_push(&stack, voxelObject.octreeBufferIndex + 1u);
 
     // Main loop
     while (stack.head > 0u && output.iterations < MAX_STEPS) {

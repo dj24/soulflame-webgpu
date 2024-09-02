@@ -233,25 +233,29 @@ export const setInternalNode = (
   dataView.setUint8(index * OCTREE_STRIDE + 5, node.y);
   dataView.setUint8(index * OCTREE_STRIDE + 6, node.z);
   dataView.setUint8(index * OCTREE_STRIDE + 7, node.size);
-  if (index === 0) {
-    console.log(node.size);
-  }
 };
 
 export const octreeToArrayBuffer = (octree: Octree) => {
-  const buffer = new ArrayBuffer(octree.totalSize);
+  const buffer = new ArrayBuffer(octree.totalSize + OCTREE_STRIDE);
   const view = new DataView(buffer);
+
+  const magic = "OCTR";
+  console.log(`Writing magic number ${magic}`);
+  view.setUint8(0, magic.charCodeAt(0));
+  view.setUint8(1, magic.charCodeAt(1));
+  view.setUint8(2, magic.charCodeAt(2));
+  view.setUint8(3, magic.charCodeAt(3));
 
   octree.nodes.forEach((node, i) => {
     if ("red" in node) {
-      setLeafNode(view, i, node);
+      setLeafNode(view, i + 1, node);
     } else {
-      setInternalNode(view, i, node);
+      setInternalNode(view, i + 1, node);
     }
   });
 
   console.debug(
-    `Created octree of size ${(octree.totalSize / 1024 ** 2).toFixed(3)} MB`,
+    `Created ${octree.nodes.length} node octree of size ${(octree.totalSize / 1024 ** 2).toFixed(3)} MB`,
   );
 
   return buffer;

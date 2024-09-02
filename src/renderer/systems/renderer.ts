@@ -33,6 +33,19 @@ export class Renderer extends System {
       //   new Transform([50, 0, 0], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
       // );
 
+      const dragonVoxels = await createVoxelObject(
+        device,
+        volumeAtlas,
+        `Dragon`,
+        `./Tavern/dragon.vxm`,
+      );
+      let dragon = this.ecs.addEntity();
+      this.ecs.addComponent(dragon, new VoxelObject(dragonVoxels));
+      this.ecs.addComponent(
+        dragon,
+        new Transform([-50, 0, 0], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
+      );
+
       const teaPotVoxels = await createVoxelObject(
         device,
         volumeAtlas,
@@ -46,18 +59,6 @@ export class Renderer extends System {
         new Transform([50, 0, 0], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
       );
       //
-      // const dragonVoxels = await createVoxelObject(
-      //   device,
-      //   volumeAtlas,
-      //   `Dragon`,
-      //   `./Tavern/dragon.vxm`,
-      // );
-      // let dragon = this.ecs.addEntity();
-      // this.ecs.addComponent(dragon, new VoxelObject(dragonVoxels));
-      // this.ecs.addComponent(
-      //   dragon,
-      //   new Transform([-50, 0, 0], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
-      // );
 
       // for (let x = -600; x <= 600; x += 150) {
       //   for (let z = -600; z <= 600; z += 150) {

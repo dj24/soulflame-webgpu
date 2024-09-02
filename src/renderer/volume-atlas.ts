@@ -40,6 +40,34 @@ const MIN_VOLUME_SIZE = Math.pow(2, VOLUME_MIP_LEVELS - 1);
 const DEFAULT_ATLAS_SIZE = MIN_VOLUME_SIZE;
 const PALETTE_WIDTH = 256;
 
+const findAllFourByteSequences = (
+  byteArray: Uint8Array,
+  sequence: string,
+): number[] => {
+  if (sequence.length !== 4) {
+    throw new Error("Sequence must be exactly 4 characters long");
+  }
+
+  const sequenceBytes = new Uint8Array(4);
+  for (let i = 0; i < 4; i++) {
+    sequenceBytes[i] = sequence.charCodeAt(i);
+  }
+
+  const indices: number[] = [];
+  for (let i = 0; i <= byteArray.length - 4; i++) {
+    if (
+      byteArray[i] === sequenceBytes[0] &&
+      byteArray[i + 1] === sequenceBytes[1] &&
+      byteArray[i + 2] === sequenceBytes[2] &&
+      byteArray[i + 3] === sequenceBytes[3]
+    ) {
+      indices.push(i);
+    }
+  }
+
+  return indices;
+};
+
 /** A class representing a volume atlas for storing multiple 3D textures.
  *
  * Each texture is packed along the x-axis of the atlas texture.
@@ -118,11 +146,13 @@ export class VolumeAtlas {
 
     const [width, height, depth] = size;
 
+    const bufferIndexForNewVolume = this.#octreeBuffer.size / 8;
+
     this.#dictionary[label] = {
       location: [0, 0, 0],
       size: [width, height, depth],
       paletteIndex: 0,
-      octreeOffset: this.#octreeBuffer.size / 4,
+      octreeOffset: bufferIndexForNewVolume,
       octreeSizeBytes: octreeArrayBuffer.byteLength,
       textureSizeBytes: width * height * depth,
     };
@@ -145,7 +175,9 @@ export class VolumeAtlas {
 
     this.#device.queue.submit([commandEncoder.finish()]);
 
-    console.log(`writing at offset ${this.#octreeBuffer.size}`);
+    console.log(
+      `writing ${label} at byte offset ${this.#octreeBuffer.size}, index ${bufferIndexForNewVolume}`,
+    );
 
     // write new data to the new buffer
     this.#device.queue.writeBuffer(
@@ -155,6 +187,29 @@ export class VolumeAtlas {
     );
 
     await this.#device.queue.onSubmittedWorkDone();
+
+    // DEBUG
+    const commandEncoder2 = this.#device.createCommandEncoder();
+    const debugCopyBuffer = this.#device.createBuffer({
+      size: newOctreeBuffer.size,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+      mappedAtCreation: false,
+    });
+    commandEncoder2.copyBufferToBuffer(
+      newOctreeBuffer,
+      0,
+      debugCopyBuffer,
+      0,
+      newOctreeBuffer.size,
+    );
+    this.#device.queue.submit([commandEncoder2.finish()]);
+    debugCopyBuffer.mapAsync(GPUMapMode.READ).then(() => {
+      const debugBufferArray = new Uint8Array(debugCopyBuffer.getMappedRange());
+      console.log({
+        magicIndices: findAllFourByteSequences(debugBufferArray, "OCTR"),
+      });
+      console.log({ length: debugBufferArray.length / 4 });
+    });
 
     this.#octreeBuffer = newOctreeBuffer;
 
