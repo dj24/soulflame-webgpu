@@ -12,6 +12,8 @@ import { ECS } from "@ecs/ecs";
 import { Transform } from "@renderer/components/transform";
 import { GamepadControllable } from "@input/components/gamepad-controllable";
 import { KeyboardControllable } from "@input/components/keyboard-controllable";
+import { device } from "@renderer/app";
+import { createSineTerrain } from "../procgen/sine-chunk";
 
 type TSceneDefinition = {
   name: string;

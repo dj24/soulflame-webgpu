@@ -10,6 +10,7 @@ import { quat, vec3 } from "wgpu-matrix";
 import { getGPUDeviceSingleton } from "../../abstractions/get-gpu-device-singleton";
 import { GamepadControllable } from "@input/components/gamepad-controllable";
 import { ImmovableBox } from "@physics/components/immovable-box";
+import { createVoxelTerrain } from "../../procgen/sine-chunk";
 
 export class Renderer extends System {
   componentsRequired = new Set([VoxelObject, Transform]);
@@ -35,12 +36,6 @@ export class Renderer extends System {
       //   new Transform([0, 0, 0], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
       // );
 
-      const terrainVoxels = await createVoxelObject(
-        device,
-        volumeAtlas,
-        `Terrain`,
-        `./terrain.vxm`,
-      );
       // const newEntity = this.ecs.addEntity();
       // this.ecs.addComponent(newEntity, new VoxelObject(terrainVoxels));
       // this.ecs.addComponent(
@@ -48,9 +43,17 @@ export class Renderer extends System {
       //   new Transform([0, 0, 0], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
       // );
 
-      for (let x = -2048; x <= 2048; x += 256) {
-        for (let z = -2048; z <= 2048; z += 256) {
+      const chunkWidth = 64;
+
+      for (let x = -192; x <= 192; x += chunkWidth) {
+        for (let z = -192; z <= 192; z += chunkWidth) {
           const newEntity = this.ecs.addEntity();
+          const terrainVoxels = await createVoxelTerrain(
+            device,
+            volumeAtlas,
+            chunkWidth,
+            [x, 0, z],
+          );
           this.ecs.addComponent(newEntity, new VoxelObject(terrainVoxels));
           this.ecs.addComponent(
             newEntity,

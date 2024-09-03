@@ -93,8 +93,6 @@ export class Octree {
     this.#maxDepth = getOctreeDepthFromVoxelBounds(voxels.SIZE);
     this.#build(voxels, 0, [0, 0, 0], 0);
     averageFirstChildIndex /= this.nodes.length;
-    console.log(`Average first child index: ${averageFirstChildIndex}`);
-    console.log(this.nodes.slice(0, 10));
   }
 
   // Allocate memory for 8 nodes, and return the index of the first node
