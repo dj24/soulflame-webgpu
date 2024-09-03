@@ -204,11 +204,11 @@ export const init = async (
       };
     })(),
     // getGlobalIlluminationPass(),
-    // getShadowsPass(),
+    getShadowsPass(),
     // getBloomPass(),
     // getSimpleFogPass(),
     getTaaPass(),
-    // getTonemapPass(),
+    getTonemapPass(),
     getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
     // getVignettePass(15.0),
@@ -479,16 +479,16 @@ export const frame = (
   //   ecs.getComponents(renderableEntities[1]).get(Transform).position[1],
   // );
 
-  // if (lastEntityCount !== renderableEntities.length) {
-  bvh.update(
-    renderableEntities.map((entity) => {
-      return getVoxelObjectBoundingBox(
-        ecs.getComponents(entity).get(VoxelObject),
-        ecs.getComponents(entity).get(Transform),
-      );
-    }),
-  );
-  // }
+  if (lastEntityCount !== renderableEntities.length) {
+    bvh.update(
+      renderableEntities.map((entity) => {
+        return getVoxelObjectBoundingBox(
+          ecs.getComponents(entity).get(VoxelObject),
+          ecs.getComponents(entity).get(Transform),
+        );
+      }),
+    );
+  }
 
   lastEntityCount = renderableEntities.length;
 

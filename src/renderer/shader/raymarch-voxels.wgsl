@@ -100,6 +100,7 @@ struct InternalNode {
 struct LeafNode {
   colour: vec3<u32>,
   position: vec3<u32>,
+  size: u32,
 }
 
 const mask8 = 0xFFu;
@@ -108,52 +109,54 @@ const mask24 = 0xFFFFFFu;
 
 // if first child offset is 0, then it is a leaf
 fn isLeaf(node:vec2<u32>) -> bool {
-  return (node[0] & mask16) == 0;
+  return (node[0] & mask8) == 0;
 }
 
 /**
   * Unpacks a leaf node from a 32 bit integer
-  * First 16 bits are the leaf flag (0)
-  * The next 8 bits are the red component
-  * The next 8 bits are the green component
-  * The next 8 bits are the blue component
+  * First 8 bits are the leaf flag (0)
   * The next 8 bits are the x position
   * The next 8 bits are the y position
   * The next 8 bits are the z position
+  * The next 8 bits are the red component
+  * The next 8 bits are the green component
+  * The next 8 bits are the blue component
+
   */
 fn unpackLeaf(node: vec2<u32>) -> LeafNode {
   var output = LeafNode();
   let first4Bytes = node.x;
   let second4Bytes = node.y;
-  let r = (first4Bytes >> 16u) & mask8;
-  let g = (first4Bytes >> 24u) & mask8;
-  let b = second4Bytes & mask8;
-  let x = (second4Bytes >> 8u) & mask8;
-  let y = (second4Bytes >> 16u) & mask8;
-  let z = (second4Bytes >> 24u) & mask8;
+  let x = (first4Bytes >> 8u) & mask8;
+  let y = (first4Bytes >> 16u) & mask8;
+  let z = (first4Bytes >> 24u) & mask8;
+  let r = second4Bytes & mask8;
+  let g = (second4Bytes >> 8u) & mask8;
+  let b = (second4Bytes >> 16u) & mask8;
   output.colour = vec3<u32>(r, g, b);
   output.position = vec3<u32>(x, y, z);
+  output.size = 1u << ((second4Bytes >> 24u) & mask8);
   return output;
 }
 
 /**
   * Unpacks an internal node from a 32 bit integer
-  * First 24 bits are the firstChildOffset
-  * The next 8 bits are the child mask
+  * First 8 bits are the child mask
   * The next 8 bits are the x position
   * The next 8 bits are the y position
   * The next 8 bits are the z position
+  * The next 24 bits are the firstChildOffset
   * The next 8 bits are the size
   */
 fn unpackInternal(node: vec2<u32>) -> InternalNode {
   var output = InternalNode();
   let first4Bytes = node.x;
   let second4Bytes = node.y;
-  output.firstChildOffset = first4Bytes & mask24;
-  output.childMask = (first4Bytes >> 24u) & mask8;
-  let x = second4Bytes & mask8;
-  let y = (second4Bytes >> 8u) & mask8;
-  let z = (second4Bytes >> 16u) & mask8;
+  output.childMask = first4Bytes & mask8;
+  let x = (first4Bytes >> 8u) & mask8;
+  let y = (first4Bytes >> 16u) & mask8;
+  let z = (first4Bytes >> 24u) & mask8;
+  output.firstChildOffset = second4Bytes & mask24;
   output.position = vec3<u32>(x, y, z);
   output.size = 1u << ((second4Bytes >> 24u) & mask8); // 2 raised to the power of the size
   return output;
@@ -241,14 +244,14 @@ const DISTANCE_THRESHOLDS =
     vec2<f32>(16.0, 2000)
   );
 
-fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>, minNodeSize: f32) -> RayMarchResult {
+fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>, maxDistance: f32) -> RayMarchResult {
     let halfExtents = voxelObject.size * 0.5;
     var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz + halfExtents;
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
     var output = RayMarchResult();
 
     let distanceToRoot = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5).tNear;
-    if(distanceToRoot > FAR_PLANE){
+    if(distanceToRoot > maxDistance){
       return output;
     }
 
@@ -259,28 +262,14 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     var stack = stacku32_new();
 
     // Push the root node index onto the stack
-//    stacku32_push(&stack, 84688 + 1u);
     stacku32_push(&stack, voxelObject.octreeBufferIndex);
 
     // Main loop
     while (stack.head > 0u && output.iterations < MAX_STEPS) {
-      output.colour += vec3(0.02);
+//      output.colour += vec3(0.02);
       output.iterations += 1u;
       let nodeIndex = stacku32_pop(&stack);
       let node = octreeBuffer[nodeIndex];
-
-      if(isLeaf(node)){
-        // TODO: find out how to get normal without extra intersection
-        let leafNode = unpackLeaf(node);
-        let nodeOrigin = vec3(f32(leafNode.position.x), f32(leafNode.position.y), f32(leafNode.position.z));
-        let nodeRayOrigin = objectRayOrigin - nodeOrigin;
-        let nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(0.5));
-        output.hit = true;
-        output.t = nodeIntersection.tNear;
-        output.normal = nodeIntersection.normal;
-//          output.colour = vec3<f32>(leafNode.colour) / 255.0;
-        return output;
-      }
 
       // Get the current nodes data
       let internalNode = unpackInternal(node);
@@ -288,42 +277,21 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       // Get the size of the node to get the center for plane intersections
       let nodeSize = f32(internalNode.size);
 
-      // Check if the ray intersects the node, if not, skip it
       let nodeOrigin = vec3<f32>(internalNode.position);
       let nodeRayOrigin = objectRayOrigin - nodeOrigin;
-      let nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(nodeSize * 0.5));
-      let isOriginInside = all(nodeRayOrigin >= vec3(0.0)) && all(nodeRayOrigin <= vec3(nodeSize));
 
-      let distanceToNode = nodeIntersection.tNear;
-//      output.colour = distanceToNode * vec3(0.001);
-
-      if(distanceToNode < 0.0){
-        continue;
+      if(isLeaf(node)){
+        // TODO: find out how to get normal without extra intersection
+        let leafNode = unpackLeaf(node);
+        let nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(nodeSize * 0.5));
+        output.hit = true;
+        output.t = nodeIntersection.tNear;
+        output.normal = nodeIntersection.normal;
+        output.colour = vec3<f32>(leafNode.colour) / 255.0;
+        return output;
       }
 
-      if(!nodeIntersection.isHit && !isOriginInside){
-        continue;
-      }
-
-//      if(f32(internalNode.size) <= minNodeSize){
-//        output.hit = true;
-//        output.t = nodeIntersection.tNear;
-//        output.normal = nodeIntersection.normal;
-//        output.colour = vec3(1,0,0);
-//        return output;
-//      }
-
-//      for(var i = 0u; i < 4u; i++){
-//        if(f32(internalNode.size) <= DISTANCE_THRESHOLDS[i].x && distanceToRoot > DISTANCE_THRESHOLDS[i].y){
-//          output.hit = true;
-//          output.t = nodeIntersection.tNear;
-//          output.normal = nodeIntersection.normal;
-//          output.colour = vec3(1);
-//          return output;
-//        }
-//      }
-
-      let centerOfChild = vec3(nodeSize* 0.5);
+      let centerOfChild = vec3(nodeSize * 0.5);
 
       // Use planes to find the "inner" intersections
       let planeIntersections = getPlaneIntersections(nodeRayOrigin, objectRayDirection, nodeSize);
@@ -336,7 +304,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
 
       // Push the children onto the stack, furthest first
       for(var i = 0u; i < 3u; i++){
-        if(sortedIntersections[i] > 9999.0){
+        if(sortedIntersections[i] > maxDistance || sortedIntersections[i] < 0.0){
           continue;
         }
 
@@ -352,6 +320,11 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       }
 
       // Get octant hit on the surface of the nodes bounding box
+      // Check if the ray intersects the node, if not, skip it
+      let nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(nodeSize * 0.5));
+      if(nodeIntersection.tNear > maxDistance || nodeIntersection.tNear < 0.0){
+        continue;
+      }
       let intersectionPoint = nodeRayOrigin + objectRayDirection * nodeIntersection.tNear;
       let hitOctant = vec3<u32>(intersectionPoint >= centerOfChild);
       let hitIndex = octantOffsetToIndex(vec3<u32>(hitOctant));

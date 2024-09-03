@@ -71,6 +71,8 @@ export type LeafNode = {
   y: number;
   /** z position of the node */
   z: number;
+  /** size of the node */
+  size: number;
 };
 
 type OctreeNode = InternalNode | LeafNode;
@@ -108,6 +110,7 @@ export class Octree {
     depth: number,
   ) {
     // Only one voxel in this octant, so it's a leaf node
+    // TODO: allow leaves of larger sizes
     const isLeaf = voxels.SIZE[0] === 1;
     if (isLeaf) {
       const paletteIndex = voxels.XYZI[0].c;
@@ -118,6 +121,7 @@ export class Octree {
         x: offset[0],
         y: offset[1],
         z: offset[2],
+        size: voxels.SIZE[0],
       };
       return;
     }
@@ -210,13 +214,14 @@ export const setLeafNode = (
   index: number,
   node: LeafNode,
 ) => {
-  dataView.setUint16(index * OCTREE_STRIDE, 0, true);
-  dataView.setUint8(index * OCTREE_STRIDE + 2, node.red);
-  dataView.setUint8(index * OCTREE_STRIDE + 3, node.green);
-  dataView.setUint8(index * OCTREE_STRIDE + 4, node.blue);
-  dataView.setUint8(index * OCTREE_STRIDE + 5, node.x);
-  dataView.setUint8(index * OCTREE_STRIDE + 6, node.y);
-  dataView.setUint8(index * OCTREE_STRIDE + 7, node.z);
+  dataView.setUint8(index * OCTREE_STRIDE, 0);
+  dataView.setUint8(index * OCTREE_STRIDE + 1, node.x);
+  dataView.setUint8(index * OCTREE_STRIDE + 2, node.y);
+  dataView.setUint8(index * OCTREE_STRIDE + 3, node.z);
+  dataView.setUint8(index * OCTREE_STRIDE + 4, node.red);
+  dataView.setUint8(index * OCTREE_STRIDE + 5, node.green);
+  dataView.setUint8(index * OCTREE_STRIDE + 6, node.blue);
+  dataView.setUint8(index * OCTREE_STRIDE + 7, Math.log2(node.size));
 };
 
 export const setInternalNode = (
@@ -228,11 +233,23 @@ export const setInternalNode = (
     node.firstChildIndex < 2 ** 24 - 1,
     `First child index of ${node.firstChildIndex} is too large to fit in 3 bytes`,
   );
-  dataView.setUint32(index * OCTREE_STRIDE, node.firstChildIndex, true);
-  dataView.setUint8(index * OCTREE_STRIDE + 3, node.childMask);
-  dataView.setUint8(index * OCTREE_STRIDE + 4, node.x);
-  dataView.setUint8(index * OCTREE_STRIDE + 5, node.y);
-  dataView.setUint8(index * OCTREE_STRIDE + 6, node.z);
+  console.assert(
+    node.x < 2 ** 8,
+    `X position of ${node.x} is too large to fit in 1 byte`,
+  );
+  console.assert(
+    node.y < 2 ** 8,
+    `Y position of ${node.y} is too large to fit in 1 byte`,
+  );
+  console.assert(
+    node.z < 2 ** 8,
+    `Z position of ${node.z} is too large to fit in 1 byte`,
+  );
+  dataView.setUint8(index * OCTREE_STRIDE, node.childMask);
+  dataView.setUint8(index * OCTREE_STRIDE + 1, node.x);
+  dataView.setUint8(index * OCTREE_STRIDE + 2, node.y);
+  dataView.setUint8(index * OCTREE_STRIDE + 3, node.z);
+  dataView.setUint32(index * OCTREE_STRIDE + 4, node.firstChildIndex, true);
   dataView.setUint8(index * OCTREE_STRIDE + 7, Math.log2(node.size));
 };
 

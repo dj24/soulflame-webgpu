@@ -14,7 +14,7 @@ const SUBPIXEL_SAMPLE_POSITIONS: array<vec2<f32>, 8> = array<vec2<f32>, 8>(
 const BLUE_NOISE_SIZE = 511;
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SHADOW_ACNE_OFFSET: f32 = 0.01;
-const SCATTER_AMOUNT: f32 = 0.05;
+const SCATTER_AMOUNT: f32 = 0.1;
 const POSITION_SCATTER_AMOUNT: f32 = 0.00;
 
 // TODO: offset in object space instead of world space to scale with object size

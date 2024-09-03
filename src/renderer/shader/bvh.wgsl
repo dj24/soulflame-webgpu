@@ -72,10 +72,10 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
           continue;
         }
         let voxelObject = voxelObjects[node.leftIndex];
-        var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, rayOrigin, 0.0);
-//        if(rayMarchResult.hit && rayMarchResult.t < closestIntersection.t){
+        var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, rayOrigin, 9999.0);
+        if(rayMarchResult.hit && rayMarchResult.t < closestIntersection.t){
            closestIntersection = rayMarchResult;
-//        }
+        }
     }
     iterations += 1;
 //    closestIntersection.colour += vec3<f32>(0.05);
@@ -85,6 +85,7 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
 }
 
 const MAX_SHADOW_BVH_VISITS = 32;
+const MAX_SHADOW_DISTANCE = 9999.0;
 
 fn rayMarchBVHShadows(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, mipLevel: u32) -> RayMarchResult {
    var closestIntersection = RayMarchResult();
@@ -104,8 +105,8 @@ fn rayMarchBVHShadows(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, mipLevel: u
        let rightNode = bvhNodes[node.rightIndex];
        let leftDist = getDistanceToNode(rayOrigin, rayDirection, leftNode);
        let rightDist = getDistanceToNode(rayOrigin, rayDirection, rightNode);
-       let hitLeft = leftDist >= 0.0;
-       let hitRight = rightDist >= 0.0;
+       let hitLeft = leftDist >= 0.0 && leftDist < MAX_SHADOW_DISTANCE;
+       let hitRight = rightDist >= 0.0 && rightDist < MAX_SHADOW_DISTANCE;
        if(hitLeft){
          var nearIndex = node.leftIndex;
          // We hit both left and right, choose the closest one
@@ -137,10 +138,8 @@ fn rayMarchBVHShadows(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, mipLevel: u
            nodeIndex = stack_pop(&stack);
            continue;
          }
-         let worldPos = rayOrigin + rayDirection * distanceToLeaf;
          let voxelObject = voxelObjects[node.leftIndex];
-         var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, worldPos, 1.0);
-         let totalDistance = rayMarchResult.t + distanceToLeaf;
+         var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, rayOrigin, MAX_SHADOW_DISTANCE);
          if(rayMarchResult.hit){
            return rayMarchResult;
          }

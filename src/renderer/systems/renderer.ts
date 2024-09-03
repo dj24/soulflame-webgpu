@@ -41,23 +41,23 @@ export class Renderer extends System {
         `Terrain`,
         `./terrain.vxm`,
       );
-      const newEntity = this.ecs.addEntity();
-      this.ecs.addComponent(newEntity, new VoxelObject(terrainVoxels));
-      this.ecs.addComponent(
-        newEntity,
-        new Transform([0, 0, 0], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
-      );
+      // const newEntity = this.ecs.addEntity();
+      // this.ecs.addComponent(newEntity, new VoxelObject(terrainVoxels));
+      // this.ecs.addComponent(
+      //   newEntity,
+      //   new Transform([0, 0, 0], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
+      // );
 
-      // for (let x = -2048; x <= 2048; x += 256) {
-      //   for (let z = -2048; z <= 2048; z += 256) {
-      //     const newEntity = this.ecs.addEntity();
-      //     this.ecs.addComponent(newEntity, new VoxelObject(terrainVoxels));
-      //     this.ecs.addComponent(
-      //       newEntity,
-      //       new Transform([x, 0, z], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
-      //     );
-      //   }
-      // }
+      for (let x = -2048; x <= 2048; x += 256) {
+        for (let z = -2048; z <= 2048; z += 256) {
+          const newEntity = this.ecs.addEntity();
+          this.ecs.addComponent(newEntity, new VoxelObject(terrainVoxels));
+          this.ecs.addComponent(
+            newEntity,
+            new Transform([x, 0, z], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
+          );
+        }
+      }
 
       // const dragonVoxels = await createVoxelObject(
       //   device,
