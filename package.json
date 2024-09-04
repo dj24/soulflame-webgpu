@@ -29,11 +29,14 @@
     "typedoc": "^0.25.13",
     "webpack": "^5.90.3",
     "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^5.0.2"
+    "webpack-dev-server": "^5.0.2",
+    "worker-plugin": "^5.0.1"
   },
   "dependencies": {
     "cannon-es": "^0.20.0",
     "colorjs.io": "^0.5.2",
+    "comlink": "^4.4.1",
+    "greenlet": "^1.1.0",
     "lil-gui": "^0.19.2",
     "motion": "^10.17.0",
     "oimo": "^1.0.9",

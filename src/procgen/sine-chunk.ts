@@ -3,6 +3,8 @@ import { VolumeAtlas } from "@renderer/volume-atlas";
 import { Octree, octreeToArrayBuffer } from "@renderer/octree/octree";
 import { VoxelObject } from "@renderer/voxel-object";
 import { createNoise3D } from "simplex-noise";
+import { expose, wrap } from "comlink";
+
 const noise3D = createNoise3D();
 
 const fractalNoise3D = (
@@ -22,7 +24,7 @@ const fractalNoise3D = (
   return value / totalWeight;
 };
 
-const CHUNK_HEIGHT = 256;
+export const CHUNK_HEIGHT = 256;
 
 function easeInQuart(x: number): number {
   return x * x * x * x;
@@ -44,100 +46,65 @@ export const createSineTerrain = (
   size: number,
   frequency: number,
   offset: [number, number, number],
-): TVoxels => {
-  console.time(`Create sine terrain`);
-  const voxels: TVoxels["XYZI"] = [];
-  const colours: TVoxels["RGBA"] = [];
+  voxelBuffer: SharedArrayBuffer,
+  colourBuffer: SharedArrayBuffer,
+): Omit<TVoxels, "XYZI" | "RGBA"> => {
+  const voxels = new Uint8Array(voxelBuffer);
+  const colours = new Uint8Array(colourBuffer);
+  let voxelCount = 0;
+  let colourCount = 0;
   const grassColour = { r: 0, g: 255, b: 0, a: 0 };
   const dirtColour = { r: 139, g: 69, b: 19, a: 0 };
+
   for (let x = 0; x < size; x++) {
     for (let y = 0; y < CHUNK_HEIGHT; y++) {
       for (let z = 0; z < size; z++) {
-        const bridgeWidth = 16;
-        const bridgeHeight = 128;
         const offsetX = x + offset[0];
         const offsetY = y + offset[1];
         const offsetZ = z + offset[2];
-
-        const isBridgePath =
-          offsetZ < 32 &&
-          offsetZ > 16 &&
-          offsetY > bridgeHeight - 16 &&
-          offsetY < bridgeHeight;
-
-        const isBridgePillar =
-          offsetY < bridgeHeight &&
-          offsetZ < 32 &&
-          offsetZ > 16 &&
-          offsetX % (bridgeWidth * 2) > 0 &&
-          offsetX % (bridgeWidth * 2) < bridgeWidth;
-
-        if (isBridgePath || isBridgePillar) {
-          colours.push({ r: 128, g: 128, b: 128, a: 0 });
-          const c = colours.length - 1;
-          voxels.push({ x, y, z, c });
-          continue;
-        }
 
         const n = fractalNoise3D(
           offsetX / frequency,
           offsetY / frequency,
           offsetZ / frequency,
-          5,
+          2,
         );
         // 0 at the y top, 1 at the bottom
         const squashFactor = y / CHUNK_HEIGHT;
         const density = easeInCubic((n + 1) / 2);
-        const red = dirtColour.r * density + grassColour.r * (1 - density);
-        const green = dirtColour.g * density + grassColour.g * (1 - density);
-        const blue = dirtColour.b * density + grassColour.b * (1 - density);
-        colours.push({ r: red, g: green, b: blue, a: 0 });
-        const c = colours.length - 1;
-        if (density > squashFactor && density < squashFactor + 0.05) {
-          voxels.push({ x, y, z, c });
+
+        if (density > squashFactor) {
+          const red = dirtColour.r * density + grassColour.r * (1 - density);
+          const green = dirtColour.g * density + grassColour.g * (1 - density);
+          const blue = dirtColour.b * density + grassColour.b * (1 - density);
+
+          colourCount++;
+          const baseColourIndex = (colourCount - 1) * 4;
+          Atomics.store(colours, baseColourIndex, red);
+          Atomics.store(colours, baseColourIndex + 1, green);
+          Atomics.store(colours, baseColourIndex + 2, blue);
+          Atomics.store(colours, baseColourIndex + 3, 255);
+
+          voxelCount++;
+          const baseVoxelIndex = (voxelCount - 1) * 4;
+          Atomics.store(voxels, baseVoxelIndex, x);
+          Atomics.store(voxels, baseVoxelIndex + 1, y);
+          Atomics.store(voxels, baseVoxelIndex + 2, z);
+          Atomics.store(voxels, baseVoxelIndex + 3, colourCount - 1);
         }
       }
     }
   }
-  console.timeEnd(`Create sine terrain`);
   return {
     SIZE: [size, CHUNK_HEIGHT, size],
     VOX: voxels.length,
-    XYZI: voxels,
-    RGBA: colours,
   };
 };
 
-export const createVoxelTerrain = async (
-  device: GPUDevice,
-  volumeAtlas: VolumeAtlas,
-  size: number,
-  position: [number, number, number],
-) => {
-  const frequency = 512;
-  const name = `Terrain - ${position[0]}, ${position[1]}, ${position[2]}`;
-  const voxels = createSineTerrain(size, frequency, position);
-  console.time(`Create octree for ${name}`);
-  const octree = new Octree(voxels);
-  const octreeArrayBuffer = octreeToArrayBuffer(octree);
-  console.timeEnd(`Create octree for ${name}`);
-  await volumeAtlas.addVolume(
-    name,
-    [size, CHUNK_HEIGHT, size],
-    octreeArrayBuffer,
-  );
-  const {
-    size: atlasSize,
-    location,
-    paletteIndex,
-    octreeOffset,
-  } = volumeAtlas.dictionary[name];
-
-  return new VoxelObject({
-    name,
-    size: atlasSize,
-    atlasLocation: location,
-    paletteIndex,
-    octreeBufferIndex: octreeOffset,
-  });
+const worker = {
+  createSineTerrain,
 };
+
+export type TerrainWorker = typeof worker;
+
+expose(worker);

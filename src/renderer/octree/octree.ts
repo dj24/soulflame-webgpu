@@ -172,7 +172,14 @@ export class Octree {
       return mask;
     }, 0);
 
-    if (childMask === 256) {
+    const totalVoxels = childOctants.reduce(
+      (total, octantVoxels) => total + (octantVoxels ? octantVoxels.VOX : 0),
+      0,
+    );
+
+    const isAllVoxelsFilled = totalVoxels === objectSize ** 3;
+
+    if (isAllVoxelsFilled) {
       const paletteIndex = voxels.XYZI[0].c;
       this.nodes[startIndex] = {
         red: voxels.RGBA[paletteIndex].r,

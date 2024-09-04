@@ -12,6 +12,17 @@ module.exports = () => {
       filename: "main.js",
       path: path.resolve(__dirname, "dist"),
     },
+    devServer: {
+      static: {
+        directory: path.join(__dirname, "dist"),
+      },
+      headers: {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp",
+      },
+      compress: true,
+      port: 8080, // You can change the port if needed
+    },
     resolve: {
       extensions: [".ts", ".js", ".json"],
       plugins: [new TSConfigPathsPlugin()],

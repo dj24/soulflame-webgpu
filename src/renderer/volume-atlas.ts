@@ -32,41 +32,9 @@ export type VolumeAtlasDictionary = {
   [key: string]: VolumeAtlasEntry;
 };
 
-const ceilToNearestMultipleOf = (n: number, multiple: number) => {
-  return Math.ceil(n / multiple) * multiple;
-};
-
 const MIN_VOLUME_SIZE = Math.pow(2, VOLUME_MIP_LEVELS - 1);
 const DEFAULT_ATLAS_SIZE = MIN_VOLUME_SIZE;
 const PALETTE_WIDTH = 256;
-
-const findAllFourByteSequences = (
-  byteArray: Uint8Array,
-  sequence: string,
-): number[] => {
-  if (sequence.length !== 4) {
-    throw new Error("Sequence must be exactly 4 characters long");
-  }
-
-  const sequenceBytes = new Uint8Array(4);
-  for (let i = 0; i < 4; i++) {
-    sequenceBytes[i] = sequence.charCodeAt(i);
-  }
-
-  const indices: number[] = [];
-  for (let i = 0; i <= byteArray.length - 4; i++) {
-    if (
-      byteArray[i] === sequenceBytes[0] &&
-      byteArray[i + 1] === sequenceBytes[1] &&
-      byteArray[i + 2] === sequenceBytes[2] &&
-      byteArray[i + 3] === sequenceBytes[3]
-    ) {
-      indices.push(i);
-    }
-  }
-
-  return indices;
-};
 
 /** A class representing a volume atlas for storing multiple 3D textures.
  *
@@ -176,7 +144,7 @@ export class VolumeAtlas {
     this.#device.queue.submit([commandEncoder.finish()]);
 
     console.log(
-      `writing ${label} at byte offset ${this.#octreeBuffer.size}, index ${bufferIndexForNewVolume}`,
+      `total octree buffer size: ${(this.#octreeBuffer.size / 1024 / 1024).toFixed(2)}MB`,
     );
 
     // write new data to the new buffer
@@ -191,13 +159,6 @@ export class VolumeAtlas {
     this.#octreeBuffer = newOctreeBuffer;
 
     this.#octreeBuffer.unmap();
-
-    this.#atlasTexture = await generateOctreeMips(
-      this.#device,
-      this.#atlasTexture,
-    );
-    this.#atlasTextureView = this.#atlasTexture.createView();
-    this.#paletteTextureView = this.#paletteTexture.createView();
   };
 
   get atlasTextureView() {
