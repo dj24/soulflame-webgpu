@@ -188,29 +188,6 @@ export class VolumeAtlas {
 
     await this.#device.queue.onSubmittedWorkDone();
 
-    // DEBUG
-    const commandEncoder2 = this.#device.createCommandEncoder();
-    const debugCopyBuffer = this.#device.createBuffer({
-      size: newOctreeBuffer.size,
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-      mappedAtCreation: false,
-    });
-    commandEncoder2.copyBufferToBuffer(
-      newOctreeBuffer,
-      0,
-      debugCopyBuffer,
-      0,
-      newOctreeBuffer.size,
-    );
-    this.#device.queue.submit([commandEncoder2.finish()]);
-    debugCopyBuffer.mapAsync(GPUMapMode.READ).then(() => {
-      const debugBufferArray = new Uint8Array(debugCopyBuffer.getMappedRange());
-      console.log({
-        magicIndices: findAllFourByteSequences(debugBufferArray, "OCTR"),
-      });
-      console.log({ length: debugBufferArray.length / 4 });
-    });
-
     this.#octreeBuffer = newOctreeBuffer;
 
     this.#octreeBuffer.unmap();

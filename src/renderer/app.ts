@@ -166,7 +166,6 @@ export const init = async (
   device1: GPUDevice,
   volumeAtlas1: VolumeAtlas,
   ecs: ECS,
-  renderableEntities: Entity[],
 ) => {
   // TODO: make sure device is passed via function param instead
   device = device1;
@@ -453,7 +452,12 @@ export const frame = (
   cameraTransform: Transform,
   renderableEntities: Entity[],
 ) => {
-  if (!device || !computePasses || !volumeAtlas) {
+  if (
+    !device ||
+    !computePasses ||
+    !volumeAtlas ||
+    renderableEntities.length === 0
+  ) {
     return;
   }
 

@@ -22,6 +22,7 @@ export class Renderer extends System {
       const gpu = getGPUDeviceSingleton(this.ecs);
       gpu.device = device;
       gpu.volumeAtlas = volumeAtlas;
+      init(device, volumeAtlas, this.ecs);
 
       // const sponzaVoxels = await createVoxelObject(
       //   device,
@@ -43,10 +44,10 @@ export class Renderer extends System {
       //   new Transform([0, 0, 0], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
       // );
 
-      const chunkWidth = 64;
+      const chunkWidth = 32;
 
-      for (let x = -192; x <= 192; x += chunkWidth) {
-        for (let z = -192; z <= 192; z += chunkWidth) {
+      for (let x = -128; x <= 128; x += chunkWidth) {
+        for (let z = -128; z <= 128; z += chunkWidth) {
           const newEntity = this.ecs.addEntity();
           const terrainVoxels = await createVoxelTerrain(
             device,
@@ -118,8 +119,6 @@ export class Renderer extends System {
       //     );
       //   }
       // }
-
-      init(device, volumeAtlas, this.ecs, []);
     });
   }
 

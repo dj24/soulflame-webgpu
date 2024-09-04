@@ -172,6 +172,20 @@ export class Octree {
       return mask;
     }, 0);
 
+    if (childMask === 256) {
+      const paletteIndex = voxels.XYZI[0].c;
+      this.nodes[startIndex] = {
+        red: voxels.RGBA[paletteIndex].r,
+        green: voxels.RGBA[paletteIndex].g,
+        blue: voxels.RGBA[paletteIndex].b,
+        x: offset[0],
+        y: offset[1],
+        z: offset[2],
+        size: voxels.SIZE[0],
+      };
+      return;
+    }
+
     // Allocate memory for child nodes
     const firstChildIndex = this.#mallocOctant(requiredChildNodes);
     const relativeIndex = firstChildIndex - startIndex;
