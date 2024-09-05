@@ -24,33 +24,26 @@ const fractalNoise3D = (
   return value / totalWeight;
 };
 
-export const CHUNK_HEIGHT = 256;
-
-function easeInQuart(x: number): number {
-  return x * x * x * x;
-}
-
 function easeInCubic(x: number): number {
   return x * x * x;
 }
 
-function easeInQuad(x: number): number {
-  return x * x;
-}
+export const CHUNK_HEIGHT = 256;
 
-function easeInOutCubic(x: number): number {
-  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
-}
+let voxels: number[] = [];
+let colours: number[] = [];
+
+type SineTerrain = {
+  size: [number, number, number];
+  voxelByteLength: number;
+  colourByteLength: number;
+};
 
 export const createSineTerrain = (
   size: number,
   frequency: number,
   offset: [number, number, number],
-  voxelBuffer: SharedArrayBuffer,
-  colourBuffer: SharedArrayBuffer,
-): Omit<TVoxels, "XYZI" | "RGBA"> => {
-  const voxels = new Uint8Array(voxelBuffer);
-  const colours = new Uint8Array(colourBuffer);
+): SineTerrain => {
   let voxelCount = 0;
   let colourCount = 0;
   const grassColour = { r: 0, g: 255, b: 0, a: 0 };
@@ -77,32 +70,38 @@ export const createSineTerrain = (
           const red = dirtColour.r * density + grassColour.r * (1 - density);
           const green = dirtColour.g * density + grassColour.g * (1 - density);
           const blue = dirtColour.b * density + grassColour.b * (1 - density);
-
-          colourCount++;
-          const baseColourIndex = (colourCount - 1) * 4;
-          Atomics.store(colours, baseColourIndex, red);
-          Atomics.store(colours, baseColourIndex + 1, green);
-          Atomics.store(colours, baseColourIndex + 2, blue);
-          Atomics.store(colours, baseColourIndex + 3, 255);
-
-          voxelCount++;
-          const baseVoxelIndex = (voxelCount - 1) * 4;
-          Atomics.store(voxels, baseVoxelIndex, x);
-          Atomics.store(voxels, baseVoxelIndex + 1, y);
-          Atomics.store(voxels, baseVoxelIndex + 2, z);
-          Atomics.store(voxels, baseVoxelIndex + 3, colourCount - 1);
+          colours.push(red, green, blue, 255);
+          voxels.push(x, y, z, colourCount - 1);
         }
       }
     }
   }
   return {
-    SIZE: [size, CHUNK_HEIGHT, size],
-    VOX: voxels.length,
+    size: [size, CHUNK_HEIGHT, size],
+    voxelByteLength: voxels.length,
+    colourByteLength: colours.length,
   };
+};
+
+const populateTerrainBuffer = (
+  voxelBuffer: SharedArrayBuffer,
+  coloursBuffer: SharedArrayBuffer,
+) => {
+  const voxelsArray = new Uint8Array(voxelBuffer);
+  const coloursArray = new Uint8Array(coloursBuffer);
+  voxels.forEach((v, i) => {
+    voxelsArray[i] = v;
+  });
+  colours.forEach((c, i) => {
+    coloursArray[i] = c;
+  });
+  voxels = [];
+  colours = [];
 };
 
 const worker = {
   createSineTerrain,
+  populateTerrainBuffer,
 };
 
 export type TerrainWorker = typeof worker;

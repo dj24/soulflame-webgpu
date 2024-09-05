@@ -1,5 +1,7 @@
 import { TVoxels } from "../convert-vxm";
 import { setBit } from "./bitmask";
+import { expose } from "comlink";
+import { createSineTerrain } from "../../procgen/sine-chunk";
 
 /** Returns the depth of the octree required to contain the given voxel bounds */
 export const getOctreeDepthFromVoxelBounds = (size: TVoxels["SIZE"]) => {
@@ -107,8 +109,6 @@ export class Octree {
     offset: [x: number, y: number, z: number],
     depth: number,
   ) {
-    // Only one voxel in this octant, so it's a leaf node
-    // TODO: allow leaves of larger sizes
     const isLeaf = voxels.SIZE[0] === 1;
     if (isLeaf) {
       const paletteIndex = voxels.XYZI[0].c;
@@ -272,6 +272,24 @@ export const setInternalNode = (
   dataView.setUint8(index * OCTREE_STRIDE + 7, Math.log2(node.size));
 };
 
+export const octreeToSharedArrayBuffer = (
+  octree: Octree,
+  buffer: SharedArrayBuffer,
+) => {
+  const view = new DataView(buffer);
+  octree.nodes.forEach((node, i) => {
+    if ("red" in node) {
+      setLeafNode(view, i, node);
+    } else {
+      setInternalNode(view, i, node);
+    }
+  });
+
+  console.debug(
+    `Created ${octree.nodes.length} node octree of size ${(octree.totalSize / 1024 ** 2).toFixed(3)} MB`,
+  );
+};
+
 export const octreeToArrayBuffer = (octree: Octree) => {
   const buffer = new ArrayBuffer(octree.totalSize + OCTREE_STRIDE);
   const view = new DataView(buffer);
@@ -290,3 +308,70 @@ export const octreeToArrayBuffer = (octree: Octree) => {
 
   return buffer;
 };
+
+let octree: Octree;
+
+const createOctreeAndReturnBytes = (
+  voxelsBuffer: SharedArrayBuffer,
+  coloursBuffer: SharedArrayBuffer,
+  size: [number, number, number],
+) => {
+  const arr = Array.from(new Uint8Array(voxelsBuffer));
+  let XYZI: TVoxels["XYZI"] = [];
+  for (let i = 0; i < arr.length; i += 4) {
+    const x = arr[i];
+    const y = arr[i + 1];
+    const z = arr[i + 2];
+    const c = arr[i + 3];
+    if (x === 0 && y === 0 && z === 0 && c === 0 && i > 0) {
+      break;
+    }
+    XYZI.push({
+      x,
+      y,
+      z,
+      c,
+    });
+  }
+
+  const colours = Array.from(new Uint8Array(coloursBuffer));
+  let RGBA: TVoxels["RGBA"] = [];
+
+  for (let i = 0; i < colours.length; i += 4) {
+    const r = colours[i];
+    const g = colours[i + 1];
+    const b = colours[i + 2];
+    const a = colours[i + 3];
+    if (r === 0 && g === 0 && b === 0 && a === 0) {
+      break;
+    }
+    RGBA.push({
+      r,
+      g,
+      b,
+      a,
+    });
+  }
+
+  const voxels: TVoxels = {
+    VOX: arr.length / 4,
+    SIZE: size,
+    XYZI,
+    RGBA,
+  };
+  octree = new Octree(voxels);
+  return octree.totalSize + OCTREE_STRIDE;
+};
+
+const populateOctreeBuffer = (buffer: SharedArrayBuffer) => {
+  octreeToSharedArrayBuffer(octree, buffer);
+};
+
+const worker = {
+  createOctreeAndReturnBytes,
+  populateOctreeBuffer,
+};
+
+export type OctreeWorker = typeof worker;
+
+expose(worker);

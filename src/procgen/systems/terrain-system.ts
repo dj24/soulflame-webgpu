@@ -6,12 +6,12 @@ import { VoxelObject } from "@renderer/voxel-object";
 import { Transform } from "@renderer/components/transform";
 import { quat } from "wgpu-matrix";
 
-const chunkWidth = 64;
+const chunkWidth = 128;
 
 const foo = async (ecs: ECS) => {
   const volumeAtlas = getGPUDeviceSingleton(ecs).volumeAtlas;
-  for (let x = -256; x <= 256; x += chunkWidth) {
-    for (let z = -256; z <= 256; z += chunkWidth) {
+  for (let x = -512; x <= 512; x += chunkWidth) {
+    for (let z = -512; z <= 512; z += chunkWidth) {
       const newEntity = ecs.addEntity();
       const terrainVoxels = await createTerrainChunk(volumeAtlas, chunkWidth, [
         x,
