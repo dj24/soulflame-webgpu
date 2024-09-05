@@ -3,6 +3,7 @@ import { VOLUME_ATLAS_FORMAT, VOLUME_MIP_LEVELS } from "./constants";
 import { writeTextureToCanvas } from "./write-texture-to-canvas";
 import { generateOctreeMips } from "./create-3d-texture/generate-octree-mips";
 import { device } from "./app";
+import { Mutex } from "async-mutex";
 
 const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
   format: VOLUME_ATLAS_FORMAT,
@@ -56,6 +57,7 @@ export class VolumeAtlas {
   #atlasTextureView: GPUTextureView;
   #paletteTextureView: GPUTextureView;
   #octreeBuffer: GPUBuffer;
+  #mutex = new Mutex();
 
   constructor(device: GPUDevice) {
     this.#device = device;
@@ -110,55 +112,53 @@ export class VolumeAtlas {
       );
     }
 
-    const commandEncoder = this.#device.createCommandEncoder();
+    await this.#mutex.runExclusive(async () => {
+      const commandEncoder = this.#device.createCommandEncoder();
+      const [width, height, depth] = size;
+      const bufferIndexForNewVolume = this.#octreeBuffer.size / 8;
 
-    const [width, height, depth] = size;
+      this.#dictionary[label] = {
+        location: [0, 0, 0],
+        size: [width, height, depth],
+        paletteIndex: 0,
+        octreeOffset: bufferIndexForNewVolume,
+        octreeSizeBytes: octreeArrayBuffer.byteLength,
+        textureSizeBytes: width * height * depth,
+      };
 
-    const bufferIndexForNewVolume = this.#octreeBuffer.size / 8;
+      // Resize the octree buffer to fit the new data
+      const newOctreeBuffer = this.#device.createBuffer({
+        label: "Octree buffer",
+        size: this.#octreeBuffer.size + octreeArrayBuffer.byteLength,
+        usage: this.#octreeBuffer.usage,
+      });
 
-    this.#dictionary[label] = {
-      location: [0, 0, 0],
-      size: [width, height, depth],
-      paletteIndex: 0,
-      octreeOffset: bufferIndexForNewVolume,
-      octreeSizeBytes: octreeArrayBuffer.byteLength,
-      textureSizeBytes: width * height * depth,
-    };
+      // write existing data to the new buffer
+      commandEncoder.copyBufferToBuffer(
+        this.#octreeBuffer,
+        0,
+        newOctreeBuffer,
+        0,
+        this.#octreeBuffer.size,
+      );
 
-    // Resize the octree buffer to fit the new data
-    const newOctreeBuffer = this.#device.createBuffer({
-      label: "Octree buffer",
-      size: this.#octreeBuffer.size + octreeArrayBuffer.byteLength,
-      usage: this.#octreeBuffer.usage,
+      this.#device.queue.submit([commandEncoder.finish()]);
+
+      console.log(
+        `total octree buffer size: ${(this.#octreeBuffer.size / 1024 / 1024).toFixed(2)}MB`,
+      );
+
+      // write new data to the new buffer
+      this.#device.queue.writeBuffer(
+        newOctreeBuffer,
+        this.#octreeBuffer.size,
+        octreeArrayBuffer,
+      );
+
+      await this.#device.queue.onSubmittedWorkDone();
+      this.#octreeBuffer = newOctreeBuffer;
+      this.#octreeBuffer.unmap();
     });
-
-    // write existing data to the new buffer
-    commandEncoder.copyBufferToBuffer(
-      this.#octreeBuffer,
-      0,
-      newOctreeBuffer,
-      0,
-      this.#octreeBuffer.size,
-    );
-
-    this.#device.queue.submit([commandEncoder.finish()]);
-
-    console.log(
-      `total octree buffer size: ${(this.#octreeBuffer.size / 1024 / 1024).toFixed(2)}MB`,
-    );
-
-    // write new data to the new buffer
-    this.#device.queue.writeBuffer(
-      newOctreeBuffer,
-      this.#octreeBuffer.size,
-      octreeArrayBuffer,
-    );
-
-    await this.#device.queue.onSubmittedWorkDone();
-
-    this.#octreeBuffer = newOctreeBuffer;
-
-    this.#octreeBuffer.unmap();
   };
 
   get atlasTextureView() {
@@ -171,5 +171,9 @@ export class VolumeAtlas {
 
   get octreeBuffer() {
     return this.#octreeBuffer;
+  }
+
+  get octreeBufferSizeMB() {
+    return (this.#octreeBuffer.size / 1024 ** 2).toFixed(2);
   }
 }

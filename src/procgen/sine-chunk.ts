@@ -1,11 +1,13 @@
-import { TVoxels } from "@renderer/convert-vxm";
-import { VolumeAtlas } from "@renderer/volume-atlas";
-import { Octree, octreeToArrayBuffer } from "@renderer/octree/octree";
-import { VoxelObject } from "@renderer/voxel-object";
+import {
+  createOctreeAndReturnBytes,
+  populateOctreeBuffer,
+} from "@renderer/octree/octree";
 import { createNoise3D } from "simplex-noise";
 import { expose, wrap } from "comlink";
+import seedrandom from "seedrandom";
 
-const noise3D = createNoise3D();
+var myrng = seedrandom("hello.");
+const noise3D = createNoise3D(myrng);
 
 const fractalNoise3D = (
   x: number,
@@ -44,8 +46,8 @@ export const createSineTerrain = (
   frequency: number,
   offset: [number, number, number],
 ): SineTerrain => {
-  let voxelCount = 0;
-  let colourCount = 0;
+  voxels = [];
+  colours = [];
   const grassColour = { r: 0, g: 255, b: 0, a: 0 };
   const dirtColour = { r: 139, g: 69, b: 19, a: 0 };
 
@@ -60,7 +62,7 @@ export const createSineTerrain = (
           offsetX / frequency,
           offsetY / frequency,
           offsetZ / frequency,
-          2,
+          4,
         );
         // 0 at the y top, 1 at the bottom
         const squashFactor = y / CHUNK_HEIGHT;
@@ -71,7 +73,7 @@ export const createSineTerrain = (
           const green = dirtColour.g * density + grassColour.g * (1 - density);
           const blue = dirtColour.b * density + grassColour.b * (1 - density);
           colours.push(red, green, blue, 255);
-          voxels.push(x, y, z, colourCount - 1);
+          voxels.push(x, y, z, colours.length / 4 - 1);
         }
       }
     }
@@ -90,10 +92,10 @@ const populateTerrainBuffer = (
   const voxelsArray = new Uint8Array(voxelBuffer);
   const coloursArray = new Uint8Array(coloursBuffer);
   voxels.forEach((v, i) => {
-    voxelsArray[i] = v;
+    Atomics.store(voxelsArray, i, v);
   });
   colours.forEach((c, i) => {
-    coloursArray[i] = c;
+    Atomics.store(coloursArray, i, c);
   });
   voxels = [];
   colours = [];
@@ -102,6 +104,8 @@ const populateTerrainBuffer = (
 const worker = {
   createSineTerrain,
   populateTerrainBuffer,
+  createOctreeAndReturnBytes,
+  populateOctreeBuffer,
 };
 
 export type TerrainWorker = typeof worker;

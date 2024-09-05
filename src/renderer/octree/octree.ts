@@ -311,7 +311,7 @@ export const octreeToArrayBuffer = (octree: Octree) => {
 
 let octree: Octree;
 
-const createOctreeAndReturnBytes = (
+export const createOctreeAndReturnBytes = (
   voxelsBuffer: SharedArrayBuffer,
   coloursBuffer: SharedArrayBuffer,
   size: [number, number, number],
@@ -363,15 +363,6 @@ const createOctreeAndReturnBytes = (
   return octree.totalSize + OCTREE_STRIDE;
 };
 
-const populateOctreeBuffer = (buffer: SharedArrayBuffer) => {
+export const populateOctreeBuffer = (buffer: SharedArrayBuffer) => {
   octreeToSharedArrayBuffer(octree, buffer);
 };
-
-const worker = {
-  createOctreeAndReturnBytes,
-  populateOctreeBuffer,
-};
-
-export type OctreeWorker = typeof worker;
-
-expose(worker);

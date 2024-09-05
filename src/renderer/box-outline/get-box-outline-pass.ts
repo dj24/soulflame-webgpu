@@ -8,7 +8,6 @@ const vertexStride = 16;
 
 export const getBoxOutlinePass = async (
   device: GPUDevice,
-  voxelObjects: VoxelObject[],
 ): Promise<RenderPass> => {
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
@@ -88,17 +87,9 @@ export const getBoxOutlinePass = async (
     },
   });
 
-  const verticesBuffer = device.createBuffer({
-    size: vertexStride * verticesPerMesh * voxelObjects.length,
-    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-    label: "vertices buffer",
-  });
-
-  const modelViewProjectionMatrixBuffer = device.createBuffer({
-    size: 256 * voxelObjects.length,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    label: "mvp buffer",
-  });
+  let verticesBuffer: GPUBuffer;
+  let modelViewProjectionMatrixBuffer: GPUBuffer;
+  let lastFrameObjectCount = 0;
 
   const render = ({
     commandEncoder,
@@ -109,6 +100,21 @@ export const getBoxOutlinePass = async (
     ecs,
   }: RenderArgs) => {
     let bindGroups = [];
+
+    if (!verticesBuffer || renderableEntities.length !== lastFrameObjectCount) {
+      lastFrameObjectCount = renderableEntities.length;
+      verticesBuffer = device.createBuffer({
+        size: vertexStride * verticesPerMesh * renderableEntities.length,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+        label: "vertices buffer",
+      });
+
+      modelViewProjectionMatrixBuffer = device.createBuffer({
+        size: 256 * renderableEntities.length,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        label: "mvp buffer",
+      });
+    }
 
     for (let i = 0; i < renderableEntities.length; i++) {
       const transform = ecs.getComponents(renderableEntities[i]).get(Transform);
@@ -121,7 +127,7 @@ export const getBoxOutlinePass = async (
         verticesBuffer,
         i * vertexStride * verticesPerMesh,
         vertices.buffer,
-        vertices.byteOffset,
+        0,
       );
       // TODO: stop creating groups each frame
       const bindGroup = device.createBindGroup({
@@ -148,8 +154,7 @@ export const getBoxOutlinePass = async (
         modelViewProjectionMatrixBuffer,
         bufferOffset,
         mvp.buffer,
-        mvp.byteOffset,
-        mvp.byteLength,
+        0,
       );
     }
 

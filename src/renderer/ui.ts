@@ -1,5 +1,6 @@
 import { debugValues, RenderPass } from "./app";
 import GUI from "lil-gui";
+import { VolumeAtlas } from "@renderer/volume-atlas";
 
 export class DebugUI {
   gui: GUI;
@@ -37,5 +38,10 @@ export class DebugUI {
     computePasses.forEach((pass) => {
       this.passesFolder.add(passStates, pass.label);
     });
+  }
+
+  setupOctreeLogging(atlas: VolumeAtlas) {
+    const octreeFolder = this.gui.addFolder("octree");
+    octreeFolder.add(atlas, "octreeBufferSizeMB").listen();
   }
 }

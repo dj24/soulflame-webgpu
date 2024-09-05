@@ -5,26 +5,80 @@ import { createTerrainChunk } from "../create-terrain-chunk";
 import { VoxelObject } from "@renderer/voxel-object";
 import { Transform } from "@renderer/components/transform";
 import { quat } from "wgpu-matrix";
+import { wrap } from "comlink";
 
-const chunkWidth = 128;
+const chunkWidth = 64;
+
+const workerCount = navigator.hardwareConcurrency || 4;
 
 const foo = async (ecs: ECS) => {
   const volumeAtlas = getGPUDeviceSingleton(ecs).volumeAtlas;
-  for (let x = -512; x <= 512; x += chunkWidth) {
-    for (let z = -512; z <= 512; z += chunkWidth) {
-      const newEntity = ecs.addEntity();
-      const terrainVoxels = await createTerrainChunk(volumeAtlas, chunkWidth, [
-        x,
-        0,
-        z,
-      ]);
-      ecs.addComponent(newEntity, new VoxelObject(terrainVoxels));
-      ecs.addComponent(
-        newEntity,
-        new Transform([x, 0, z], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
-      );
+
+  // Create workers based on the number of cores
+  const terrainWorkers = Array.from({ length: Math.floor(workerCount) }, () => {
+    return new Worker(new URL("../sine-chunk", import.meta.url));
+  });
+  const terrainWorkerFunctions = terrainWorkers.map((worker) => {
+    return wrap<import("../sine-chunk").TerrainWorker>(worker);
+  });
+
+  // Get all the chunk positions
+  let chunkPositions: [number, number, number][] = [];
+  for (let x = -384; x <= 384; x += chunkWidth) {
+    for (let z = -384; z <= 384; z += chunkWidth) {
+      chunkPositions.push([x, 0, z]);
     }
   }
+
+  const assignChunkToWorker = async ([x, y, z]: number[], index: number) => {
+    const newEntity = ecs.addEntity();
+    const terrainVoxels = await createTerrainChunk(
+      volumeAtlas,
+      chunkWidth,
+      [x, 0, z],
+      terrainWorkerFunctions[index].createSineTerrain,
+      terrainWorkerFunctions[index].populateTerrainBuffer,
+      terrainWorkerFunctions[index].createOctreeAndReturnBytes,
+      terrainWorkerFunctions[index].populateOctreeBuffer,
+    );
+    ecs.addComponent(newEntity, new VoxelObject(terrainVoxels));
+    ecs.addComponent(
+      newEntity,
+      new Transform([x, 0, z], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
+    );
+    return index;
+  };
+
+  // Assign workers to initial chunks
+  let activeWorkers: Promise<number>[] = [];
+
+  // Continue assigning chunks to workers while there are chunks left
+  while (chunkPositions.length > 0) {
+    // If there are still chunks left and there are available workers, assign a chunk
+    if (activeWorkers.length < workerCount) {
+      const [x, y, z] = chunkPositions.shift();
+      const index = activeWorkers.length;
+      activeWorkers[index] = assignChunkToWorker([x, y, z], index);
+      continue;
+    }
+
+    // Wait for the first available worker to finish
+    const finishedWorkerIndex = await Promise.race(activeWorkers);
+
+    // Get the next chunk position
+    const [x, y, z] = chunkPositions.shift();
+
+    activeWorkers[finishedWorkerIndex] = assignChunkToWorker(
+      [x, y, z],
+      finishedWorkerIndex,
+    );
+  }
+
+  // Wait for all workers to finish
+  await Promise.all(activeWorkers);
+
+  // Clean up workers
+  terrainWorkers.forEach((worker) => worker.terminate());
 };
 export class TerrainSystem extends System {
   componentsRequired = new Set([TerrainSingleton]);

@@ -212,12 +212,7 @@ export const init = async (
     // getLutPass("luts/Reeve 38.CUBE"),
     // getVignettePass(15.0),
     fullscreenQuad(device),
-    // getBoxOutlinePass(
-    //   device,
-    //   renderableEntities.map((entity) =>
-    //     ecs.getComponents(entity).get(VoxelObject),
-    //   ),
-    // ),
+    // getBoxOutlinePass(device),
   ]);
 
   timestampLabels = computePasses.reduce((acc, val) => {
@@ -228,6 +223,7 @@ export const init = async (
   }, []);
 
   debugUI.setupDebugControls(computePasses);
+  debugUI.setupOctreeLogging(volumeAtlas);
 
   canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
   canvas.style.imageRendering = "pixelated";
