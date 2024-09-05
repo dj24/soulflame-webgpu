@@ -6,11 +6,10 @@ import { Renderer } from "@renderer/systems/renderer";
 import { KeyboardControl } from "@input/systems/keyboard-control";
 import { KeyboardControllable } from "@input/components/keyboard-controllable";
 import { GPUDeviceSingleton } from "@renderer/components/gpu-device-singleton";
-import { GravitySystem } from "@physics/systems/gravity-system";
 import { PhysicsWorldSingleton } from "@physics/components/physics-world-singleton";
-import { KinematicSystem } from "@physics/systems/kinematic-system";
-import { GamepadControllable } from "@input/components/gamepad-controllable";
 import { GamepadKinematicBoxControl } from "@input/systems/gamepad-kinematic-box-control";
+import { TerrainSystem } from "./procgen/systems/terrain-system";
+import { TerrainSingleton } from "./procgen/components/terrain-singleton";
 
 const ecs = new ECS();
 
@@ -18,10 +17,12 @@ const ecs = new ECS();
 ecs.addSystem(new KeyboardControl());
 ecs.addSystem(new Renderer());
 ecs.addSystem(new GamepadKinematicBoxControl());
+ecs.addSystem(new TerrainSystem());
 
 const singleton = ecs.addEntity();
 ecs.addComponent(singleton, new GPUDeviceSingleton());
 ecs.addComponent(singleton, new PhysicsWorldSingleton());
+ecs.addComponent(singleton, new TerrainSingleton());
 
 // Camera
 const camera = ecs.addEntity();
@@ -36,20 +37,7 @@ ecs.addComponents(
   new KeyboardControllable(),
 );
 
-const debug = ecs.addEntity();
-ecs.addComponents(
-  debug,
-  new Transform(vec3.create(0, 0, 0), quat.identity(), vec3.create(1, 1, 1)),
-  new KeyboardControllable(),
-);
-
 // Game loop
-// const update = () => {
-//   ecs.update(performance.now());
-// };
-//
-// setInterval(update, 1000 / 60);
-
 const update = () => {
   ecs.update(performance.now());
   requestAnimationFrame(update);
