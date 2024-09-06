@@ -50,6 +50,7 @@ export const createSineTerrain = (
   colours = [];
   const grassColour = { r: 0, g: 255, b: 0, a: 0 };
   const dirtColour = { r: 139, g: 69, b: 19, a: 0 };
+  let highestY = 0;
 
   for (let x = 0; x < size; x++) {
     for (let y = 0; y < CHUNK_HEIGHT; y++) {
@@ -69,6 +70,9 @@ export const createSineTerrain = (
         const density = easeInCubic((n + 1) / 2);
 
         if (density > squashFactor) {
+          if (y > highestY) {
+            highestY = y;
+          }
           const red = dirtColour.r * density + grassColour.r * (1 - density);
           const green = dirtColour.g * density + grassColour.g * (1 - density);
           const blue = dirtColour.b * density + grassColour.b * (1 - density);
@@ -79,7 +83,7 @@ export const createSineTerrain = (
     }
   }
   return {
-    size: [size, CHUNK_HEIGHT, size],
+    size: [size, highestY, size],
     voxelByteLength: voxels.length,
     colourByteLength: colours.length,
   };

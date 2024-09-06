@@ -19,6 +19,7 @@ export const createTerrainChunk = async (
     frequency,
     position,
   );
+  console.log({ size });
   const voxelsBuffer = new SharedArrayBuffer(colourByteLength);
   const coloursBuffer = new SharedArrayBuffer(voxelByteLength);
   await populateTerrainBuffer(voxelsBuffer, coloursBuffer);
@@ -29,11 +30,7 @@ export const createTerrainChunk = async (
   );
   const octreeArrayBuffer = new SharedArrayBuffer(octreeSizeBytes);
   await populateOctreeBuffer(octreeArrayBuffer);
-  await volumeAtlas.addVolume(
-    name,
-    [width, CHUNK_HEIGHT, width],
-    octreeArrayBuffer,
-  );
+  await volumeAtlas.addVolume(name, size, octreeArrayBuffer);
   const {
     size: atlasSize,
     location,

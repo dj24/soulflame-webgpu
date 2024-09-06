@@ -44,7 +44,11 @@ const foo = async (ecs: ECS) => {
     ecs.addComponent(newEntity, new VoxelObject(terrainVoxels));
     ecs.addComponent(
       newEntity,
-      new Transform([x, 0, z], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
+      new Transform(
+        [x, terrainVoxels.size[1] / 2, z],
+        quat.fromEuler(0, 0, 0, "xyz"),
+        [1, 1, 1],
+      ),
     );
     return index;
   };
