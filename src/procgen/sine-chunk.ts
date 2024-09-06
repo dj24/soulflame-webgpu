@@ -6,7 +6,7 @@ import { createNoise3D } from "simplex-noise";
 import { expose, wrap } from "comlink";
 import seedrandom from "seedrandom";
 
-var myrng = seedrandom("hello.");
+var myrng = seedrandom("artlist");
 const noise3D = createNoise3D(myrng);
 
 const fractalNoise3D = (

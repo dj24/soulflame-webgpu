@@ -110,7 +110,7 @@ fn main(
     return vec4(0.0);
   }
 
-  if(rayMarchBVHShadows(worldPos + normal * 0.5, shadowRayDirection, 1).hit){
+  if(rayMarchBVH(worldPos + normal * 0.5, shadowRayDirection).hit){
     return vec4(0.0);
   }
 

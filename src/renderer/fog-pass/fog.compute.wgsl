@@ -59,7 +59,7 @@ fn main(
    positionAlongRay += rayDir * stepLength;
    absorption *= stepAbsorption;
    var directLight = LIGHT_INTENSITY;
-   if(rayMarchBVHShadows(positionAlongRay, sunDirection,0).hit){
+   if(rayMarchBVH(positionAlongRay, sunDirection).hit){
       directLight = 0.0;
     }
     volColour += stepColour * absorption * directLight;

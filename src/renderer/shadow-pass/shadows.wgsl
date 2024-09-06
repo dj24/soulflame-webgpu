@@ -20,7 +20,7 @@ const POSITION_SCATTER_AMOUNT: f32 = 0.00;
 // TODO: offset in object space instead of world space to scale with object size
 fn diffuseRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>, voxelObjectSize: f32) -> bool {
   let rayOrigin = worldPos;
-  return rayMarchBVHShadows(rayOrigin, shadowRayDirection, 0).hit;
+  return rayMarchBVH(rayOrigin, shadowRayDirection).hit;
 }
 
 fn calculateNDC(worldPos: vec3<f32>, viewProjection: mat4x4<f32>) -> vec3<f32> {
@@ -35,7 +35,7 @@ fn calculateNDCDirection(worldDirection: vec3<f32>, viewProjection: mat4x4<f32>)
 
 fn shadowRay(worldPos: vec3<f32>, shadowRayDirection: vec3<f32>, normal: vec3<f32>) -> bool {
   let rayOrigin = worldPos + normal * SHADOW_ACNE_OFFSET;
-  return rayMarchBVHShadows(rayOrigin, shadowRayDirection,0).hit;
+  return rayMarchBVH(rayOrigin, shadowRayDirection).hit;
 }
 
 struct Light {
