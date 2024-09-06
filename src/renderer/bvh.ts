@@ -8,6 +8,8 @@ type BVHNode = {
   objectCount: number;
   AABBMin: Vec3;
   AABBMax: Vec3;
+  parentIndex: number;
+  siblingIndex: number;
 };
 
 const ceilToNearestMultipleOf = (n: number, multiple: number) => {
@@ -65,7 +67,7 @@ const splitObjectsBySAH = (voxelObjects: LeafNode[]) => {
   return { left, right };
 };
 
-const stride = ceilToNearestMultipleOf(44, 16);
+const stride = ceilToNearestMultipleOf(56, 16);
 
 /**
  * Bounding Volume Hierarchy. Handles construction and GPU serialisation of the BVH.
@@ -87,35 +89,11 @@ export class BVH {
     });
     this.#childIndex = 0;
     this.#nodes = [];
-    this.#build(this.#allLeafNodes, 0);
+    this.#build(this.#allLeafNodes, 0, -1, -1);
     this.#writeToGpuBuffer();
   }
 
   get gpuBuffer() {
-    if (!this.#gpuBuffer) {
-      const debugCopyBuffer = this.#device.createBuffer({
-        size: this.#gpuBuffer.size,
-        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-        mappedAtCreation: false,
-      });
-      const commandEncoder = this.#device.createCommandEncoder();
-      commandEncoder.copyBufferToBuffer(
-        this.#gpuBuffer,
-        0,
-        debugCopyBuffer,
-        0,
-        this.#gpuBuffer.size,
-      );
-      this.#device.queue.submit([commandEncoder.finish()]);
-      debugCopyBuffer.mapAsync(GPUMapMode.READ).then(() => {
-        const debugBufferArray = new Float32Array(
-          debugCopyBuffer.getMappedRange(),
-        );
-        // console.log(
-        //   debugBufferArray.slice(0, stride / Float32Array.BYTES_PER_ELEMENT),
-        // );
-      });
-    }
     return this.#gpuBuffer;
   }
 
@@ -128,11 +106,16 @@ export class BVH {
     });
     this.#childIndex = 0;
     this.#nodes = [];
-    this.#build(this.#allLeafNodes, 0);
+    this.#build(this.#allLeafNodes, 0, -1, -1);
     this.#writeToGpuBuffer();
   }
 
-  #build(leafNodes: LeafNode[], startIndex: number) {
+  #build(
+    leafNodes: LeafNode[],
+    startIndex: number,
+    parentIndex: number,
+    siblingIndex: number,
+  ) {
     if (this.#allLeafNodes.length === 0) {
       return;
     }
@@ -145,6 +128,8 @@ export class BVH {
         objectCount: 1,
         AABBMax: leafNodes[0].AABB.max,
         AABBMin: leafNodes[0].AABB.min,
+        parentIndex,
+        siblingIndex,
       };
       return;
     }
@@ -156,11 +141,11 @@ export class BVH {
 
     if (left.length > 0) {
       leftChildIndex = ++this.#childIndex;
-      this.#build(left, leftChildIndex);
+      this.#build(left, leftChildIndex, startIndex, rightChildIndex);
     }
     if (right.length > 0) {
       rightChildIndex = ++this.#childIndex;
-      this.#build(right, rightChildIndex);
+      this.#build(right, rightChildIndex, startIndex, leftChildIndex);
     }
 
     this.#nodes[startIndex] = {
@@ -169,6 +154,8 @@ export class BVH {
       objectCount: leafNodes.length,
       AABBMax: AABB.max,
       AABBMin: AABB.min,
+      parentIndex,
+      siblingIndex,
     };
   }
 
@@ -203,6 +190,10 @@ export class BVH {
       bufferView.setFloat32(32, node.AABBMax[0], true); // 16 byte alignment
       bufferView.setFloat32(36, node.AABBMax[1], true);
       bufferView.setFloat32(40, node.AABBMax[2], true);
+
+      // Parent and sibling indices
+      bufferView.setInt32(48, node.parentIndex, true);
+      bufferView.setInt32(52, node.siblingIndex, true);
 
       // Write the entire ArrayBuffer to the GPU buffer
       this.#device.queue.writeBuffer(

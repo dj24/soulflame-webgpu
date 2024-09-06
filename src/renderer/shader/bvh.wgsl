@@ -8,10 +8,12 @@ struct BVHNode {
   rightIndex: i32,
   objectCount: u32,
   AABBMin: vec3<f32>,
-  AABBMax: vec3<f32>
+  AABBMax: vec3<f32>,
+  parentIndex: i32,
+  siblingIndex: i32,
 }
 
-fn getDistanceToNode(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, node: BVHNode) -> f32 {
+fn nodeRayIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, node: BVHNode) -> f32 {
   if(all(rayOrigin >= node.AABBMin) && all(rayOrigin <= node.AABBMax)){
     return 0.0;
   }
@@ -21,7 +23,6 @@ fn getDistanceToNode(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, node: BVHNod
     return intersection.tNear;
   }
   return -1.0;
-
 }
 
 // Stack-based BVH traversal
@@ -42,8 +43,8 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
     if(node.objectCount > 1){
       let leftNode = bvhNodes[node.leftIndex];
       let rightNode = bvhNodes[node.rightIndex];
-      let leftDist = getDistanceToNode(rayOrigin, rayDirection, leftNode);
-      let rightDist = getDistanceToNode(rayOrigin, rayDirection, rightNode);
+      let leftDist = nodeRayIntersection(rayOrigin, rayDirection, leftNode);
+      let rightDist = nodeRayIntersection(rayOrigin, rayDirection, rightNode);
       let hitLeft = leftDist >= 0.0 && leftDist < closestIntersection.t;
       let hitRight = rightDist >= 0.0 && rightDist < closestIntersection.t;
       if(hitLeft && hitRight){
@@ -67,10 +68,6 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
     }
     // valid leaf, raymarch it
     else if(node.objectCount == 1){
-        let distanceToLeaf = getDistanceToNode(rayOrigin, rayDirection, node);
-        if(distanceToLeaf > closestIntersection.t){
-          continue;
-        }
         let voxelObject = voxelObjects[node.leftIndex];
         var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, rayOrigin, 9999.0);
         if(rayMarchResult.hit && rayMarchResult.t < closestIntersection.t){
@@ -78,7 +75,7 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
         }
     }
     iterations += 1;
-//    closestIntersection.colour += vec3<f32>(0.05);
+    closestIntersection.colour += vec3<f32>(0.005);
   }
 
   return closestIntersection;

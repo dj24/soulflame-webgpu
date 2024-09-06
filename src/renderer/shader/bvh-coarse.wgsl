@@ -51,7 +51,7 @@ fn rayMarchBVHCoarse(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, maxDistance:
         else if(node.objectCount == 1){
             // Raymarch the voxel object if it's a leaf node
             let voxelObject = voxelObjects[node.leftIndex]; // left index represents the voxel object index for leaf nodes
-            let AABBDist = getDistanceToNode(rayOrigin, rayDirection, node);
+            let AABBDist = nodeRayIntersection(rayOrigin, rayDirection, node);
             if(rayMarchTransformedCoarse(voxelObject, rayDirection, rayOrigin + rayDirection * AABBDist)){
               return true;
             }
@@ -59,8 +59,8 @@ fn rayMarchBVHCoarse(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, maxDistance:
             nodeIndex = stack_pop(&stack);
         }
         else{
-          let leftDist = getDistanceToNode(rayOrigin, rayDirection, bvhNodes[node.leftIndex]);
-          let rightDist = getDistanceToNode(rayOrigin, rayDirection, bvhNodes[node.rightIndex]);
+          let leftDist = nodeRayIntersection(rayOrigin, rayDirection, bvhNodes[node.leftIndex]);
+          let rightDist = nodeRayIntersection(rayOrigin, rayDirection, bvhNodes[node.rightIndex]);
           let hitLeft = leftDist >= 0.0 && leftDist < maxDistance;
           let hitRight = rightDist >= 0.0 && rightDist < maxDistance;
           if(hitLeft){

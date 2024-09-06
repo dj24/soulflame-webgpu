@@ -266,7 +266,6 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
 
     // Main loop
     while (stack.head > 0u && output.iterations < MAX_STEPS) {
-//      output.colour += vec3(0.02);
       output.iterations += 1u;
       let nodeIndex = stacku32_pop(&stack);
       let node = octreeBuffer[nodeIndex];
