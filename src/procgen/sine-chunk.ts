@@ -5,8 +5,9 @@ import {
 import { createNoise3D } from "simplex-noise";
 import { expose, wrap } from "comlink";
 import seedrandom from "seedrandom";
+import { TVoxels } from "@renderer/convert-vxm";
 
-var myrng = seedrandom("artlist");
+var myrng = seedrandom("crystals");
 const noise3D = createNoise3D(myrng);
 
 const fractalNoise3D = (
@@ -33,7 +34,7 @@ function easeInCubic(x: number): number {
 export const CHUNK_HEIGHT = 256;
 
 let voxels: number[] = [];
-let colours: number[] = [];
+let colours: TVoxels["RGBA"] = [];
 
 type SineTerrain = {
   size: [number, number, number];
@@ -67,17 +68,23 @@ export const createSineTerrain = (
         );
         // 0 at the y top, 1 at the bottom
         const squashFactor = y / CHUNK_HEIGHT;
+
         const density = easeInCubic((n + 1) / 2);
 
-        if (density > squashFactor) {
+        if (n > squashFactor) {
           if (y > highestY) {
             highestY = y;
           }
-          const red = dirtColour.r * density + grassColour.r * (1 - density);
-          const green = dirtColour.g * density + grassColour.g * (1 - density);
-          const blue = dirtColour.b * density + grassColour.b * (1 - density);
-          colours.push(red, green, blue, 255);
-          voxels.push(x, y, z, colours.length / 4 - 1);
+          const red = Math.floor((x / size) * 255);
+          const green = Math.floor((y / CHUNK_HEIGHT) * 255);
+          const blue = Math.floor((z / size) * 255);
+          colours.push({
+            r: red,
+            g: green,
+            b: blue,
+            a: 0,
+          });
+          voxels.push(x, y, z, colours.length - 1);
         }
       }
     }
@@ -85,7 +92,7 @@ export const createSineTerrain = (
   return {
     size: [size, highestY, size],
     voxelByteLength: voxels.length,
-    colourByteLength: colours.length,
+    colourByteLength: colours.length * 4,
   };
 };
 
@@ -98,8 +105,11 @@ const populateTerrainBuffer = (
   voxels.forEach((v, i) => {
     Atomics.store(voxelsArray, i, v);
   });
-  colours.forEach((c, i) => {
-    Atomics.store(coloursArray, i, c);
+  colours.forEach(({ r, g, b, a }, i) => {
+    Atomics.store(coloursArray, i * 4, r);
+    Atomics.store(coloursArray, i * 4 + 1, g);
+    Atomics.store(coloursArray, i * 4 + 2, b);
+    Atomics.store(coloursArray, i * 4 + 3, a);
   });
   voxels = [];
   colours = [];

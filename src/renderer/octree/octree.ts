@@ -342,9 +342,6 @@ export const createOctreeAndReturnBytes = (
     const g = colours[i + 1];
     const b = colours[i + 2];
     const a = colours[i + 3];
-    if (r === 0 && g === 0 && b === 0 && a === 0) {
-      break;
-    }
     RGBA.push({
       r,
       g,

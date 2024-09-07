@@ -19,9 +19,8 @@ export const createTerrainChunk = async (
     frequency,
     position,
   );
-  console.log({ size });
-  const voxelsBuffer = new SharedArrayBuffer(colourByteLength);
-  const coloursBuffer = new SharedArrayBuffer(voxelByteLength);
+  const voxelsBuffer = new SharedArrayBuffer(voxelByteLength);
+  const coloursBuffer = new SharedArrayBuffer(colourByteLength);
   await populateTerrainBuffer(voxelsBuffer, coloursBuffer);
   const octreeSizeBytes = await createOctreeAndReturnBytes(
     voxelsBuffer,

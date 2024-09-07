@@ -75,7 +75,7 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
         }
     }
     iterations += 1;
-    closestIntersection.colour += vec3<f32>(0.005);
+//    closestIntersection.colour += vec3<f32>(0.005);
   }
 
   return closestIntersection;

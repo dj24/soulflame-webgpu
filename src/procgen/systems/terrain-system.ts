@@ -24,8 +24,8 @@ const foo = async (ecs: ECS) => {
 
   // Get all the chunk positions
   let chunkPositions: [number, number, number][] = [];
-  for (let x = -384; x <= 384; x += chunkWidth) {
-    for (let z = -384; z <= 384; z += chunkWidth) {
+  for (let x = -512; x <= 512; x += chunkWidth) {
+    for (let z = -512; z <= 512; z += chunkWidth) {
       chunkPositions.push([x, 0, z]);
     }
   }
