@@ -6,8 +6,9 @@ import { VoxelObject } from "@renderer/voxel-object";
 import { Transform } from "@renderer/components/transform";
 import { quat } from "wgpu-matrix";
 import { wrap } from "comlink";
+import { CHUNK_HEIGHT } from "../sine-chunk";
 
-const chunkWidth = 64;
+const chunkWidth = 128;
 
 const workerCount = navigator.hardwareConcurrency || 4;
 
@@ -24,9 +25,11 @@ const foo = async (ecs: ECS) => {
 
   // Get all the chunk positions
   let chunkPositions: [number, number, number][] = [];
-  for (let x = -512; x <= 512; x += chunkWidth) {
-    for (let z = -512; z <= 512; z += chunkWidth) {
-      chunkPositions.push([x, 0, z]);
+  for (let x = -256; x <= 256; x += chunkWidth) {
+    for (let y = 0; y <= CHUNK_HEIGHT; y += chunkWidth) {
+      for (let z = -256; z <= 256; z += chunkWidth) {
+        chunkPositions.push([x, y, z]);
+      }
     }
   }
 
@@ -35,20 +38,15 @@ const foo = async (ecs: ECS) => {
     const terrainVoxels = await createTerrainChunk(
       volumeAtlas,
       chunkWidth,
-      [x, 0, z],
-      terrainWorkerFunctions[index].createSineTerrain,
-      terrainWorkerFunctions[index].populateTerrainBuffer,
+      [x, y, z],
+      [chunkWidth, chunkWidth, chunkWidth],
       terrainWorkerFunctions[index].createOctreeAndReturnBytes,
       terrainWorkerFunctions[index].populateOctreeBuffer,
     );
     ecs.addComponent(newEntity, new VoxelObject(terrainVoxels));
     ecs.addComponent(
       newEntity,
-      new Transform(
-        [x, terrainVoxels.size[1] / 2, z],
-        quat.fromEuler(0, 0, 0, "xyz"),
-        [1, 1, 1],
-      ),
+      new Transform([x, y, z], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
     );
     return index;
   };

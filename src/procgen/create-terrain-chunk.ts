@@ -1,32 +1,21 @@
 import { VolumeAtlas } from "@renderer/volume-atlas";
 import { wrap } from "comlink";
 import { VoxelObject } from "@renderer/voxel-object";
-import { CHUNK_HEIGHT } from "./sine-chunk";
+import { CHUNK_HEIGHT, TerrainWorker } from "./sine-chunk";
 
 export const createTerrainChunk = async (
   volumeAtlas: VolumeAtlas,
   width: number,
   position: [number, number, number],
-  createSineTerrain: Function,
-  populateTerrainBuffer: Function,
-  createOctreeAndReturnBytes: Function,
-  populateOctreeBuffer: Function,
+  size: [number, number, number],
+  createOctreeAndReturnBytes: (
+    position: [number, number, number],
+    size: [number, number, number],
+  ) => Promise<number>,
+  populateOctreeBuffer: (octreeArrayBuffer: SharedArrayBuffer) => Promise<void>,
 ) => {
-  const frequency = 512;
   const name = `Terrain - ${position[0]}, ${position[1]}, ${position[2]}`;
-  const { size, colourByteLength, voxelByteLength } = await createSineTerrain(
-    width,
-    frequency,
-    position,
-  );
-  const voxelsBuffer = new SharedArrayBuffer(voxelByteLength);
-  const coloursBuffer = new SharedArrayBuffer(colourByteLength);
-  await populateTerrainBuffer(voxelsBuffer, coloursBuffer);
-  const octreeSizeBytes = await createOctreeAndReturnBytes(
-    voxelsBuffer,
-    coloursBuffer,
-    size,
-  );
+  const octreeSizeBytes = await createOctreeAndReturnBytes(position, size);
   const octreeArrayBuffer = new SharedArrayBuffer(octreeSizeBytes);
   await populateOctreeBuffer(octreeArrayBuffer);
   await volumeAtlas.addVolume(name, size, octreeArrayBuffer);

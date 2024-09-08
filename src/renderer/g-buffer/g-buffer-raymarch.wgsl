@@ -145,7 +145,7 @@ fn tracePixel(pixel: vec2<u32>){
       blueNoisePixel.x = BLUE_NOISE_SIZE - blueNoisePixel.x;
     }
     var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
-    let aperture = 0.15;
+    let aperture = 0.0;
     let focalDistance = 100.0;
     let randomOffset = randomInUnitDisk(r) * aperture;
     let cameraRight = vec3(viewProjections.viewMatrix[0].x, viewProjections.viewMatrix[1].x, viewProjections.viewMatrix[2].x);

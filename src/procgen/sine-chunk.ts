@@ -1,13 +1,15 @@
 import {
-  createOctreeAndReturnBytes,
-  populateOctreeBuffer,
+  GetVoxel,
+  Octree,
+  OCTREE_STRIDE,
+  setInternalNode,
+  setLeafNode,
 } from "@renderer/octree/octree";
 import { createNoise3D } from "simplex-noise";
-import { expose, wrap } from "comlink";
+import { expose } from "comlink";
 import seedrandom from "seedrandom";
-import { TVoxels } from "@renderer/convert-vxm";
 
-var myrng = seedrandom("crystals");
+const myrng = seedrandom("crystals");
 const noise3D = createNoise3D(myrng);
 
 const fractalNoise3D = (
@@ -31,93 +33,59 @@ function easeInCubic(x: number): number {
   return x * x * x;
 }
 
-export const CHUNK_HEIGHT = 256;
+function easeInCirc(x: number): number {
+  return 1 - Math.sqrt(1 - Math.pow(x, 2));
+}
 
-let voxels: number[] = [];
-let colours: TVoxels["RGBA"] = [];
+export const CHUNK_HEIGHT = 512;
 
-type SineTerrain = {
-  size: [number, number, number];
-  voxelByteLength: number;
-  colourByteLength: number;
-};
+let octree: Octree;
 
-export const createSineTerrain = (
-  size: number,
-  frequency: number,
-  offset: [number, number, number],
-): SineTerrain => {
-  voxels = [];
-  colours = [];
-  const grassColour = { r: 0, g: 255, b: 0, a: 0 };
-  const dirtColour = { r: 139, g: 69, b: 19, a: 0 };
-  let highestY = 0;
+const NOISE_FREQUENCY = 512;
 
-  for (let x = 0; x < size; x++) {
-    for (let y = 0; y < CHUNK_HEIGHT; y++) {
-      for (let z = 0; z < size; z++) {
-        const offsetX = x + offset[0];
-        const offsetY = y + offset[1];
-        const offsetZ = z + offset[2];
+export const getTerrainVoxel: GetVoxel = (x, y, z) => {
+  const n = fractalNoise3D(
+    x / NOISE_FREQUENCY,
+    y / NOISE_FREQUENCY,
+    z / NOISE_FREQUENCY,
+    4,
+  );
+  // 0 at the y top, 1 at the bottom
+  const squashFactor = y / CHUNK_HEIGHT;
+  const density = easeInCirc((n + 1) / 2);
 
-        const n = fractalNoise3D(
-          offsetX / frequency,
-          offsetY / frequency,
-          offsetZ / frequency,
-          4,
-        );
-        // 0 at the y top, 1 at the bottom
-        const squashFactor = y / CHUNK_HEIGHT;
-
-        const density = easeInCubic((n + 1) / 2);
-
-        if (n > squashFactor) {
-          if (y > highestY) {
-            highestY = y;
-          }
-          const red = Math.floor((x / size) * 255);
-          const green = Math.floor((y / CHUNK_HEIGHT) * 255);
-          const blue = Math.floor((z / size) * 255);
-          colours.push({
-            r: red,
-            g: green,
-            b: blue,
-            a: 0,
-          });
-          voxels.push(x, y, z, colours.length - 1);
-        }
-      }
-    }
+  if (density > squashFactor) {
+    const red = 1 - squashFactor * 255;
+    const green = squashFactor * 255;
+    const blue = 0;
+    return { red, green, blue };
   }
-  return {
-    size: [size, highestY, size],
-    voxelByteLength: voxels.length,
-    colourByteLength: colours.length * 4,
-  };
+  return null;
 };
 
-const populateTerrainBuffer = (
-  voxelBuffer: SharedArrayBuffer,
-  coloursBuffer: SharedArrayBuffer,
+export const createOctreeAndReturnBytes = (
+  position: [number, number, number],
+  size: [number, number, number],
 ) => {
-  const voxelsArray = new Uint8Array(voxelBuffer);
-  const coloursArray = new Uint8Array(coloursBuffer);
-  voxels.forEach((v, i) => {
-    Atomics.store(voxelsArray, i, v);
+  const getVoxel = (x: number, y: number, z: number) =>
+    getTerrainVoxel(x + position[0], y + position[1], z + position[2]);
+  octree = new Octree(getVoxel, Math.max(...size));
+  return octree.totalSize + OCTREE_STRIDE;
+};
+
+export const populateOctreeBuffer = (buffer: SharedArrayBuffer) => {
+  const view = new DataView(buffer);
+  octree.nodes.forEach((node, i) => {
+    if ("red" in node) {
+      setLeafNode(view, i, node);
+    } else {
+      setInternalNode(view, i, node);
+    }
   });
-  colours.forEach(({ r, g, b, a }, i) => {
-    Atomics.store(coloursArray, i * 4, r);
-    Atomics.store(coloursArray, i * 4 + 1, g);
-    Atomics.store(coloursArray, i * 4 + 2, b);
-    Atomics.store(coloursArray, i * 4 + 3, a);
-  });
-  voxels = [];
-  colours = [];
+  octree = undefined;
 };
 
 const worker = {
-  createSineTerrain,
-  populateTerrainBuffer,
   createOctreeAndReturnBytes,
   populateOctreeBuffer,
 };
