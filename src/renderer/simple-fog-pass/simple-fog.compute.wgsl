@@ -1,4 +1,4 @@
-const DENSITY = 0.0005;
+const DENSITY = 0.0002;
 const BLUE_FOG: vec3<f32> = vec3<f32>(16.,21.,29.);
 const YELLOW_FOG: vec3<f32> = vec3<f32>(25.,24.,23.);
 

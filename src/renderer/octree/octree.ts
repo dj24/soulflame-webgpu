@@ -81,7 +81,7 @@ export type GetVoxel = (
   z: number,
 ) => { red: number; green: number; blue: number } | null;
 
-let averageFirstChildIndex = 0;
+export type GetMinimumVoxelSize = (x: number, y: number, z: number) => number;
 
 /**
  * Handles construction of an Octree for a single voxel object.
@@ -89,16 +89,19 @@ let averageFirstChildIndex = 0;
 export class Octree {
   readonly nodes: OctreeNode[];
   #pointer: number;
-  #maxDepth: number;
   #getVoxel: GetVoxel;
+  #getMinVoxelSize: GetMinimumVoxelSize;
 
-  constructor(getVoxel: GetVoxel, size: number) {
+  constructor(
+    getVoxel: GetVoxel,
+    getMinVoxelSize: GetMinimumVoxelSize,
+    size: number,
+  ) {
     this.nodes = [];
     this.#pointer = 0;
-    this.#maxDepth = getOctreeDepthFromVoxelBounds([size, size, size]);
     this.#getVoxel = getVoxel;
-    this.#build(size, 0, [0, 0, 0], 0);
-    averageFirstChildIndex /= this.nodes.length;
+    this.#getMinVoxelSize = getMinVoxelSize;
+    this.#build(size, 0, [0, 0, 0]);
   }
 
   // Allocate memory for 8 nodes, and return the index of the first node
@@ -111,15 +114,42 @@ export class Octree {
     size: number,
     startIndex: number,
     offset: [x: number, y: number, z: number],
-    depth: number,
   ) {
-    const isLeaf = size === 1;
+    const isLeaf =
+      size <= this.#getMinVoxelSize(offset[0], offset[1], offset[2]);
+
     if (isLeaf) {
-      const { red, green, blue } = this.#getVoxel(
-        offset[0],
-        offset[1],
-        offset[2],
+      const centerOfOctant = offset.map((o) => Math.floor(o + size / 2));
+      const voxel = this.#getVoxel(
+        centerOfOctant[0],
+        centerOfOctant[1],
+        centerOfOctant[2],
       );
+      if (!voxel) {
+        // TODO: This is a bug, we should be able to handle empty voxels
+        for (let x = offset[0]; x < offset[0] + size; x++) {
+          for (let y = offset[1]; y < offset[1] + size; y++) {
+            for (let z = offset[2]; z < offset[2] + size; z++) {
+              const voxel = this.#getVoxel(x, y, z);
+              if (voxel) {
+                this.nodes[startIndex] = {
+                  red: voxel.red,
+                  green: voxel.green,
+                  blue: voxel.blue,
+                  x: offset[0],
+                  y: offset[1],
+                  z: offset[2],
+                  size,
+                };
+                return;
+              }
+            }
+          }
+        }
+        return;
+      }
+
+      const { red, green, blue } = voxel;
       this.nodes[startIndex] = {
         red,
         green,
@@ -134,7 +164,6 @@ export class Octree {
 
     // The voxels contained within each child octant
     const childOctantsVoxelCount: number[] = Array.from({ length: 8 }, () => 0);
-    const childDepth = depth + 1;
     const objectSize = ceilToNextPowerOfTwo(size);
     const childOctantSize = objectSize / 2;
 
@@ -204,11 +233,9 @@ export class Octree {
         const x = offset[0] + origin[0] * childOctantSize;
         const y = offset[1] + origin[1] * childOctantSize;
         const z = offset[2] + origin[2] * childOctantSize;
-        this.#build(childOctantSize, childIndex, [x, y, z], childDepth);
+        this.#build(childOctantSize, childIndex, [x, y, z]);
       }
     });
-
-    averageFirstChildIndex += firstChildIndex;
 
     // Create the parent node
     this.nodes[startIndex] = {
@@ -220,6 +247,15 @@ export class Octree {
       size: objectSize,
       leafMask: 0,
     };
+  }
+
+  refineNode(nodeIndex: number) {
+    const node = this.nodes[nodeIndex];
+    // If the node is a leaf node, we can't refine it
+    if ("red" in node) {
+      return;
+    }
+    this.#build(node.size, nodeIndex, [node.x, node.y, node.z]);
   }
 
   get totalSize() {

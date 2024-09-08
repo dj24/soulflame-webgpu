@@ -16,6 +16,12 @@ export const createTerrainChunk = async (
 ) => {
   const name = `Terrain - ${position[0]}, ${position[1]}, ${position[2]}`;
   const octreeSizeBytes = await createOctreeAndReturnBytes(position, size);
+
+  // Only one node, skip the octree
+  if (octreeSizeBytes <= 16) {
+    return;
+  }
+
   const octreeArrayBuffer = new SharedArrayBuffer(octreeSizeBytes);
   await populateOctreeBuffer(octreeArrayBuffer);
   await volumeAtlas.addVolume(name, size, octreeArrayBuffer);

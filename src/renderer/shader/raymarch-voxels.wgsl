@@ -279,7 +279,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       let nodeOrigin = vec3<f32>(internalNode.position);
       let nodeRayOrigin = objectRayOrigin - nodeOrigin;
 
-      if(isLeaf(node)){
+      if(isLeaf(node) && output.iterations > 1u){
         // TODO: find out how to get normal without extra intersection
         let leafNode = unpackLeaf(node);
         let nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(nodeSize * 0.5));
