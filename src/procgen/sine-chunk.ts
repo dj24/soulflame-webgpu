@@ -79,7 +79,7 @@ export const createOctreeAndReturnBytes = (
         y + position[1],
         z + position[2],
         NOISE_FREQUENCY,
-        3,
+        5,
       ),
     size,
   );
