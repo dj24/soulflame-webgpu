@@ -25,8 +25,8 @@ const foo = async (ecs: ECS) => {
 
   // Get all the chunk positions
   let chunkPositions: [number, number, number][] = [];
-  for (let x = -512; x <= 512; x += chunkWidth) {
-    for (let z = -512; z <= 512; z += chunkWidth) {
+  for (let x = -768; x <= 768; x += chunkWidth) {
+    for (let z = -768; z <= 768; z += chunkWidth) {
       // Iterate from the top of the world down, so we can skip when we hit empty chunks
       for (let y = CHUNK_HEIGHT - chunkWidth; y >= 0; y -= chunkWidth) {
         chunkPositions.push([x, y, z]);
@@ -36,16 +36,13 @@ const foo = async (ecs: ECS) => {
 
   const assignChunkToWorker = async ([x, y, z]: number[], index: number) => {
     const newEntity = ecs.addEntity();
-    console.time(`Chunk ${x}, ${y}, ${z}`);
     const terrainVoxels = await createTerrainChunk(
       volumeAtlas,
       chunkWidth,
       [x, y, z],
       [chunkWidth, chunkWidth, chunkWidth],
       terrainWorkerFunctions[index].createOctreeAndReturnBytes,
-      terrainWorkerFunctions[index].populateOctreeBuffer,
     );
-    console.timeEnd(`Chunk ${x}, ${y}, ${z}`);
     // Skip empty chunks
     if (!terrainVoxels) {
       return index;

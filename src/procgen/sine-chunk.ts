@@ -71,6 +71,7 @@ export const getCachedVoxel = (x: number, y: number, z: number) => {
 export const createOctreeAndReturnBytes = (
   position: [number, number, number],
   size: [number, number, number],
+  buffer: SharedArrayBuffer,
 ) => {
   noiseCache = new NoiseCache(
     (x, y, z) =>
@@ -86,14 +87,11 @@ export const createOctreeAndReturnBytes = (
 
   const getVoxel = (x: number, y: number, z: number) => getCachedVoxel(x, y, z);
 
-  // const getVoxel = (x: number, y: number, z: number) =>
-  //   getTerrainVoxel(x + position[0], y + position[1], z + position[2]);
-
   const getMinVoxelSize = (x: number, y: number, z: number) => {
     return 1;
   };
 
-  octree = new Octree(getVoxel, getMinVoxelSize, Math.max(...size));
+  octree = new Octree(getVoxel, getMinVoxelSize, Math.max(...size), buffer);
 
   noiseCache = undefined;
   return octree.totalSize + OCTREE_STRIDE;

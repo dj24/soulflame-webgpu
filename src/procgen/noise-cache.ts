@@ -21,6 +21,7 @@ const convertInt16ToFloat32 = (value: number) => {
 export class NoiseCache {
   private readonly cache: Int16Array;
   private readonly size: [number, number, number];
+  private readonly noiseFunction: (x: number, y: number, z: number) => number;
 
   constructor(
     noiseFn: (x: number, y: number, z: number) => number,
@@ -28,15 +29,8 @@ export class NoiseCache {
   ) {
     const startTimestamp = performance.now();
     this.size = size;
+    this.noiseFunction = noiseFn;
     this.cache = new Int16Array(size[0] * size[1] * size[2]);
-    for (let x = 0; x < size[0]; x++) {
-      for (let y = 0; y < size[1]; y++) {
-        for (let z = 0; z < size[2]; z++) {
-          const index = convert3DTo1D(size, [x, y, z]);
-          this.cache[index] = convertFloat32ToInt16(noiseFn(x, y, z));
-        }
-      }
-    }
     console.debug(
       "Noise cache",
       size,
@@ -55,6 +49,12 @@ export class NoiseCache {
 
   get([x, y, z]: [number, number, number]): number {
     const index = convert3DTo1D(this.size, [x, y, z]);
+
+    const value = this.cache[index];
+    if (value === 0) {
+      this.cache[index] = convertFloat32ToInt16(this.noiseFunction(x, y, z));
+    }
+
     return convertInt16ToFloat32(this.cache[index]);
   }
 }

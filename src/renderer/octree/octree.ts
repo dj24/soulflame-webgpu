@@ -1,11 +1,5 @@
 import { TVoxels } from "../convert-vxm";
 import { setBit } from "./bitmask";
-
-/** Returns the depth of the octree required to contain the given voxel bounds */
-export const getOctreeDepthFromVoxelBounds = (size: TVoxels["SIZE"]) => {
-  return Math.ceil(Math.log2(Math.max(...size)));
-};
-
 export const OCTREE_STRIDE = 8;
 
 export const bitmaskToString = (bitmask: number, bits = 8) => {
@@ -91,14 +85,17 @@ export class Octree {
   #pointer: number;
   #getVoxel: GetVoxel;
   #getMinVoxelSize: GetMinimumVoxelSize;
+  #dataView: DataView;
 
   constructor(
     getVoxel: GetVoxel,
     getMinVoxelSize: GetMinimumVoxelSize,
     size: number,
+    buffer: SharedArrayBuffer,
   ) {
     this.nodes = [];
     this.#pointer = 0;
+    this.#dataView = new DataView(buffer);
     this.#getVoxel = getVoxel;
     this.#getMinVoxelSize = getMinVoxelSize;
     this.#build(size, 0, [0, 0, 0]);
@@ -132,7 +129,7 @@ export class Octree {
             for (let z = offset[2]; z < offset[2] + size; z++) {
               const voxel = this.#getVoxel(x, y, z);
               if (voxel) {
-                this.nodes[startIndex] = {
+                const node = {
                   red: voxel.red,
                   green: voxel.green,
                   blue: voxel.blue,
@@ -141,6 +138,7 @@ export class Octree {
                   z: offset[2],
                   size,
                 };
+                setLeafNode(this.#dataView, startIndex, node);
                 return;
               }
             }
@@ -150,7 +148,7 @@ export class Octree {
       }
 
       const { red, green, blue } = voxel;
-      this.nodes[startIndex] = {
+      const node = {
         red,
         green,
         blue,
@@ -159,6 +157,7 @@ export class Octree {
         z: offset[2],
         size,
       };
+      setLeafNode(this.#dataView, startIndex, node);
       return;
     }
 
@@ -210,7 +209,7 @@ export class Octree {
         centerOfOctant[1],
         centerOfOctant[2],
       );
-      this.nodes[startIndex] = {
+      const node = {
         red,
         green,
         blue,
@@ -219,6 +218,7 @@ export class Octree {
         z: offset[2],
         size,
       };
+      setLeafNode(this.#dataView, startIndex, node);
       return;
     }
 
@@ -238,7 +238,7 @@ export class Octree {
     });
 
     // Create the parent node
-    this.nodes[startIndex] = {
+    const node = {
       firstChildIndex: relativeIndex,
       childMask,
       x: offset[0],
@@ -247,19 +247,11 @@ export class Octree {
       size: objectSize,
       leafMask: 0,
     };
-  }
-
-  refineNode(nodeIndex: number) {
-    const node = this.nodes[nodeIndex];
-    // If the node is a leaf node, we can't refine it
-    if ("red" in node) {
-      return;
-    }
-    this.#build(node.size, nodeIndex, [node.x, node.y, node.z]);
+    setInternalNode(this.#dataView, startIndex, node);
   }
 
   get totalSize() {
-    return this.nodes.length * OCTREE_STRIDE;
+    return this.#pointer * OCTREE_STRIDE;
   }
 }
 

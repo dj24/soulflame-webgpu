@@ -105,6 +105,7 @@ export class VolumeAtlas {
     label: string,
     size: Vec3,
     octreeArrayBuffer: ArrayBuffer,
+    sizeBytes?: number,
   ) => {
     if (this.#dictionary[label]) {
       throw new Error(
@@ -116,20 +117,21 @@ export class VolumeAtlas {
       const commandEncoder = this.#device.createCommandEncoder();
       const [width, height, depth] = size;
       const bufferIndexForNewVolume = this.#octreeBuffer.size / 8;
+      const octreeSizeBytes = sizeBytes || octreeArrayBuffer.byteLength;
 
       this.#dictionary[label] = {
         location: [0, 0, 0],
         size: [width, height, depth],
         paletteIndex: 0,
         octreeOffset: bufferIndexForNewVolume,
-        octreeSizeBytes: octreeArrayBuffer.byteLength,
+        octreeSizeBytes,
         textureSizeBytes: width * height * depth,
       };
 
       // Resize the octree buffer to fit the new data
       const newOctreeBuffer = this.#device.createBuffer({
         label: "Octree buffer",
-        size: this.#octreeBuffer.size + octreeArrayBuffer.byteLength,
+        size: this.#octreeBuffer.size + octreeSizeBytes,
         usage: this.#octreeBuffer.usage,
       });
 
@@ -149,6 +151,8 @@ export class VolumeAtlas {
         newOctreeBuffer,
         this.#octreeBuffer.size,
         octreeArrayBuffer,
+        0,
+        octreeSizeBytes,
       );
 
       await this.#device.queue.onSubmittedWorkDone();
