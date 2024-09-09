@@ -14,6 +14,7 @@ export const createTerrainChunk = async (
   ) => Promise<number>,
   populateOctreeBuffer: (octreeArrayBuffer: SharedArrayBuffer) => Promise<void>,
 ) => {
+  const start = performance.now();
   const name = `Terrain - ${position[0]}, ${position[1]}, ${position[2]}`;
   const octreeSizeBytes = await createOctreeAndReturnBytes(position, size);
 
@@ -31,6 +32,8 @@ export const createTerrainChunk = async (
     paletteIndex,
     octreeOffset,
   } = volumeAtlas.dictionary[name];
+  const end = performance.now();
+  console.debug(`Created chunk in ${(end - start).toFixed(0)}ms`);
   return new VoxelObject({
     name,
     size: atlasSize,
