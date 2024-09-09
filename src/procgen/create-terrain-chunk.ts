@@ -3,6 +3,8 @@ import { wrap } from "comlink";
 import { VoxelObject } from "@renderer/voxel-object";
 import { CHUNK_HEIGHT, TerrainWorker } from "./sine-chunk";
 
+let chunkCreationTimes: number[] = [];
+
 export const createTerrainChunk = async (
   volumeAtlas: VolumeAtlas,
   width: number,
@@ -33,7 +35,10 @@ export const createTerrainChunk = async (
     octreeOffset,
   } = volumeAtlas.dictionary[name];
   const end = performance.now();
-  console.debug(`Created chunk in ${(end - start).toFixed(0)}ms`);
+  chunkCreationTimes.push(end - start);
+  console.log(
+    `Average chunk creation time: ${(chunkCreationTimes.reduce((a, b) => a + b, 0) / chunkCreationTimes.length).toFixed(0)}`,
+  );
   return new VoxelObject({
     name,
     size: atlasSize,

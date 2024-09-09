@@ -17,7 +17,7 @@ let noiseCache: NoiseCache;
 const NOISE_FREQUENCY = 0.001;
 
 export const getTerrainVoxel: GetVoxel = (x, y, z) => {
-  const n = fractalNoise3D(x, y, z, NOISE_FREQUENCY, 3);
+  const n = fractalNoise3D(x, y, z, NOISE_FREQUENCY, 5);
   // 0 at the y top, 1 at the bottom
   const squashFactor = y / CHUNK_HEIGHT;
   const density = easeInOutCubic((n + 1) / 2);
@@ -63,7 +63,7 @@ export const getCachedVoxel = (x: number, y: number, z: number) => {
     if (y > CHUNK_HEIGHT * 0.25) {
       return { red: 0, green: 255 - randomSpeckle * 128, blue: 0 };
     }
-    return { red: 0, green: 0, blue: 255 - randomSpeckle * 128 };
+    return { red: 64, green: 64, blue: 255 - randomSpeckle * 128 };
   }
   return null;
 };

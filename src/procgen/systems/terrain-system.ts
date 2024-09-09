@@ -36,6 +36,7 @@ const foo = async (ecs: ECS) => {
 
   const assignChunkToWorker = async ([x, y, z]: number[], index: number) => {
     const newEntity = ecs.addEntity();
+    console.time(`Chunk ${x}, ${y}, ${z}`);
     const terrainVoxels = await createTerrainChunk(
       volumeAtlas,
       chunkWidth,
@@ -44,6 +45,7 @@ const foo = async (ecs: ECS) => {
       terrainWorkerFunctions[index].createOctreeAndReturnBytes,
       terrainWorkerFunctions[index].populateOctreeBuffer,
     );
+    console.timeEnd(`Chunk ${x}, ${y}, ${z}`);
     // Skip empty chunks
     if (!terrainVoxels) {
       return index;
