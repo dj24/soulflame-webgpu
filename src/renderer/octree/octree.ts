@@ -116,36 +116,7 @@ export class Octree {
       size <= this.#getMinVoxelSize(offset[0], offset[1], offset[2]);
 
     if (isLeaf) {
-      const centerOfOctant = offset.map((o) => Math.floor(o + size / 2));
-      const voxel = this.#getVoxel(
-        centerOfOctant[0],
-        centerOfOctant[1],
-        centerOfOctant[2],
-      );
-      if (!voxel) {
-        // TODO: This is a bug, we should be able to handle empty voxels
-        for (let x = offset[0]; x < offset[0] + size; x++) {
-          for (let y = offset[1]; y < offset[1] + size; y++) {
-            for (let z = offset[2]; z < offset[2] + size; z++) {
-              const voxel = this.#getVoxel(x, y, z);
-              if (voxel) {
-                const node = {
-                  red: voxel.red,
-                  green: voxel.green,
-                  blue: voxel.blue,
-                  x: offset[0],
-                  y: offset[1],
-                  z: offset[2],
-                  size,
-                };
-                setLeafNode(this.#dataView, startIndex, node);
-                return;
-              }
-            }
-          }
-        }
-        return;
-      }
+      const voxel = this.#getVoxel(offset[0], offset[1], offset[2]);
 
       const { red, green, blue } = voxel;
       const node = {
@@ -182,7 +153,6 @@ export class Octree {
         }
       }
     }
-
     // We can save space by only allocating up to the last child node
     let requiredChildNodes = 0;
 
