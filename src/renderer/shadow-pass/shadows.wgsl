@@ -103,7 +103,9 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32, blueNoiseOffset: vec2
     return inputRef.rgb;
   }
 
-  return SUN_COLOR;
+  let nDotL = max(dot(normalSample, sunDirection), 0.0);
+
+  return SUN_COLOR * nDotL;
 }
 
 @compute @workgroup_size(16, 8, 1)

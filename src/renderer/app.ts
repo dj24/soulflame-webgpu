@@ -15,7 +15,7 @@ import { createTextureFromImage } from "webgpu-utils";
 import { VolumeAtlas } from "./volume-atlas";
 import { getFrameTimeTracker } from "./frametime-tracker";
 import { BVH } from "./bvh";
-import { Light } from "./lights-pass/get-lights-pass";
+import { getLightsPass, Light } from "./lights-pass/get-lights-pass";
 import {
   AlbedoTexture,
   DepthTexture,
@@ -152,15 +152,34 @@ let linearSampler: GPUSampler;
 let nearestSampler: GPUSampler;
 let timestampLabels: string[];
 
-lights = Array.from({ length: 200 }).map(() => {
-  return {
-    position: [Math.random() * -80, Math.random() * 50, Math.random() * -200],
-    size: 4,
-    color: vec3.normalize(
-      vec3.create(Math.random(), Math.random(), Math.random()),
-    ),
-  };
-});
+// lights = Array.from({ length: 20 }).map(() => {
+//   return {
+//     position: [Math.random() * 192, 36, Math.random() * 192],
+//     size: 5,
+//     color: vec3.mulScalar(
+//       vec3.normalize(vec3.create(Math.random(), Math.random(), Math.random())),
+//       50,
+//     ),
+//   };
+// });
+
+lights = [
+  {
+    position: [160, 52, 128],
+    size: 6,
+    color: vec3.create(20, 0, 20),
+  },
+  {
+    position: [50, 32, 128],
+    size: 6,
+    color: vec3.create(0, 20, 20),
+  },
+  {
+    position: [50, 42, 50],
+    size: 6,
+    color: vec3.create(20, 20, 0),
+  },
+];
 
 export const init = async (
   device1: GPUDevice,
@@ -202,17 +221,18 @@ export const init = async (
         },
       };
     })(),
+    // getShadowsPass(),
+    getLightsPass(),
     // getGlobalIlluminationPass(),
-    getShadowsPass(),
     // getBloomPass(),
-    getSimpleFogPass(),
+    // getSimpleFogPass(),
     getTaaPass(),
     getTonemapPass(),
     getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
     // getVignettePass(15.0),
     fullscreenQuad(device),
-    getBoxOutlinePass(device),
+    // getBoxOutlinePass(device),
   ]);
 
   timestampLabels = computePasses.reduce((acc, val) => {

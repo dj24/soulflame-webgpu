@@ -6,11 +6,12 @@ struct Light {
   radius: f32,
 };
 
-@group(0) @binding(8) var<uniform> light: Light;
+@group(0) @binding(5) var<uniform> light: Light;
 
 @fragment
 fn main(
     @location(0) @interpolate(linear) ndc : vec3f
 ) -> @location(0) vec4f {
-  return vec4(light.color,0.01);
+  let lightColor = normalize(light.color.rgb);
+  return vec4(lightColor, 1.0);
 }

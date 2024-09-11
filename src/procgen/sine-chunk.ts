@@ -48,14 +48,14 @@ export const createOctreeAndReturnBytes = async (
   const getVoxel = (x: number, y: number, z: number) =>
     getCachedVoxel(x, y, z, position[1]);
   const gpuDevice = await getGpuDevice();
-  octree = new GPUOctree(
-    getVoxel,
-    () => 1,
-    Math.max(...size),
-    buffer,
-    gpuDevice,
-    noiseCache,
-  );
+  // octree = new GPUOctree(
+  //   getVoxel,
+  //   () => 1,
+  //   Math.max(...size),
+  //   buffer,
+  //   gpuDevice,
+  //   noiseCache,
+  // );
   octree = new Octree(getVoxel, () => 1, Math.max(...size), buffer);
   noiseCache = undefined;
   return octree.totalSize + OCTREE_STRIDE;

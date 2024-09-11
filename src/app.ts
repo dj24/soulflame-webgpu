@@ -30,8 +30,8 @@ ecs.addComponents(
   camera,
   new Camera({ fieldOfView: 70 * (Math.PI / 180), near: 0.5, far: 10000 }),
   new Transform(
-    vec3.create(0, 384, -512),
-    quat.fromEuler(0, 0, 0, "xyz"),
+    vec3.create(160, 60, 200),
+    quat.fromEuler(0, 180 * (Math.PI / 180), 0, "xyz"),
     vec3.create(1, 1, 1),
   ),
   new KeyboardControllable(),
