@@ -2,8 +2,6 @@ import taa from "./taa.compute.wgsl";
 import { device, RenderArgs, RenderPass, resolution } from "../app";
 import { OUTPUT_TEXTURE_FORMAT } from "../constants";
 
-const downscaleFactor = 1;
-
 export const getTaaPass = async (): Promise<RenderPass> => {
   let historyTexture: GPUTexture;
   let currentFrameTexture: GPUTexture;

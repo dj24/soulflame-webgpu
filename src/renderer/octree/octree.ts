@@ -1,4 +1,3 @@
-import { TVoxels } from "../convert-vxm";
 import { setBit } from "./bitmask";
 export const OCTREE_STRIDE = 8;
 
@@ -38,8 +37,6 @@ export type InternalNode = {
   firstChildIndex: number;
   /** bitmask of which children are present */
   childMask: number;
-  /** bitmask of which children are leaf nodes */
-  leafMask: number;
   /** x position of the node */
   x: number;
   /** y position of the node */
@@ -215,7 +212,6 @@ export class Octree {
       y: offset[1],
       z: offset[2],
       size: objectSize,
-      leafMask: 0,
     };
     setInternalNode(this.#dataView, startIndex, node);
   }
@@ -267,22 +263,4 @@ export const setInternalNode = (
   dataView.setUint8(index * OCTREE_STRIDE + 3, node.z);
   dataView.setUint32(index * OCTREE_STRIDE + 4, node.firstChildIndex, true);
   dataView.setUint8(index * OCTREE_STRIDE + 7, Math.log2(node.size));
-};
-
-export const octreeToArrayBuffer = (octree: Octree) => {
-  const buffer = new ArrayBuffer(octree.totalSize + OCTREE_STRIDE);
-  const view = new DataView(buffer);
-  octree.nodes.forEach((node, i) => {
-    if ("red" in node) {
-      setLeafNode(view, i, node);
-    } else {
-      setInternalNode(view, i, node);
-    }
-  });
-
-  console.debug(
-    `Created ${octree.nodes.length} node octree of size ${(octree.totalSize / 1024 ** 2).toFixed(3)} MB`,
-  );
-
-  return buffer;
 };
