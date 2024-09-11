@@ -139,6 +139,9 @@ export class GPUOctree {
     });
 
     // TODO: Implement this
+    // render each mip level, until we reach the root (last mip level)
+    // then run compute passes from last mip level to mip level 0, adding the nodes to a buffer
+    // Will likely need another pass to add the leaf nodes to the buffer
 
     renderPass.end();
   }
