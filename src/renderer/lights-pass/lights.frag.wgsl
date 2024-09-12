@@ -17,12 +17,11 @@ struct ViewProjectionMatrices {
 @group(0) @binding(1) var nearestSampler : sampler;
 @group(0) @binding(2) var worldPosTex : texture_2d<f32>;
 @group(0) @binding(3) var normalTex : texture_2d<f32>;
-@group(0) @binding(4) var<uniform> light: Light;
 @group(0) @binding(5) var<uniform> viewProjections : ViewProjectionMatrices;
 
-const constantAttenuation = 1.0;
-const linearAttenuation = 0.1;
-const quadraticAttenuation = 0.01;
+const constantAttenuation = 0.0;
+const linearAttenuation = 0.0;
+const quadraticAttenuation = 2.0;
 
 fn getCameraPosition(invViewProjection: mat4x4<f32>) -> vec3<f32> {
   return invViewProjection[3].xyz;
@@ -30,22 +29,19 @@ fn getCameraPosition(invViewProjection: mat4x4<f32>) -> vec3<f32> {
 
 @fragment
 fn main(
-    @location(0) @interpolate(linear) lightVolumeNdc : vec3f
+    @location(0) @interpolate(linear) lightVolumeNdc : vec3f,
+    @location(1) lightPosition : vec3f,
+    @location(2) lightColor : vec3f,
 ) -> @location(0) vec4f {
-  let lightPosition = light.position.xyz;
-  let lightColor = light.color.rgb;
   var screenUV = lightVolumeNdc.xy * 0.5 + 0.5;
   let normal = textureSampleLevel(normalTex, nearestSampler, screenUV, 0.0).xyz;
   var worldPos = textureSampleLevel(worldPosTex, nearestSampler, screenUV, 0.0).xyz;
-
   let cameraPos = getCameraPosition(viewProjections.inverseViewProjection);
   let lightDirection = normalize(lightPosition - worldPos);
   let viewDirection = normalize(cameraPos - worldPos);
-
   let distanceToLight = length(lightPosition - worldPos);
   let attenuation = 1.0 / (constantAttenuation + linearAttenuation * distanceToLight + quadraticAttenuation * distanceToLight * distanceToLight);
   let nDotL = max(dot(normal, lightDirection), 0.0);
   let diffuse = nDotL * lightColor;
-
   return vec4(diffuse, attenuation);
 }

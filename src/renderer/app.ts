@@ -50,6 +50,7 @@ import { getLutPass } from "@renderer/get-lut-pass/get-lut-pass";
 import { getSimpleFogPass } from "@renderer/simple-fog-pass/get-simple-fog-pass";
 import { getGlobalIlluminationPass } from "@renderer/get-global-illumination/get-global-illumination-pass";
 import { copyGBufferTexture } from "@renderer/abstractions/copy-g-buffer-texture";
+import { getBloomPass } from "@renderer/bloom-pass/get-bloom-pass";
 
 export const debugValues = new DebugValuesStore();
 export let gpuContext: GPUCanvasContext;
@@ -163,21 +164,39 @@ let timestampLabels: string[];
 //   };
 // });
 
+const LIGHT_SIZE = 5;
+const LIGHT_INTENSITY = 2000;
+
 lights = [
   {
     position: [160, 52, 128],
-    size: 6,
-    color: vec3.create(20, 0, 20),
+    size: LIGHT_SIZE,
+    color: vec3.create(LIGHT_INTENSITY, 0, LIGHT_INTENSITY),
   },
   {
-    position: [50, 32, 128],
-    size: 6,
-    color: vec3.create(0, 20, 20),
+    position: [50, 30, 128],
+    size: LIGHT_SIZE,
+    color: vec3.create(0, LIGHT_INTENSITY, LIGHT_INTENSITY),
   },
   {
     position: [50, 42, 50],
-    size: 6,
-    color: vec3.create(20, 20, 0),
+    size: LIGHT_SIZE,
+    color: vec3.create(LIGHT_INTENSITY, LIGHT_INTENSITY, 0),
+  },
+  {
+    position: [50, 48, 192],
+    size: LIGHT_SIZE,
+    color: vec3.create(0, LIGHT_INTENSITY, 0),
+  },
+  {
+    position: [140, 32, 192],
+    size: LIGHT_SIZE,
+    color: vec3.create(LIGHT_INTENSITY, 0, 0),
+  },
+  {
+    position: [220, 36, 192],
+    size: LIGHT_SIZE,
+    color: vec3.create(0, 0, LIGHT_INTENSITY),
   },
 ];
 
@@ -222,7 +241,7 @@ export const init = async (
       };
     })(),
     // getShadowsPass(),
-    getLightsPass(),
+    getLightsPass(device),
     // getGlobalIlluminationPass(),
     // getBloomPass(),
     // getSimpleFogPass(),
