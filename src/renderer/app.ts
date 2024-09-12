@@ -153,52 +153,19 @@ let linearSampler: GPUSampler;
 let nearestSampler: GPUSampler;
 let timestampLabels: string[];
 
-// lights = Array.from({ length: 20 }).map(() => {
-//   return {
-//     position: [Math.random() * 192, 36, Math.random() * 192],
-//     size: 5,
-//     color: vec3.mulScalar(
-//       vec3.normalize(vec3.create(Math.random(), Math.random(), Math.random())),
-//       50,
-//     ),
-//   };
-// });
-
 const LIGHT_SIZE = 5;
 const LIGHT_INTENSITY = 2000;
 
-lights = [
-  {
-    position: [160, 52, 128],
-    size: LIGHT_SIZE,
-    color: vec3.create(LIGHT_INTENSITY, 0, LIGHT_INTENSITY),
-  },
-  {
-    position: [50, 30, 128],
-    size: LIGHT_SIZE,
-    color: vec3.create(0, LIGHT_INTENSITY, LIGHT_INTENSITY),
-  },
-  {
-    position: [50, 42, 50],
-    size: LIGHT_SIZE,
-    color: vec3.create(LIGHT_INTENSITY, LIGHT_INTENSITY, 0),
-  },
-  {
-    position: [50, 48, 192],
-    size: LIGHT_SIZE,
-    color: vec3.create(0, LIGHT_INTENSITY, 0),
-  },
-  {
-    position: [140, 32, 192],
-    size: LIGHT_SIZE,
-    color: vec3.create(LIGHT_INTENSITY, 0, 0),
-  },
-  {
-    position: [220, 36, 192],
-    size: LIGHT_SIZE,
-    color: vec3.create(0, 0, LIGHT_INTENSITY),
-  },
-];
+// lights = Array.from({ length: 100 }).map(() => {
+//   return {
+//     position: [Math.random() * 512, 32, Math.random() * 512],
+//     size: LIGHT_SIZE,
+//     color: vec3.mulScalar(
+//       vec3.normalize(vec3.create(Math.random(), Math.random(), Math.random())),
+//       LIGHT_INTENSITY,
+//     ),
+//   };
+// });
 
 export const init = async (
   device1: GPUDevice,
@@ -219,11 +186,39 @@ export const init = async (
     "camera position",
   );
 
-  createBlueNoiseTexture(device);
-
   bvh = new BVH(device, []);
 
+  canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
+  gpuContext = canvas.getContext("webgpu");
+  gpuContext.configure({
+    device,
+    format: navigator.gpu.getPreferredCanvasFormat(),
+    usage: GPUTextureUsage.RENDER_ATTACHMENT,
+  });
+  canvas.style.imageRendering = "pixelated";
+  const { clientWidth, clientHeight } = canvas.parentElement;
+  let pixelRatio = 1.0;
+  const canvasResolution = vec2.create(
+    clientWidth * pixelRatio,
+    clientHeight * pixelRatio,
+  );
+  resolution = vec2.mulScalar(canvasResolution, 1 / downscale);
+  canvas.width = canvasResolution[0];
+  canvas.height = canvasResolution[1];
+  canvas.style.transform = `scale(${1 / pixelRatio})`;
+
   skyTexture = createSkyTexture(device);
+  albedoTexture = new AlbedoTexture(device, resolution[0], resolution[1]);
+  normalTexture = new NormalTexture(device, resolution[0], resolution[1]);
+  depthTexture = new DepthTexture(device, resolution[0], resolution[1]);
+  velocityTexture = new VelocityTexture(device, resolution[0], resolution[1]);
+  outputTexture = new OutputTexture(device, resolution[0], resolution[1]);
+  worldPositionTexture = new WorldPositionTexture(
+    device,
+    resolution[0],
+    resolution[1],
+  );
+  createBlueNoiseTexture(device);
 
   computePasses = await Promise.all([
     getClearPass(),
@@ -240,18 +235,19 @@ export const init = async (
         },
       };
     })(),
-    // getShadowsPass(),
-    getLightsPass(device),
+    getTaaPass(normalTexture),
+    getShadowsPass(),
+    // getLightsPass(device),
     // getGlobalIlluminationPass(),
     // getBloomPass(),
-    // getSimpleFogPass(),
-    getTaaPass(),
+    getSimpleFogPass(),
+    getTaaPass(outputTexture),
     getTonemapPass(),
     getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
     // getVignettePass(15.0),
     fullscreenQuad(device),
-    // getBoxOutlinePass(device),
+    getBoxOutlinePass(device),
   ]);
 
   timestampLabels = computePasses.reduce((acc, val) => {
@@ -263,15 +259,6 @@ export const init = async (
 
   debugUI.setupDebugControls(computePasses);
   debugUI.setupOctreeLogging(volumeAtlas);
-
-  canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
-  canvas.style.imageRendering = "pixelated";
-  gpuContext = canvas.getContext("webgpu");
-  gpuContext.configure({
-    device,
-    format: navigator.gpu.getPreferredCanvasFormat(),
-    usage: GPUTextureUsage.RENDER_ATTACHMENT,
-  });
 
   linearSampler = device.createSampler({
     magFilter: "linear",
@@ -298,17 +285,6 @@ export const init = async (
         GPUBufferUsage.COPY_DST,
     });
   }
-
-  const { clientWidth, clientHeight } = canvas.parentElement;
-  let pixelRatio = 1.0;
-  const canvasResolution = vec2.create(
-    clientWidth * pixelRatio,
-    clientHeight * pixelRatio,
-  );
-  resolution = vec2.mulScalar(canvasResolution, 1 / downscale);
-  canvas.width = canvasResolution[0];
-  canvas.height = canvasResolution[1];
-  canvas.style.transform = `scale(${1 / pixelRatio})`;
 };
 
 const getTimeBuffer = () => {
@@ -530,17 +506,6 @@ export const frame = (
   }
 
   lastEntityCount = renderableEntities.length;
-
-  albedoTexture = new AlbedoTexture(device, resolution[0], resolution[1]);
-  normalTexture = new NormalTexture(device, resolution[0], resolution[1]);
-  depthTexture = new DepthTexture(device, resolution[0], resolution[1]);
-  velocityTexture = new VelocityTexture(device, resolution[0], resolution[1]);
-  outputTexture = new OutputTexture(device, resolution[0], resolution[1]);
-  worldPositionTexture = new WorldPositionTexture(
-    device,
-    resolution[0],
-    resolution[1],
-  );
 
   let beginningOfPassWriteIndex = 0;
 

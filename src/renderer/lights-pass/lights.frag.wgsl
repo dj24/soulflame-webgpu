@@ -38,7 +38,6 @@ fn main(
   var worldPos = textureSampleLevel(worldPosTex, nearestSampler, screenUV, 0.0).xyz;
   let cameraPos = getCameraPosition(viewProjections.inverseViewProjection);
   let lightDirection = normalize(lightPosition - worldPos);
-  let viewDirection = normalize(cameraPos - worldPos);
   let distanceToLight = length(lightPosition - worldPos);
   let attenuation = 1.0 / (constantAttenuation + linearAttenuation * distanceToLight + quadraticAttenuation * distanceToLight * distanceToLight);
   let nDotL = max(dot(normal, lightDirection), 0.0);

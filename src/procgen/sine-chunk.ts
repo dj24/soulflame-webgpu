@@ -45,9 +45,12 @@ export const createOctreeAndReturnBytes = async (
       ),
     size,
   );
-  const getVoxel = (x: number, y: number, z: number) =>
-    getCachedVoxel(x, y, z, position[1]);
-  const gpuDevice = await getGpuDevice();
+  const getVoxel = (x: number, y: number, z: number) => {
+    const terrainVoxel = getCachedVoxel(x, y, z, position[1]);
+    return terrainVoxel;
+  };
+
+  // const gpuDevice = await getGpuDevice();
   // octree = new GPUOctree(
   //   getVoxel,
   //   () => 1,

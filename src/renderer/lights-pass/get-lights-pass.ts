@@ -375,18 +375,15 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
       lights,
     });
 
-    // passEncoder.setPipeline(lightCubePipeline);
-    // for (let i = 0; i < lights.length; i++) {
-    //   const bindGroup = bindGroups[i];
-    //   passEncoder.setBindGroup(0, bindGroup);
-    //   passEncoder.setVertexBuffer(
-    //     0,
-    //     lightVerticesBuffer,
-    //     vertexStride * verticesPerCuboid * i,
-    //     vertexStride * verticesPerCuboid,
-    //   );
-    //   passEncoder.draw(verticesPerCuboid);
-    // }
+    // passEncoder.setPipeline(wireFramePipeline);
+    // passEncoder.setBindGroup(0, bindGroup);
+    // passEncoder.setVertexBuffer(
+    //   0,
+    //   lightVerticesBuffer,
+    //   vertexStride * verticesPerCuboid,
+    //   vertexStride * verticesPerCuboid,
+    // );
+    // passEncoder.draw(verticesPerCuboid, lights.length, 0, 0);
 
     // drawLightSpheres({
     //   passEncoder,

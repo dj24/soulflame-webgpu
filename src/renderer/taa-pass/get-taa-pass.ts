@@ -1,8 +1,11 @@
 import taa from "./taa.compute.wgsl";
 import { device, RenderArgs, RenderPass, resolution } from "../app";
 import { OUTPUT_TEXTURE_FORMAT } from "../constants";
+import { GBufferTexture } from "@renderer/abstractions/g-buffer-texture";
 
-export const getTaaPass = async (): Promise<RenderPass> => {
+export const getTaaPass = async (
+  gBufferTexture: GBufferTexture,
+): Promise<RenderPass> => {
   let historyTexture: GPUTexture;
   let currentFrameTexture: GPUTexture;
   let currentFrameTextureView: GPUTextureView;
@@ -51,7 +54,7 @@ export const getTaaPass = async (): Promise<RenderPass> => {
 
     commandEncoder.copyTextureToTexture(
       {
-        texture: outputTextures.finalTexture.texture, // TODO: pass texture as well as view
+        texture: gBufferTexture.texture, // TODO: pass texture as well as view
       },
       {
         texture: currentFrameTexture,
@@ -81,7 +84,7 @@ export const getTaaPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 2,
-          resource: outputTextures.finalTexture.view,
+          resource: gBufferTexture.view,
         },
         {
           binding: 3,
@@ -126,7 +129,7 @@ export const getTaaPass = async (): Promise<RenderPass> => {
 
     commandEncoder.copyTextureToTexture(
       {
-        texture: outputTextures.finalTexture.texture,
+        texture: gBufferTexture.texture,
       },
       {
         texture: historyTexture,
@@ -139,5 +142,5 @@ export const getTaaPass = async (): Promise<RenderPass> => {
     );
   };
 
-  return { render, label: "taa" };
+  return { render, label: `taa-${gBufferTexture.label}` };
 };
