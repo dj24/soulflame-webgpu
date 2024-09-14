@@ -2,7 +2,7 @@ export type TimingEntries = {
   [key: string]: number[];
 };
 
-const MAX_SAMPLES = 50;
+const MAX_SAMPLES = 25;
 
 export const getFrameTimeTracker = () => {
   let timings: TimingEntries = {};

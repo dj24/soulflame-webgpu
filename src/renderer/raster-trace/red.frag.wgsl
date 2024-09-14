@@ -2,15 +2,16 @@ struct ViewProjectionMatrices {
   viewProjection : mat4x4<f32>,
   previousViewProjection : mat4x4<f32>,
   inverseViewProjection : mat4x4<f32>,
+  previousInverseViewProjection : mat4x4<f32>,
   projection : mat4x4<f32>,
-  inverseProjection: mat4x4<f32>
+  inverseProjection: mat4x4<f32>,
+  viewMatrix : mat4x4<f32>,
 };
 
-@group(0) @binding(2) var<uniform> viewProjections : ViewProjectionMatrices;
-@group(0) @binding(3) var voxels : texture_3d<f32>;
-@group(0) @binding(4) var<storage> voxelObject : VoxelObject;
-@group(0) @binding(5) var<uniform> cameraPosition : vec3<f32>;
-@group(0) @binding(6) var palette : texture_2d<f32>;
+@group(0) @binding(1) var<uniform> viewProjections : ViewProjectionMatrices;
+@group(0) @binding(2) var<storage, read> octreeBuffer : array<vec2<u32>>;
+@group(0) @binding(3) var<storage> voxelObjects : array<VoxelObject>;
+@group(0) @binding(4) var<uniform> cameraPosition : vec3<f32>;
 
 
 const IDENTITY_MATRIX = mat4x4<f32>(
@@ -48,45 +49,32 @@ fn getVelocity(objectPos: vec3<f32>, modelMatrix: mat4x4<f32>, previousModelMatr
 
 @fragment
 fn main(
-
-//  @location(0) objectPos : vec3f,
-//   @location(1) worldPos : vec3f,
-    @location(2) @interpolate(linear) ndc : vec3f
+  @location(0) objectPos : vec3f,
+  @location(2) @interpolate(linear) ndc : vec3f,
+  @location(3) @interpolate(flat) instanceIdx : u32
 ) -> GBufferOutput
  {
+    let voxelObject = voxelObjects[instanceIdx];
     var output : GBufferOutput;
     var screenUV = ndc.xy * 0.5 + 0.5;
-    var inverseViewProjection = viewProjections.inverseViewProjection;
-    let rayDirection = calculateRayDirection(screenUV,inverseViewProjection);
-
-    var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(cameraPosition, 1.0)).xyz;
-
-    let isInBounds = all(objectRayOrigin >= vec3(0.0)) && all(objectRayOrigin <= voxelObject.size - vec3(1));
+    let rayDirection = calculateRayDirection(screenUV, viewProjections.inverseViewProjection);
+    var worldPos = transformPosition(voxelObject.transform, objectPos);
 
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-    var tNear = 0.0;
-    if(!isInBounds){
-      tNear = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5).tNear - 0.00001;
-    }
-    var worldPos = transformPosition(voxelObject.transform, objectRayOrigin + objectRayDirection * tNear);
-//    var result = rayMarchOctree(voxelObject, rayDirection, worldPos, 0.0);
-    var result = rayMarchTransformed(voxelObject, rayDirection, worldPos, 0);
+    var result = rayMarchOctree(voxelObject, rayDirection, cameraPosition, 9999.0);
+//
     if(!result.hit){
       discard;
       return output;
     }
 
 
-    let objectPos = objectRayOrigin + objectRayDirection * result.t;
-    let paletteX = i32(result.palettePosition * 255.0);
-    let paletteY = i32(voxelObject.paletteIndex);
-    let albedo = textureLoad(palette, vec2(paletteX, paletteY), 0).rgb;
-    output.albedo =  vec4(albedo, 1.0);
-    output.normal = vec4(result.normal, 1);
-    output.worldPosition = vec4(result.worldPos, 1);
-    output.velocity = vec4(getVelocity(result.objectPos, voxelObject.transform, voxelObject.previousTransform, viewProjections), 1);
+    output.albedo = vec4(result.colour, 1.0);
+    output.normal = vec4(transformNormal(voxelObject.inverseTransform,vec3<f32>(result.normal)), 0.0);
+    output.worldPosition = vec4(cameraPosition + rayDirection * result.t, 0.0);
+    let raymarchedDistance = length(output.worldPosition.xyz  - cameraPosition);
 
-    let raymarchedDistance = length(result.worldPos - cameraPosition);
+
 
     let near = 0.5;
     let far = 10000.0;

@@ -1,50 +1,51 @@
 import {
-  camera,
-  debugValues,
   device,
+  getViewMatrix,
   RenderArgs,
   RenderPass,
-  resolution,
+  VOXEL_OBJECT_STRUCT_SIZE,
 } from "../app";
 import redFrag from "./red.frag.wgsl";
 import triangleVert from "./triangle.vert.wgsl";
-import { mat4, Vec3, vec3 } from "wgpu-matrix";
-import { voxelObjects } from "../create-tavern";
+import { mat4 } from "wgpu-matrix";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import boxIntersection from "../shader/box-intersection.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
 import { getCuboidVertices } from "../primitive-meshes/cuboid";
-import { VoxelObject } from "../voxel-object";
+import { VoxelObject } from "@renderer/voxel-object";
+import { Transform } from "@renderer/components/transform";
 
-const VOXEL_OBJECT_STRUCT_SIZE = 512;
+const MVP_BUFFER_STRIDE = 64;
 
-export const getHelloTrianglePass = async (): Promise<RenderPass> => {
+export const getRasterTracePass = async (): Promise<RenderPass> => {
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
+      // Model view projection matrix
       {
         binding: 0,
         visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
         buffer: {
-          type: "uniform",
+          type: "read-only-storage",
         },
       },
       {
-        binding: 2,
+        binding: 1,
         visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX,
         buffer: {
           type: "uniform",
         },
       },
+      // Octree buffer
       {
-        binding: 3,
+        binding: 2,
         visibility: GPUShaderStage.FRAGMENT,
-        texture: {
-          sampleType: "float",
-          viewDimension: "3d",
+        buffer: {
+          type: "read-only-storage",
         },
       },
+      // Voxel objects
       {
-        binding: 4,
+        binding: 3,
         visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX,
         buffer: {
           type: "read-only-storage",
@@ -52,19 +53,10 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
       },
       // Camera position
       {
-        binding: 5,
+        binding: 4,
         visibility: GPUShaderStage.FRAGMENT,
         buffer: {
           type: "uniform",
-        },
-      },
-      // Palette texture
-      {
-        binding: 6,
-        visibility: GPUShaderStage.FRAGMENT,
-        texture: {
-          sampleType: "float",
-          viewDimension: "2d",
         },
       },
     ],
@@ -132,14 +124,16 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
   const render = ({
     commandEncoder,
     outputTextures,
-    transformationMatrixBuffer,
     volumeAtlas,
     viewProjectionMatricesBuffer,
     timestampWrites,
     cameraPositionBuffer,
+    renderableEntities,
+    ecs,
+    camera,
+    cameraTransform,
+    transformationMatrixBuffer,
   }: RenderArgs) => {
-    const sortedVoxelObjectsFrontToBack = voxelObjects;
-
     const colorAttachments: GPURenderPassColorAttachment[] = [
       {
         view: outputTextures.albedoTexture.view,
@@ -175,85 +169,69 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
     };
 
     const verticesBuffer = device.createBuffer({
-      size: 576 * sortedVoxelObjectsFrontToBack.length,
+      size: 576 * renderableEntities.length,
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
       label: "vertices buffer",
     });
     const modelViewProjectionMatrixBuffer = device.createBuffer({
-      size: 256 * sortedVoxelObjectsFrontToBack.length,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      size: MVP_BUFFER_STRIDE * renderableEntities.length,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       label: "mvp buffer",
     });
-    const voxelObjectBuffer = device.createBuffer({
-      size: VOXEL_OBJECT_STRUCT_SIZE * sortedVoxelObjectsFrontToBack.length,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-      label: "voxel objects in raster",
+
+    const bindGroup = device.createBindGroup({
+      layout: bindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: {
+            buffer: modelViewProjectionMatrixBuffer,
+          },
+        },
+        {
+          binding: 1,
+          resource: {
+            buffer: viewProjectionMatricesBuffer,
+          },
+        },
+        {
+          binding: 2,
+          resource: {
+            buffer: volumeAtlas.octreeBuffer,
+          },
+        },
+        {
+          binding: 3,
+          resource: {
+            buffer: transformationMatrixBuffer,
+          },
+        },
+        {
+          binding: 4,
+          resource: {
+            buffer: cameraPositionBuffer,
+          },
+        },
+      ],
     });
+    for (let i = 0; i < renderableEntities.length; i++) {
+      const transform = ecs.getComponents(renderableEntities[i]).get(Transform);
+      const voxelObject = ecs
+        .getComponents(renderableEntities[i])
+        .get(VoxelObject);
 
-    let bindGroups = [];
-
-    for (let i = 0; i < sortedVoxelObjectsFrontToBack.length; i++) {
-      const bindGroup = device.createBindGroup({
-        layout: bindGroupLayout,
-        entries: [
-          {
-            binding: 0,
-            resource: {
-              buffer: modelViewProjectionMatrixBuffer,
-              offset: 256 * i,
-            },
-          },
-          {
-            binding: 2,
-            resource: {
-              buffer: viewProjectionMatricesBuffer,
-            },
-          },
-          {
-            binding: 3,
-            resource: volumeAtlas.atlasTextureView,
-          },
-          {
-            binding: 4,
-            resource: {
-              buffer: voxelObjectBuffer,
-              offset: VOXEL_OBJECT_STRUCT_SIZE * i,
-            },
-          },
-          {
-            binding: 5,
-            resource: {
-              buffer: cameraPositionBuffer,
-            },
-          },
-          {
-            binding: 6,
-            resource: volumeAtlas.paletteTextureView,
-          },
-        ],
-      });
-      bindGroups.push(bindGroup);
-
-      const voxelObject = sortedVoxelObjectsFrontToBack[i];
+      const m = transform.transform;
       const vp = mat4.mul(
         mat4.scale(camera.projectionMatrix, [-1, 1, 1]),
-        camera.viewMatrix,
+        getViewMatrix(cameraTransform),
       );
-      const mvp = new Float32Array(mat4.mul(vp, voxelObject.transform));
+      const mvp = new Float32Array(mat4.mul(vp, m));
       device.queue.writeBuffer(
         modelViewProjectionMatrixBuffer,
-        256 * i,
+        MVP_BUFFER_STRIDE * i,
         mvp.buffer,
         mvp.byteOffset,
         mvp.byteLength,
-      );
-      const object = new Float32Array(voxelObject.toArray());
-      device.queue.writeBuffer(
-        voxelObjectBuffer,
-        VOXEL_OBJECT_STRUCT_SIZE * i,
-        object.buffer,
-        object.byteOffset,
-        object.byteLength,
       );
       const vertices = new Float32Array(getCuboidVertices(voxelObject.size));
       device.queue.writeBuffer(
@@ -271,30 +249,11 @@ export const getHelloTrianglePass = async (): Promise<RenderPass> => {
       timestampWrites,
     });
     passEncoder.setPipeline(pipeline);
-
-    for (let i = 0; i < sortedVoxelObjectsFrontToBack.length; i++) {
-      const bindGroup = bindGroups[i];
-      passEncoder.setVertexBuffer(0, verticesBuffer, 576 * i, 576);
-      passEncoder.setBindGroup(0, bindGroup);
-      passEncoder.draw(36);
-    }
-
+    passEncoder.setVertexBuffer(0, verticesBuffer);
+    passEncoder.setBindGroup(0, bindGroup);
+    passEncoder.draw(36, renderableEntities.length, 0, 0);
     passEncoder.end();
-
-    // commandEncoder.copyTextureToTexture(
-    //   {
-    //     texture: outputTextures.albedoTexture.texture,
-    //   },
-    //   {
-    //     texture: outputTextures.finalTexture.texture,
-    //   },
-    //   {
-    //     width: outputTextures.finalTexture.width,
-    //     height: outputTextures.finalTexture.height,
-    //     depthOrArrayLayers: 1, // Copy one layer (z-axis slice)
-    //   },
-    // );
   };
 
-  return { render, label: "hello triangle" };
+  return { render, label: "raster trace" };
 };

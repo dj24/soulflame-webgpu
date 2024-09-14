@@ -1,6 +1,5 @@
 const BRICK_SIZE = 8;
 const MAX_BVH_STEPS = 256;
-const MAX_STEPS = 256;
 
 
 struct BVHNode {

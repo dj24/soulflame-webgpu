@@ -73,7 +73,6 @@ export const DepthTexture = gBufferTextureFactory(
   GPUTextureUsage.TEXTURE_BINDING |
     GPUTextureUsage.RENDER_ATTACHMENT |
     GPUTextureUsage.COPY_SRC |
-    GPUTextureUsage.STORAGE_BINDING |
     GPUTextureUsage.COPY_DST,
 );
 export const VelocityTexture = gBufferTextureFactory("velocity", "rgba16float");

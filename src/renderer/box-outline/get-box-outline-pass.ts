@@ -69,7 +69,7 @@ export const getBoxOutlinePass = async (
         code: `
         @fragment
         fn main() -> @location(0) vec4f {
-          return vec4(1);
+          return vec4(0.1);
         }
         `,
       }),

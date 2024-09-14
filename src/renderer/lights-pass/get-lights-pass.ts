@@ -51,6 +51,9 @@ const cubeVertices = getCuboidVertices([1, 1, 1]);
 const verticesPerLight = sphereVertices.length;
 const verticesPerCuboid = cubeVertices.length;
 
+const LIGHT_BUFFER_STRIDE = 48;
+const MVP_BUFFER_STRIDE = 64;
+
 export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   const bindGroupLayout = device.createBindGroupLayout({
     label: "lights-bind-group-layout",
@@ -329,8 +332,8 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
 
     for (let i = 0; i < lights.length; i++) {
       const light = lights[i];
-      const mvpBufferOffset = i * 64;
-      const lightBufferOffset = i * 48;
+      const mvpBufferOffset = i * MVP_BUFFER_STRIDE;
+      const lightBufferOffset = i * LIGHT_BUFFER_STRIDE;
 
       device.queue.writeBuffer(
         lightBuffer,

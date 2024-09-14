@@ -51,6 +51,7 @@ import { getSimpleFogPass } from "@renderer/simple-fog-pass/get-simple-fog-pass"
 import { getGlobalIlluminationPass } from "@renderer/get-global-illumination/get-global-illumination-pass";
 import { copyGBufferTexture } from "@renderer/abstractions/copy-g-buffer-texture";
 import { getBloomPass } from "@renderer/bloom-pass/get-bloom-pass";
+import { getRasterTracePass } from "@renderer/raster-trace/get-raster-trace-pass";
 
 export const debugValues = new DebugValuesStore();
 export let gpuContext: GPUCanvasContext;
@@ -223,6 +224,7 @@ export const init = async (
   computePasses = await Promise.all([
     getClearPass(),
     getGBufferPass(),
+    // getRasterTracePass(),
     (async () => {
       return {
         label: "copy albedo",
@@ -247,7 +249,7 @@ export const init = async (
     // getLutPass("luts/Reeve 38.CUBE"),
     // getVignettePass(15.0),
     fullscreenQuad(device),
-    getBoxOutlinePass(device),
+    // getBoxOutlinePass(device),
   ]);
 
   timestampLabels = computePasses.reduce((acc, val) => {
@@ -418,14 +420,15 @@ const getSunDirectionBuffer = () => {
 
 let cameraPositionBuffer: GPUBuffer;
 
+export const VOXEL_OBJECT_STRUCT_SIZE = 76;
+
 const getVoxelObjectsBuffer = (
   device: GPUDevice,
   ecs: ECS,
   renderableEntities: Entity[],
 ) => {
   // TODO: reduce the stride
-  const stride = 76;
-  const size = stride * renderableEntities.length;
+  const size = VOXEL_OBJECT_STRUCT_SIZE * renderableEntities.length;
   if (!transformationMatrixBuffer || size !== transformationMatrixBuffer.size) {
     transformationMatrixBuffer = device.createBuffer({
       size: size * Float32Array.BYTES_PER_ELEMENT,
@@ -442,7 +445,7 @@ const getVoxelObjectsBuffer = (
 
     device.queue.writeBuffer(
       transformationMatrixBuffer,
-      index * stride * Float32Array.BYTES_PER_ELEMENT, // offset
+      index * VOXEL_OBJECT_STRUCT_SIZE * Float32Array.BYTES_PER_ELEMENT, // offset
       buffer,
       0, // data offset
       buffer.byteLength,
@@ -452,7 +455,7 @@ const getVoxelObjectsBuffer = (
 
 setInterval(() => {
   debugUI.log(frameTimeTracker.getAverages());
-}, 500);
+}, 250);
 
 let lastEntityCount = 0;
 
