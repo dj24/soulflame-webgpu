@@ -6,7 +6,7 @@ import { NoiseCache } from "./noise-cache";
 import { GPUOctree } from "@renderer/octree/gpu-octree";
 import { getGpuDevice } from "@renderer/abstractions/get-gpu-device";
 
-export const CHUNK_HEIGHT = 256;
+export const CHUNK_HEIGHT = 128;
 
 let octree: GPUOctree | Octree;
 let noiseCache: NoiseCache;

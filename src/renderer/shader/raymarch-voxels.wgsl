@@ -251,11 +251,6 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
     var output = RayMarchResult();
 
-    let distanceToRoot = boxIntersection(objectRayOrigin, objectRayDirection, voxelObject.size * 0.5).tNear;
-    if(distanceToRoot > maxDistance){
-      return output;
-    }
-
     // Set the initial t value to the far plane - essentially an out of bounds value
     output.t = FAR_PLANE;
 
@@ -276,7 +271,6 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
 
       // Get the size of the node to get the center for plane intersections
       let nodeSize = f32(internalNode.size);
-
       let nodeOrigin = vec3<f32>(internalNode.position);
       let nodeRayOrigin = objectRayOrigin - nodeOrigin;
 
@@ -301,7 +295,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       let sortedIntersections = sort3Desc(planeIntersections[0], planeIntersections[1], planeIntersections[2]);
 
       // Get the side of the planes that the ray is on
-      let sideOfPlanes = vec3<f32>(sign(nodeRayOrigin - centerOfChild));
+      let sideOfPlanes = sign(nodeRayOrigin - centerOfChild);
 
       // Push the children onto the stack, furthest first
       for(var i = 0u; i < 3u; i++){
@@ -320,15 +314,15 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
         }
       }
 
-      // Get octant hit on the surface of the nodes bounding box
+
       // Check if the ray intersects the node, if not, skip it
-      let nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(nodeSize * 0.5));
-      if(nodeIntersection.tNear > maxDistance || nodeIntersection.tNear < 0.0){
+      let nodeT = cubeIntersection(nodeRayOrigin, objectRayDirection, nodeSize * 0.5);
+      if(nodeT > maxDistance || nodeT < 0.0){
         continue;
       }
-      let intersectionPoint = nodeRayOrigin + objectRayDirection * nodeIntersection.tNear;
+      let intersectionPoint = nodeRayOrigin + objectRayDirection * nodeT;
       let hitOctant = vec3<u32>(intersectionPoint >= centerOfChild);
-      let hitIndex = octantOffsetToIndex(vec3<u32>(hitOctant));
+      let hitIndex = octantOffsetToIndex(hitOctant);
 
       // If the child is present, push it onto the stack
       if(getBit(internalNode.childMask, hitIndex)){
