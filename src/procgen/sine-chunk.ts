@@ -61,7 +61,7 @@ export const createOctreeAndReturnBytes = async (
   // );
   octree = new Octree(getVoxel, () => 1, Math.max(...size), buffer);
   noiseCache = undefined;
-  return octree.totalSize + OCTREE_STRIDE;
+  return octree.totalSizeBytes + OCTREE_STRIDE;
 };
 
 const worker = {

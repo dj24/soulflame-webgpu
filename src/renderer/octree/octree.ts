@@ -216,7 +216,7 @@ export class Octree {
     setInternalNode(this.#dataView, startIndex, node);
   }
 
-  get totalSize() {
+  get totalSizeBytes() {
     return this.#pointer * OCTREE_STRIDE;
   }
 }

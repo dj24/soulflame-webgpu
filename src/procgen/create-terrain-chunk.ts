@@ -9,8 +9,9 @@ let chunkCreationTimes: number[] = [];
 const getMaxSizeOfOctree = (size: [number, number, number]) => {
   const depth = Math.ceil(Math.log2(Math.max(...size)));
   let total = 0;
-  for (let i = 0; i < depth; i++) {
-    total += 1 << (3 * i); // 1 << (3 * i) is equivalent to Math.pow(8, i)
+  for (let i = 0; i <= depth; i++) {
+    const nodesAtDepth = 1 << (3 * i);
+    total += nodesAtDepth;
   }
   return total;
 };
