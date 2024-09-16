@@ -3,12 +3,11 @@ import { expose } from "comlink";
 import { fractalNoise3D, myrng } from "./fractal-noise-3d";
 import { easeInOutCubic } from "./easing";
 import { NoiseCache } from "./noise-cache";
-import { GPUOctree } from "@renderer/octree/gpu-octree";
 import { getGpuDevice } from "@renderer/abstractions/get-gpu-device";
 
 export const CHUNK_HEIGHT = 128;
 
-let octree: GPUOctree | Octree;
+let octree: Octree;
 let noiseCache: NoiseCache;
 const NOISE_FREQUENCY = 0.001;
 

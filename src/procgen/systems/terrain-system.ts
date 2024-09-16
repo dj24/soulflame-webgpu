@@ -9,7 +9,7 @@ import { wrap } from "comlink";
 import { CHUNK_HEIGHT } from "../sine-chunk";
 import { mergeOctrees } from "@renderer/octree/merge-octrees";
 
-const chunkWidth = 64;
+const chunkWidth = 128;
 
 const workerCount = navigator.hardwareConcurrency || 4;
 

@@ -1,150 +1,134 @@
-import { setBit } from "./bitmask";
 import { NoiseCache } from "../../procgen/noise-cache";
-export const OCTREE_STRIDE = 8;
+import fillOctreeCompute from "./fill-octree.compute.wgsl";
 
-export const bitmaskToString = (bitmask: number, bits = 8) => {
-  return bitmask.toString(2).padStart(bits, "0");
-};
+const STRIDE = 4;
 
-/** Converts an octant index to an offset in the parent octant
- * Bits represent the following octants:
- *
- * 0 = [0,0,0]
- *
- * 1 = [1,0,0]
- *
- * 2 = [0,1,0]
- *
- * 3 = [1,1,0]
- *
- * 4 = [0,0,1]
- *
- * 5 = [1,0,1]
- *
- * 6 = [0,1,1]
- *
- * 7 = [1,1,1]
- */
-export const octantIndexToOffset = (index: number) => {
-  return [index & 1 ? 1 : 0, index & 2 ? 1 : 0, index & 4 ? 1 : 0];
-};
+export const getOctreeBitMaskBuffers = async (
+  device: GPUDevice,
+  noiseCache: NoiseCache,
+  size: number,
+) => {
+  const requiredBuffers = Math.ceil(Math.log2(size));
 
-const ceilToNextPowerOfTwo = (n: number) => {
-  return Math.pow(2, Math.ceil(Math.log2(n)));
-};
+  // Get noise field as buffer
+  const noiseFieldBuffer = device.createBuffer({
+    size: noiseCache.buffer.byteLength,
+    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+  });
 
-export type InternalNode = {
-  /** index of the first child node */
-  firstChildIndex: number;
-  /** bitmask of which children are present */
-  childMask: number;
-  /** x position of the node */
-  x: number;
-  /** y position of the node */
-  y: number;
-  /** z position of the node */
-  z: number;
-  /** size of the node */
-  size: number;
-};
+  // Copy noise field to buffer
+  device.queue.writeBuffer(noiseFieldBuffer, 0, noiseCache.buffer);
 
-export type LeafNode = {
-  /** 0-255 red value */
-  red: number;
-  /** 0-255 green value */
-  green: number;
-  /** 0-255 blue value */
-  blue: number;
-  /** x position of the node */
-  x: number;
-  /** y position of the node */
-  y: number;
-  /** z position of the node */
-  z: number;
-  /** size of the node */
-  size: number;
-};
-
-type OctreeNode = InternalNode | LeafNode;
-
-export type GetVoxel = (
-  x: number,
-  y: number,
-  z: number,
-) => { red: number; green: number; blue: number } | null;
-
-export type GetMinimumVoxelSize = (x: number, y: number, z: number) => number;
-
-/**
- * Handles construction of an Octree for a single voxel object.
- */
-export class GPUOctree {
-  #pointer: number;
-  #getVoxel: GetVoxel;
-  #getMinVoxelSize: GetMinimumVoxelSize;
-  #dataView: DataView;
-  #gpuDevice: GPUDevice;
-
-  constructor(
-    getVoxel: GetVoxel,
-    getMinVoxelSize: GetMinimumVoxelSize,
-    size: number,
-    buffer: SharedArrayBuffer,
-    device: GPUDevice,
-    noiseCache: NoiseCache,
-  ) {
-    this.#pointer = 0;
-    this.#dataView = new DataView(buffer);
-    this.#gpuDevice = device;
-    this.#getVoxel = getVoxel;
-    this.#getMinVoxelSize = getMinVoxelSize;
-
-    const requiredMips = Math.ceil(Math.log2(size));
-
-    // Get noise field as buffer
-    const noiseFieldBuffer = device.createBuffer({
-      size: noiseCache.buffer.byteLength,
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+  // Create buffer for each depth level
+  const buffers: GPUBuffer[] = [];
+  for (let i = 0; i < requiredBuffers; i++) {
+    const bufferSize = Math.pow(2, i);
+    const buffer = device.createBuffer({
+      size: bufferSize * bufferSize * bufferSize * STRIDE,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
     });
-
-    // Create texture
-    const childMaskTexture = device.createTexture({
-      size: {
-        width: size / 2,
-        height: size / 2,
-        depthOrArrayLayers: size / 2,
-      },
-      mipLevelCount: requiredMips - 1, // start at parent to avoid mip level 0
-      format: "r8uint",
-      usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.STORAGE_BINDING,
-    });
-
-    // Copy noise field to buffer
-    device.queue.writeBuffer(noiseFieldBuffer, 0, noiseCache.buffer);
-
-    // Fill mip level 0 with the bitmask of the leaf nodes using the noise field
-    const commandEncoder = device.createCommandEncoder();
-    const renderPass = commandEncoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view: childMaskTexture.createView({
-            mipLevelCount: 1,
-            baseMipLevel: 0,
-          }),
-          loadOp: "clear",
-          clearValue: [0, 0, 0, 0],
-          storeOp: "store",
-        },
-      ],
-    });
-
-    // TODO: Implement this
-    // render each mip level, until we reach the root (last mip level)
-    // then run compute passes from last mip level to mip level 0, adding the nodes to a buffer
-    // Will likely need another pass to add the leaf nodes to the buffer
-
-    renderPass.end();
+    buffers.push(buffer);
   }
 
-  totalSize = 0;
-}
+  // Fill the octree with the bitmask of the leaf nodes
+  const fillPipeline = device.createComputePipeline({
+    layout: "auto",
+    compute: {
+      module: fillOctreeCompute,
+      entryPoint: "fill",
+    },
+  });
+
+  // Group the nodes into the parent nodes
+  const groupPipelines: GPUComputePipeline[] = [];
+
+  const fillBindGroup = device.createBindGroup({
+    layout: fillPipeline.getBindGroupLayout(0),
+    entries: [
+      // Noise field buffer
+      {
+        binding: 0,
+        resource: {
+          buffer: noiseFieldBuffer,
+        },
+      },
+      // Buffer for current level
+      {
+        binding: 1,
+        resource: {
+          buffer: buffers[0],
+        },
+      },
+    ],
+  });
+
+  let groupBindGroups: GPUBindGroup[] = [];
+  for (let i = 1; i < requiredBuffers; i++) {
+    const volumeSize = size / Math.pow(2, i);
+    console.assert(size === 128 && i === 1 && volumeSize === 64);
+    groupPipelines.push(
+      device.createComputePipeline({
+        layout: "auto",
+        compute: {
+          module: fillOctreeCompute,
+          entryPoint: "group",
+          constants: {
+            volumeSize,
+          },
+        },
+      }),
+    );
+    groupBindGroups.push(
+      device.createBindGroup({
+        layout: fillPipeline.getBindGroupLayout(0),
+        entries: [
+          // Noise field buffer
+          {
+            binding: 0,
+            resource: {
+              buffer: noiseFieldBuffer,
+            },
+          },
+          // Buffer for current level
+          {
+            binding: 1,
+            resource: {
+              buffer: buffers[i],
+            },
+          },
+          // Buffer for previous level
+          {
+            binding: 2,
+            resource: {
+              buffer: buffers[i - 1],
+            },
+          },
+        ],
+      }),
+    );
+  }
+
+  // Fill mip level 0 with the bitmask of the leaf nodes using the noise field
+  const commandEncoder = device.createCommandEncoder();
+  const computePass = commandEncoder.beginComputePass();
+  computePass.setPipeline(fillPipeline);
+  computePass.setBindGroup(0, fillBindGroup);
+  computePass.dispatchWorkgroups(size / 4, size / 4, size / 4);
+
+  // Group the nodes into the parent nodes
+  groupPipelines.forEach((pipeline, i) => {
+    const groupPass = commandEncoder.beginComputePass();
+    groupPass.setPipeline(pipeline);
+    groupPass.setBindGroup(0, groupBindGroups.shift());
+    const volumeSize = size / Math.pow(2, i);
+    groupPass.dispatchWorkgroups(
+      volumeSize / 4,
+      volumeSize / 4,
+      volumeSize / 4,
+    );
+  });
+
+  computePass.end();
+  device.queue.submit([commandEncoder.finish()]);
+  await device.queue.onSubmittedWorkDone();
+};
