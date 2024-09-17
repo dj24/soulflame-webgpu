@@ -3,10 +3,9 @@ import { expose } from "comlink";
 import { fractalNoise3D, myrng } from "./fractal-noise-3d";
 import { easeInOutCubic } from "./easing";
 import { NoiseCache } from "./noise-cache";
-import { getGpuDevice } from "@renderer/abstractions/get-gpu-device";
 import { VoxelCache } from "./voxel-cache";
 
-export const CHUNK_HEIGHT = 32;
+export const CHUNK_HEIGHT = 256;
 
 let octree: Octree;
 let noiseCache: NoiseCache;
@@ -19,11 +18,10 @@ export const getCachedVoxel = (
   z: number,
   yStart: number,
 ) => {
-  const n = noiseCache.get([x, y, z]);
+  const n = fractalNoise3D(x, y, z, NOISE_FREQUENCY, 5);
   // 0 at the y top, 1 at the bottom
   const squashFactor = (yStart + y) / CHUNK_HEIGHT;
   const density = easeInOutCubic((n + 1) / 2);
-
   if (density > squashFactor) {
     return { red: 0, green: 255 - myrng() * 128, blue: 0 };
   }
@@ -35,20 +33,14 @@ export const createOctreeAndReturnBytes = async (
   size: [number, number, number],
   buffer: SharedArrayBuffer,
 ) => {
-  noiseCache = new NoiseCache(
-    (x, y, z) =>
-      fractalNoise3D(
+  voxelCache = new VoxelCache(
+    (x: number, y: number, z: number) =>
+      getCachedVoxel(
         x + position[0],
         y + position[1],
         z + position[2],
-        NOISE_FREQUENCY,
-        5,
+        position[1],
       ),
-    size,
-  );
-
-  voxelCache = new VoxelCache(
-    (x: number, y: number, z: number) => getCachedVoxel(x, y, z, position[1]),
     size,
   );
   const getVoxel = (x: number, y: number, z: number) => {
@@ -56,7 +48,7 @@ export const createOctreeAndReturnBytes = async (
   };
 
   octree = new Octree(getVoxel, () => 1, Math.max(...size), buffer);
-  noiseCache = undefined;
+  voxelCache = undefined;
   return octree.totalSizeBytes + OCTREE_STRIDE;
 };
 

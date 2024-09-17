@@ -35,10 +35,6 @@ module.exports = () => {
           exclude: /node_modules/,
         },
         {
-          test: /\.(png|jpg|jpeg)$/i,
-          loader: "file-loader",
-        },
-        {
           test: /\.wgsl$/i,
           type: "asset/source",
         },
@@ -46,6 +42,10 @@ module.exports = () => {
           test: /\.(css)$/,
           use: [MiniCssExtractPlugin.loader, "css-loader"],
         },
+        // {
+        //   test: /\.(png|jpg|jpeg)$/i,
+        //   loader: "file-loader",
+        // },
         {
           test: /\.c$/,
           use: [

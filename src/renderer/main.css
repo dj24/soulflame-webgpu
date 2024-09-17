@@ -1,3 +1,8 @@
+@font-face {
+    font-family: 'Macondo';
+    src: url('./Macondo-Regular.ttf') format('truetype');
+}
+
 * {
     font-family: 'Hack', monospace;
     color: #fff;
@@ -25,99 +30,43 @@ body{
     transform-origin: bottom left;
 }
 
-.overlay {
-    position: absolute;
-    top: 0;
-    right: 0;
-    left: 0;
-    bottom: 0;
-    display: grid;
-    grid-template-columns: 50% 50%;
-    justify-content: space-between;
-    align-items: start;
-    flex-direction: column;
-    pointer-events: none;
-}
 
-.overlay .quadrant {
-    display: flex;
-    padding: 1rem;
-    box-sizing: content-box;
-}
-
-.overlay > .quadrant:nth-child(2){
-    justify-content: end;
-}
-
-.overlay > .quadrant:nth-child(3){
-    align-self: end;
-}
-
-.overlay > .quadrant:nth-child(4){
-    align-self: end;
-    justify-items: end;
-}
-
-.overlay *{
-    pointer-events: auto;
-}
 .card{
+    font-size: 28px;
+    font-family: 'Macondo', sans-serif;
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 8px;
-    position: relative;
-    background: rgba(30,30,30, 0.6);
-    backdrop-filter: blur(32px);
-}
-
-button{
-    background: rgb(60,60,60);
-    border: none;
-    height:16px;
-    cursor: pointer;
-    color: rgb(160,160,160);
-    text-transform: uppercase;
-}
-
-input[type=range]{
-    -webkit-appearance: none;
-    width: 100%;
-    height: 16px;
-    background: rgb(60,60,60);
-}
-input[type=range]::-webkit-slider-thumb{
-    -webkit-appearance: none;
-    height: 16px;
-    width: 8px;
-    background: rgb(120, 120,120);
-    cursor: pointer;
-}
-
-input[type=checkbox]{
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-}
-
-#captures img{
-    width: 240px;
-    aspect-ratio: 16/9;
-}
-
-.debug-row{
-    display: flex;
-    flex-direction: row;
-    gap: 8px;
     align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    gap: 4px;
+    padding: 16px;
+    backdrop-filter: blur(8px);
+    border-image-source: url("./panel-transparent-center-030.png");
+    border-image-slice: 12 fill;
+    border-image-repeat: round;
+    border-image-width: 24px;
+    text-transform: uppercase;
+    image-rendering: pixelated;
 }
 
-.debug-row > *:first-child{
-    width:200px;
-    text-align: right;
+
+.top-left{
+    position:absolute;
+    top: 16px;
+    left: 16px;
 }
-.debug-row > *:nth-child(2){
-    width: 100%;
+
+.card.souls{
+    position:absolute;
+    width: 250px;
+    bottom: 16px;
+    right: 16px;
+}
+
+.card.faction{
+    width: 120px;
+    height: 120px;
 }
 
 .loader-container {
