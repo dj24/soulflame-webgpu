@@ -4,11 +4,13 @@ import { fractalNoise3D, myrng } from "./fractal-noise-3d";
 import { easeInOutCubic } from "./easing";
 import { NoiseCache } from "./noise-cache";
 import { getGpuDevice } from "@renderer/abstractions/get-gpu-device";
+import { VoxelCache } from "./voxel-cache";
 
-export const CHUNK_HEIGHT = 128;
+export const CHUNK_HEIGHT = 32;
 
 let octree: Octree;
 let noiseCache: NoiseCache;
+let voxelCache: VoxelCache;
 const NOISE_FREQUENCY = 0.001;
 
 export const getCachedVoxel = (
@@ -44,20 +46,15 @@ export const createOctreeAndReturnBytes = async (
       ),
     size,
   );
+
+  voxelCache = new VoxelCache(
+    (x: number, y: number, z: number) => getCachedVoxel(x, y, z, position[1]),
+    size,
+  );
   const getVoxel = (x: number, y: number, z: number) => {
-    const terrainVoxel = getCachedVoxel(x, y, z, position[1]);
-    return terrainVoxel;
+    return voxelCache.get([x, y, z]);
   };
 
-  // const gpuDevice = await getGpuDevice();
-  // octree = new GPUOctree(
-  //   getVoxel,
-  //   () => 1,
-  //   Math.max(...size),
-  //   buffer,
-  //   gpuDevice,
-  //   noiseCache,
-  // );
   octree = new Octree(getVoxel, () => 1, Math.max(...size), buffer);
   noiseCache = undefined;
   return octree.totalSizeBytes + OCTREE_STRIDE;
