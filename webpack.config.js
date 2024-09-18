@@ -9,7 +9,7 @@ module.exports = () => {
     entry: "./src/app.ts",
     mode: "development",
     output: {
-      filename: "main.js",
+      filename: "app.js",
       path: path.resolve(__dirname, "dist"),
     },
     devServer: {
@@ -67,6 +67,7 @@ module.exports = () => {
         ],
       }),
     ],
+    target: "electron-renderer",
     experiments: {
       topLevelAwait: true, // Enable top-level await
       asyncWebAssembly: true, // Enable async WebAssembly

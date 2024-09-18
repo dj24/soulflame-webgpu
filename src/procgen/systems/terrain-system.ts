@@ -20,6 +20,7 @@ const foo = async (ecs: ECS) => {
   const terrainWorkers = Array.from({ length: Math.floor(workerCount) }, () => {
     return new Worker(new URL("../sine-chunk", import.meta.url));
   });
+
   const terrainWorkerFunctions = terrainWorkers.map((worker) => {
     return wrap<import("../sine-chunk").TerrainWorker>(worker);
   });
