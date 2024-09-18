@@ -67,7 +67,6 @@ module.exports = () => {
         ],
       }),
     ],
-    target: "electron-renderer",
     experiments: {
       topLevelAwait: true, // Enable top-level await
       asyncWebAssembly: true, // Enable async WebAssembly

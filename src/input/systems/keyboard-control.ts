@@ -3,6 +3,7 @@ import { Transform } from "@renderer/components/transform";
 import { KeyboardControls } from "@input/keyboard-controls";
 import { mat4, quat, vec3 } from "wgpu-matrix";
 import { KeyboardControllable } from "@input/components/keyboard-controllable";
+import { animate, glide, spring } from "motion";
 
 export class KeyboardControl extends System {
   keyboardControls = new KeyboardControls();
@@ -16,27 +17,29 @@ export class KeyboardControl extends System {
       const positionDelta = controllableComponent.speed * deltaTime;
       const rotationDelta = controllableComponent.rotationSpeed * deltaTime;
 
+      let targetPosition = transformComponent.position;
+
       if (this.keyboardControls.pressed.a) {
-        transformComponent.position = vec3.add(
-          transformComponent.position,
+        targetPosition = vec3.add(
+          targetPosition,
           vec3.mulScalar(transformComponent.left, positionDelta),
         );
       }
       if (this.keyboardControls.pressed.d) {
-        transformComponent.position = vec3.add(
-          transformComponent.position,
+        targetPosition = vec3.add(
+          targetPosition,
           vec3.mulScalar(transformComponent.right, positionDelta),
         );
       }
       if (this.keyboardControls.pressed.w) {
-        transformComponent.position = vec3.add(
-          transformComponent.position,
+        targetPosition = vec3.add(
+          targetPosition,
           vec3.mulScalar(transformComponent.direction, positionDelta),
         );
       }
       if (this.keyboardControls.pressed.s) {
-        transformComponent.position = vec3.sub(
-          transformComponent.position,
+        targetPosition = vec3.sub(
+          targetPosition,
           vec3.mulScalar(transformComponent.direction, positionDelta),
         );
       }
@@ -53,17 +56,19 @@ export class KeyboardControl extends System {
         );
       }
       if (this.keyboardControls.pressed[" "]) {
-        transformComponent.position = vec3.add(
-          transformComponent.position,
+        targetPosition = vec3.add(
+          targetPosition,
           vec3.mulScalar(transformComponent.up, positionDelta),
         );
       }
       if (this.keyboardControls.pressed.shift) {
-        transformComponent.position = vec3.add(
-          transformComponent.position,
+        targetPosition = vec3.add(
+          targetPosition,
           vec3.mulScalar(transformComponent.down, positionDelta),
         );
       }
+
+      transformComponent.position = targetPosition;
     }
   }
 }

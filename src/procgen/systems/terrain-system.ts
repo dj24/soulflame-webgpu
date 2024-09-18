@@ -8,6 +8,7 @@ import { quat } from "wgpu-matrix";
 import { wrap } from "comlink";
 import { CHUNK_HEIGHT } from "../sine-chunk";
 import { mergeOctrees } from "@renderer/octree/merge-octrees";
+import { animate, spring } from "motion";
 
 const chunkWidth = 128;
 
@@ -50,10 +51,24 @@ const foo = async (ecs: ECS) => {
       return index;
     }
     ecs.addComponent(newEntity, new VoxelObject(terrainVoxels));
-    ecs.addComponent(
-      newEntity,
-      new Transform([x, y, z], quat.fromEuler(0, 0, 0, "xyz"), [1, 1, 1]),
+    const transform = new Transform(
+      [x, y - 100, z],
+      quat.fromEuler(0, 0, 0, "xyz"),
+      [0, 0, 0],
     );
+    animate(
+      (progress) => {
+        transform.scale = [progress, progress, progress];
+        transform.position = [x, y - (1 - progress) * 100, z];
+      },
+      {
+        duration: 1.0,
+        easing: spring({
+          damping: 100,
+        }),
+      },
+    );
+    ecs.addComponent(newEntity, transform);
     return index;
   };
 
@@ -73,11 +88,9 @@ const foo = async (ecs: ECS) => {
     // Wait for the first available worker to finish
     const finishedWorkerIndex = await Promise.race(activeWorkers);
 
-    // Get the next chunk position
-    const [x, y, z] = chunkPositions.shift();
-
+    // Get the next chunk position and assign it to the worker that just finished
     activeWorkers[finishedWorkerIndex] = assignChunkToWorker(
-      [x, y, z],
+      chunkPositions.shift(),
       finishedWorkerIndex,
     );
   }

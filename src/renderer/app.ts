@@ -57,7 +57,6 @@ export const debugValues = new DebugValuesStore();
 export let gpuContext: GPUCanvasContext;
 export let canvas: HTMLCanvasElement;
 export let resolution = vec2.create(4, 4);
-let downscale = 1.0;
 let startTime = 0;
 export let elapsedTime = startTime;
 export let deltaTime = 0;
@@ -75,8 +74,6 @@ export type RenderArgs = {
   enabled?: boolean;
   /** The command encoder to record commands into */
   commandEncoder: GPUCommandEncoder;
-  /** The resolution of the canvas in pixels, an integer for width and height */
-  resolutionBuffer: GPUBuffer;
   /** The GBuffers to render to */
   outputTextures: OutputTextures;
   /** The buffer containing the camera position in 3 floats (x,y,z) */
@@ -140,7 +137,6 @@ let velocityTexture: GBufferTexture;
 let worldPositionTexture: GBufferTexture;
 let blueNoiseTextureView: GPUTextureView;
 let timeBuffer: GPUBuffer;
-let resolutionBuffer: GPUBuffer;
 let transformationMatrixBuffer: GPUBuffer;
 let viewProjectionMatricesBuffer: GPUBuffer;
 let sunDirectionBuffer: GPUBuffer;
@@ -168,6 +164,43 @@ const LIGHT_INTENSITY = 2000;
 //   };
 // });
 
+const setupCanvasAndTextures = () => {
+  // if (albedoTexture) {
+  //   albedoTexture.texture.destroy();
+  // }
+  // if (normalTexture) {
+  //   normalTexture.texture.destroy();
+  // }
+  // if (depthTexture) {
+  //   depthTexture.texture.destroy();
+  // }
+  // if (velocityTexture) {
+  //   velocityTexture.texture.destroy();
+  // }
+  // if (outputTexture) {
+  //   outputTexture.texture.destroy();
+  // }
+  // if (worldPositionTexture) {
+  //   worldPositionTexture.texture.destroy();
+  // }
+  canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
+  canvas.style.imageRendering = "pixelated";
+  resolution = vec2.create(window.innerWidth, window.innerHeight);
+  canvas.width = resolution[0];
+  canvas.height = resolution[1];
+
+  albedoTexture = new AlbedoTexture(device, resolution[0], resolution[1]);
+  normalTexture = new NormalTexture(device, resolution[0], resolution[1]);
+  depthTexture = new DepthTexture(device, resolution[0], resolution[1]);
+  velocityTexture = new VelocityTexture(device, resolution[0], resolution[1]);
+  outputTexture = new OutputTexture(device, resolution[0], resolution[1]);
+  worldPositionTexture = new WorldPositionTexture(
+    device,
+    resolution[0],
+    resolution[1],
+  );
+};
+
 export const init = async (
   device1: GPUDevice,
   volumeAtlas1: VolumeAtlas,
@@ -189,54 +222,34 @@ export const init = async (
 
   bvh = new BVH(device, []);
 
-  canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
+  setupCanvasAndTextures();
+
+  skyTexture = createSkyTexture(device);
   gpuContext = canvas.getContext("webgpu");
   gpuContext.configure({
     device,
     format: navigator.gpu.getPreferredCanvasFormat(),
     usage: GPUTextureUsage.RENDER_ATTACHMENT,
   });
-  canvas.style.imageRendering = "pixelated";
-  const { clientWidth, clientHeight } = canvas.parentElement;
-  let pixelRatio = 1.0;
-  const canvasResolution = vec2.create(
-    clientWidth * pixelRatio,
-    clientHeight * pixelRatio,
-  );
-  resolution = vec2.mulScalar(canvasResolution, 1 / downscale);
-  canvas.width = canvasResolution[0];
-  canvas.height = canvasResolution[1];
-  canvas.style.transform = `scale(${1 / pixelRatio})`;
 
-  skyTexture = createSkyTexture(device);
-  albedoTexture = new AlbedoTexture(device, resolution[0], resolution[1]);
-  normalTexture = new NormalTexture(device, resolution[0], resolution[1]);
-  depthTexture = new DepthTexture(device, resolution[0], resolution[1]);
-  velocityTexture = new VelocityTexture(device, resolution[0], resolution[1]);
-  outputTexture = new OutputTexture(device, resolution[0], resolution[1]);
-  worldPositionTexture = new WorldPositionTexture(
-    device,
-    resolution[0],
-    resolution[1],
-  );
   createBlueNoiseTexture(device);
 
   computePasses = await Promise.all([
     getClearPass(),
     getGBufferPass(),
     // getRasterTracePass(),
-    (async () => {
-      return {
-        label: "copy albedo",
-        render: (renderArgs: RenderArgs) => {
-          copyGBufferTexture(
-            renderArgs.commandEncoder,
-            renderArgs.outputTextures.albedoTexture,
-            renderArgs.outputTextures.finalTexture,
-          );
-        },
-      };
-    })(),
+    // (async () => {
+    //   return {
+    //     label: "copy albedo",
+    //     render: (renderArgs: RenderArgs) => {
+    //       copyGBufferTexture(
+    //         renderArgs.commandEncoder,
+    //         renderArgs.outputTextures.albedoTexture,
+    //         renderArgs.outputTextures.finalTexture,
+    //       );
+    //     },
+    //   };
+    // })(),
     getTaaPass(normalTexture),
     getShadowsPass(),
     // getLightsPass(device),
@@ -308,14 +321,6 @@ const getTimeBuffer = () => {
     8, // offset
     new Float32Array([elapsedTime / 1000]),
   );
-};
-
-const getResolutionBuffer = () => {
-  if (resolutionBuffer) {
-    writeToUniformBuffer(resolutionBuffer, [resolution[0], resolution[1]]);
-  } else {
-    resolutionBuffer = createUniformBuffer([resolution[0], resolution[1]]);
-  }
 };
 
 const createBlueNoiseTexture = async (device: GPUDevice) => {
@@ -490,23 +495,25 @@ export const frame = (
   getVoxelObjectsBuffer(device, ecs, renderableEntities);
 
   getTimeBuffer();
-  getResolutionBuffer();
   getSunDirectionBuffer();
 
   // console.log(
   //   ecs.getComponents(renderableEntities[1]).get(Transform).position[1],
   // );
 
-  if (lastEntityCount !== renderableEntities.length) {
-    bvh.update(
-      renderableEntities.map((entity) => {
-        return getVoxelObjectBoundingBox(
-          ecs.getComponents(entity).get(VoxelObject),
-          ecs.getComponents(entity).get(Transform),
-        );
-      }),
-    );
-  }
+  const bvhStart = performance.now();
+  // if (lastEntityCount !== renderableEntities.length) {
+  bvh.update(
+    renderableEntities.map((entity) => {
+      return getVoxelObjectBoundingBox(
+        ecs.getComponents(entity).get(VoxelObject),
+        ecs.getComponents(entity).get(Transform),
+      );
+    }),
+  );
+  // }
+  const bvhEnd = performance.now();
+  frameTimeTracker.addSample("bvh update", bvhEnd - bvhStart);
 
   lastEntityCount = renderableEntities.length;
 
@@ -541,7 +548,6 @@ export const frame = (
       enabled: (document.getElementById(`flag-${label}`) as HTMLInputElement)
         ?.checked,
       commandEncoder,
-      resolutionBuffer,
       timeBuffer,
       outputTextures: {
         finalTexture: outputTexture,

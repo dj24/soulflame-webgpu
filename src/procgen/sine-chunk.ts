@@ -35,12 +35,7 @@ export const createOctreeAndReturnBytes = async (
 ) => {
   voxelCache = new VoxelCache(
     (x: number, y: number, z: number) =>
-      getCachedVoxel(
-        x + position[0],
-        y + position[1],
-        z + position[2],
-        position[1],
-      ),
+      getCachedVoxel(x + position[0], y + position[1], z + position[2], 0),
     size,
   );
   const getVoxel = (x: number, y: number, z: number) => {

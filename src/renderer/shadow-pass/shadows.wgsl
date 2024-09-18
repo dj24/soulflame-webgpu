@@ -14,7 +14,7 @@ const SUBPIXEL_SAMPLE_POSITIONS: array<vec2<f32>, 8> = array<vec2<f32>, 8>(
 const BLUE_NOISE_SIZE = 511;
 const SUN_DIRECTION: vec3<f32> = vec3<f32>(1.0,-1.0,-1.0);
 const SHADOW_ACNE_OFFSET: f32 = 0.01;
-const SCATTER_AMOUNT: f32 = 0.05;
+const SCATTER_AMOUNT: f32 = 0.1;
 const POSITION_SCATTER_AMOUNT: f32 = 0.00;
 
 // TODO: offset in object space instead of world space to scale with object size
@@ -74,10 +74,8 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32, blueNoiseOffset: vec2
   var normalSample = textureLoad(normalTex, pixel, 0).rgb;
   let worldPosSample = textureLoad(worldPosTex, pixel, 0);
   let uv = vec2<f32>(pixel) / vec2<f32>(textureDimensions(outputTex));
-
   let distanceToSurface = length(worldPosSample.rgb - cameraPosition);
   var worldPos = worldPosSample.rgb;
-
   var samplePixel = pixel;
   samplePixel.x += i32(time.frame) * 32;
   samplePixel.y += i32(time.frame) * 16;
@@ -90,13 +88,8 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32, blueNoiseOffset: vec2
   }
   var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
 
-  let maxSunIntensity = vec3(128.0);
-  // TODO: push to buffer instead and evaluate in a separate pass
-
-  let shadowRayDirection = normalize(sunDirection + randomInCosineWeightedHemisphere(r, sunDirection) * SCATTER_AMOUNT);
-
+  let shadowRayDirection = normalize(mix(sunDirection, randomInCosineWeightedHemisphere(r, sunDirection) ,SCATTER_AMOUNT));
   let isInShadow = shadowRay(worldPos, shadowRayDirection, normalSample);
-
   let inputRef = textureLoad(inputTex, pixel, 0);
 
   if(isInShadow){
@@ -106,6 +99,7 @@ fn tracePixel(outputPixel:vec2<i32>, downscaleFactor: i32, blueNoiseOffset: vec2
   let nDotL = max(dot(normalSample, sunDirection), 0.0);
 
   return SUN_COLOR * nDotL;
+
 }
 
 @compute @workgroup_size(16, 8, 1)
