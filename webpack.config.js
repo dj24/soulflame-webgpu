@@ -50,7 +50,7 @@ module.exports = () => {
           test: /\.c$/,
           use: [
             {
-              loader: path.resolve(__dirname, "c-loader.js"),
+              loader: path.resolve(__dirname, "webpack/c-loader.js"),
             },
           ],
         },

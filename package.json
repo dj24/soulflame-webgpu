@@ -2,11 +2,11 @@
   "name": "soulflame-webgpu",
   "version": "1.0.0",
   "description": "WebGPU voxel raytracing",
-  "main": "app.js",
+  "main": "electron/app.js",
   "scripts": {
     "build": "webpack",
     "serve": "webpack server",
-    "dev": "webpack && electron .",
+    "dev": "webpack && electron ./electron/app",
     "deploy": "typedoc && webpack --mode=production && npx gh-pages -d dist",
     "test": "jest"
   },

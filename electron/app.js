@@ -20,7 +20,7 @@ const createWindow = () => {
     callback({ responseHeaders: details.responseHeaders });
   });
 
-  win.loadFile("dist/index.html");
+  win.loadFile("../dist/index.html");
 };
 
 app.whenReady().then(() => {
