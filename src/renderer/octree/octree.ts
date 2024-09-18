@@ -66,10 +66,11 @@ export type LeafNode = {
 
 type OctreeNode = InternalNode | LeafNode;
 
-export type GetVoxel = (
+export type GetOctreeVoxel = (
   x: number,
   y: number,
   z: number,
+  depth: number,
 ) => { red: number; green: number; blue: number } | null;
 
 export type GetMinimumVoxelSize = (x: number, y: number, z: number) => number;
@@ -80,12 +81,13 @@ export type GetMinimumVoxelSize = (x: number, y: number, z: number) => number;
 export class Octree {
   readonly nodes: OctreeNode[];
   #pointer: number;
-  #getVoxel: GetVoxel;
+  #getVoxel: GetOctreeVoxel;
   #getMinVoxelSize: GetMinimumVoxelSize;
   #dataView: DataView;
+  depth: number;
 
   constructor(
-    getVoxel: GetVoxel,
+    getVoxel: GetOctreeVoxel,
     getMinVoxelSize: GetMinimumVoxelSize,
     size: number,
     buffer: SharedArrayBuffer,
@@ -95,6 +97,7 @@ export class Octree {
     this.#dataView = new DataView(buffer);
     this.#getVoxel = getVoxel;
     this.#getMinVoxelSize = getMinVoxelSize;
+    this.depth = Math.log2(size);
     this.#build(size, 0, [0, 0, 0]);
   }
 
@@ -113,7 +116,7 @@ export class Octree {
       size <= this.#getMinVoxelSize(offset[0], offset[1], offset[2]);
 
     if (isLeaf) {
-      const voxel = this.#getVoxel(offset[0], offset[1], offset[2]);
+      const voxel = this.#getVoxel(offset[0], offset[1], offset[2], this.depth);
 
       const { red, green, blue } = voxel;
       const node = {
@@ -143,7 +146,7 @@ export class Octree {
       for (let octantX = x; octantX < x + childOctantSize; octantX++) {
         for (let octantY = y; octantY < y + childOctantSize; octantY++) {
           for (let octantZ = z; octantZ < z + childOctantSize; octantZ++) {
-            if (this.#getVoxel(octantX, octantY, octantZ)) {
+            if (this.#getVoxel(octantX, octantY, octantZ, this.depth)) {
               childOctantsVoxelCount[i]++;
             }
           }
@@ -162,32 +165,33 @@ export class Octree {
       return mask;
     }, 0);
 
-    const totalVoxels = childOctantsVoxelCount.reduce(
-      (total, octantVoxels) => total + octantVoxels,
-      0,
-    );
-
-    const isAllVoxelsFilled = totalVoxels === objectSize ** 3;
-
-    if (isAllVoxelsFilled) {
-      const centerOfOctant = offset.map((o) => o + objectSize / 2);
-      const { red, green, blue } = this.#getVoxel(
-        centerOfOctant[0],
-        centerOfOctant[1],
-        centerOfOctant[2],
-      );
-      const node = {
-        red,
-        green,
-        blue,
-        x: offset[0],
-        y: offset[1],
-        z: offset[2],
-        size,
-      };
-      setLeafNode(this.#dataView, startIndex, node);
-      return;
-    }
+    // const totalVoxels = childOctantsVoxelCount.reduce(
+    //   (total, octantVoxels) => total + octantVoxels,
+    //   0,
+    // );
+    //
+    // const isAllVoxelsFilled = totalVoxels === objectSize ** 3;
+    //
+    // if (isAllVoxelsFilled) {
+    //   const centerOfOctant = offset.map((o) => o + objectSize / 2);
+    //   const { red, green, blue } = this.#getVoxel(
+    //     centerOfOctant[0],
+    //     centerOfOctant[1],
+    //     centerOfOctant[2],
+    //     this.depth,
+    //   );
+    //   const node = {
+    //     red,
+    //     green,
+    //     blue,
+    //     x: offset[0],
+    //     y: offset[1],
+    //     z: offset[2],
+    //     size,
+    //   };
+    //   setLeafNode(this.#dataView, startIndex, node);
+    //   return;
+    // }
 
     // Allocate memory for child nodes
     const firstChildIndex = this.#mallocOctant(requiredChildNodes);

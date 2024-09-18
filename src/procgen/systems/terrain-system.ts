@@ -28,8 +28,8 @@ const foo = async (ecs: ECS) => {
 
   // Get all the chunk positions
   let chunkPositions: [number, number, number][] = [];
-  for (let x = 0; x < 1024; x += chunkWidth) {
-    for (let z = 0; z < 1024; z += chunkWidth) {
+  for (let x = 0; x < 256; x += chunkWidth) {
+    for (let z = 0; z < 256; z += chunkWidth) {
       // Iterate from the top of the world down, so we can skip when we hit empty chunks
       for (let y = 0; y < CHUNK_HEIGHT; y += chunkWidth) {
         chunkPositions.push([x, y, z]);
@@ -52,14 +52,14 @@ const foo = async (ecs: ECS) => {
     }
     ecs.addComponent(newEntity, new VoxelObject(terrainVoxels));
     const transform = new Transform(
-      [x, y - 100, z],
+      [x, y - 128, z],
       quat.fromEuler(0, 0, 0, "xyz"),
       [0, 0, 0],
     );
     animate(
       (progress) => {
         transform.scale = [progress, progress, progress];
-        transform.position = [x, y - (1 - progress) * 100, z];
+        transform.position = [x, y - (1 - progress) * 128, z];
       },
       {
         duration: 1.0,
