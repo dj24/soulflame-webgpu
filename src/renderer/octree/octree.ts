@@ -165,33 +165,33 @@ export class Octree {
       return mask;
     }, 0);
 
-    // const totalVoxels = childOctantsVoxelCount.reduce(
-    //   (total, octantVoxels) => total + octantVoxels,
-    //   0,
-    // );
-    //
-    // const isAllVoxelsFilled = totalVoxels === objectSize ** 3;
-    //
-    // if (isAllVoxelsFilled) {
-    //   const centerOfOctant = offset.map((o) => o + objectSize / 2);
-    //   const { red, green, blue } = this.#getVoxel(
-    //     centerOfOctant[0],
-    //     centerOfOctant[1],
-    //     centerOfOctant[2],
-    //     this.depth,
-    //   );
-    //   const node = {
-    //     red,
-    //     green,
-    //     blue,
-    //     x: offset[0],
-    //     y: offset[1],
-    //     z: offset[2],
-    //     size,
-    //   };
-    //   setLeafNode(this.#dataView, startIndex, node);
-    //   return;
-    // }
+    const totalVoxels = childOctantsVoxelCount.reduce(
+      (total, octantVoxels) => total + octantVoxels,
+      0,
+    );
+
+    const isAllVoxelsFilled = totalVoxels === objectSize ** 3;
+
+    if (isAllVoxelsFilled) {
+      const centerOfOctant = offset.map((o) => o + objectSize / 2);
+      const { red, green, blue } = this.#getVoxel(
+        centerOfOctant[0],
+        centerOfOctant[1],
+        centerOfOctant[2],
+        this.depth,
+      );
+      const node = {
+        red,
+        green,
+        blue,
+        x: offset[0],
+        y: offset[1],
+        z: offset[2],
+        size,
+      };
+      setLeafNode(this.#dataView, startIndex, node);
+      return;
+    }
 
     // Allocate memory for child nodes
     const firstChildIndex = this.#mallocOctant(requiredChildNodes);
