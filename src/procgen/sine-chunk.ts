@@ -5,11 +5,11 @@ import { easeInOutCubic } from "./easing";
 import { NoiseCache } from "./noise-cache";
 import { VoxelCache } from "./voxel-cache";
 
-export const CHUNK_HEIGHT = 256;
+export const CHUNK_HEIGHT = 128;
 
 let octree: Octree;
 let noiseCaches: NoiseCache[];
-let voxelCaches: VoxelCache;
+let voxelCaches: VoxelCache[];
 const NOISE_FREQUENCY = 0.001;
 
 export const getCachedVoxel = (
@@ -23,7 +23,7 @@ export const getCachedVoxel = (
   const squashFactor = (yStart + y) / CHUNK_HEIGHT;
   const density = easeInOutCubic((n + 1) / 2);
   if (density > squashFactor) {
-    return { red: 0, green: 255 - myrng() * 128, blue: 0 };
+    return { red: 0, green: 255 - myrng() * 128, blue: 0, solid: true };
   }
   return null;
 };
@@ -40,7 +40,8 @@ export const createOctreeAndReturnBytes = async (
   );
 
   const octreeDepth = Math.log2(Math.max(...size));
-  let voxelCaches = [leafCache];
+
+  voxelCaches = [leafCache];
   for (let i = octreeDepth - 1; i >= 0; i--) {
     const sizeAtDepth = Math.ceil(size[0] / Math.pow(2, octreeDepth - i));
     const cache = new VoxelCache(
@@ -52,7 +53,7 @@ export const createOctreeAndReturnBytes = async (
         let green = 0;
         let blue = 0;
         let voxelCount = 0;
-        let solid = true;
+        let solidCount = 0;
         for (let dx = 0; dx < 2; dx++) {
           for (let dy = 0; dy < 2; dy++) {
             for (let dz = 0; dz < 2; dz++) {
@@ -66,8 +67,8 @@ export const createOctreeAndReturnBytes = async (
                 green += child.green;
                 blue += child.blue;
                 voxelCount++;
-                if (!child.solid) {
-                  solid = false;
+                if (child.solid) {
+                  solidCount++;
                 }
               }
             }
@@ -80,7 +81,7 @@ export const createOctreeAndReturnBytes = async (
           red: red / voxelCount,
           green: green / voxelCount,
           blue: blue / voxelCount,
-          solid,
+          solid: solidCount === 8,
         };
       },
       [sizeAtDepth, sizeAtDepth, sizeAtDepth],
@@ -93,7 +94,7 @@ export const createOctreeAndReturnBytes = async (
   };
 
   octree = new Octree(getVoxel, () => 1, Math.max(...size), buffer);
-  voxelCaches = undefined;
+  // voxelCaches = undefined;
   return octree.totalSizeBytes + OCTREE_STRIDE;
 };
 

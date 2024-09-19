@@ -19,7 +19,7 @@ const STRIDE = 4;
 
 // Created a noise field for a given volume size
 export class VoxelCache {
-  private readonly cache: Uint8Array;
+  cache: Uint8Array;
   private readonly size: [number, number, number];
   private readonly getVoxel: GetVoxel;
 

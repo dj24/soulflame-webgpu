@@ -71,7 +71,7 @@ export type GetOctreeVoxel = (
   y: number,
   z: number,
   depth: number,
-) => { red: number; green: number; blue: number } | null;
+) => { red: number; green: number; blue: number; solid: boolean } | null;
 
 export type GetMinimumVoxelSize = (x: number, y: number, z: number) => number;
 
@@ -84,6 +84,7 @@ export class Octree {
   #getVoxel: GetOctreeVoxel;
   #getMinVoxelSize: GetMinimumVoxelSize;
   #dataView: DataView;
+  #size: number;
   depth: number;
 
   constructor(
@@ -98,7 +99,8 @@ export class Octree {
     this.#getVoxel = getVoxel;
     this.#getMinVoxelSize = getMinVoxelSize;
     this.depth = Math.log2(size);
-    this.#build(size, 0, [0, 0, 0]);
+    this.#size = size;
+    this.#build(0, [0, 0, 0], 0);
   }
 
   // Allocate memory for 8 nodes, and return the index of the first node
@@ -108,24 +110,38 @@ export class Octree {
   }
 
   #build(
-    size: number,
     startIndex: number,
-    offset: [x: number, y: number, z: number],
+    scaledOffset: [x: number, y: number, z: number],
+    depth: number,
   ) {
+    // Volume size at this depth
+    const size = ceilToNextPowerOfTwo(2 ** (this.depth - depth));
+    const offset = [
+      scaledOffset[0] * size,
+      scaledOffset[1] * size,
+      scaledOffset[2] * size,
+    ];
+
+    // const scaledOffset = offset.map((o) => o / size);
+    const voxel = this.#getVoxel(
+      scaledOffset[0],
+      scaledOffset[1],
+      scaledOffset[2],
+      depth,
+    );
+
     const isLeaf =
       size <= this.#getMinVoxelSize(offset[0], offset[1], offset[2]);
 
     if (isLeaf) {
-      const voxel = this.#getVoxel(offset[0], offset[1], offset[2], this.depth);
-
       const { red, green, blue } = voxel;
       const node = {
         red,
         green,
         blue,
-        x: offset[0],
-        y: offset[1],
-        z: offset[2],
+        x: scaledOffset[0] * size,
+        y: scaledOffset[1] * size,
+        z: scaledOffset[2] * size,
         size,
       };
       setLeafNode(this.#dataView, startIndex, node);
@@ -134,15 +150,14 @@ export class Octree {
 
     // The voxels contained within each child octant
     const childOctantsVoxelCount: number[] = Array.from({ length: 8 }, () => 0);
-    const objectSize = ceilToNextPowerOfTwo(size);
-    const childOctantSize = objectSize / 2;
+    const childOctantSize = size / 2;
 
     // For each child octant, check if it contains any voxels
     for (let i = 0; i < 8; i++) {
       const origin = octantIndexToOffset(i);
-      const x = offset[0] + origin[0] * childOctantSize;
-      const y = offset[1] + origin[1] * childOctantSize;
-      const z = offset[2] + origin[2] * childOctantSize;
+      const x = scaledOffset[0] * size + origin[0] * childOctantSize;
+      const y = scaledOffset[1] * size + origin[1] * childOctantSize;
+      const z = scaledOffset[2] * size + origin[2] * childOctantSize;
       for (let octantX = x; octantX < x + childOctantSize; octantX++) {
         for (let octantY = y; octantY < y + childOctantSize; octantY++) {
           for (let octantZ = z; octantZ < z + childOctantSize; octantZ++) {
@@ -156,24 +171,51 @@ export class Octree {
     // We can save space by only allocating up to the last child node
     let requiredChildNodes = 0;
 
+    let octantFlags = Array.from({ length: 8 }, () => false);
+    const sizeAtDepth = 2 ** depth;
+
+    for (let i = 0; i < 8; i++) {
+      const origin = octantIndexToOffset(i);
+      const offsetInNextDepth = scaledOffset.map((o) => o * 2);
+      const x = offsetInNextDepth[0] + origin[0];
+      const y = offsetInNextDepth[1] + origin[1];
+      const z = offsetInNextDepth[2] + origin[2];
+      octantFlags[i] = this.#getVoxel(x, y, z, depth + 1) !== null;
+    }
+
+    let foo = Array.from({ length: 8 }, () => false);
+
     // Once we have the valid child octants, create a node for the current octant
     const childMask = childOctantsVoxelCount.reduce((mask, octantVoxels, i) => {
       if (octantVoxels > 0) {
         requiredChildNodes = i + 1;
+        foo[i] = true;
         return setBit(mask, i);
       }
       return mask;
     }, 0);
+
+    if (size > 64) {
+      console.log(
+        scaledOffset[0],
+        scaledOffset[1],
+        scaledOffset[2],
+        size,
+        octantFlags,
+        foo,
+        voxel,
+      );
+    }
 
     const totalVoxels = childOctantsVoxelCount.reduce(
       (total, octantVoxels) => total + octantVoxels,
       0,
     );
 
-    const isAllVoxelsFilled = totalVoxels === objectSize ** 3;
+    const isAllVoxelsFilled = totalVoxels === size ** 3;
 
     if (isAllVoxelsFilled) {
-      const centerOfOctant = offset.map((o) => o + objectSize / 2);
+      const centerOfOctant = offset.map((o) => o + size / 2);
       const { red, green, blue } = this.#getVoxel(
         centerOfOctant[0],
         centerOfOctant[1],
@@ -184,9 +226,9 @@ export class Octree {
         red,
         green,
         blue,
-        x: offset[0],
-        y: offset[1],
-        z: offset[2],
+        x: scaledOffset[0] * size,
+        y: scaledOffset[1] * size,
+        z: scaledOffset[2] * size,
         size,
       };
       setLeafNode(this.#dataView, startIndex, node);
@@ -201,10 +243,10 @@ export class Octree {
       if (octantVoxels) {
         const childIndex = firstChildIndex + i;
         const origin = octantIndexToOffset(i);
-        const x = offset[0] + origin[0] * childOctantSize;
-        const y = offset[1] + origin[1] * childOctantSize;
-        const z = offset[2] + origin[2] * childOctantSize;
-        this.#build(childOctantSize, childIndex, [x, y, z]);
+        const x = scaledOffset[0] * 2 + origin[0];
+        const y = scaledOffset[1] * 2 + origin[1];
+        const z = scaledOffset[2] * 2 + origin[2];
+        this.#build(childIndex, [x, y, z], depth + 1);
       }
     });
 
@@ -212,10 +254,10 @@ export class Octree {
     const node = {
       firstChildIndex: relativeIndex,
       childMask,
-      x: offset[0],
-      y: offset[1],
-      z: offset[2],
-      size: objectSize,
+      x: scaledOffset[0] * size,
+      y: scaledOffset[1] * size,
+      z: scaledOffset[2] * size,
+      size: size,
     };
     setInternalNode(this.#dataView, startIndex, node);
   }
