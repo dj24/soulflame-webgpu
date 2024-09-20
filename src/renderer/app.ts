@@ -65,6 +65,7 @@ let volumeAtlas: VolumeAtlas;
 export let device: GPUDevice;
 
 const debugUI = new DebugUI();
+(window as any).debugUI = debugUI;
 
 export const frameTimeTracker = getFrameTimeTracker();
 frameTimeTracker.addSample("frame time", 0);
@@ -127,7 +128,7 @@ export const getViewMatrix = (transform: Transform) => {
 };
 
 let skyTexture: GPUTexture;
-let lights: Light[];
+let lights: Light[] = [];
 let computePasses: RenderPass[];
 let normalTexture: GBufferTexture;
 let albedoTexture: GBufferTexture;
@@ -151,11 +152,15 @@ let nearestSampler: GPUSampler;
 let timestampLabels: string[];
 
 const LIGHT_SIZE = 5;
-const LIGHT_INTENSITY = 2000;
+const LIGHT_INTENSITY = 4000;
 
 // lights = Array.from({ length: 100 }).map(() => {
 //   return {
-//     position: [Math.random() * 512, 32, Math.random() * 512],
+//     position: [
+//       Math.random() * 512,
+//       256 - Math.random() * 256,
+//       Math.random() * 512,
+//     ],
 //     size: LIGHT_SIZE,
 //     color: vec3.mulScalar(
 //       vec3.normalize(vec3.create(Math.random(), Math.random(), Math.random())),
@@ -163,6 +168,21 @@ const LIGHT_INTENSITY = 2000;
 //     ),
 //   };
 // });
+
+for (let x = 0; x < 512; x += 64) {
+  for (let z = 0; z < 512; z += 64) {
+    lights.push({
+      position: [x, 32 - Math.random() * 16, z],
+      size: LIGHT_SIZE,
+      color: vec3.mulScalar(
+        vec3.normalize(
+          vec3.create(Math.random(), Math.random(), Math.random()),
+        ),
+        LIGHT_INTENSITY,
+      ),
+    });
+  }
+}
 
 const setupCanvasAndTextures = () => {
   // if (albedoTexture) {
@@ -238,21 +258,21 @@ export const init = async (
     getClearPass(),
     getGBufferPass(),
     // getRasterTracePass(),
-    // (async () => {
-    //   return {
-    //     label: "copy albedo",
-    //     render: (renderArgs: RenderArgs) => {
-    //       copyGBufferTexture(
-    //         renderArgs.commandEncoder,
-    //         renderArgs.outputTextures.albedoTexture,
-    //         renderArgs.outputTextures.finalTexture,
-    //       );
-    //     },
-    //   };
-    // })(),
+    (async () => {
+      return {
+        label: "copy albedo",
+        render: (renderArgs: RenderArgs) => {
+          copyGBufferTexture(
+            renderArgs.commandEncoder,
+            renderArgs.outputTextures.albedoTexture,
+            renderArgs.outputTextures.finalTexture,
+          );
+        },
+      };
+    })(),
     getTaaPass(normalTexture),
     getShadowsPass(),
-    // getLightsPass(device),
+    getLightsPass(device),
     // getGlobalIlluminationPass(),
     // getBloomPass(),
     getSimpleFogPass(),

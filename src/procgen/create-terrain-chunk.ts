@@ -3,8 +3,17 @@ import { wrap } from "comlink";
 import { VoxelObject } from "@renderer/voxel-object";
 import { CHUNK_HEIGHT, TerrainWorker } from "./sine-chunk";
 import { OCTREE_STRIDE } from "@renderer/octree/octree";
+import { DebugUI } from "@renderer/ui";
 
 let chunkCreationTimes: number[] = [];
+
+let averageChunkCreationTime = {
+  time: 0,
+};
+
+(window as any).debugUI.setupAverageChunkGenerationTimeLogging(
+  averageChunkCreationTime,
+);
 
 const getMaxSizeOfOctree = (size: [number, number, number]) => {
   const depth = Math.ceil(Math.log2(Math.max(...size)));
@@ -60,9 +69,9 @@ export const createTerrainChunk = async (
 
   const end = performance.now();
   chunkCreationTimes.push(end - start);
-  console.log(
-    `Average chunk creation time: ${(chunkCreationTimes.reduce((a, b) => a + b, 0) / chunkCreationTimes.length).toFixed(0)}`,
-  );
+  averageChunkCreationTime.time =
+    chunkCreationTimes.reduce((a, b) => a + b, 0) / chunkCreationTimes.length;
+  averageChunkCreationTime.time = Math.round(averageChunkCreationTime.time);
   return new VoxelObject({
     name,
     size: atlasSize,

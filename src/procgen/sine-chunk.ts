@@ -4,13 +4,15 @@ import { fractalNoise3D, myrng } from "./fractal-noise-3d";
 import { easeInOutCubic } from "./easing";
 import { NoiseCache } from "./noise-cache";
 import { VoxelCache } from "./voxel-cache";
+import { vec3 } from "wgpu-matrix";
 
-export const CHUNK_HEIGHT = 128;
+export const CHUNK_HEIGHT = 256;
 
 let octree: Octree;
 let noiseCaches: NoiseCache[];
 let voxelCaches: VoxelCache[];
 const NOISE_FREQUENCY = 0.001;
+const CAVE_FREQUENCY = 0.008;
 
 export const getCachedVoxel = (
   x: number,
@@ -18,12 +20,27 @@ export const getCachedVoxel = (
   z: number,
   yStart: number,
 ) => {
-  const n = fractalNoise3D(x, y, z, NOISE_FREQUENCY, 5);
   // 0 at the y top, 1 at the bottom
   const squashFactor = (yStart + y) / CHUNK_HEIGHT;
-  const density = easeInOutCubic((n + 1) / 2);
+
+  const caveNoise = fractalNoise3D(x, y, z, CAVE_FREQUENCY, 3);
+  const caveDensity = easeInOutCubic((caveNoise + 1) / 2);
+  if (caveDensity < squashFactor) {
+    return null;
+  }
+
+  const caveAmount = 1 - Math.max(0, caveDensity - squashFactor) * 2;
+
+  const terrainNoise = fractalNoise3D(x, y, z, NOISE_FREQUENCY, 5);
+
+  const density = easeInOutCubic((terrainNoise + 1) / 2);
   if (density > squashFactor) {
-    return { red: 0, green: 255 - myrng() * 128, blue: 0, solid: true };
+    const colour = vec3.lerp(
+      [0, 255 - myrng() * 128, 0],
+      [72 - myrng() * 16, 48, 42],
+      Math.max(0, caveAmount),
+    );
+    return { red: colour[0], green: colour[1], blue: colour[2], solid: true };
   }
   return null;
 };

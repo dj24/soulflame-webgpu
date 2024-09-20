@@ -11,6 +11,7 @@ export class DebugUI {
     this.gui = new GUI();
     this.timingsFolder = this.gui.addFolder("timings");
     this.passesFolder = this.gui.addFolder("passes");
+    this.passesFolder.close();
   }
 
   log(timings: Record<string, number>) {
@@ -43,5 +44,10 @@ export class DebugUI {
   setupOctreeLogging(atlas: VolumeAtlas) {
     const octreeFolder = this.gui.addFolder("octree");
     octreeFolder.add(atlas, "octreeBufferSizeMB").listen();
+  }
+
+  setupAverageChunkGenerationTimeLogging(obj: { time: number }) {
+    const folder = this.gui.addFolder("chunk average generation time");
+    folder.add(obj, "time").listen();
   }
 }
