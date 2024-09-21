@@ -6,6 +6,7 @@ export class Transform extends Component {
   rotation: Quat;
   scale: Vec3;
   #previousTransform: Mat4;
+  velocity: Vec3 = vec3.create(0, 0, 0);
 
   constructor(position: Vec3, rotation: Quat, scale: Vec3) {
     super();

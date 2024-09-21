@@ -3,72 +3,87 @@ import { Transform } from "@renderer/components/transform";
 import { KeyboardControls } from "@input/keyboard-controls";
 import { mat4, quat, vec3 } from "wgpu-matrix";
 import { KeyboardControllable } from "@input/components/keyboard-controllable";
-import { animate, glide, spring } from "motion";
+import { Velocity } from "../../components/velocity";
+import { animate, glide } from "motion";
+
+const DAMPING = 0.01;
+const ROTATION_DAMPING = 0.01;
 
 export class KeyboardControl extends System {
   keyboardControls = new KeyboardControls();
-  componentsRequired = new Set([Transform, KeyboardControllable]);
+  componentsRequired = new Set([Transform, KeyboardControllable, Velocity]);
 
   update(entities: Set<Entity>, now: number, deltaTime: number): void {
     for (const entity of entities) {
       const components = this.ecs.getComponents(entity);
       const transformComponent = components.get(Transform);
       const controllableComponent = components.get(KeyboardControllable);
-      const positionDelta = controllableComponent.speed * deltaTime;
-      const rotationDelta = controllableComponent.rotationSpeed * deltaTime;
-
-      let targetPosition = transformComponent.position;
+      const velocityComponent = components.get(Velocity);
+      let positionDelta = vec3.create();
+      let rotationDelta = quat.identity();
 
       if (this.keyboardControls.pressed.a) {
-        targetPosition = vec3.add(
-          targetPosition,
-          vec3.mulScalar(transformComponent.left, positionDelta),
-        );
+        positionDelta = vec3.add(positionDelta, transformComponent.left);
       }
       if (this.keyboardControls.pressed.d) {
-        targetPosition = vec3.add(
-          targetPosition,
-          vec3.mulScalar(transformComponent.right, positionDelta),
-        );
+        positionDelta = vec3.add(positionDelta, transformComponent.right);
       }
       if (this.keyboardControls.pressed.w) {
-        targetPosition = vec3.add(
-          targetPosition,
-          vec3.mulScalar(transformComponent.direction, positionDelta),
-        );
+        positionDelta = vec3.add(positionDelta, transformComponent.direction);
       }
       if (this.keyboardControls.pressed.s) {
-        targetPosition = vec3.sub(
-          targetPosition,
-          vec3.mulScalar(transformComponent.direction, positionDelta),
+        positionDelta = vec3.add(
+          positionDelta,
+          vec3.negate(transformComponent.direction),
         );
       }
       if (this.keyboardControls.pressed.q) {
-        transformComponent.rotation = quat.rotateY(
-          transformComponent.rotation,
-          -rotationDelta,
+        rotationDelta = quat.rotateY(
+          rotationDelta,
+          -controllableComponent.rotationSpeed,
         );
       }
       if (this.keyboardControls.pressed.e) {
-        transformComponent.rotation = quat.rotateY(
-          transformComponent.rotation,
+        rotationDelta = quat.rotateY(
           rotationDelta,
+          controllableComponent.rotationSpeed,
         );
       }
       if (this.keyboardControls.pressed[" "]) {
-        targetPosition = vec3.add(
-          targetPosition,
-          vec3.mulScalar(transformComponent.up, positionDelta),
-        );
+        positionDelta = vec3.add(positionDelta, transformComponent.up);
       }
       if (this.keyboardControls.pressed.shift) {
-        targetPosition = vec3.add(
-          targetPosition,
-          vec3.mulScalar(transformComponent.down, positionDelta),
+        positionDelta = vec3.add(
+          positionDelta,
+          vec3.negate(transformComponent.up),
         );
       }
 
-      transformComponent.position = targetPosition;
+      // position
+      if (vec3.length(positionDelta) > 0) {
+        positionDelta = vec3.normalize(positionDelta);
+        velocityComponent.velocity = vec3.mulScalar(
+          positionDelta,
+          controllableComponent.speed,
+        );
+      } else {
+        //decaying velocity
+        velocityComponent.velocity = vec3.sub(
+          velocityComponent.velocity,
+          vec3.mulScalar(velocityComponent.velocity, DAMPING * deltaTime),
+        );
+      }
+
+      // rotation
+      if (!quat.equalsApproximately(rotationDelta, quat.identity())) {
+        velocityComponent.angularVelocity = rotationDelta;
+      } else {
+        velocityComponent.angularVelocity = quat.slerp(
+          velocityComponent.angularVelocity,
+          quat.identity(),
+          ROTATION_DAMPING * deltaTime,
+        );
+      }
     }
   }
 }

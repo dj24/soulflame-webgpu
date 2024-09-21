@@ -10,6 +10,8 @@ import { PhysicsWorldSingleton } from "@physics/components/physics-world-singlet
 import { GamepadKinematicBoxControl } from "@input/systems/gamepad-kinematic-box-control";
 import { TerrainSystem } from "./procgen/systems/terrain-system";
 import { TerrainSingleton } from "./procgen/components/terrain-singleton";
+import { VelocitySystem } from "./systems/velocity-system";
+import { Velocity } from "./components/velocity";
 
 const ecs = new ECS();
 
@@ -18,6 +20,7 @@ ecs.addSystem(new KeyboardControl());
 ecs.addSystem(new Renderer());
 ecs.addSystem(new GamepadKinematicBoxControl());
 ecs.addSystem(new TerrainSystem());
+ecs.addSystem(new VelocitySystem());
 
 const singleton = ecs.addEntity();
 ecs.addComponent(singleton, new GPUDeviceSingleton());
@@ -35,6 +38,7 @@ ecs.addComponents(
     vec3.create(1, 1, 1),
   ),
   new KeyboardControllable(),
+  new Velocity(),
 );
 
 // Game loop

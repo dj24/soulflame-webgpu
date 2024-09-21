@@ -280,7 +280,7 @@ export const init = async (
     getTonemapPass(),
     getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
-    // getVignettePass(15.0),
+    getVignettePass(10.0),
     fullscreenQuad(device),
     // getBoxOutlinePass(device),
   ]);

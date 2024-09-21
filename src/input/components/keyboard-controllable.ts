@@ -3,5 +3,5 @@ import { animate } from "motion";
 
 export class KeyboardControllable extends Component {
   speed = 0.1;
-  rotationSpeed = 0.002;
+  rotationSpeed = 0.03;
 }
