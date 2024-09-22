@@ -1,11 +1,6 @@
-import { getViewMatrix, RenderArgs, RenderPass } from "../app";
-import lightsFrag from "./lights.frag.wgsl";
-import lightsVert from "./lights.vert.wgsl";
-import { mat4, Vec3 } from "wgpu-matrix";
-import wireframeFrag from "./wireframe.frag.wgsl";
-import { getSphereVertices } from "../primitive-meshes/sphere";
-import { getCuboidVertices } from "../primitive-meshes/cuboid";
-import { OUTPUT_TEXTURE_FORMAT } from "../constants";
+import { RenderArgs, RenderPass } from "../app";
+import { Vec3 } from "wgpu-matrix";
+import lightsCompute from "./lights.compute.wgsl";
 
 export type Light = {
   position: [number, number, number];
@@ -26,33 +21,7 @@ const lightToArrayBuffer = (light: Light) => {
   return arrayBuffer;
 };
 
-const drawLightSpheres = ({
-  passEncoder,
-  pipeline,
-  verticesBuffer,
-  bindGroup,
-  lights,
-}: {
-  passEncoder: GPURenderPassEncoder;
-  pipeline: GPURenderPipeline;
-  verticesBuffer: GPUBuffer;
-  bindGroup: GPUBindGroup;
-  lights: Light[];
-}) => {
-  passEncoder.setPipeline(pipeline);
-  passEncoder.setVertexBuffer(0, verticesBuffer);
-  passEncoder.setBindGroup(0, bindGroup);
-  passEncoder.draw(verticesPerLight, lights.length, 0, 0);
-};
-
-const vertexStride = 16;
-const sphereVertices = getSphereVertices(15);
-const cubeVertices = getCuboidVertices([1, 1, 1]);
-const verticesPerLight = sphereVertices.length;
-const verticesPerCuboid = cubeVertices.length;
-
 const LIGHT_BUFFER_STRIDE = 48;
-const MVP_BUFFER_STRIDE = 64;
 
 export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   const bindGroupLayout = device.createBindGroupLayout({
@@ -60,22 +29,15 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
     entries: [
       {
         binding: 0,
-        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-        buffer: {
-          type: "read-only-storage",
-        },
-      },
-      {
-        binding: 1,
-        visibility: GPUShaderStage.FRAGMENT,
+        visibility: GPUShaderStage.COMPUTE,
         sampler: {
           type: "non-filtering",
         },
       },
       // World positions texture
       {
-        binding: 2,
-        visibility: GPUShaderStage.FRAGMENT,
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
         texture: {
           sampleType: "unfilterable-float",
           viewDimension: "2d",
@@ -83,8 +45,8 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
       },
       // Normal texture
       {
-        binding: 3,
-        visibility: GPUShaderStage.FRAGMENT,
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
         texture: {
           sampleType: "float",
           viewDimension: "2d",
@@ -92,18 +54,26 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
       },
       // Light buffer
       {
-        binding: 4,
-        visibility: GPUShaderStage.VERTEX,
+        binding: 3,
+        visibility: GPUShaderStage.COMPUTE,
         buffer: {
           type: "read-only-storage",
         },
       },
-      // View projection matrices
+      // Output texture
+      {
+        binding: 4,
+        visibility: GPUShaderStage.COMPUTE,
+        storageTexture: {
+          format: "rgba16float",
+        },
+      },
+      // Pixel buffer
       {
         binding: 5,
-        visibility: GPUShaderStage.FRAGMENT,
+        visibility: GPUShaderStage.COMPUTE,
         buffer: {
-          type: "uniform",
+          type: "storage",
         },
       },
     ],
@@ -113,129 +83,24 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
     bindGroupLayouts: [bindGroupLayout],
   });
 
-  const pipeline = device.createRenderPipeline({
+  const pipeline = device.createComputePipeline({
+    compute: {
+      module: device.createShaderModule({
+        code: lightsCompute,
+      }),
+      entryPoint: "main",
+    },
     layout: pipelineLayout,
-    vertex: {
-      module: device.createShaderModule({
-        code: lightsVert,
-      }),
-      entryPoint: "main",
-      buffers: [
-        {
-          arrayStride: vertexStride,
-          attributes: [
-            {
-              // position
-              shaderLocation: 0,
-              offset: 0,
-              format: "float32x4",
-            },
-          ],
-        },
-      ],
-    },
-    fragment: {
-      module: device.createShaderModule({
-        code: lightsFrag,
-      }),
-      entryPoint: "main",
-      targets: [
-        {
-          format: OUTPUT_TEXTURE_FORMAT,
-          blend: {
-            color: {
-              srcFactor: "src-alpha",
-              dstFactor: "one",
-              operation: "add",
-            },
-            alpha: {
-              srcFactor: "one",
-              dstFactor: "one",
-            },
-          },
-        },
-      ],
-    },
-    primitive: {
-      topology: "triangle-list",
-      cullMode: "front",
-    },
   });
 
-  const wireFramePipeline = device.createRenderPipeline({
+  const compositePipeline = device.createComputePipeline({
+    compute: {
+      module: device.createShaderModule({
+        code: lightsCompute,
+      }),
+      entryPoint: "composite",
+    },
     layout: pipelineLayout,
-    vertex: {
-      module: device.createShaderModule({
-        code: lightsVert,
-      }),
-      entryPoint: "main",
-      buffers: [
-        {
-          arrayStride: vertexStride,
-          attributes: [
-            {
-              // position
-              shaderLocation: 0,
-              offset: 0,
-              format: "float32x4",
-            },
-          ],
-        },
-      ],
-    },
-    fragment: {
-      module: device.createShaderModule({
-        code: wireframeFrag,
-      }),
-      entryPoint: "main",
-      targets: [
-        {
-          format: OUTPUT_TEXTURE_FORMAT,
-        },
-      ],
-    },
-    primitive: {
-      topology: "line-list",
-      cullMode: "none",
-    },
-  });
-
-  const lightCubePipeline = device.createRenderPipeline({
-    layout: pipelineLayout,
-    vertex: {
-      module: device.createShaderModule({
-        code: lightsVert,
-      }),
-      entryPoint: "main",
-      buffers: [
-        {
-          arrayStride: vertexStride,
-          attributes: [
-            {
-              // position
-              shaderLocation: 0,
-              offset: 0,
-              format: "float32x4",
-            },
-          ],
-        },
-      ],
-    },
-    fragment: {
-      module: device.createShaderModule({
-        code: wireframeFrag,
-      }),
-      entryPoint: "main",
-      targets: [
-        {
-          format: OUTPUT_TEXTURE_FORMAT,
-        },
-      ],
-    },
-    primitive: {
-      topology: "triangle-list",
-      cullMode: "back",
-    },
   });
 
   const nearestSampler = device.createSampler({
@@ -244,45 +109,29 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
     mipmapFilter: "nearest",
   });
 
-  let verticesBuffer: GPUBuffer;
-  let lightVerticesBuffer: GPUBuffer;
   let lightBuffer: GPUBuffer;
-  let modelViewProjectionMatrixBuffer: GPUBuffer;
   let bindGroup: GPUBindGroup;
+  let lightPixelBuffer: GPUBuffer;
 
   const render = ({
     commandEncoder,
     outputTextures,
-    viewProjectionMatricesBuffer,
     timestampWrites,
     lights,
-    camera,
-    cameraTransform,
   }: RenderArgs) => {
-    if (!verticesBuffer) {
-      verticesBuffer = device.createBuffer({
-        size: vertexStride * verticesPerLight * lights.length,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-        label: "vertices",
-      });
-    }
-
-    if (!lightVerticesBuffer) {
-      lightVerticesBuffer = device.createBuffer({
-        size: vertexStride * verticesPerCuboid * lights.length,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-        label: "light-vertices",
-      });
-    }
-    if (!lightBuffer) {
-      lightBuffer = device.createBuffer({
-        size: 256 * lights.length,
+    // TODO: account for resolution changes
+    if (!lightPixelBuffer) {
+      lightPixelBuffer = device.createBuffer({
+        size:
+          4 *
+          outputTextures.finalTexture.width *
+          outputTextures.finalTexture.height,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       });
     }
 
-    if (!modelViewProjectionMatrixBuffer) {
-      modelViewProjectionMatrixBuffer = device.createBuffer({
+    if (!lightBuffer) {
+      lightBuffer = device.createBuffer({
         size: 256 * lights.length,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       });
@@ -295,44 +144,38 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
         entries: [
           {
             binding: 0,
-            resource: {
-              buffer: modelViewProjectionMatrixBuffer,
-            },
-          },
-          {
-            binding: 1,
             resource: nearestSampler,
           },
           {
-            binding: 2,
+            binding: 1,
             resource: outputTextures.worldPositionTexture.view,
           },
           {
-            binding: 3,
+            binding: 2,
             resource: outputTextures.normalTexture.view,
           },
           {
-            binding: 4,
+            binding: 3,
             resource: {
               buffer: lightBuffer,
             },
           },
           {
+            binding: 4,
+            resource: outputTextures.finalTexture.view,
+          },
+          {
             binding: 5,
             resource: {
-              buffer: viewProjectionMatricesBuffer,
+              buffer: lightPixelBuffer,
             },
           },
         ],
       });
     }
 
-    device.queue.writeBuffer(verticesBuffer, 0, sphereVertices.buffer);
-    device.queue.writeBuffer(lightVerticesBuffer, 0, cubeVertices.buffer);
-
     for (let i = 0; i < lights.length; i++) {
       const light = lights[i];
-      const mvpBufferOffset = i * MVP_BUFFER_STRIDE;
       const lightBufferOffset = i * LIGHT_BUFFER_STRIDE;
 
       device.queue.writeBuffer(
@@ -340,62 +183,23 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
         lightBufferOffset,
         lightToArrayBuffer(light),
       );
-
-      const m = mat4.identity();
-      mat4.translate(m, light.position, m);
-      mat4.uniformScale(m, light.size, m);
-      const vp = mat4.mul(
-        mat4.scale(camera.projectionMatrix, [-1, 1, 1]),
-        getViewMatrix(cameraTransform),
-      );
-      const mvp = new Float32Array(mat4.mul(vp, m));
-      device.queue.writeBuffer(
-        modelViewProjectionMatrixBuffer,
-        mvpBufferOffset,
-        mvp.buffer,
-        mvp.byteOffset,
-        mvp.byteLength,
-      );
     }
 
-    const passEncoder = commandEncoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view: outputTextures.finalTexture.view,
-          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-          loadOp: "load",
-          storeOp: "store",
-        },
-      ],
-      timestampWrites,
-    });
+    const passEncoder = commandEncoder.beginComputePass({ timestampWrites });
+    passEncoder.setPipeline(pipeline);
+    passEncoder.setBindGroup(0, bindGroup);
+    passEncoder.dispatchWorkgroups(
+      outputTextures.finalTexture.width,
+      outputTextures.finalTexture.width,
+      Math.ceil(lights.length / 64),
+    );
 
-    drawLightSpheres({
-      passEncoder,
-      pipeline,
-      verticesBuffer,
-      bindGroup,
-      lights,
-    });
-
-    // passEncoder.setPipeline(wireFramePipeline);
-    // passEncoder.setBindGroup(0, bindGroup);
-    // passEncoder.setVertexBuffer(
-    //   0,
-    //   lightVerticesBuffer,
-    //   vertexStride * verticesPerCuboid,
-    //   vertexStride * verticesPerCuboid,
-    // );
-    // passEncoder.draw(verticesPerCuboid, lights.length, 0, 0);
-
-    // drawLightSpheres({
-    //   passEncoder,
-    //   pipeline: wireFramePipeline,
-    //   verticesBuffer,
-    //   bindGroups,
-    //   lights,
-    // });
-
+    passEncoder.setPipeline(compositePipeline);
+    passEncoder.dispatchWorkgroups(
+      outputTextures.finalTexture.width / 8,
+      outputTextures.finalTexture.width / 8,
+      1,
+    );
     passEncoder.end();
   };
 

@@ -160,16 +160,16 @@ fn tracePixel(pixel: vec2<u32>){
     var albedo = vec3(0.0);
     var velocity = vec2(0.0);
     let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
-//    if(bvhResult.hit){
+    if(bvhResult.hit){
       let voxelObject = voxelObjects[bvhResult.voxelObjectIndex];
       albedo = bvhResult.colour;
-      normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(bvhResult.normal));
       worldPos = rayOrigin + rayDirection * bvhResult.t;
-//    }
-//    else{
-//      albedo = vec3(0.0);
-//      worldPos = rayOrigin + skyDomeIntersection(rayOrigin, rayDirection) * rayDirection;
-//    }
+      normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(bvhResult.normal));
+    }
+    else{
+      albedo = vec3(0.0);
+      worldPos = rayOrigin + skyDomeIntersection(rayOrigin, rayDirection) * rayDirection;
+    }
     velocity = getVelocityStatic(worldPos, viewProjections);
 
     textureStore(albedoTex, pixel, vec4(albedo, 1));

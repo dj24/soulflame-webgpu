@@ -38,6 +38,7 @@ ecs.addComponents(
     vec3.create(1, 1, 1),
   ),
   new KeyboardControllable(),
+  new GamepadKinematicBoxControl(),
   new Velocity(),
 );
 
