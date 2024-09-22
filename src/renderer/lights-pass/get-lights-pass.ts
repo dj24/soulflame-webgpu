@@ -121,18 +121,19 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   }: RenderArgs) => {
     // TODO: account for resolution changes
     if (!lightPixelBuffer) {
+      const downscaledWidth = outputTextures.finalTexture.width / 2;
+      const downscaledHeight = outputTextures.finalTexture.height / 2;
+      const stride = 8;
       lightPixelBuffer = device.createBuffer({
-        size:
-          4 *
-          outputTextures.finalTexture.width *
-          outputTextures.finalTexture.height,
+        size: stride * downscaledWidth * downscaledHeight,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       });
     }
 
     if (!lightBuffer) {
+      const stride = LIGHT_BUFFER_STRIDE;
       lightBuffer = device.createBuffer({
-        size: 256 * lights.length,
+        size: LIGHT_BUFFER_STRIDE * lights.length,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       });
     }
@@ -185,19 +186,20 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
       );
     }
 
+    commandEncoder.clearBuffer(lightPixelBuffer);
     const passEncoder = commandEncoder.beginComputePass({ timestampWrites });
     passEncoder.setPipeline(pipeline);
     passEncoder.setBindGroup(0, bindGroup);
     passEncoder.dispatchWorkgroups(
-      outputTextures.finalTexture.width,
-      outputTextures.finalTexture.width,
-      Math.ceil(lights.length / 64),
+      Math.ceil(outputTextures.finalTexture.width / 32),
+      Math.ceil(outputTextures.finalTexture.width / 32),
+      lights.length,
     );
 
     passEncoder.setPipeline(compositePipeline);
     passEncoder.dispatchWorkgroups(
-      outputTextures.finalTexture.width / 8,
-      outputTextures.finalTexture.width / 8,
+      Math.ceil(outputTextures.finalTexture.width / 8),
+      Math.ceil(outputTextures.finalTexture.width / 8),
       1,
     );
     passEncoder.end();

@@ -40,13 +40,13 @@ export class KeyboardControl extends System {
       if (this.keyboardControls.pressed.q) {
         rotationDelta = quat.rotateY(
           rotationDelta,
-          -controllableComponent.rotationSpeed,
+          -controllableComponent.rotationSpeed * deltaTime,
         );
       }
       if (this.keyboardControls.pressed.e) {
         rotationDelta = quat.rotateY(
           rotationDelta,
-          controllableComponent.rotationSpeed,
+          controllableComponent.rotationSpeed * deltaTime,
         );
       }
       if (this.keyboardControls.pressed[" "]) {
@@ -74,16 +74,7 @@ export class KeyboardControl extends System {
         );
       }
 
-      // rotation
-      if (!quat.equalsApproximately(rotationDelta, quat.identity())) {
-        velocityComponent.angularVelocity = rotationDelta;
-      } else {
-        velocityComponent.angularVelocity = quat.slerp(
-          velocityComponent.angularVelocity,
-          quat.identity(),
-          ROTATION_DAMPING * deltaTime,
-        );
-      }
+      velocityComponent.angularVelocity = rotationDelta;
     }
   }
 }

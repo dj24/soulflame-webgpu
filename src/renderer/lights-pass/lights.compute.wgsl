@@ -2,8 +2,6 @@ struct Light {
   position: vec3<f32>,
   padding_1: f32,
   color: vec3<f32>,
-  padding_2: f32,
-  radius: f32,
 };
 
 struct ViewProjectionMatrices {
@@ -25,43 +23,47 @@ fn convert1DTo2D(width: u32, index1D: u32) -> vec2<u32> {
 }
 
 struct LightPixel {
-  index: atomic<u32>,
-  intensity: atomic<u32>,
+  index: atomic<i32>,
+  intensity: atomic<i32>,
 }
 
 @group(0) @binding(1) var worldPosTex : texture_2d<f32>;
 @group(0) @binding(2) var normalTex : texture_2d<f32>;
 @group(0) @binding(3) var<storage, read> lightsBuffer : array<Light>;
 @group(0) @binding(4) var outputTex : texture_storage_2d<rgba16float, write>;
-@group(0) @binding(5) var<storage, read_write> pixelBuffer : array<atomic<u32>>;
+@group(0) @binding(5) var<storage, read_write> pixelBuffer : array<LightPixel>;
 
 
-@compute @workgroup_size(1, 1, 64)
+@compute @workgroup_size(8, 8, 1)
 fn main(
     @builtin(global_invocation_id) id : vec3<u32>,
     @builtin(workgroup_id) workgroupId : vec3<u32>,
 ) {
-  let worldPos = textureLoad(worldPosTex, vec2<i32>(workgroupId.xy), 0).xyz;
-  let lightIndex = id.z;
-  if(length(worldPos) > 9999.9){
-    return;
-  }
-  let normal = textureLoad(normalTex, vec2<i32>(workgroupId.xy), 0).xyz;
-  let light = lightsBuffer[3];
+
+  let pixel = id.xy;
+  let lightIndex = workgroupId.z;
+  let downscaledPixel = vec2<u32>(id.xy) * 4;
+  let downscaledResolution = textureDimensions(outputTex) / 4;
+  let worldPos = textureLoad(worldPosTex, downscaledPixel, 0).xyz;
+
+  let light = lightsBuffer[lightIndex];
   let lightDir = light.position - worldPos;
   let distance = length(lightDir);
-  let attenuation = 1.0 / (1.0 + distance * distance / (light.radius * light.radius));
-  let lightColor = light.color * attenuation;
-  let NdotL = max(dot(normalize(normal), normalize(lightDir)), 0.0);
-  let lightIntensity = NdotL * 0.5 + 0.5;
-  let finalColor = lightColor * lightIntensity;
 
-  let pixelBufferIndex = convert2DTo1D(1024, vec2<u32>(workgroupId.xy));
-  let currentLightIndex = atomicLoad(&pixelBuffer[pixelBufferIndex]);
+  if(distance > 10000.0){
+    return;
+  }
 
-  // TODO: compare intensities and update the pixel buffer if the new light is brighter
+  let attenuation = 1.0 / (1.0 + 0.1 * distance + 0.01 * distance * distance);
+  let attenuationAsInt = i32(attenuation * 100000.0);
 
-  atomicStore(&pixelBuffer[pixelBufferIndex], 0u);
+  let pixelBufferIndex = convert2DTo1D(downscaledResolution.x, pixel);
+  let currentAttenuation = atomicLoad(&pixelBuffer[pixelBufferIndex].intensity);
+  let currentLightIndex = atomicLoad(&pixelBuffer[pixelBufferIndex].index);
+  if(currentAttenuation < 1 || currentAttenuation <= attenuationAsInt){
+    atomicStore(&pixelBuffer[pixelBufferIndex].index, i32(lightIndex));
+    atomicStore(&pixelBuffer[pixelBufferIndex].intensity, attenuationAsInt);
+  }
 }
 
 
@@ -70,9 +72,19 @@ fn composite(
 @builtin(global_invocation_id) id : vec3<u32>
 ){
   let pixel = id.xy;
-  let resolution = textureDimensions(outputTex);
-  let index = convert2DTo1D(resolution.x, pixel);
-  let lightIndex =  atomicLoad(&pixelBuffer[index]);
+  let downscaledPixel = id.xy / 4;
+  let downscaledResolution = textureDimensions(outputTex) / 4;
+  let index = convert2DTo1D(downscaledResolution.x, downscaledPixel);
+  let lightIndex =  atomicLoad(&pixelBuffer[index].index);
   let light = lightsBuffer[lightIndex];
-  textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(light.color * 0.002, 1.0));
+
+  let normal = textureLoad(normalTex, pixel, 0).xyz;
+  let worldPos = textureLoad(worldPosTex, pixel, 0).xyz;
+
+  let lightDir = light.position - worldPos;
+  let NdotL = max(dot(normalize(normal), normalize(lightDir)), 0.0);
+
+  let attenuation = f32(atomicLoad(&pixelBuffer[index].intensity)) / 100000.0;
+  let outputColor = attenuation * light.color * NdotL;
+  textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(outputColor, 1.0));
 }

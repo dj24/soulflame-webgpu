@@ -6,7 +6,7 @@ import { NoiseCache } from "./noise-cache";
 import { VoxelCache } from "./voxel-cache";
 import { vec3 } from "wgpu-matrix";
 
-export const CHUNK_HEIGHT = 256;
+export const CHUNK_HEIGHT = 32;
 
 let octree: Octree;
 let noiseCaches: NoiseCache[];
@@ -29,7 +29,8 @@ export const getCachedVoxel = (
     return null;
   }
 
-  const caveAmount = 1 - Math.max(0, caveDensity - squashFactor) * 2;
+  // const caveAmount = 1 - Math.max(0, caveDensity - squashFactor) * 2;
+  const caveAmount = 0;
 
   const terrainNoise = fractalNoise3D(x, y, z, NOISE_FREQUENCY, 5);
 

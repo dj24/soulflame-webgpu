@@ -152,32 +152,18 @@ let nearestSampler: GPUSampler;
 let timestampLabels: string[];
 
 const LIGHT_SIZE = 5;
-const LIGHT_INTENSITY = 4000;
+const LIGHT_INTENSITY = 150;
 
-// lights = Array.from({ length: 100 }).map(() => {
-//   return {
-//     position: [
-//       Math.random() * 512,
-//       256 - Math.random() * 256,
-//       Math.random() * 512,
-//     ],
-//     size: LIGHT_SIZE,
-//     color: vec3.mulScalar(
-//       vec3.normalize(vec3.create(Math.random(), Math.random(), Math.random())),
-//       LIGHT_INTENSITY,
-//     ),
-//   };
-// });
-
-for (let x = 0; x < 512; x += 64) {
-  for (let z = 0; z < 512; z += 64) {
+for (let x = -256; x <= 256; x += 64) {
+  for (let z = -256; z <= 256; z += 64) {
     lights.push({
-      position: [x, 32 - Math.random() * 16, z],
+      position: [x, 6, z],
       size: LIGHT_SIZE,
       color: vec3.mulScalar(
-        vec3.normalize(
-          vec3.create(Math.random(), Math.random(), Math.random()),
-        ),
+        // vec3.normalize(
+        //   vec3.create(Math.random(), Math.random(), Math.random()),
+        // ),
+        vec3.create(1, 1, 1),
         LIGHT_INTENSITY,
       ),
     });
