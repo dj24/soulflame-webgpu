@@ -60,8 +60,8 @@ fn main(
   let pixelBufferIndex = convert2DTo1D(downscaledResolution.x, pixel);
   let currentAttenuation = atomicLoad(&pixelBuffer[pixelBufferIndex].intensity);
   let currentLightIndex = atomicLoad(&pixelBuffer[pixelBufferIndex].index);
-  if(currentAttenuation < 1 || currentAttenuation <= attenuationAsInt){
-    atomicStore(&pixelBuffer[pixelBufferIndex].index, i32(lightIndex));
+  if(currentAttenuation <= attenuationAsInt){
+//    atomicStore(&pixelBuffer[pixelBufferIndex].index, i32(lightIndex)); // TODO: find why this breaks things
     atomicStore(&pixelBuffer[pixelBufferIndex].intensity, attenuationAsInt);
   }
 }

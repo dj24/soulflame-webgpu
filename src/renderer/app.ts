@@ -153,11 +153,12 @@ let timestampLabels: string[];
 
 const LIGHT_SIZE = 5;
 const LIGHT_INTENSITY = 150;
+//
 
-for (let x = -256; x <= 256; x += 64) {
-  for (let z = -256; z <= 256; z += 64) {
+for (let x = 64; x < 256; x += 128) {
+  for (let z = 64; z < 256; z += 128) {
     lights.push({
-      position: [x, 6, z],
+      position: [x, 2, z],
       size: LIGHT_SIZE,
       color: vec3.mulScalar(
         // vec3.normalize(
@@ -266,7 +267,7 @@ export const init = async (
     getTonemapPass(),
     // getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
-    getVignettePass(10.0),
+    // getVignettePass(10.0),
     fullscreenQuad(device),
     // getBoxOutlinePass(device),
   ]);
