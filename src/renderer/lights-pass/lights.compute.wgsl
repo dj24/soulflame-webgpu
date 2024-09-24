@@ -95,8 +95,8 @@ fn composite(
   let worldDistance = distance(worldPos, textureLoad(worldPosTex, vec2<u32>(bestDownscaledPixel * 4), 0).xyz);
   var bestWeight = dotProduct / worldDistance;
 
-  for(var x = -2; x <= 2; x++){
-    for(var y = -2; y <= 2; y++){
+  for(var x = -1; x <= 1; x++){
+    for(var y = -1; y <= 1; y++){
       let currentPixel = vec2<u32>(vec2<i32>(id.xy / 4) + vec2(x, y));
       if(any(currentPixel < vec2(0)) || any(currentPixel >= textureDimensions(outputTex) / 4)){
         continue;
@@ -121,10 +121,15 @@ fn composite(
 
   // Simple Lambertian lighting
   let lightDir = light.position - worldPos;
-  let NdotL = max(dot(normalize(normal), normalize(lightDir)), 0.0);
+  var NdotL = max(dot(normalize(normal), normalize(lightDir)), 0.0);
+
+  let rayDir = normalize(lightDir);
+  if(rayMarchBVH(worldPos, rayDir).hit){
+    return;
+  }
 
   // Composite the light
   let inputColor = textureLoad(inputTex, pixel, 0).xyz;
-  let outputColor = intensity * normalize(light.color) + inputColor;
+  let outputColor = intensity * normalize(light.color) * NdotL + inputColor;
   textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(outputColor, 1.0));
 }

@@ -152,11 +152,11 @@ let nearestSampler: GPUSampler;
 let timestampLabels: string[];
 
 const LIGHT_SIZE = 5;
-const LIGHT_INTENSITY = 2000;
+const LIGHT_INTENSITY = 400;
 //
 
-for (let x = 0; x <= 512; x += 128) {
-  for (let z = 0; z <= 512; z += 128) {
+for (let x = 0; x <= 512; x += 64) {
+  for (let z = 0; z <= 512; z += 64) {
     lights.push({
       position: [x, 2, z],
       size: LIGHT_SIZE,
@@ -258,8 +258,8 @@ export const init = async (
       };
     })(),
     getTaaPass(normalTexture),
-    getShadowsPass(),
     getLightsPass(device),
+    // getShadowsPass(),
     // getGlobalIlluminationPass(),
     // getBloomPass(),
     // getSimpleFogPass(),

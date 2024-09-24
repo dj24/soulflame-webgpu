@@ -1,6 +1,10 @@
 import { RenderArgs, RenderPass } from "../app";
 import { Vec3 } from "wgpu-matrix";
 import lightsCompute from "./lights.compute.wgsl";
+import bvh from "../shader/bvh.wgsl";
+import randomCommon from "../random-common.wgsl";
+import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
+import boxIntersection from "../shader/box-intersection.wgsl";
 
 export type Light = {
   position: [number, number, number];
@@ -72,6 +76,30 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
           viewDimension: "2d",
         },
       },
+      // Octree buffer
+      {
+        binding: 7,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "read-only-storage",
+        },
+      },
+      // Object matrix buffer
+      {
+        binding: 8,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "read-only-storage",
+        },
+      },
+      // BVH buffer
+      {
+        binding: 9,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "read-only-storage",
+        },
+      },
     ],
   });
 
@@ -95,7 +123,17 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   const pipeline = device.createComputePipeline({
     compute: {
       module: device.createShaderModule({
-        code: lightsCompute,
+        code: `
+            @group(0) @binding(7) var<storage, read> octreeBuffer : array<vec2<u32>>;
+            @group(0) @binding(8) var<storage> voxelObjects : array<VoxelObject>;
+            @group(0) @binding(9) var<storage> bvhNodes: array<BVHNode>;
+
+            ${boxIntersection}
+            ${bvh}
+            ${randomCommon}
+            ${raymarchVoxels}
+            
+            ${lightsCompute}`,
       }),
       entryPoint: "main",
     },
@@ -105,7 +143,17 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   const compositePipeline = device.createComputePipeline({
     compute: {
       module: device.createShaderModule({
-        code: lightsCompute,
+        code: `
+            @group(0) @binding(7) var<storage, read> octreeBuffer : array<vec2<u32>>;
+            @group(0) @binding(8) var<storage> voxelObjects : array<VoxelObject>;
+            @group(0) @binding(9) var<storage> bvhNodes: array<BVHNode>;
+
+            ${boxIntersection}
+            ${bvh}
+            ${randomCommon}
+            ${raymarchVoxels}
+            
+            ${lightsCompute}`,
       }),
       entryPoint: "composite",
     },
@@ -123,6 +171,8 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   let lightConfigBindGroup: GPUBindGroup;
   let lightPixelBuffer: GPUBuffer;
   let lightConfigBuffer: GPUBuffer;
+  let copyFinalTexture: GPUTexture;
+  let copyFinalTextureView: GPUTextureView;
 
   let lightConfig = {
     constantAttenuation: 0.0,
@@ -140,7 +190,38 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
     outputTextures,
     timestampWrites,
     lights,
+    volumeAtlas,
+    transformationMatrixBuffer,
+    bvhBuffer,
   }: RenderArgs) => {
+    if (
+      !copyFinalTexture ||
+      copyFinalTexture.width !== outputTextures.finalTexture.width ||
+      copyFinalTexture.height !== outputTextures.finalTexture.height
+    ) {
+      copyFinalTexture = device.createTexture({
+        size: {
+          width: outputTextures.finalTexture.width,
+          height: outputTextures.finalTexture.height,
+        },
+        format: outputTextures.finalTexture.format,
+        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+      });
+      copyFinalTextureView = copyFinalTexture.createView();
+    }
+    commandEncoder.copyTextureToTexture(
+      {
+        texture: outputTextures.finalTexture.texture,
+      },
+      {
+        texture: copyFinalTexture,
+      },
+      {
+        width: outputTextures.finalTexture.width,
+        height: outputTextures.finalTexture.height,
+      },
+    );
+
     // TODO: account for resolution changes
     if (!lightPixelBuffer) {
       const downscaledWidth = Math.ceil(outputTextures.finalTexture.width / 2);
@@ -174,7 +255,6 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
     );
 
     if (!lightBuffer) {
-      const stride = LIGHT_BUFFER_STRIDE;
       lightBuffer = device.createBuffer({
         size: LIGHT_BUFFER_STRIDE * lights.length,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
@@ -216,7 +296,25 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
           },
           {
             binding: 6,
-            resource: outputTextures.albedoTexture.view,
+            resource: copyFinalTextureView,
+          },
+          {
+            binding: 7,
+            resource: {
+              buffer: volumeAtlas.octreeBuffer,
+            },
+          },
+          {
+            binding: 8,
+            resource: {
+              buffer: transformationMatrixBuffer,
+            },
+          },
+          {
+            binding: 9,
+            resource: {
+              buffer: bvhBuffer,
+            },
           },
         ],
       });
