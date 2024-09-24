@@ -54,15 +54,15 @@ fn main(
     return;
   }
 
-  let attenuation = 1.0 / (1.0 + 0.1 * distance + 0.01 * distance * distance);
-  let attenuationAsInt = i32(attenuation * 100000.0);
+  let attenuation = 1.0 / (1.0 + 0.05 * distance + 0.02 * distance * distance);
+  let intensity = i32(attenuation * length(light.color));
 
   let pixelBufferIndex = convert2DTo1D(downscaledResolution.x, pixel);
-  let currentAttenuation = atomicLoad(&pixelBuffer[pixelBufferIndex].intensity);
+  let currentIntensity = atomicLoad(&pixelBuffer[pixelBufferIndex].intensity);
   let currentLightIndex = atomicLoad(&pixelBuffer[pixelBufferIndex].index);
-  if(currentAttenuation <= attenuationAsInt){
+  if(currentIntensity < intensity){
 //    atomicStore(&pixelBuffer[pixelBufferIndex].index, i32(lightIndex)); // TODO: find why this breaks things
-    atomicStore(&pixelBuffer[pixelBufferIndex].intensity, attenuationAsInt);
+    atomicStore(&pixelBuffer[pixelBufferIndex].intensity, intensity);
   }
 }
 
@@ -76,6 +76,7 @@ fn composite(
   let downscaledResolution = textureDimensions(outputTex) / 4;
   let index = convert2DTo1D(downscaledResolution.x, downscaledPixel);
   let lightIndex =  atomicLoad(&pixelBuffer[index].index);
+  let intensity = f32(atomicLoad(&pixelBuffer[index].intensity));
   let light = lightsBuffer[lightIndex];
 
   let normal = textureLoad(normalTex, pixel, 0).xyz;
@@ -84,7 +85,7 @@ fn composite(
   let lightDir = light.position - worldPos;
   let NdotL = max(dot(normalize(normal), normalize(lightDir)), 0.0);
 
-  let attenuation = f32(atomicLoad(&pixelBuffer[index].intensity)) / 100000.0;
-  let outputColor = attenuation * light.color * NdotL;
+
+  let outputColor = intensity * normalize(light.color) * NdotL;
   textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(outputColor, 1.0));
 }

@@ -121,10 +121,13 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   }: RenderArgs) => {
     // TODO: account for resolution changes
     if (!lightPixelBuffer) {
-      const downscaledWidth = outputTextures.finalTexture.width / 2;
-      const downscaledHeight = outputTextures.finalTexture.height / 2;
+      const downscaledWidth = Math.ceil(outputTextures.finalTexture.width / 2);
+      const downscaledHeight = Math.ceil(
+        outputTextures.finalTexture.height / 2,
+      );
       const stride = 8;
       lightPixelBuffer = device.createBuffer({
+        label: "light-pixel-buffer",
         size: stride * downscaledWidth * downscaledHeight,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       });
