@@ -8,20 +8,7 @@ export type Light = {
   color: [number, number, number] | Vec3;
 };
 
-const lightToArrayBuffer = (light: Light) => {
-  const arrayBuffer = new ArrayBuffer(48);
-  const lightDataView = new DataView(arrayBuffer);
-  lightDataView.setFloat32(0, light.position[0], true);
-  lightDataView.setFloat32(4, light.position[1], true);
-  lightDataView.setFloat32(8, light.position[2], true);
-  lightDataView.setFloat32(16, light.color[0], true);
-  lightDataView.setFloat32(20, light.color[1], true);
-  lightDataView.setFloat32(24, light.color[2], true);
-  lightDataView.setFloat32(32, light.size, true);
-  return arrayBuffer;
-};
-
-const LIGHT_BUFFER_STRIDE = 48;
+const LIGHT_BUFFER_STRIDE = 32;
 
 export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   const bindGroupLayout = device.createBindGroupLayout({
@@ -76,11 +63,33 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
           type: "storage",
         },
       },
+      // Input texture
+      {
+        binding: 6,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+          viewDimension: "2d",
+        },
+      },
+    ],
+  });
+
+  const lightConfigBindGroupLayout = device.createBindGroupLayout({
+    label: "light-config-bind-group-layout",
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
     ],
   });
 
   const pipelineLayout = device.createPipelineLayout({
-    bindGroupLayouts: [bindGroupLayout],
+    bindGroupLayouts: [bindGroupLayout, lightConfigBindGroupLayout],
   });
 
   const pipeline = device.createComputePipeline({
@@ -111,7 +120,20 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
 
   let lightBuffer: GPUBuffer;
   let bindGroup: GPUBindGroup;
+  let lightConfigBindGroup: GPUBindGroup;
   let lightPixelBuffer: GPUBuffer;
+  let lightConfigBuffer: GPUBuffer;
+
+  let lightConfig = {
+    constantAttenuation: 0.0,
+    linearAttenuation: 0.1,
+    quadraticAttenuation: 0.1,
+  };
+
+  const folder = (window as any).debugUI.gui.addFolder("lighting");
+  folder.add(lightConfig, "constantAttenuation", 1, 1.5, 0.1);
+  folder.add(lightConfig, "linearAttenuation", 0.01, 1, 0.01);
+  folder.add(lightConfig, "quadraticAttenuation", 0.005, 0.1, 0.001);
 
   const render = ({
     commandEncoder,
@@ -132,6 +154,24 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       });
     }
+
+    if (!lightConfigBuffer) {
+      const stride = 4;
+      lightConfigBuffer = device.createBuffer({
+        label: "light-config-buffer",
+        size: stride * 3,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+    }
+    device.queue.writeBuffer(
+      lightConfigBuffer,
+      0,
+      new Float32Array([
+        lightConfig.constantAttenuation,
+        lightConfig.linearAttenuation,
+        lightConfig.quadraticAttenuation,
+      ]),
+    );
 
     if (!lightBuffer) {
       const stride = LIGHT_BUFFER_STRIDE;
@@ -174,25 +214,49 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
               buffer: lightPixelBuffer,
             },
           },
+          {
+            binding: 6,
+            resource: outputTextures.albedoTexture.view,
+          },
         ],
       });
     }
 
+    if (!lightConfigBindGroup) {
+      lightConfigBindGroup = device.createBindGroup({
+        label: "light-config-bind-group",
+        layout: lightConfigBindGroupLayout,
+        entries: [
+          {
+            binding: 0,
+            resource: {
+              buffer: lightConfigBuffer,
+            },
+          },
+        ],
+      });
+    }
+
+    const arrayBuffer = new ArrayBuffer(LIGHT_BUFFER_STRIDE * lights.length);
+    const lightDataView = new DataView(arrayBuffer);
+
     for (let i = 0; i < lights.length; i++) {
       const light = lights[i];
       const lightBufferOffset = i * LIGHT_BUFFER_STRIDE;
-
-      device.queue.writeBuffer(
-        lightBuffer,
-        lightBufferOffset,
-        lightToArrayBuffer(light),
-      );
+      lightDataView.setFloat32(lightBufferOffset, light.position[0], true);
+      lightDataView.setFloat32(lightBufferOffset + 4, light.position[1], true);
+      lightDataView.setFloat32(lightBufferOffset + 8, light.position[2], true);
+      lightDataView.setFloat32(lightBufferOffset + 16, light.color[0], true);
+      lightDataView.setFloat32(lightBufferOffset + 20, light.color[1], true);
+      lightDataView.setFloat32(lightBufferOffset + 24, light.color[2], true);
     }
+    device.queue.writeBuffer(lightBuffer, 0, arrayBuffer);
 
     commandEncoder.clearBuffer(lightPixelBuffer);
     const passEncoder = commandEncoder.beginComputePass({ timestampWrites });
     passEncoder.setPipeline(pipeline);
     passEncoder.setBindGroup(0, bindGroup);
+    passEncoder.setBindGroup(1, lightConfigBindGroup);
     passEncoder.dispatchWorkgroups(
       Math.ceil(outputTextures.finalTexture.width / 32),
       Math.ceil(outputTextures.finalTexture.width / 32),

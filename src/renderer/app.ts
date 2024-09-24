@@ -152,19 +152,19 @@ let nearestSampler: GPUSampler;
 let timestampLabels: string[];
 
 const LIGHT_SIZE = 5;
-const LIGHT_INTENSITY = 75;
+const LIGHT_INTENSITY = 2000;
 //
 
-for (let x = 0; x <= 256; x += 128) {
-  for (let z = 0; z <= 256; z += 128) {
+for (let x = 0; x <= 512; x += 128) {
+  for (let z = 0; z <= 512; z += 128) {
     lights.push({
       position: [x, 2, z],
       size: LIGHT_SIZE,
       color: vec3.mulScalar(
-        // vec3.normalize(
-        //   vec3.create(Math.random(), Math.random(), Math.random()),
-        // ),
-        vec3.create(1, 1, 1),
+        vec3.normalize(
+          vec3.create(Math.random(), Math.random(), Math.random()),
+        ),
+        // vec3.create(1, 1, 1),
         LIGHT_INTENSITY,
       ),
     });
@@ -257,13 +257,13 @@ export const init = async (
         },
       };
     })(),
-    // getTaaPass(normalTexture),
+    getTaaPass(normalTexture),
     getShadowsPass(),
     getLightsPass(device),
     // getGlobalIlluminationPass(),
     // getBloomPass(),
     // getSimpleFogPass(),
-    // getTaaPass(outputTexture),
+    getTaaPass(outputTexture),
     getTonemapPass(),
     // getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
