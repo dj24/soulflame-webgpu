@@ -158,7 +158,7 @@ const LIGHT_INTENSITY = 1000;
 for (let x = 0; x <= 512; x += 128) {
   for (let z = 0; z <= 512; z += 128) {
     lights.push({
-      position: [x, 72, z],
+      position: [x, 64, z],
       size: LIGHT_SIZE,
       color: vec3.mulScalar(
         vec3.normalize(
@@ -262,7 +262,7 @@ export const init = async (
     // getShadowsPass(),
     // getGlobalIlluminationPass(),
     // getBloomPass(),
-    // getSimpleFogPass(),
+    getSimpleFogPass(),
     getTaaPass(outputTexture),
     getTonemapPass(),
     // getMotionBlurPass(),

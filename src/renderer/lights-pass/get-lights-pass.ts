@@ -109,6 +109,14 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
           viewDimension: "2d",
         },
       },
+      // Time buffer
+      {
+        binding: 11,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
     ],
   });
 
@@ -161,6 +169,16 @@ ${lightsCompute}`;
     layout: pipelineLayout,
   });
 
+  const shadowsPipeline = device.createComputePipeline({
+    compute: {
+      module: device.createShaderModule({
+        code,
+      }),
+      entryPoint: "shadows",
+    },
+    layout: pipelineLayout,
+  });
+
   const nearestSampler = device.createSampler({
     magFilter: "nearest",
     minFilter: "nearest",
@@ -179,16 +197,16 @@ ${lightsCompute}`;
     constantAttenuation: 0.0,
     linearAttenuation: 0.1,
     quadraticAttenuation: 0.1,
-    lightBoundaryDither: 1000,
-    lightCompositeDither: 16,
+    lightBoundaryDither: 12000,
+    lightCompositeDither: 6,
   };
 
   const folder = (window as any).debugUI.gui.addFolder("lighting");
-  folder.add(lightConfig, "constantAttenuation", 1, 1.5, 0.1);
+  folder.add(lightConfig, "constantAttenuation", 0, 1.0, 0.1);
   folder.add(lightConfig, "linearAttenuation", 0.01, 1, 0.01);
   folder.add(lightConfig, "quadraticAttenuation", 0.005, 0.1, 0.001);
-  folder.add(lightConfig, "lightBoundaryDither", 0, 10000, 500);
-  folder.add(lightConfig, "lightCompositeDither", 0, 64, 1);
+  folder.add(lightConfig, "lightBoundaryDither", 0, 20000, 100);
+  folder.add(lightConfig, "lightCompositeDither", 0, 8, 0.25);
 
   const render = ({
     commandEncoder,
@@ -199,6 +217,7 @@ ${lightsCompute}`;
     transformationMatrixBuffer,
     bvhBuffer,
     blueNoiseTextureView,
+    timeBuffer,
   }: RenderArgs) => {
     if (
       !copyFinalTexture ||
@@ -328,9 +347,14 @@ ${lightsCompute}`;
           binding: 10,
           resource: blueNoiseTextureView,
         },
+        {
+          binding: 11,
+          resource: {
+            buffer: timeBuffer,
+          },
+        },
       ],
     });
-    // }
 
     if (!lightConfigBindGroup) {
       lightConfigBindGroup = device.createBindGroup({
@@ -371,6 +395,13 @@ ${lightsCompute}`;
       Math.ceil(outputTextures.finalTexture.width / 32),
       Math.ceil(outputTextures.finalTexture.width / 32),
       lights.length,
+    );
+
+    passEncoder.setPipeline(shadowsPipeline);
+    passEncoder.dispatchWorkgroups(
+      Math.ceil(outputTextures.finalTexture.width / 32),
+      Math.ceil(outputTextures.finalTexture.width / 32),
+      1,
     );
 
     passEncoder.setPipeline(compositePipeline);
