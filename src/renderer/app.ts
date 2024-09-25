@@ -152,7 +152,7 @@ let nearestSampler: GPUSampler;
 let timestampLabels: string[];
 
 const LIGHT_SIZE = 5;
-const LIGHT_INTENSITY = 400;
+const LIGHT_INTENSITY = 1000;
 //
 
 for (let x = 0; x <= 512; x += 128) {
@@ -551,8 +551,6 @@ export const frame = (
     if (label) {
       commandEncoder.pushDebugGroup(label);
     }
-
-    lights[0].position[1] = Math.sin(elapsedTime / 1000) * 32 + 64;
 
     render({
       enabled: (document.getElementById(`flag-${label}`) as HTMLInputElement)

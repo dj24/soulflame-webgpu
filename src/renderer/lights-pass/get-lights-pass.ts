@@ -100,6 +100,15 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
           type: "read-only-storage",
         },
       },
+      // Blue noise texture
+      {
+        binding: 10,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+          viewDimension: "2d",
+        },
+      },
     ],
   });
 
@@ -121,18 +130,16 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   });
 
   const code = `
-            @group(0) @binding(7) var<storage, read> octreeBuffer : array<vec2<u32>>;
-            @group(0) @binding(8) var<storage> voxelObjects : array<VoxelObject>;
-            @group(0) @binding(9) var<storage> bvhNodes: array<BVHNode>;
+@group(0) @binding(7) var<storage, read> octreeBuffer : array<vec2<u32>>;
+@group(0) @binding(8) var<storage> voxelObjects : array<VoxelObject>;
+@group(0) @binding(9) var<storage> bvhNodes: array<BVHNode>;
 
-            ${boxIntersection}
-            ${bvh}
-            ${randomCommon}
-            ${raymarchVoxels}
-            
-            ${lightsCompute}`;
+${boxIntersection}
+${bvh}
+${randomCommon}
+${raymarchVoxels}
 
-  console.log(code);
+${lightsCompute}`;
 
   const pipeline = device.createComputePipeline({
     compute: {
@@ -172,12 +179,16 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
     constantAttenuation: 0.0,
     linearAttenuation: 0.1,
     quadraticAttenuation: 0.1,
+    lightBoundaryDither: 1000,
+    lightCompositeDither: 16,
   };
 
   const folder = (window as any).debugUI.gui.addFolder("lighting");
   folder.add(lightConfig, "constantAttenuation", 1, 1.5, 0.1);
   folder.add(lightConfig, "linearAttenuation", 0.01, 1, 0.01);
   folder.add(lightConfig, "quadraticAttenuation", 0.005, 0.1, 0.001);
+  folder.add(lightConfig, "lightBoundaryDither", 0, 10000, 500);
+  folder.add(lightConfig, "lightCompositeDither", 0, 64, 1);
 
   const render = ({
     commandEncoder,
@@ -187,6 +198,7 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
     volumeAtlas,
     transformationMatrixBuffer,
     bvhBuffer,
+    blueNoiseTextureView,
   }: RenderArgs) => {
     if (
       !copyFinalTexture ||
@@ -234,7 +246,7 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
       const stride = 4;
       lightConfigBuffer = device.createBuffer({
         label: "light-config-buffer",
-        size: stride * 3,
+        size: stride * 5,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       });
     }
@@ -245,6 +257,8 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
         lightConfig.constantAttenuation,
         lightConfig.linearAttenuation,
         lightConfig.quadraticAttenuation,
+        lightConfig.lightBoundaryDither,
+        lightConfig.lightCompositeDither,
       ]),
     );
 
@@ -309,6 +323,10 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
           resource: {
             buffer: bvhBuffer,
           },
+        },
+        {
+          binding: 10,
+          resource: blueNoiseTextureView,
         },
       ],
     });

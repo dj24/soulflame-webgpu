@@ -26,6 +26,8 @@ struct LightConfig {
   constantAttenuation: f32,
   linearAttenuation: f32,
   quadraticAttenuation: f32,
+  lightBoundaryDither: f32,
+  lightCompositeDither: f32,
 }
 
 
@@ -40,6 +42,7 @@ struct LightPixel {
 @group(0) @binding(4) var outputTex : texture_storage_2d<rgba16float, write>;
 @group(0) @binding(5) var<storage, read_write> pixelBuffer : array<LightPixel>;
 @group(0) @binding(6) var inputTex : texture_2d<f32>;
+@group(0) @binding(10) var blueNoiseTex : texture_2d<f32>;
 
 @group(1) @binding(0) var<uniform> lightConfig : LightConfig;
 
@@ -64,6 +67,7 @@ fn main(
   let lightDir = light.position - worldPos;
   let distance = length(lightDir);
 
+  // TODO: use distance from camera instead
   if(distance > 10000.0){
     return;
   }
@@ -74,8 +78,11 @@ fn main(
   let pixelBufferIndex = convert2DTo1D(downscaledResolution.x, pixel);
   let currentIntensity = atomicLoad(&pixelBuffer[pixelBufferIndex].intensity);
   let currentLightIndex = atomicLoad(&pixelBuffer[pixelBufferIndex].index);
-  if(currentIntensity < intensity){
-    atomicStore(&pixelBuffer[pixelBufferIndex].index, i32(lightIndex)); // TODO: find why this breaks things
+
+  var r = i32(textureLoad(blueNoiseTex, downscaledPixel % 512, 0).x * lightConfig.lightBoundaryDither);
+
+  if(currentIntensity < intensity + r){
+    atomicStore(&pixelBuffer[pixelBufferIndex].index, i32(lightIndex));
     atomicStore(&pixelBuffer[pixelBufferIndex].intensity, intensity);
   }
 }
@@ -90,18 +97,24 @@ fn composite(
   let worldPos = textureLoad(worldPosTex, pixel, 0).xyz;
   // TODO return early if we are out of bounds
 
+  // Offset by a random value to avoid banding
+  let r = textureLoad(blueNoiseTex, pixel % 512, 0).xy;
+  let offsetPixel = pixel + vec2<u32>(r * lightConfig.lightCompositeDither);
+
   // Find best normal sample from the surrounding pixels in the light intensity buffer
-  var bestDownscaledPixel = id.xy / 4;
+  var bestDownscaledPixel = offsetPixel / 4;
   let dotProduct = dot(normal, textureLoad(normalTex, vec2<u32>(bestDownscaledPixel * 4), 0).xyz);
   let worldDistance = distance(worldPos, textureLoad(worldPosTex, vec2<u32>(bestDownscaledPixel * 4), 0).xyz);
   var bestWeight = dotProduct / worldDistance;
 
+
   for(var x = -1; x <= 1; x++){
     for(var y = -1; y <= 1; y++){
-      let currentPixel = vec2<u32>(vec2<i32>(id.xy / 4) + vec2(x, y));
+      let currentPixel = vec2<u32>(vec2<i32>(offsetPixel / 4) + vec2(x, y));
       if(any(currentPixel < vec2(0)) || any(currentPixel >= textureDimensions(outputTex) / 4)){
         continue;
       }
+
       let centerOfGroup = vec2<u32>(currentPixel * 4) + vec2(0);
       let currentNormal = textureLoad(normalTex, centerOfGroup, 0).xyz;
       let currentWorldPos = textureLoad(worldPosTex, centerOfGroup, 0).xyz;
@@ -132,7 +145,7 @@ fn composite(
 
   // Composite the light
   let inputColor = textureLoad(inputTex, pixel, 0).xyz;
-  let outputColor = intensity * normalize(light.color) * NdotL;
+  let outputColor = intensity * normalize(light.color) * NdotL + inputColor;
   textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(outputColor, 1.0));
 
 }
