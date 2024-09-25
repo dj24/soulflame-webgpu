@@ -155,10 +155,10 @@ const LIGHT_SIZE = 5;
 const LIGHT_INTENSITY = 400;
 //
 
-for (let x = 0; x <= 512; x += 64) {
-  for (let z = 0; z <= 512; z += 64) {
+for (let x = 0; x <= 512; x += 128) {
+  for (let z = 0; z <= 512; z += 128) {
     lights.push({
-      position: [x, 2, z],
+      position: [x, 72, z],
       size: LIGHT_SIZE,
       color: vec3.mulScalar(
         vec3.normalize(
@@ -551,6 +551,9 @@ export const frame = (
     if (label) {
       commandEncoder.pushDebugGroup(label);
     }
+
+    lights[0].position[1] = Math.sin(elapsedTime / 1000) * 32 + 64;
+
     render({
       enabled: (document.getElementById(`flag-${label}`) as HTMLInputElement)
         ?.checked,

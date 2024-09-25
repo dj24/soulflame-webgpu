@@ -88,6 +88,7 @@ fn composite(
   let pixel = id.xy;
   let normal = textureLoad(normalTex, pixel, 0).xyz;
   let worldPos = textureLoad(worldPosTex, pixel, 0).xyz;
+  // TODO return early if we are out of bounds
 
   // Find best normal sample from the surrounding pixels in the light intensity buffer
   var bestDownscaledPixel = id.xy / 4;
@@ -120,16 +121,18 @@ fn composite(
   let light = lightsBuffer[lightIndex];
 
   // Simple Lambertian lighting
-  let lightDir = light.position - worldPos;
-  var NdotL = max(dot(normalize(normal), normalize(lightDir)), 0.0);
+  let lightDir = normalize(light.position - worldPos);
+  var NdotL = max(dot(normalize(normal), lightDir), 0.0);
 
-  let rayDir = normalize(lightDir);
-  if(rayMarchBVH(worldPos, rayDir).hit){
+  // Check for shadow
+  if(rayMarchBVH(worldPos + normal * 0.01, lightDir).hit){
+    textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(0.0));
     return;
   }
 
   // Composite the light
   let inputColor = textureLoad(inputTex, pixel, 0).xyz;
-  let outputColor = intensity * normalize(light.color) * NdotL + inputColor;
+  let outputColor = intensity * normalize(light.color) * NdotL;
   textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(outputColor, 1.0));
+
 }

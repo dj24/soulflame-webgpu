@@ -120,10 +120,7 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
     bindGroupLayouts: [bindGroupLayout, lightConfigBindGroupLayout],
   });
 
-  const pipeline = device.createComputePipeline({
-    compute: {
-      module: device.createShaderModule({
-        code: `
+  const code = `
             @group(0) @binding(7) var<storage, read> octreeBuffer : array<vec2<u32>>;
             @group(0) @binding(8) var<storage> voxelObjects : array<VoxelObject>;
             @group(0) @binding(9) var<storage> bvhNodes: array<BVHNode>;
@@ -133,7 +130,14 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
             ${randomCommon}
             ${raymarchVoxels}
             
-            ${lightsCompute}`,
+            ${lightsCompute}`;
+
+  console.log(code);
+
+  const pipeline = device.createComputePipeline({
+    compute: {
+      module: device.createShaderModule({
+        code,
       }),
       entryPoint: "main",
     },
@@ -143,17 +147,7 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   const compositePipeline = device.createComputePipeline({
     compute: {
       module: device.createShaderModule({
-        code: `
-            @group(0) @binding(7) var<storage, read> octreeBuffer : array<vec2<u32>>;
-            @group(0) @binding(8) var<storage> voxelObjects : array<VoxelObject>;
-            @group(0) @binding(9) var<storage> bvhNodes: array<BVHNode>;
-
-            ${boxIntersection}
-            ${bvh}
-            ${randomCommon}
-            ${raymarchVoxels}
-            
-            ${lightsCompute}`,
+        code,
       }),
       entryPoint: "composite",
     },
@@ -261,64 +255,64 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
       });
     }
 
-    if (!bindGroup) {
-      bindGroup = device.createBindGroup({
-        label: "lights-bind-group",
-        layout: bindGroupLayout,
-        entries: [
-          {
-            binding: 0,
-            resource: nearestSampler,
+    // if (!bindGroup) {
+    bindGroup = device.createBindGroup({
+      label: "lights-bind-group",
+      layout: bindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: nearestSampler,
+        },
+        {
+          binding: 1,
+          resource: outputTextures.worldPositionTexture.view,
+        },
+        {
+          binding: 2,
+          resource: outputTextures.normalTexture.view,
+        },
+        {
+          binding: 3,
+          resource: {
+            buffer: lightBuffer,
           },
-          {
-            binding: 1,
-            resource: outputTextures.worldPositionTexture.view,
+        },
+        {
+          binding: 4,
+          resource: outputTextures.finalTexture.view,
+        },
+        {
+          binding: 5,
+          resource: {
+            buffer: lightPixelBuffer,
           },
-          {
-            binding: 2,
-            resource: outputTextures.normalTexture.view,
+        },
+        {
+          binding: 6,
+          resource: copyFinalTextureView,
+        },
+        {
+          binding: 7,
+          resource: {
+            buffer: volumeAtlas.octreeBuffer,
           },
-          {
-            binding: 3,
-            resource: {
-              buffer: lightBuffer,
-            },
+        },
+        {
+          binding: 8,
+          resource: {
+            buffer: transformationMatrixBuffer,
           },
-          {
-            binding: 4,
-            resource: outputTextures.finalTexture.view,
+        },
+        {
+          binding: 9,
+          resource: {
+            buffer: bvhBuffer,
           },
-          {
-            binding: 5,
-            resource: {
-              buffer: lightPixelBuffer,
-            },
-          },
-          {
-            binding: 6,
-            resource: copyFinalTextureView,
-          },
-          {
-            binding: 7,
-            resource: {
-              buffer: volumeAtlas.octreeBuffer,
-            },
-          },
-          {
-            binding: 8,
-            resource: {
-              buffer: transformationMatrixBuffer,
-            },
-          },
-          {
-            binding: 9,
-            resource: {
-              buffer: bvhBuffer,
-            },
-          },
-        ],
-      });
-    }
+        },
+      ],
+    });
+    // }
 
     if (!lightConfigBindGroup) {
       lightConfigBindGroup = device.createBindGroup({
