@@ -40,6 +40,9 @@ struct LightConfig {
 struct LightPixel {
   index: atomic<i32>,
   intensity: atomic<i32>,
+  red: atomic<u32>,
+  green: atomic<u32>,
+  blue: atomic<u32>,
 }
 
 @group(0) @binding(1) var worldPosTex : texture_2d<f32>;
@@ -86,6 +89,10 @@ fn main(
   let currentIntensity = atomicLoad(&pixelBuffer[pixelBufferIndex].intensity);
   let currentLightIndex = atomicLoad(&pixelBuffer[pixelBufferIndex].index);
 
+  atomicAdd(&pixelBuffer[pixelBufferIndex].red, u32(light.color.r * attenuation));
+  atomicAdd(&pixelBuffer[pixelBufferIndex].green, u32(light.color.g * attenuation));
+  atomicAdd(&pixelBuffer[pixelBufferIndex].blue, u32(light.color.b * attenuation));
+
   var blueNoisePixel = vec2<i32>(id.xy);
   blueNoisePixel.x += i32(time.frame) * 32;
   blueNoisePixel.y += i32(time.frame) * 16;
@@ -116,6 +123,9 @@ fn shadows(
   let lightDir = normalize(light.position - worldPos);
   if(rayMarchBVH(worldPos + normal * 0.01, lightDir).hit){
     atomicStore(&pixelBuffer[pixelBufferIndex].intensity, 0);
+    atomicStore(&pixelBuffer[pixelBufferIndex].red, 0);
+    atomicStore(&pixelBuffer[pixelBufferIndex].green, 0);
+    atomicStore(&pixelBuffer[pixelBufferIndex].blue, 0);
     return;
   }
 }
@@ -136,16 +146,17 @@ fn composite(
   let r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy;
   let offsetPixel = pixel + vec2<u32>((r * 2.0 - vec2(1.0)) * lightConfig.lightCompositeDither);
 
-  // Find best normal sample from the surrounding pixels in the light intensity buffer
-  var bestDownscaledPixel = offsetPixel / 4;
-  let dotProduct = dot(normal, textureLoad(normalTex, vec2<u32>(bestDownscaledPixel * 4), 0).xyz);
-  let worldDistance = distance(worldPos, textureLoad(worldPosTex, vec2<u32>(bestDownscaledPixel * 4), 0).xyz);
+
+  let dotProduct = dot(normal, textureLoad(normalTex, vec2<u32>(pixel * 4), 0).xyz);
+  let worldDistance = distance(worldPos, textureLoad(worldPosTex, vec2<u32>(pixel * 4), 0).xyz);
   var bestWeight = dotProduct / worldDistance;
 
 
+  // Find best normal sample from the surrounding pixels in the light intensity buffer
+  var bestDownscaledPixel = offsetPixel / 4;
   for(var x = -1; x <= 1; x++){
     for(var y = -1; y <= 1; y++){
-      let currentPixel = vec2<u32>(vec2<i32>(offsetPixel / 4) + vec2<i32>(vec2(f32(x), f32(y)) * lightConfig.lightCompositeDither));
+      let currentPixel = vec2<u32>(vec2<i32>(offsetPixel / 4) + vec2<i32>(x,y));
       if(any(currentPixel < vec2(0)) || any(currentPixel >= textureDimensions(outputTex) / 4)){
         continue;
       }
@@ -180,7 +191,11 @@ fn composite(
 
   // Composite the light
   let inputColor = textureLoad(inputTex, pixel, 0).xyz;
-  let outputColor = intensity * normalize(light.color) * NdotL + inputColor;
+
+  let red = f32(atomicLoad(&pixelBuffer[index].red));
+  let green = f32(atomicLoad(&pixelBuffer[index].green));
+  let blue = f32(atomicLoad(&pixelBuffer[index].blue));
+  let outputColor = vec3(red, green, blue) + inputColor * NdotL;
 
   textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(outputColor, 1.0));
 

@@ -198,7 +198,7 @@ ${lightsCompute}`;
     linearAttenuation: 0.1,
     quadraticAttenuation: 0.1,
     lightBoundaryDither: 12000,
-    lightCompositeDither: 6,
+    lightCompositeDither: 12,
   };
 
   const folder = (window as any).debugUI.gui.addFolder("lighting");
@@ -206,7 +206,7 @@ ${lightsCompute}`;
   folder.add(lightConfig, "linearAttenuation", 0.01, 1, 0.01);
   folder.add(lightConfig, "quadraticAttenuation", 0.005, 0.1, 0.001);
   folder.add(lightConfig, "lightBoundaryDither", 0, 20000, 100);
-  folder.add(lightConfig, "lightCompositeDither", 0, 8, 0.25);
+  folder.add(lightConfig, "lightCompositeDither", 0, 32, 0.5);
 
   const render = ({
     commandEncoder,
@@ -253,7 +253,7 @@ ${lightsCompute}`;
       const downscaledHeight = Math.ceil(
         outputTextures.finalTexture.height / 2,
       );
-      const stride = 8;
+      const stride = 20;
       lightPixelBuffer = device.createBuffer({
         label: "light-pixel-buffer",
         size: stride * downscaledWidth * downscaledHeight,
