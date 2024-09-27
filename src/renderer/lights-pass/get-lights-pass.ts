@@ -117,6 +117,14 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
           type: "uniform",
         },
       },
+      // Camera position
+      {
+        binding: 12,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
     ],
   });
 
@@ -218,6 +226,7 @@ ${lightsCompute}`;
     bvhBuffer,
     blueNoiseTextureView,
     timeBuffer,
+    cameraPositionBuffer,
   }: RenderArgs) => {
     if (
       !copyFinalTexture ||
@@ -351,6 +360,12 @@ ${lightsCompute}`;
           binding: 11,
           resource: {
             buffer: timeBuffer,
+          },
+        },
+        {
+          binding: 12,
+          resource: {
+            buffer: cameraPositionBuffer,
           },
         },
       ],

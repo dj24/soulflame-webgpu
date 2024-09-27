@@ -53,10 +53,12 @@ struct LightPixel {
 @group(0) @binding(6) var inputTex : texture_2d<f32>;
 @group(0) @binding(10) var blueNoiseTex : texture_2d<f32>;
 @group(0) @binding(11) var<uniform> time : Time;
+@group(0) @binding(12) var<uniform> cameraPosition : vec3<f32>;
+
 
 @group(1) @binding(0) var<uniform> lightConfig : LightConfig;
 
-const INTENSITY_ANTI_QUANTIZATION_FACTOR = 10000.0;
+const INTENSITY_ANTI_QUANTIZATION_FACTOR = 255.0;
 const CONSTANT_ATTENUATION = 0.0;
 const LINEAR_ATTENUATION = 0.1;
 const QUADRATIC_ATTENUATION = 0.1;
@@ -66,39 +68,43 @@ fn main(
     @builtin(global_invocation_id) id : vec3<u32>,
     @builtin(workgroup_id) workgroupId : vec3<u32>,
 ) {
-
   let pixel = id.xy;
   let lightIndex = workgroupId.z;
   let downscaledPixel = vec2<u32>(id.xy) * 4;
   let downscaledResolution = textureDimensions(outputTex) / 4;
   let worldPos = textureLoad(worldPosTex, downscaledPixel, 0).xyz;
+  let normal = textureLoad(normalTex, downscaledPixel, 0).xyz;
+
+  var blueNoisePixel = vec2<i32>(id.xy);
+  blueNoisePixel.x += i32(time.frame) * 32;
+  blueNoisePixel.y += i32(time.frame) * 16;
+  let r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy;
 
   let light = lightsBuffer[lightIndex];
-  let lightDir = light.position - worldPos;
-  let distance = length(lightDir);
+  let jitteredLightPosition = light.position + randomInUnitSphere(r);
+
+  let lightDir = jitteredLightPosition - worldPos;
+  let d = length(lightDir);
 
   // TODO: use distance from camera instead
-  if(distance > 10000.0){
+  if(distance(cameraPosition, worldPos) > 10000.0){
     return;
   }
 
-  let attenuation = 1.0 / (lightConfig.constantAttenuation + lightConfig.linearAttenuation * distance + lightConfig.quadraticAttenuation * distance * distance);
+  let attenuation = 1.0 / (lightConfig.constantAttenuation + lightConfig.linearAttenuation * d + lightConfig.quadraticAttenuation * d * d);
   let intensity = i32(attenuation * length(light.color) * INTENSITY_ANTI_QUANTIZATION_FACTOR);
 
   let pixelBufferIndex = convert2DTo1D(downscaledResolution.x, pixel);
   let currentIntensity = atomicLoad(&pixelBuffer[pixelBufferIndex].intensity);
   let currentLightIndex = atomicLoad(&pixelBuffer[pixelBufferIndex].index);
 
-  atomicAdd(&pixelBuffer[pixelBufferIndex].red, u32(light.color.r * attenuation));
-  atomicAdd(&pixelBuffer[pixelBufferIndex].green, u32(light.color.g * attenuation));
-  atomicAdd(&pixelBuffer[pixelBufferIndex].blue, u32(light.color.b * attenuation));
+  let NdotL = max(dot(normalize(normal), normalize(lightDir)), 0.0);
 
-  var blueNoisePixel = vec2<i32>(id.xy);
-  blueNoisePixel.x += i32(time.frame) * 32;
-  blueNoisePixel.y += i32(time.frame) * 16;
+  atomicAdd(&pixelBuffer[pixelBufferIndex].red, u32(light.color.r * attenuation * INTENSITY_ANTI_QUANTIZATION_FACTOR * NdotL));
+  atomicAdd(&pixelBuffer[pixelBufferIndex].green, u32(light.color.g * attenuation * INTENSITY_ANTI_QUANTIZATION_FACTOR * NdotL));
+  atomicAdd(&pixelBuffer[pixelBufferIndex].blue, u32(light.color.b * attenuation * INTENSITY_ANTI_QUANTIZATION_FACTOR * NdotL));
 
-  let blueNoise = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy;
-  let jitter = i32((blueNoise.x * 2.0 - 1.0) * lightConfig.lightBoundaryDither);
+  let jitter = i32((r.x * 2.0 - 1.0) * lightConfig.lightBoundaryDither);
   let offsetIntensity = intensity + jitter;
 
   if (currentIntensity < offsetIntensity) {
@@ -107,6 +113,8 @@ fn main(
   }
 }
 
+const AMBIENT_INTENSITY = 0.1;
+
 @compute @workgroup_size(8,8,1)
 fn shadows(
 @builtin(global_invocation_id) id : vec3<u32>
@@ -114,18 +122,29 @@ fn shadows(
   let pixel = id.xy;
   let normal = textureLoad(normalTex, pixel * 4, 0).xyz;
   let worldPos = textureLoad(worldPosTex, pixel * 4, 0).xyz;
-  // TODO return early if we are out of bounds
+
+  if(distance(cameraPosition, worldPos) > 10000.0){
+    return;
+  }
 
   let pixelBufferIndex = convert2DTo1D(textureDimensions(outputTex).x / 4, pixel);
   let lightIndex = atomicLoad(&pixelBuffer[pixelBufferIndex].index);
   let light = lightsBuffer[lightIndex];
 
-  let lightDir = normalize(light.position - worldPos);
-  if(rayMarchBVH(worldPos + normal * 0.01, lightDir).hit){
-    atomicStore(&pixelBuffer[pixelBufferIndex].intensity, 0);
-    atomicStore(&pixelBuffer[pixelBufferIndex].red, 0);
-    atomicStore(&pixelBuffer[pixelBufferIndex].green, 0);
-    atomicStore(&pixelBuffer[pixelBufferIndex].blue, 0);
+
+  var blueNoisePixel = vec2<i32>(id.xy);
+  blueNoisePixel.x += i32(time.frame) * 32;
+  blueNoisePixel.y += i32(time.frame) * 16;
+  let r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy;
+  let jitteredLightPosition = light.position + randomInUnitSphere(r);
+  let lightDir = normalize(jitteredLightPosition - worldPos);
+  if(rayMarchBVH(worldPos + normal * 0.001, lightDir).hit){
+    let currendRed = atomicLoad(&pixelBuffer[pixelBufferIndex].red);
+    let currendGreen = atomicLoad(&pixelBuffer[pixelBufferIndex].green);
+    let currendBlue = atomicLoad(&pixelBuffer[pixelBufferIndex].blue);
+    atomicStore(&pixelBuffer[pixelBufferIndex].red, u32(f32(currendRed) * AMBIENT_INTENSITY));
+    atomicStore(&pixelBuffer[pixelBufferIndex].green, u32(f32(currendGreen) * AMBIENT_INTENSITY));
+    atomicStore(&pixelBuffer[pixelBufferIndex].blue, u32(f32(currendBlue) * AMBIENT_INTENSITY));
     return;
   }
 }
@@ -192,9 +211,9 @@ fn composite(
   // Composite the light
   let inputColor = textureLoad(inputTex, pixel, 0).xyz;
 
-  let red = f32(atomicLoad(&pixelBuffer[index].red));
-  let green = f32(atomicLoad(&pixelBuffer[index].green));
-  let blue = f32(atomicLoad(&pixelBuffer[index].blue));
+  let red = f32(atomicLoad(&pixelBuffer[index].red)) / INTENSITY_ANTI_QUANTIZATION_FACTOR;
+  let green = f32(atomicLoad(&pixelBuffer[index].green)) / INTENSITY_ANTI_QUANTIZATION_FACTOR;
+  let blue = f32(atomicLoad(&pixelBuffer[index].blue)) / INTENSITY_ANTI_QUANTIZATION_FACTOR;
   let outputColor = vec3(red, green, blue) + inputColor * NdotL;
 
   textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(outputColor, 1.0));
