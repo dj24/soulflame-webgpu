@@ -32,17 +32,14 @@ struct LightConfig {
   constantAttenuation: f32,
   linearAttenuation: f32,
   quadraticAttenuation: f32,
-  lightBoundaryDither: f32,
-  lightCompositeDither: f32,
+  maxSampleCount: f32,
 }
 
 
 struct LightPixel {
-  index: i32,
-  intensity: i32,
-  red: f32,
-  green: f32,
-  blue: f32,
+  sampleCount: u32,
+  weights: f32,
+  colour: vec3<f32>,
 }
 
 @group(0) @binding(1) var worldPosTex : texture_2d<f32>;
@@ -70,17 +67,15 @@ fn main(
 ) {
   let pixel = id.xy;
   var blueNoisePixel = vec2<i32>(id.xy);
-    blueNoisePixel.x += i32(time.frame) * 32;
-    blueNoisePixel.y += i32(time.frame) * 16;
+  blueNoisePixel.x += i32(time.frame) * 32;
+  blueNoisePixel.y += i32(time.frame) * 16;
   let r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy;
 
-
   let lightIndex = i32(r.x * f32(LIGHT_COUNT));
-  let downscaledPixel = vec2<u32>(id.xy) * 4;
-  let downscaledResolution = textureDimensions(outputTex) / 4;
+  let downscaledPixel = vec2<u32>(id.xy) * DOWN_SAMPLE_FACTOR;
+  let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
   let worldPos = textureLoad(worldPosTex, downscaledPixel, 0).xyz;
   let normal = textureLoad(normalTex, downscaledPixel, 0).xyz;
-
 
   let light = lightsBuffer[lightIndex];
   let jitteredLightPosition = light.position + randomInUnitSphere(r);
@@ -88,30 +83,33 @@ fn main(
   let lightDir = jitteredLightPosition - worldPos;
   let d = length(lightDir);
 
-  let attenuation = 1.0 / (lightConfig.constantAttenuation + lightConfig.linearAttenuation * d + lightConfig.quadraticAttenuation * d * d);
-  let intensity = i32(attenuation * length(light.color));
+  let attenuation = lightConfig.constantAttenuation + lightConfig.linearAttenuation * d + lightConfig.quadraticAttenuation * d * d;
+  let intensity = 1.0 / attenuation;
 
   let pixelBufferIndex = convert2DTo1D(downscaledResolution.x, pixel);
 
-  let raymarchResult = rayMarchBVH(worldPos + normal * 0.001, normalize(lightDir));
-  if(raymarchResult.hit){
+  let isSky = distance(worldPos, cameraPosition) > 10000.0;
+  let hasExceededSampleCount = pixelBuffer[pixelBufferIndex].sampleCount >= 16;
+
+  if(isSky || hasExceededSampleCount){
+    pixelBuffer[pixelBufferIndex].colour = vec3(0.0);
+    pixelBuffer[pixelBufferIndex].weights = 0.0;
+    pixelBuffer[pixelBufferIndex].sampleCount = 1;
     return;
   }
 
+  let raymarchResult = rayMarchBVH(worldPos + normal * 0.001, normalize(lightDir));
+
+  if(raymarchResult.hit){
+      return;
+  }
+
   let NdotL = max(dot(normalize(normal), normalize(lightDir)), 0.0);
-
-  let jitter = i32((r.y * 2.0 - 1.0) * lightConfig.lightBoundaryDither);
-  let offsetIntensity = intensity + jitter;
-
-  pixelBuffer[pixelBufferIndex].red += light.color.r * attenuation * NdotL;
-  pixelBuffer[pixelBufferIndex].green += light.color.g * attenuation * NdotL;
-  pixelBuffer[pixelBufferIndex].blue += light.color.b * attenuation * NdotL;
-  pixelBuffer[pixelBufferIndex].index += i32(lightIndex);
-  pixelBuffer[pixelBufferIndex].intensity += intensity;
-
+  let weight = 1.0 / (intensity * NdotL);
+  pixelBuffer[pixelBufferIndex].colour += light.color / weight;
+  pixelBuffer[pixelBufferIndex].weights += weight;
+  pixelBuffer[pixelBufferIndex].sampleCount += 1;
 }
-
-const AMBIENT_INTENSITY = 0.1;
 
 
 @compute @workgroup_size(8,8,1)
@@ -119,29 +117,36 @@ fn composite(
 @builtin(global_invocation_id) id : vec3<u32>
 ){
   let pixel = id.xy;
+  var downscaledPixel = pixel / DOWN_SAMPLE_FACTOR;
+  let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
+  let index = convert2DTo1D(downscaledResolution.x, downscaledPixel);
 
-  // Offset by a random value to avoid banding
-  var blueNoisePixel = vec2<i32>(pixel);
-  blueNoisePixel.x += i32(time.frame) * 32;
-  blueNoisePixel.y += i32(time.frame) * 16;
-  let r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy;
-  let offsetPixel = pixel + vec2<u32>((r * 2.0 - vec2(1.0)) * lightConfig.lightCompositeDither);
+  // Bilinear filtering
+  // TODO: select best sample instead usig dot product of normals
+  let f = fract(vec2<f32>(pixel) / f32(DOWN_SAMPLE_FACTOR));
 
-  var bestDownscaledPixel = offsetPixel / 4;
+  let p0 = vec2(downscaledPixel);
+  let p1 = vec2(downscaledPixel.x + 1, downscaledPixel.y);
+  let p2 = vec2(downscaledPixel.x, downscaledPixel.y + 1);
+  let p3 = vec2(downscaledPixel.x + 1, downscaledPixel.y + 1);
 
-  let downscaledResolution = textureDimensions(outputTex) / 4;
-  let index = convert2DTo1D(downscaledResolution.x, bestDownscaledPixel);
-  let lightIndex =  pixelBuffer[index].index;
-  let intensity = f32(pixelBuffer[index].intensity) / INTENSITY_ANTI_QUANTIZATION_FACTOR;
-  let light = lightsBuffer[lightIndex];
+  let c0 = pixelBuffer[convert2DTo1D(downscaledResolution.x, p0)].colour;
+  let c1 = pixelBuffer[convert2DTo1D(downscaledResolution.x, p1)].colour;
+  let c2 = pixelBuffer[convert2DTo1D(downscaledResolution.x, p2)].colour;
+  let c3 = pixelBuffer[convert2DTo1D(downscaledResolution.x, p3)].colour;
+
+  let c0c1 = mix(c0, c1, f.x);
+  let c2c3 = mix(c2, c3, f.x);
+
+  let colour = mix(c0c1, c2c3, f.y);
 
   // Composite the light
   let inputColor = textureLoad(inputTex, pixel, 0).xyz;
+  let weights = pixelBuffer[index].weights;
+  let totalColor = pixelBuffer[index].colour;
+  let sampleCount = pixelBuffer[index].sampleCount;
+  let outputColor = (colour) + inputColor;
 
-  let red = f32(pixelBuffer[index].red) / INTENSITY_ANTI_QUANTIZATION_FACTOR;
-  let green = f32(pixelBuffer[index].green) / INTENSITY_ANTI_QUANTIZATION_FACTOR;
-  let blue = f32(pixelBuffer[index].blue) / INTENSITY_ANTI_QUANTIZATION_FACTOR;
-  let outputColor = vec3(red, green, blue) + inputColor;
 
   textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(outputColor, 1.0));
 

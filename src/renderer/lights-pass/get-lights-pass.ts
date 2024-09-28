@@ -13,6 +13,7 @@ export type Light = {
 };
 
 const LIGHT_BUFFER_STRIDE = 32;
+const DOWNSCALE_FACTOR = 4;
 
 export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   const bindGroupLayout = device.createBindGroupLayout({
@@ -146,6 +147,7 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   });
 
   const code = `
+const DOWN_SAMPLE_FACTOR = ${DOWNSCALE_FACTOR};
 @group(0) @binding(7) var<storage, read> octreeBuffer : array<vec2<u32>>;
 @group(0) @binding(8) var<storage> voxelObjects : array<VoxelObject>;
 @group(0) @binding(9) var<storage> bvhNodes: array<BVHNode>;
@@ -205,16 +207,13 @@ ${lightsCompute}`;
     constantAttenuation: 0.0,
     linearAttenuation: 0.1,
     quadraticAttenuation: 0.1,
-    lightBoundaryDither: 0,
-    lightCompositeDither: 0,
+    maxSampleCount: 16,
   };
 
   const folder = (window as any).debugUI.gui.addFolder("lighting");
   folder.add(lightConfig, "constantAttenuation", 0, 1.0, 0.1);
   folder.add(lightConfig, "linearAttenuation", 0.01, 1, 0.01);
   folder.add(lightConfig, "quadraticAttenuation", 0.005, 0.1, 0.001);
-  folder.add(lightConfig, "lightBoundaryDither", 0, 20000, 100);
-  folder.add(lightConfig, "lightCompositeDither", 0, 32, 0.5);
 
   const render = ({
     commandEncoder,
@@ -258,11 +257,13 @@ ${lightsCompute}`;
 
     // TODO: account for resolution changes
     if (!lightPixelBuffer) {
-      const downscaledWidth = Math.ceil(outputTextures.finalTexture.width / 2);
-      const downscaledHeight = Math.ceil(
-        outputTextures.finalTexture.height / 2,
+      const downscaledWidth = Math.ceil(
+        outputTextures.finalTexture.width / DOWNSCALE_FACTOR,
       );
-      const stride = 20;
+      const downscaledHeight = Math.ceil(
+        outputTextures.finalTexture.height / DOWNSCALE_FACTOR,
+      );
+      const stride = 32;
       lightPixelBuffer = device.createBuffer({
         label: "light-pixel-buffer",
         size: stride * downscaledWidth * downscaledHeight,
@@ -285,8 +286,7 @@ ${lightsCompute}`;
         lightConfig.constantAttenuation,
         lightConfig.linearAttenuation,
         lightConfig.quadraticAttenuation,
-        lightConfig.lightBoundaryDither,
-        lightConfig.lightCompositeDither,
+        lightConfig.maxSampleCount,
       ]),
     );
 
@@ -407,8 +407,8 @@ ${lightsCompute}`;
     passEncoder.setBindGroup(0, bindGroup);
     passEncoder.setBindGroup(1, lightConfigBindGroup);
     passEncoder.dispatchWorkgroups(
-      Math.ceil(outputTextures.finalTexture.width / 32),
-      Math.ceil(outputTextures.finalTexture.width / 32),
+      Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
+      Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
       1,
     );
 
