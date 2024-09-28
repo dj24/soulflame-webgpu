@@ -205,8 +205,8 @@ ${lightsCompute}`;
     constantAttenuation: 0.0,
     linearAttenuation: 0.1,
     quadraticAttenuation: 0.1,
-    lightBoundaryDither: 12000,
-    lightCompositeDither: 12,
+    lightBoundaryDither: 0,
+    lightCompositeDither: 0,
   };
 
   const folder = (window as any).debugUI.gui.addFolder("lighting");
@@ -401,18 +401,11 @@ ${lightsCompute}`;
     }
     device.queue.writeBuffer(lightBuffer, 0, arrayBuffer);
 
-    commandEncoder.clearBuffer(lightPixelBuffer);
+    // commandEncoder.clearBuffer(lightPixelBuffer);
     const passEncoder = commandEncoder.beginComputePass({ timestampWrites });
     passEncoder.setPipeline(pipeline);
     passEncoder.setBindGroup(0, bindGroup);
     passEncoder.setBindGroup(1, lightConfigBindGroup);
-    passEncoder.dispatchWorkgroups(
-      Math.ceil(outputTextures.finalTexture.width / 32),
-      Math.ceil(outputTextures.finalTexture.width / 32),
-      lights.length,
-    );
-
-    passEncoder.setPipeline(shadowsPipeline);
     passEncoder.dispatchWorkgroups(
       Math.ceil(outputTextures.finalTexture.width / 32),
       Math.ceil(outputTextures.finalTexture.width / 32),

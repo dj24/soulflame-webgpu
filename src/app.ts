@@ -33,7 +33,7 @@ ecs.addComponents(
   camera,
   new Camera({ fieldOfView: 70 * (Math.PI / 180), near: 0.5, far: 10000 }),
   new Transform(
-    vec3.create(-256, 64, -256),
+    vec3.create(-48, 64, -48),
     quat.fromEuler(0, 45 * (Math.PI / 180), 0, "xyz"),
     vec3.create(1, 1, 1),
   ),

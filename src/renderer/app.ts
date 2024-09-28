@@ -171,6 +171,8 @@ for (let x = 0; x <= 512; x += 128) {
   }
 }
 
+console.log(lights.length);
+
 const setupCanvasAndTextures = () => {
   // if (albedoTexture) {
   //   albedoTexture.texture.destroy();
@@ -263,7 +265,7 @@ export const init = async (
     // getGlobalIlluminationPass(),
     // getBloomPass(),
     getSimpleFogPass(),
-    getTaaPass(outputTexture),
+    // getTaaPass(outputTexture),
     getTonemapPass(),
     // getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
