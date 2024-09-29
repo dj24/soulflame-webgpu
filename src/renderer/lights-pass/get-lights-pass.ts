@@ -13,7 +13,7 @@ export type Light = {
 };
 
 const LIGHT_BUFFER_STRIDE = 32;
-const DOWNSCALE_FACTOR = 4;
+const DOWNSCALE_FACTOR = 3;
 
 export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   const bindGroupLayout = device.createBindGroupLayout({
