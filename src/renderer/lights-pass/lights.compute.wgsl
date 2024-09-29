@@ -41,6 +41,7 @@ struct LightPixel {
   weight: f32,
   contribution: vec3<f32>,
   lightIndex: u32,
+  lightIntensity: f32,
 }
 
 @group(0) @binding(1) var worldPosTex : texture_2d<f32>;
@@ -61,6 +62,7 @@ const CONSTANT_ATTENUATION = 0.0;
 const LINEAR_ATTENUATION = 0.1;
 const QUADRATIC_ATTENUATION = 0.1;
 const LIGHT_COUNT = 25;
+const MAX_SAMPLE_COUNT = 255;
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
@@ -96,12 +98,12 @@ fn main(
   let pixelBufferIndex = convert2DTo1D(downscaledResolution.x, pixel);
 
   let isSky = distance(worldPos, cameraPosition) > 10000.0;
-  let hasExceededSampleCount = pixelBuffer[pixelBufferIndex].sampleCount >= 64;
+  let hasExceededSampleCount = pixelBuffer[pixelBufferIndex].sampleCount >= MAX_SAMPLE_COUNT;
 
   if(isSky || hasExceededSampleCount){
-    pixelBuffer[pixelBufferIndex].contribution *= 0.1;
-    pixelBuffer[pixelBufferIndex].weight *= 0.1;
-    pixelBuffer[pixelBufferIndex].sampleCount /= 9;
+    pixelBuffer[pixelBufferIndex].contribution *= 0.5;
+    pixelBuffer[pixelBufferIndex].weight *= 0.5;
+    pixelBuffer[pixelBufferIndex].sampleCount = clamp(pixelBuffer[pixelBufferIndex].sampleCount / 2, 1, MAX_SAMPLE_COUNT);
     return;
   }
 
@@ -117,8 +119,46 @@ fn main(
     pixelBuffer[pixelBufferIndex].weight = newWeight;
     pixelBuffer[pixelBufferIndex].contribution = intensity * normalize(light.color);
     pixelBuffer[pixelBufferIndex].lightIndex = lightIndex;
+    pixelBuffer[pixelBufferIndex].lightIntensity = intensity;
   }
   pixelBuffer[pixelBufferIndex].sampleCount += 1;
+}
+
+@compute @workgroup_size(8,8,1)
+fn spatial(
+@builtin(global_invocation_id) id : vec3<u32>
+){
+  var downscaledPixel = id.xy / DOWN_SAMPLE_FACTOR;
+  let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
+  let index = convert2DTo1D(downscaledResolution.x, id.xy);
+
+  var totalWeight = 0.0;
+  var totalContribution = vec3<f32>(0.0);
+  for(var x = -1; x <= 1; x++){
+    for(var y = -1; y <= 1; y++){
+      let neighbor = vec2<i32>(id.xy) + vec2<i32>(x, y);
+      let normalSample = textureLoad(normalTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
+      let normalDiff = dot(normalSample, textureLoad(normalTex, id.xy, 0).xyz);
+      if(normalDiff < 0.25){
+        continue;
+      }
+
+      if(neighbor.x <= 0 || neighbor.x >= i32(downscaledResolution.x) || neighbor.y <= 0 || neighbor.y >= i32(downscaledResolution.y)){
+        continue;
+      }
+      let neighborIndex = convert2DTo1D(downscaledResolution.x,vec2<u32>(neighbor));
+      let neighborContribution = pixelBuffer[neighborIndex].contribution;
+      let neighborWeight = pixelBuffer[neighborIndex].weight;
+
+      pixelBuffer[index].weight = neighborWeight;
+
+      let neighborIntensity = pixelBuffer[neighborIndex].lightIntensity;
+      if(neighborIntensity > pixelBuffer[index].lightIntensity){
+         pixelBuffer[index].lightIntensity = neighborIntensity;
+         pixelBuffer[index].lightIndex = pixelBuffer[neighborIndex].lightIndex;
+      }
+    }
+  }
 }
 
 
@@ -126,12 +166,14 @@ fn main(
 fn composite(
 @builtin(global_invocation_id) id : vec3<u32>
 ){
-  let pixel = id.xy;
+  let r = textureLoad(blueNoiseTex, id.xy % 512, 0).xy;
+  let pixel = id.xy + vec2(u32(r.x * 2.0 - 1.0), u32(r.y * 2.0 - 1.0));
+
   var downscaledPixel = pixel / DOWN_SAMPLE_FACTOR;
   let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
   let index = convert2DTo1D(downscaledResolution.x, downscaledPixel);
 
-  var c = vec3<f32>(0.0);
+  var diffuse = vec3<f32>(0.0);
   let normalRef = textureLoad(normalTex, pixel, 0).xyz;
   let worldPos = textureLoad(worldPosTex, pixel, 0).xyz;
   var normalWeights = 0.0;
@@ -149,22 +191,32 @@ fn composite(
 
       let sampleWeight = bilinearWeight * normalWeight;
       normalWeights += sampleWeight;
-      c += neighborContribution * sampleWeight;
+      diffuse += neighborContribution * sampleWeight;
     }
   }
 
   let lightIndex = pixelBuffer[index].lightIndex;
+  let finalWeightSum = pixelBuffer[index].weight;
   let lightPosition = lightsBuffer[lightIndex].position;
+  let finalSampleCount = pixelBuffer[index].sampleCount;
   let lightDir = normalize(lightPosition - worldPos);
   let nDotL = dot(normalRef, lightDir);
-  c /= normalWeights;
+  diffuse *= nDotL;
+
+  let viewDir = normalize(cameraPosition - worldPos);
+  let halfDir = normalize(viewDir + lightDir);
+  let specularStrength = 0.5;
+  let shininess = 32.0;
+  let specularIntensity = pow(max(dot(normalRef, halfDir), 0.0), shininess);
+  let specular = specularStrength * specularIntensity * vec3<f32>(1.0);
+
+  let lightProbability = 1.0 / f32(LIGHT_COUNT);
+  diffuse = (diffuse * finalWeightSum) / (f32(finalSampleCount) * lightProbability);
 
   // Composite the light
   let inputColor = textureLoad(inputTex, pixel, 0).xyz;
-  let weight = pixelBuffer[index].weight;
   let totalColor = pixelBuffer[index].contribution;
-  let outputColor = (c * nDotL) + inputColor;
-
+  let outputColor = diffuse + inputColor + specular;
 
   textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(outputColor, 1.));
 

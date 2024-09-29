@@ -179,12 +179,12 @@ ${lightsCompute}`;
     layout: pipelineLayout,
   });
 
-  const shadowsPipeline = device.createComputePipeline({
+  const spatialPipeline = device.createComputePipeline({
     compute: {
       module: device.createShaderModule({
         code,
       }),
-      entryPoint: "shadows",
+      entryPoint: "spatial",
     },
     layout: pipelineLayout,
   });
@@ -263,7 +263,7 @@ ${lightsCompute}`;
       const downscaledHeight = Math.ceil(
         outputTextures.finalTexture.height / DOWNSCALE_FACTOR,
       );
-      const stride = 32;
+      const stride = 48;
       lightPixelBuffer = device.createBuffer({
         label: "light-pixel-buffer",
         size: stride * downscaledWidth * downscaledHeight,
@@ -406,6 +406,13 @@ ${lightsCompute}`;
     passEncoder.setPipeline(pipeline);
     passEncoder.setBindGroup(0, bindGroup);
     passEncoder.setBindGroup(1, lightConfigBindGroup);
+    passEncoder.dispatchWorkgroups(
+      Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
+      Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
+      1,
+    );
+
+    passEncoder.setPipeline(spatialPipeline);
     passEncoder.dispatchWorkgroups(
       Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
       Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
