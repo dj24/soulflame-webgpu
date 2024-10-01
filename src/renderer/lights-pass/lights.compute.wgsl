@@ -62,7 +62,7 @@ const CONSTANT_ATTENUATION = 0.0;
 const LINEAR_ATTENUATION = 0.1;
 const QUADRATIC_ATTENUATION = 0.1;
 const LIGHT_COUNT = 25;
-const MAX_SAMPLE_COUNT = 128;
+const MAX_SAMPLE_COUNT = 32;
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
@@ -70,8 +70,11 @@ fn main(
 ) {
   let pixel = id.xy;
   var blueNoisePixel = vec2<i32>(id.xy);
-  blueNoisePixel.x += i32(time.frame) * 32;
-  blueNoisePixel.y += i32(time.frame) * 16;
+
+  let frameOffsetX = (i32(time.frame) * 92821 + 71413) % 512;  // Large prime numbers for frame variation
+  let frameOffsetY = (i32(time.frame) * 13761 + 511) % 512;    // Different prime numbers
+  blueNoisePixel.x += frameOffsetX;
+  blueNoisePixel.y += frameOffsetY;
   let r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy;
 
   let lightIndex = u32(r.x * f32(LIGHT_COUNT));
@@ -152,14 +155,89 @@ fn bilinearLightContribution(pixel: vec2<u32>, downscaledResolution: vec2<u32>) 
   return mix(bottom, top, t.y);
 }
 
+fn bilinearLightPosition(pixel: vec2<u32>, downscaledResolution: vec2<u32>) -> vec3<f32> {
+  let p0 = pixel / DOWN_SAMPLE_FACTOR;
+  let p1 = vec2<u32>(p0.x + 1, p0.y);
+  let p2 = vec2<u32>(p0.x, p0.y + 1);
+  let p3 = vec2<u32>(p0.x + 1, p0.y + 1);
+
+  let t = fract(vec2<f32>(pixel) / vec2<f32>(DOWN_SAMPLE_FACTOR));
+
+  let i0 = convert2DTo1D(downscaledResolution.x, p0);
+  let i1 = convert2DTo1D(downscaledResolution.x, p1);
+  let i2 = convert2DTo1D(downscaledResolution.x, p2);
+  let i3 = convert2DTo1D(downscaledResolution.x, p3);
+
+  let l0 = pixelBuffer[i0].lightIndex;
+  let l1 = pixelBuffer[i1].lightIndex;
+  let l2 = pixelBuffer[i2].lightIndex;
+  let l3 = pixelBuffer[i3].lightIndex;
+
+  let lp0 = lightsBuffer[l0].position;
+  let lp1 = lightsBuffer[l1].position;
+  let lp2 = lightsBuffer[l2].position;
+  let lp3 = lightsBuffer[l3].position;
+
+  let bottom = mix(lp0, lp1, t.x);
+  let top = mix(lp2, lp3, t.x);
+  return mix(bottom, top, t.y);
+}
+
+
+fn cubicInterpolate(p0: vec3<f32>, p1: vec3<f32>, p2: vec3<f32>, p3: vec3<f32>, t: f32) -> vec3<f32> {
+  let a0 = -0.5 * p0 + 1.5 * p1 - 1.5 * p2 + 0.5 * p3;
+  let a1 = p0 - 2.5 * p1 + 2.0 * p2 - 0.5 * p3;
+  let a2 = -0.5 * p0 + 0.5 * p2;
+  let a3 = p1;
+  return a0 * (t * t * t) + a1 * (t * t) + a2 * t + a3;
+}
+
+fn bicubicLightContribution(pixel: vec2<u32>, downscaledResolution: vec2<u32>) -> vec3<f32> {
+  let p0 = vec2<i32>(pixel) / DOWN_SAMPLE_FACTOR;
+
+  // Sample a 4x4 neighborhood
+  var samples: array<vec3<f32>, 16>;
+
+  for (var y: i32 = -1; y <= 2; y++) {
+    for (var x: i32 = -1; x <= 2; x++) {
+      let samplePos = vec2<i32>(p0.x + x, p0.y + y); // TODO: clamp
+      let i = convert2DTo1D(downscaledResolution.x, vec2<u32>(samplePos));
+      samples[(y + 1) * 4 + (x + 1)] = pixelBuffer[i].contribution;
+    }
+  }
+
+  let t = fract(vec2<f32>(pixel) / vec2<f32>(DOWN_SAMPLE_FACTOR));
+
+  // Interpolate along x axis for each row (resulting in 4 values)
+  var rowInterpolations: array<vec3<f32>, 4>;
+  for (var i = 0; i < 4; i++) {
+    rowInterpolations[i] = cubicInterpolate(
+      samples[i * 4 + 0],
+      samples[i * 4 + 1],
+      samples[i * 4 + 2],
+      samples[i * 4 + 3],
+      t.x
+    );
+  }
+
+  // Now interpolate along y axis with the results of x axis interpolation
+  return cubicInterpolate(rowInterpolations[0], rowInterpolations[1], rowInterpolations[2], rowInterpolations[3], t.y);
+}
+
 @compute @workgroup_size(8,8,1)
 fn composite(
 @builtin(global_invocation_id) id : vec3<u32>
 ){
-  let r = textureLoad(blueNoiseTex, id.xy % 512, 0).xy;
-  let pixel = id.xy + vec2(u32(r.x * 2.0 - 1.0), u32(r.y * 2.0 - 1.0));
+  let pixel = id.xy;
 
-  var downscaledPixel = pixel / DOWN_SAMPLE_FACTOR;
+  var blueNoisePixel = vec2<i32>(id.xy);
+  let frameOffsetX = (i32(time.frame) * 92821 + 71413) % 512;  // Large prime numbers for frame variation
+  let frameOffsetY = (i32(time.frame) * 13761 + 511) % 512;    // Different prime numbers
+  blueNoisePixel.x += frameOffsetX;
+  blueNoisePixel.y += frameOffsetY;
+  var r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy * DOWN_SAMPLE_FACTOR;
+  let jitteredPixel = vec2<u32>(vec2<i32>(pixel) + vec2<i32>(r));
+  var downscaledPixel = jitteredPixel / DOWN_SAMPLE_FACTOR;
   let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
   let index = convert2DTo1D(downscaledResolution.x, downscaledPixel);
 
@@ -168,28 +246,11 @@ fn composite(
   let worldPos = textureLoad(worldPosTex, pixel, 0).xyz;
   var normalWeights = 0.0;
 
-//  for(var x = -1; x <= 1; x++){
-//    for(var y = -1; y <= 1; y++){
-//      let offset = vec2<i32>(x, y);
-//      let neighbor = vec2<i32>(downscaledPixel) + offset;
-//      let neighborIndex = convert2DTo1D(downscaledResolution.x,vec2<u32>(neighbor));
-//      let neighborNormal = textureLoad(normalTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
-//      let normalDiff = dot(normalRef, neighborNormal);
-//      let normalWeight = normalDiff + 1.0;
-//      let bilinearWeight = 1.0 / (1.0 + f32(x * x + y * y));
-//      let neighborContribution = pixelBuffer[neighborIndex].contribution;
-//
-//      let sampleWeight = bilinearWeight * normalWeight;
-//      normalWeights += sampleWeight;
-//      diffuse += neighborContribution * sampleWeight;
-//    }
-//  }
-
-  diffuse = bilinearLightContribution(pixel, downscaledResolution);
+  diffuse = bilinearLightContribution(jitteredPixel, downscaledResolution);
 
   let lightIndex = pixelBuffer[index].lightIndex;
   let finalWeightSum = pixelBuffer[index].weight;
-  let lightPosition = lightsBuffer[lightIndex].position;
+  let lightPosition = bilinearLightPosition(pixel, downscaledResolution);
   let finalSampleCount = pixelBuffer[index].sampleCount;
   let lightDir = normalize(lightPosition - worldPos);
   let nDotL = dot(normalRef, lightDir);
@@ -210,6 +271,6 @@ fn composite(
   let outputColor = diffuse + inputColor + specular;
   let intensity = bitcast<f32>(pixelBuffer[index].lightIntensity);
 
-  textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(diffuse, 1.));
+  textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(outputColor, 1.));
 
 }

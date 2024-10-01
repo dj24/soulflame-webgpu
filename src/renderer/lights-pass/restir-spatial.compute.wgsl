@@ -76,14 +76,10 @@ fn spatial(
   var normalAtBestSample = textureLoad(normalTex, id.xy, 0).xyz;
   for(var i = 0; i < 4; i++){
     // TODO: figure out how to stop the temporal propagation
-    let neighbor = vec2<i32>(id.xy) + NEIGHBOUR_OFFSETS[i];
+    let neighbor = clamp(vec2<i32>(id.xy) + NEIGHBOUR_OFFSETS[i], vec2<i32>(0), vec2<i32>(downscaledResolution - vec2<u32>(1)));
     let normalSample = textureLoad(normalTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
     let normalDiff = dot(normalSample, normalAtBestSample);
-    if(normalDiff < 0.9){
-      continue;
-    }
-
-    if(neighbor.x <= 0 || neighbor.x >= i32(downscaledResolution.x) || neighbor.y <= 0 || neighbor.y >= i32(downscaledResolution.y)){
+    if(normalDiff < 0.8){
       continue;
     }
     let neighborIndex = convert2DTo1D(downscaledResolution.x,vec2<u32>(neighbor));
