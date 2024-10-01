@@ -41,7 +41,7 @@ struct LightPixel {
   weight: f32,
   contribution: vec3<f32>,
   lightIndex: u32,
-  lightIntensity: f32,
+  lightIntensity: u32, //bitcast
 }
 
 @group(0) @binding(1) var worldPosTex : texture_2d<f32>;
@@ -62,7 +62,7 @@ const CONSTANT_ATTENUATION = 0.0;
 const LINEAR_ATTENUATION = 0.1;
 const QUADRATIC_ATTENUATION = 0.1;
 const LIGHT_COUNT = 25;
-const MAX_SAMPLE_COUNT = 255;
+const MAX_SAMPLE_COUNT = 128;
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
@@ -101,8 +101,11 @@ fn main(
   let hasExceededSampleCount = pixelBuffer[pixelBufferIndex].sampleCount >= MAX_SAMPLE_COUNT;
 
   if(isSky || hasExceededSampleCount){
-    pixelBuffer[pixelBufferIndex].contribution *= 0.5;
+//    pixelBuffer[pixelBufferIndex].contribution = vec3(0.);
     pixelBuffer[pixelBufferIndex].weight *= 0.5;
+    pixelBuffer[pixelBufferIndex].sampleCount /= 2;
+    let currentIntensity = bitcast<f32>(pixelBuffer[pixelBufferIndex].lightIntensity);
+    pixelBuffer[pixelBufferIndex].lightIntensity = bitcast<u32>(currentIntensity * 0.5);
     pixelBuffer[pixelBufferIndex].sampleCount = clamp(pixelBuffer[pixelBufferIndex].sampleCount / 2, 1, MAX_SAMPLE_COUNT);
     return;
   }
@@ -119,48 +122,35 @@ fn main(
     pixelBuffer[pixelBufferIndex].weight = newWeight;
     pixelBuffer[pixelBufferIndex].contribution = intensity * normalize(light.color);
     pixelBuffer[pixelBufferIndex].lightIndex = lightIndex;
-    pixelBuffer[pixelBufferIndex].lightIntensity = intensity;
+    pixelBuffer[pixelBufferIndex].lightIntensity = bitcast<u32>(intensity);
   }
   pixelBuffer[pixelBufferIndex].sampleCount += 1;
 }
 
-@compute @workgroup_size(8,8,1)
-fn spatial(
-@builtin(global_invocation_id) id : vec3<u32>
-){
-  var downscaledPixel = id.xy / DOWN_SAMPLE_FACTOR;
-  let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
-  let index = convert2DTo1D(downscaledResolution.x, id.xy);
+// Given a pixel and 4 closest neighbors, interpolate the light
+fn bilinearLightContribution(pixel: vec2<u32>, downscaledResolution: vec2<u32>) -> vec3<f32> {
+  let p0 = pixel / DOWN_SAMPLE_FACTOR;
+  let p1 = vec2<u32>(p0.x + 1, p0.y);
+  let p2 = vec2<u32>(p0.x, p0.y + 1);
+  let p3 = vec2<u32>(p0.x + 1, p0.y + 1);
 
-  var totalWeight = 0.0;
-  var totalContribution = vec3<f32>(0.0);
-  for(var x = -1; x <= 1; x++){
-    for(var y = -1; y <= 1; y++){
-      let neighbor = vec2<i32>(id.xy) + vec2<i32>(x, y);
-      let normalSample = textureLoad(normalTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
-      let normalDiff = dot(normalSample, textureLoad(normalTex, id.xy, 0).xyz);
-      if(normalDiff < 0.25){
-        continue;
-      }
 
-      if(neighbor.x <= 0 || neighbor.x >= i32(downscaledResolution.x) || neighbor.y <= 0 || neighbor.y >= i32(downscaledResolution.y)){
-        continue;
-      }
-      let neighborIndex = convert2DTo1D(downscaledResolution.x,vec2<u32>(neighbor));
-      let neighborContribution = pixelBuffer[neighborIndex].contribution;
-      let neighborWeight = pixelBuffer[neighborIndex].weight;
+  let t = fract(vec2<f32>(pixel) / vec2<f32>(DOWN_SAMPLE_FACTOR));
 
-      pixelBuffer[index].weight = neighborWeight;
+  let i0 = convert2DTo1D(downscaledResolution.x, p0);
+  let i1 = convert2DTo1D(downscaledResolution.x, p1);
+  let i2 = convert2DTo1D(downscaledResolution.x, p2);
+  let i3 = convert2DTo1D(downscaledResolution.x, p3);
 
-      let neighborIntensity = pixelBuffer[neighborIndex].lightIntensity;
-      if(neighborIntensity > pixelBuffer[index].lightIntensity){
-         pixelBuffer[index].lightIntensity = neighborIntensity;
-         pixelBuffer[index].lightIndex = pixelBuffer[neighborIndex].lightIndex;
-      }
-    }
-  }
+  let c0 = pixelBuffer[i0].contribution;
+  let c1 = pixelBuffer[i1].contribution;
+  let c2 = pixelBuffer[i2].contribution;
+  let c3 = pixelBuffer[i3].contribution;
+
+  let bottom = mix(c0, c1, t.x);
+  let top = mix(c2, c3, t.x);
+  return mix(bottom, top, t.y);
 }
-
 
 @compute @workgroup_size(8,8,1)
 fn composite(
@@ -178,22 +168,24 @@ fn composite(
   let worldPos = textureLoad(worldPosTex, pixel, 0).xyz;
   var normalWeights = 0.0;
 
-  for(var x = -1; x <= 1; x++){
-    for(var y = -1; y <= 1; y++){
-      let offset = vec2<i32>(x, y);
-      let neighbor = vec2<i32>(downscaledPixel) + offset;
-      let neighborIndex = convert2DTo1D(downscaledResolution.x,vec2<u32>(neighbor));
-      let neighborNormal = textureLoad(normalTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
-      let normalDiff = dot(normalRef, neighborNormal);
-      let normalWeight = normalDiff + 1.0;
-      let bilinearWeight = 1.0 / (1.0 + f32(x * x + y * y));
-      let neighborContribution = pixelBuffer[neighborIndex].contribution;
+//  for(var x = -1; x <= 1; x++){
+//    for(var y = -1; y <= 1; y++){
+//      let offset = vec2<i32>(x, y);
+//      let neighbor = vec2<i32>(downscaledPixel) + offset;
+//      let neighborIndex = convert2DTo1D(downscaledResolution.x,vec2<u32>(neighbor));
+//      let neighborNormal = textureLoad(normalTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
+//      let normalDiff = dot(normalRef, neighborNormal);
+//      let normalWeight = normalDiff + 1.0;
+//      let bilinearWeight = 1.0 / (1.0 + f32(x * x + y * y));
+//      let neighborContribution = pixelBuffer[neighborIndex].contribution;
+//
+//      let sampleWeight = bilinearWeight * normalWeight;
+//      normalWeights += sampleWeight;
+//      diffuse += neighborContribution * sampleWeight;
+//    }
+//  }
 
-      let sampleWeight = bilinearWeight * normalWeight;
-      normalWeights += sampleWeight;
-      diffuse += neighborContribution * sampleWeight;
-    }
-  }
+  diffuse = bilinearLightContribution(pixel, downscaledResolution);
 
   let lightIndex = pixelBuffer[index].lightIndex;
   let finalWeightSum = pixelBuffer[index].weight;
@@ -215,9 +207,9 @@ fn composite(
 
   // Composite the light
   let inputColor = textureLoad(inputTex, pixel, 0).xyz;
-  let totalColor = pixelBuffer[index].contribution;
   let outputColor = diffuse + inputColor + specular;
+  let intensity = bitcast<f32>(pixelBuffer[index].lightIntensity);
 
-  textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(outputColor, 1.));
+  textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(diffuse, 1.));
 
 }

@@ -1,6 +1,7 @@
 import { RenderArgs, RenderPass } from "../app";
 import { Vec3 } from "wgpu-matrix";
 import lightsCompute from "./lights.compute.wgsl";
+import restirSpatial from "./restir-spatial.compute.wgsl";
 import bvh from "../shader/bvh.wgsl";
 import randomCommon from "../random-common.wgsl";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
@@ -13,7 +14,7 @@ export type Light = {
 };
 
 const LIGHT_BUFFER_STRIDE = 32;
-const DOWNSCALE_FACTOR = 3;
+const DOWNSCALE_FACTOR = 16;
 
 export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   const bindGroupLayout = device.createBindGroupLayout({
@@ -182,7 +183,18 @@ ${lightsCompute}`;
   const spatialPipeline = device.createComputePipeline({
     compute: {
       module: device.createShaderModule({
-        code,
+        code: `
+            const DOWN_SAMPLE_FACTOR = ${DOWNSCALE_FACTOR};
+            @group(0) @binding(7) var<storage, read> octreeBuffer : array<vec2<u32>>;
+            @group(0) @binding(8) var<storage> voxelObjects : array<VoxelObject>;
+            @group(0) @binding(9) var<storage> bvhNodes: array<BVHNode>;
+            
+            ${boxIntersection}
+            ${bvh}
+            ${randomCommon}
+            ${raymarchVoxels}
+            
+            ${restirSpatial}`,
       }),
       entryPoint: "spatial",
     },
