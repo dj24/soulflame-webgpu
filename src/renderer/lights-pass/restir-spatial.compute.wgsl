@@ -53,7 +53,6 @@ struct LightPixel {
   weight: f32,
   contribution: vec3<f32>,
   lightIndex: atomic<u32>,
-  lightIntensity: atomic<u32>,
 }
 
 const NEIGHBOUR_OFFSETS = array<vec2<i32>, 4>(
@@ -87,14 +86,11 @@ fn spatial(
     let neighborWeight = pixelBuffer[neighborIndex].weight;
     pixelBuffer[index].weight += neighborWeight;
 
-    let neighborIntensity = bitcast<f32>(atomicLoad(&pixelBuffer[neighborIndex].lightIntensity));
     let currentWeight = pixelBuffer[index].weight;
-    let currentIntensity = bitcast<f32>(atomicLoad(&pixelBuffer[index].lightIntensity));
 
     if(neighborWeight > currentWeight){
        pixelBuffer[index].contribution = neighborContribution;
        let neighborLightIndex = atomicLoad(&pixelBuffer[neighborIndex].lightIndex);
-       atomicStore(&pixelBuffer[index].lightIntensity, bitcast<u32>(neighborIntensity));
        atomicStore(&pixelBuffer[index].lightIndex, neighborLightIndex);
        pixelBuffer[index].weight = neighborWeight;
     }

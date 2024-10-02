@@ -74,6 +74,7 @@ fn main(
     let pixelVelocity: vec2<f32> = velocity * texSize;
     let previousPixel: vec2<i32> = vec2<i32>(id.xy) -  vec2<i32>(pixelVelocity);
     let previousUv = uv - velocity;
+    // TODO: get UV first and derive previous pixel for better accuracy
 
     let worldPos = textureLoad(worldPosTex, id.xy, 0).xyz;
     let worldPosPrev = textureLoad(worldPosTex, previousPixel, 0).xyz;

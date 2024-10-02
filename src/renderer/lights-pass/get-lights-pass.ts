@@ -2,6 +2,7 @@ import { RenderArgs, RenderPass } from "../app";
 import { Vec3 } from "wgpu-matrix";
 import lightsCompute from "./lights.compute.wgsl";
 import restirSpatial from "./restir-spatial.compute.wgsl";
+import restirTemporal from "./restir-temporal.compute.wgsl";
 import bvh from "../shader/bvh.wgsl";
 import randomCommon from "../random-common.wgsl";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
@@ -143,6 +144,28 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
     ],
   });
 
+  const temporalBindGroupLayout = device.createBindGroupLayout({
+    entries: [
+      // Velocity texture
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+          viewDimension: "2d",
+        },
+      },
+      // Previous light buffer
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "read-only-storage",
+        },
+      },
+    ],
+  });
+
   const pipelineLayout = device.createPipelineLayout({
     bindGroupLayouts: [bindGroupLayout, lightConfigBindGroupLayout],
   });
@@ -201,6 +224,21 @@ ${lightsCompute}`;
     layout: pipelineLayout,
   });
 
+  const temporalPipeline = device.createComputePipeline({
+    compute: {
+      module: device.createShaderModule({
+        code: `
+            const DOWN_SAMPLE_FACTOR = ${DOWNSCALE_FACTOR};
+            
+            ${restirTemporal}`,
+      }),
+      entryPoint: "main",
+    },
+    layout: device.createPipelineLayout({
+      bindGroupLayouts: [bindGroupLayout, temporalBindGroupLayout],
+    }),
+  });
+
   const nearestSampler = device.createSampler({
     magFilter: "nearest",
     minFilter: "nearest",
@@ -211,9 +249,11 @@ ${lightsCompute}`;
   let bindGroup: GPUBindGroup;
   let lightConfigBindGroup: GPUBindGroup;
   let lightPixelBuffer: GPUBuffer;
+  let previousLightPixelBuffer: GPUBuffer;
   let lightConfigBuffer: GPUBuffer;
   let copyFinalTexture: GPUTexture;
   let copyFinalTextureView: GPUTextureView;
+  let temporalBindGroup: GPUBindGroup;
 
   let lightConfig = {
     constantAttenuation: 0.0,
@@ -275,8 +315,26 @@ ${lightsCompute}`;
       const downscaledHeight = Math.ceil(
         outputTextures.finalTexture.height / DOWNSCALE_FACTOR,
       );
-      const stride = 48;
+      const stride = 32;
       lightPixelBuffer = device.createBuffer({
+        label: "light-pixel-buffer",
+        size: stride * downscaledWidth * downscaledHeight,
+        usage:
+          GPUBufferUsage.STORAGE |
+          GPUBufferUsage.COPY_DST |
+          GPUBufferUsage.COPY_SRC,
+      });
+    }
+
+    if (!previousLightPixelBuffer) {
+      const downscaledWidth = Math.ceil(
+        outputTextures.finalTexture.width / DOWNSCALE_FACTOR,
+      );
+      const downscaledHeight = Math.ceil(
+        outputTextures.finalTexture.height / DOWNSCALE_FACTOR,
+      );
+      const stride = 48;
+      previousLightPixelBuffer = device.createBuffer({
         label: "light-pixel-buffer",
         size: stride * downscaledWidth * downscaledHeight,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
@@ -383,6 +441,24 @@ ${lightsCompute}`;
       ],
     });
 
+    if (!temporalBindGroup) {
+      temporalBindGroup = device.createBindGroup({
+        layout: temporalBindGroupLayout,
+        entries: [
+          {
+            binding: 0,
+            resource: outputTextures.velocityTexture.view,
+          },
+          {
+            binding: 1,
+            resource: {
+              buffer: previousLightPixelBuffer,
+            },
+          },
+        ],
+      });
+    }
+
     if (!lightConfigBindGroup) {
       lightConfigBindGroup = device.createBindGroup({
         label: "light-config-bind-group",
@@ -413,11 +489,18 @@ ${lightsCompute}`;
     }
     device.queue.writeBuffer(lightBuffer, 0, arrayBuffer);
 
-    // commandEncoder.clearBuffer(lightPixelBuffer);
+    commandEncoder.copyBufferToBuffer(
+      lightPixelBuffer,
+      0,
+      previousLightPixelBuffer,
+      0,
+      lightPixelBuffer.size,
+    );
+
     const passEncoder = commandEncoder.beginComputePass({ timestampWrites });
-    passEncoder.setPipeline(pipeline);
+    passEncoder.setPipeline(temporalPipeline);
     passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.setBindGroup(1, lightConfigBindGroup);
+    passEncoder.setBindGroup(1, temporalBindGroup);
     passEncoder.dispatchWorkgroups(
       Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
       Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
@@ -430,6 +513,14 @@ ${lightsCompute}`;
     //   Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
     //   1,
     // );
+
+    passEncoder.setPipeline(pipeline);
+    passEncoder.setBindGroup(1, lightConfigBindGroup);
+    passEncoder.dispatchWorkgroups(
+      Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
+      Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
+      1,
+    );
 
     passEncoder.setPipeline(compositePipeline);
     passEncoder.dispatchWorkgroups(
