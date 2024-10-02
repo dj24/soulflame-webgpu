@@ -424,12 +424,12 @@ ${lightsCompute}`;
       1,
     );
 
-    passEncoder.setPipeline(spatialPipeline);
-    passEncoder.dispatchWorkgroups(
-      Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
-      Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
-      1,
-    );
+    // passEncoder.setPipeline(spatialPipeline);
+    // passEncoder.dispatchWorkgroups(
+    //   Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
+    //   Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
+    //   1,
+    // );
 
     passEncoder.setPipeline(compositePipeline);
     passEncoder.dispatchWorkgroups(

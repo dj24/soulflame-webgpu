@@ -62,7 +62,8 @@ const CONSTANT_ATTENUATION = 0.0;
 const LINEAR_ATTENUATION = 0.1;
 const QUADRATIC_ATTENUATION = 0.1;
 const LIGHT_COUNT = 25;
-const MAX_SAMPLE_COUNT = 32;
+const MAX_SAMPLE_COUNT = 64;
+const SAMPLE_BLEND_FACTOR = 0.9;
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
@@ -99,17 +100,17 @@ fn main(
   var intensity = (1.0 / attenuation) * length(light.color);
 
   let pixelBufferIndex = convert2DTo1D(downscaledResolution.x, pixel);
+  pixelBuffer[pixelBufferIndex].sampleCount += 1;
 
   let isSky = distance(worldPos, cameraPosition) > 10000.0;
   let hasExceededSampleCount = pixelBuffer[pixelBufferIndex].sampleCount >= MAX_SAMPLE_COUNT;
 
   if(isSky || hasExceededSampleCount){
-//    pixelBuffer[pixelBufferIndex].contribution = vec3(0.);
-    pixelBuffer[pixelBufferIndex].weight *= 0.5;
-    pixelBuffer[pixelBufferIndex].sampleCount /= 2;
+    pixelBuffer[pixelBufferIndex].weight *= SAMPLE_BLEND_FACTOR;
+    pixelBuffer[pixelBufferIndex].sampleCount = u32(f32(pixelBuffer[pixelBufferIndex].sampleCount) * SAMPLE_BLEND_FACTOR);
+    pixelBuffer[pixelBufferIndex].sampleCount = clamp(pixelBuffer[pixelBufferIndex].sampleCount, 1, MAX_SAMPLE_COUNT);
     let currentIntensity = bitcast<f32>(pixelBuffer[pixelBufferIndex].lightIntensity);
-    pixelBuffer[pixelBufferIndex].lightIntensity = bitcast<u32>(currentIntensity * 0.5);
-    pixelBuffer[pixelBufferIndex].sampleCount = clamp(pixelBuffer[pixelBufferIndex].sampleCount / 2, 1, MAX_SAMPLE_COUNT);
+    pixelBuffer[pixelBufferIndex].lightIntensity = bitcast<u32>(currentIntensity * SAMPLE_BLEND_FACTOR);
     return;
   }
 
@@ -127,7 +128,6 @@ fn main(
     pixelBuffer[pixelBufferIndex].lightIndex = lightIndex;
     pixelBuffer[pixelBufferIndex].lightIntensity = bitcast<u32>(intensity);
   }
-  pixelBuffer[pixelBufferIndex].sampleCount += 1;
 }
 
 // Given a pixel and 4 closest neighbors, interpolate the light
@@ -183,45 +183,50 @@ fn bilinearLightPosition(pixel: vec2<u32>, downscaledResolution: vec2<u32>) -> v
   return mix(bottom, top, t.y);
 }
 
-
-fn cubicInterpolate(p0: vec3<f32>, p1: vec3<f32>, p2: vec3<f32>, p3: vec3<f32>, t: f32) -> vec3<f32> {
-  let a0 = -0.5 * p0 + 1.5 * p1 - 1.5 * p2 + 0.5 * p3;
-  let a1 = p0 - 2.5 * p1 + 2.0 * p2 - 0.5 * p3;
-  let a2 = -0.5 * p0 + 0.5 * p2;
-  let a3 = p1;
-  return a0 * (t * t * t) + a1 * (t * t) + a2 * t + a3;
-}
-
-fn bicubicLightContribution(pixel: vec2<u32>, downscaledResolution: vec2<u32>) -> vec3<f32> {
-  let p0 = vec2<i32>(pixel) / DOWN_SAMPLE_FACTOR;
-
-  // Sample a 4x4 neighborhood
-  var samples: array<vec3<f32>, 16>;
-
-  for (var y: i32 = -1; y <= 2; y++) {
-    for (var x: i32 = -1; x <= 2; x++) {
-      let samplePos = vec2<i32>(p0.x + x, p0.y + y); // TODO: clamp
-      let i = convert2DTo1D(downscaledResolution.x, vec2<u32>(samplePos));
-      samples[(y + 1) * 4 + (x + 1)] = pixelBuffer[i].contribution;
-    }
-  }
+fn bilinearReservoirWeight(pixel: vec2<u32>, downscaledResolution: vec2<u32>) -> f32 {
+  let p0 = pixel / DOWN_SAMPLE_FACTOR;
+  let p1 = vec2<u32>(p0.x + 1, p0.y);
+  let p2 = vec2<u32>(p0.x, p0.y + 1);
+  let p3 = vec2<u32>(p0.x + 1, p0.y + 1);
 
   let t = fract(vec2<f32>(pixel) / vec2<f32>(DOWN_SAMPLE_FACTOR));
 
-  // Interpolate along x axis for each row (resulting in 4 values)
-  var rowInterpolations: array<vec3<f32>, 4>;
-  for (var i = 0; i < 4; i++) {
-    rowInterpolations[i] = cubicInterpolate(
-      samples[i * 4 + 0],
-      samples[i * 4 + 1],
-      samples[i * 4 + 2],
-      samples[i * 4 + 3],
-      t.x
-    );
-  }
+  let i0 = convert2DTo1D(downscaledResolution.x, p0);
+  let i1 = convert2DTo1D(downscaledResolution.x, p1);
+  let i2 = convert2DTo1D(downscaledResolution.x, p2);
+  let i3 = convert2DTo1D(downscaledResolution.x, p3);
 
-  // Now interpolate along y axis with the results of x axis interpolation
-  return cubicInterpolate(rowInterpolations[0], rowInterpolations[1], rowInterpolations[2], rowInterpolations[3], t.y);
+  let w0 = pixelBuffer[i0].weight;
+  let w1 = pixelBuffer[i1].weight;
+  let w2 = pixelBuffer[i2].weight;
+  let w3 = pixelBuffer[i3].weight;
+
+  let bottom = mix(w0, w1, t.x);
+  let top = mix(w2, w3, t.x);
+  return mix(bottom, top, t.y);
+}
+
+fn bilinearLightProbability(pixel: vec2<u32>, downscaledResolution: vec2<u32>) -> f32 {
+  let p0 = pixel / DOWN_SAMPLE_FACTOR;
+  let p1 = vec2<u32>(p0.x + 1, p0.y);
+  let p2 = vec2<u32>(p0.x, p0.y + 1);
+  let p3 = vec2<u32>(p0.x + 1, p0.y + 1);
+
+  let t = fract(vec2<f32>(pixel) / vec2<f32>(DOWN_SAMPLE_FACTOR));
+
+  let i0 = convert2DTo1D(downscaledResolution.x, p0);
+  let i1 = convert2DTo1D(downscaledResolution.x, p1);
+  let i2 = convert2DTo1D(downscaledResolution.x, p2);
+  let i3 = convert2DTo1D(downscaledResolution.x, p3);
+
+  let w0 = 1.0 / f32(pixelBuffer[i0].sampleCount);
+  let w1 = 1.0 / f32(pixelBuffer[i1].sampleCount);
+  let w2 = 1.0 / f32(pixelBuffer[i2].sampleCount);
+  let w3 = 1.0 / f32(pixelBuffer[i3].sampleCount);
+
+  let bottom = mix(w0, w1, t.x);
+  let top = mix(w2, w3, t.x);
+  return mix(bottom, top, t.y);
 }
 
 @compute @workgroup_size(8,8,1)
@@ -236,7 +241,9 @@ fn composite(
   blueNoisePixel.x += frameOffsetX;
   blueNoisePixel.y += frameOffsetY;
   var r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy * DOWN_SAMPLE_FACTOR;
-  let jitteredPixel = vec2<u32>(vec2<i32>(pixel) + vec2<i32>(r));
+//  let jitteredPixel = vec2<u32>(vec2<i32>(pixel) + vec2<i32>(r));
+  let jitteredPixel = pixel;
+
   var downscaledPixel = jitteredPixel / DOWN_SAMPLE_FACTOR;
   let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
   let index = convert2DTo1D(downscaledResolution.x, downscaledPixel);
@@ -249,7 +256,7 @@ fn composite(
   diffuse = bilinearLightContribution(jitteredPixel, downscaledResolution);
 
   let lightIndex = pixelBuffer[index].lightIndex;
-  let finalWeightSum = pixelBuffer[index].weight;
+  let finalWeightSum = bilinearReservoirWeight(jitteredPixel, downscaledResolution);
   let lightPosition = bilinearLightPosition(pixel, downscaledResolution);
   let finalSampleCount = pixelBuffer[index].sampleCount;
   let lightDir = normalize(lightPosition - worldPos);
@@ -263,8 +270,8 @@ fn composite(
   let specularIntensity = pow(max(dot(normalRef, halfDir), 0.0), shininess);
   let specular = specularStrength * specularIntensity * vec3<f32>(1.0);
 
-  let lightProbability = 1.0 / f32(LIGHT_COUNT);
-  diffuse = (diffuse * finalWeightSum) / (f32(finalSampleCount) * lightProbability);
+  var lightProbability = bilinearLightProbability(jitteredPixel, downscaledResolution);
+  diffuse = diffuse * finalWeightSum * lightProbability;
 
   // Composite the light
   let inputColor = textureLoad(inputTex, pixel, 0).xyz;
