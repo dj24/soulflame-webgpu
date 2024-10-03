@@ -553,16 +553,17 @@ ${lightsCompute}`;
 
     passEncoder = commandEncoder.beginComputePass();
     passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.setBindGroup(1, spatialBindGroup);
-    passEncoder.setPipeline(spatialPipeline);
+
+    passEncoder.setPipeline(temporalPipeline);
+    passEncoder.setBindGroup(1, temporalBindGroup);
     passEncoder.dispatchWorkgroups(
       Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
       Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
       1,
     );
 
-    passEncoder.setPipeline(temporalPipeline);
-    passEncoder.setBindGroup(1, temporalBindGroup);
+    passEncoder.setBindGroup(1, spatialBindGroup);
+    passEncoder.setPipeline(spatialPipeline);
     passEncoder.dispatchWorkgroups(
       Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
       Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),

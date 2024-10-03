@@ -55,7 +55,7 @@ const NEIGHBOUR_OFFSETS = array<vec2<i32>, 4>(
 );
 
 const DISTANCE_THRESHOLD = 100.0;
-const SAMPLE_BLEND_FACTOR = 0.5;
+const SAMPLE_BLEND_FACTOR = 0.95;
 
 @compute @workgroup_size(8,8,1)
 fn main(
@@ -68,6 +68,7 @@ fn main(
   var pixel = vec2<i32>((vec2<f32>(downscaledPixel) + vec2(0.5)) * DOWN_SAMPLE_FACTOR);
   let uv = vec2<f32>(pixel) / vec2<f32>(resolution);
   let velocity = textureLoad(velocityTex, pixel, 0).xy;
+//  let velocity = vec2(0.0);
   let worldPos = textureLoad(worldPosTex, pixel, 0).xyz;
 
   let pixelVelocity = velocity * vec2<f32>(resolution);
@@ -93,4 +94,9 @@ fn main(
     pixelBuffer[index].lightIndex = previousLightPixel.lightIndex;
   }
   pixelBuffer[index].sampleCount += previousCount;
+  if(pixelBuffer[index].sampleCount > 128){
+    pixelBuffer[index].contribution = pixelBuffer[index].contribution * SAMPLE_BLEND_FACTOR;
+    pixelBuffer[index].sampleCount = u32(f32(pixelBuffer[index].sampleCount) * SAMPLE_BLEND_FACTOR);
+    pixelBuffer[index].weight *= SAMPLE_BLEND_FACTOR;
+  }
 }
