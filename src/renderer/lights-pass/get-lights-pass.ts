@@ -16,6 +16,7 @@ export type Light = {
 
 const LIGHT_BUFFER_STRIDE = 32;
 const DOWNSCALE_FACTOR = 4;
+const MAX_SAMPLES = 32;
 
 export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   const bindGroupLayout = device.createBindGroupLayout({
@@ -166,12 +167,34 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
     ],
   });
 
+  const spatialBindGroupLayout = device.createBindGroupLayout({
+    entries: [
+      // Copy light buffer
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "read-only-storage",
+        },
+      },
+    ],
+  });
+
   const pipelineLayout = device.createPipelineLayout({
     bindGroupLayouts: [bindGroupLayout, lightConfigBindGroupLayout],
   });
 
+  const spatialPipelineLayout = device.createPipelineLayout({
+    bindGroupLayouts: [bindGroupLayout, spatialBindGroupLayout],
+  });
+
+  const compositePipelineLayout = device.createPipelineLayout({
+    bindGroupLayouts: [bindGroupLayout],
+  });
+
   const code = `
 const DOWN_SAMPLE_FACTOR = ${DOWNSCALE_FACTOR};
+const MAX_SAMPLES = ${MAX_SAMPLES};
 @group(0) @binding(7) var<storage, read> octreeBuffer : array<vec2<u32>>;
 @group(0) @binding(8) var<storage> voxelObjects : array<VoxelObject>;
 @group(0) @binding(9) var<storage> bvhNodes: array<BVHNode>;
@@ -200,7 +223,7 @@ ${lightsCompute}`;
       }),
       entryPoint: "composite",
     },
-    layout: pipelineLayout,
+    layout: compositePipelineLayout,
   });
 
   const spatialPipeline = device.createComputePipeline({
@@ -208,6 +231,7 @@ ${lightsCompute}`;
       module: device.createShaderModule({
         code: `
             const DOWN_SAMPLE_FACTOR = ${DOWNSCALE_FACTOR};
+            const MAX_SAMPLES = ${MAX_SAMPLES};
             @group(0) @binding(7) var<storage, read> octreeBuffer : array<vec2<u32>>;
             @group(0) @binding(8) var<storage> voxelObjects : array<VoxelObject>;
             @group(0) @binding(9) var<storage> bvhNodes: array<BVHNode>;
@@ -221,7 +245,7 @@ ${lightsCompute}`;
       }),
       entryPoint: "spatial",
     },
-    layout: pipelineLayout,
+    layout: spatialPipelineLayout,
   });
 
   const temporalPipeline = device.createComputePipeline({
@@ -229,7 +253,7 @@ ${lightsCompute}`;
       module: device.createShaderModule({
         code: `
             const DOWN_SAMPLE_FACTOR = ${DOWNSCALE_FACTOR};
-            
+            const MAX_SAMPLES = ${MAX_SAMPLES};
             ${restirTemporal}`,
       }),
       entryPoint: "main",
@@ -250,10 +274,12 @@ ${lightsCompute}`;
   let lightConfigBindGroup: GPUBindGroup;
   let lightPixelBuffer: GPUBuffer;
   let previousLightPixelBuffer: GPUBuffer;
+  let copyLightPixelBuffer: GPUBuffer;
   let lightConfigBuffer: GPUBuffer;
   let copyFinalTexture: GPUTexture;
   let copyFinalTextureView: GPUTextureView;
   let temporalBindGroup: GPUBindGroup;
+  let spatialBindGroup: GPUBindGroup;
 
   let lightConfig = {
     constantAttenuation: 0.0,
@@ -327,16 +353,17 @@ ${lightsCompute}`;
     }
 
     if (!previousLightPixelBuffer) {
-      const downscaledWidth = Math.ceil(
-        outputTextures.finalTexture.width / DOWNSCALE_FACTOR,
-      );
-      const downscaledHeight = Math.ceil(
-        outputTextures.finalTexture.height / DOWNSCALE_FACTOR,
-      );
-      const stride = 48;
       previousLightPixelBuffer = device.createBuffer({
         label: "light-pixel-buffer",
-        size: stride * downscaledWidth * downscaledHeight,
+        size: lightPixelBuffer.size,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      });
+    }
+
+    if (!copyLightPixelBuffer) {
+      copyLightPixelBuffer = device.createBuffer({
+        label: "light-pixel-buffer",
+        size: lightPixelBuffer.size,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       });
     }
@@ -459,6 +486,20 @@ ${lightsCompute}`;
       });
     }
 
+    if (!spatialBindGroup) {
+      spatialBindGroup = device.createBindGroup({
+        layout: spatialBindGroupLayout,
+        entries: [
+          {
+            binding: 0,
+            resource: {
+              buffer: copyLightPixelBuffer,
+            },
+          },
+        ],
+      });
+    }
+
     if (!lightConfigBindGroup) {
       lightConfigBindGroup = device.createBindGroup({
         label: "light-config-bind-group",
@@ -489,31 +530,9 @@ ${lightsCompute}`;
     }
     device.queue.writeBuffer(lightBuffer, 0, arrayBuffer);
 
-    commandEncoder.copyBufferToBuffer(
-      lightPixelBuffer,
-      0,
-      previousLightPixelBuffer,
-      0,
-      lightPixelBuffer.size,
-    );
+    let passEncoder = commandEncoder.beginComputePass({ timestampWrites });
 
-    const passEncoder = commandEncoder.beginComputePass({ timestampWrites });
-    passEncoder.setPipeline(temporalPipeline);
     passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.setBindGroup(1, temporalBindGroup);
-    passEncoder.dispatchWorkgroups(
-      Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
-      Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
-      1,
-    );
-
-    // passEncoder.setPipeline(spatialPipeline);
-    // passEncoder.dispatchWorkgroups(
-    //   Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
-    //   Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
-    //   1,
-    // );
-
     passEncoder.setPipeline(pipeline);
     passEncoder.setBindGroup(1, lightConfigBindGroup);
     passEncoder.dispatchWorkgroups(
@@ -522,13 +541,52 @@ ${lightsCompute}`;
       1,
     );
 
+    passEncoder.end();
+
+    commandEncoder.copyBufferToBuffer(
+      lightPixelBuffer,
+      0,
+      copyLightPixelBuffer,
+      0,
+      lightPixelBuffer.size,
+    );
+
+    passEncoder = commandEncoder.beginComputePass();
+    passEncoder.setBindGroup(0, bindGroup);
+    passEncoder.setBindGroup(1, spatialBindGroup);
+    passEncoder.setPipeline(spatialPipeline);
+    passEncoder.dispatchWorkgroups(
+      Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
+      Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
+      1,
+    );
+
+    passEncoder.setPipeline(temporalPipeline);
+    passEncoder.setBindGroup(1, temporalBindGroup);
+    passEncoder.dispatchWorkgroups(
+      Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
+      Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
+      1,
+    );
+
     passEncoder.setPipeline(compositePipeline);
+    passEncoder.setBindGroup(1, lightConfigBindGroup);
     passEncoder.dispatchWorkgroups(
       Math.ceil(outputTextures.finalTexture.width / 8),
       Math.ceil(outputTextures.finalTexture.width / 8),
       1,
     );
     passEncoder.end();
+
+    commandEncoder.copyBufferToBuffer(
+      lightPixelBuffer,
+      0,
+      previousLightPixelBuffer,
+      0,
+      lightPixelBuffer.size,
+    );
+
+    commandEncoder.clearBuffer(lightPixelBuffer, 0, lightPixelBuffer.size);
   };
 
   return { render, label: "lights" };

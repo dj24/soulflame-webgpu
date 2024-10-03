@@ -54,7 +54,7 @@ const NEIGHBOUR_OFFSETS = array<vec2<i32>, 4>(
   vec2<i32>(0, 1)
 );
 
-const DISTANCE_THRESHOLD = 10.0;
+const DISTANCE_THRESHOLD = 100.0;
 const SAMPLE_BLEND_FACTOR = 0.5;
 
 @compute @workgroup_size(8,8,1)
@@ -65,11 +65,10 @@ fn main(
   let resolution = textureDimensions(inputTex);
   let downscaledResolution = resolution / DOWN_SAMPLE_FACTOR;
 
-  var pixel = downscaledPixel * DOWN_SAMPLE_FACTOR;
-  let uv = (vec2<f32>(pixel) + vec2(0.5)) / vec2<f32>(resolution);
+  var pixel = vec2<i32>((vec2<f32>(downscaledPixel) + vec2(0.5)) * DOWN_SAMPLE_FACTOR);
+  let uv = vec2<f32>(pixel) / vec2<f32>(resolution);
   let velocity = textureLoad(velocityTex, pixel, 0).xy;
   let worldPos = textureLoad(worldPosTex, pixel, 0).xyz;
-
 
   let pixelVelocity = velocity * vec2<f32>(resolution);
   let previousUv = uv - velocity;
@@ -82,16 +81,16 @@ fn main(
   let previousIndex = convert2DTo1D(downscaledResolution.x, vec2<u32>(previousDownscaledPixel));
 
   if(distance(worldPos, worldPosAtPrevious) > DISTANCE_THRESHOLD){
-    pixelBuffer[index].weight = 0.0;
-    pixelBuffer[index].sampleCount = 0;
-    pixelBuffer[index].contribution = vec3<f32>(0.0);
     return;
   }
 
   var previousLightPixel = previousPixelBuffer[previousIndex];
+  let previousCount = previousLightPixel.sampleCount;
 
   if(previousLightPixel.weight > pixelBuffer[index].weight){
-    pixelBuffer[index] = previousLightPixel;
-    pixelBuffer[index].sampleCount += previousLightPixel.sampleCount;
+    pixelBuffer[index].contribution = previousLightPixel.contribution;
+    pixelBuffer[index].weight = previousLightPixel.weight;
+    pixelBuffer[index].lightIndex = previousLightPixel.lightIndex;
   }
+  pixelBuffer[index].sampleCount += previousCount;
 }

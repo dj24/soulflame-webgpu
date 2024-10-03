@@ -61,7 +61,6 @@ const CONSTANT_ATTENUATION = 0.0;
 const LINEAR_ATTENUATION = 0.1;
 const QUADRATIC_ATTENUATION = 0.1;
 const LIGHT_COUNT = 25;
-const MAX_SAMPLE_COUNT =64;
 const SAMPLE_BLEND_FACTOR = 0.95;
 
 @compute @workgroup_size(8, 8, 1)
@@ -102,12 +101,12 @@ fn main(
   pixelBuffer[pixelBufferIndex].sampleCount += 1;
 
   let isSky = distance(worldPos, cameraPosition) > 10000.0;
-  let hasExceededSampleCount = pixelBuffer[pixelBufferIndex].sampleCount >= MAX_SAMPLE_COUNT;
+  let hasExceededSampleCount = pixelBuffer[pixelBufferIndex].sampleCount >= MAX_SAMPLES;
 
   if(isSky || hasExceededSampleCount){
     pixelBuffer[pixelBufferIndex].weight *= SAMPLE_BLEND_FACTOR;
     pixelBuffer[pixelBufferIndex].sampleCount = u32(f32(pixelBuffer[pixelBufferIndex].sampleCount) * SAMPLE_BLEND_FACTOR);
-    pixelBuffer[pixelBufferIndex].sampleCount = clamp(pixelBuffer[pixelBufferIndex].sampleCount, 1, MAX_SAMPLE_COUNT);
+    pixelBuffer[pixelBufferIndex].sampleCount = clamp(pixelBuffer[pixelBufferIndex].sampleCount, 1, MAX_SAMPLES);
     return;
   }
 

@@ -2,13 +2,13 @@
 @group(0) @binding(2) var normalTex : texture_2d<f32>;
 @group(0) @binding(3) var<storage, read> lightsBuffer : array<Light>;
 @group(0) @binding(4) var outputTex : texture_storage_2d<rgba16float, write>;
-@group(0) @binding(5) var<storage, read_write> pixelBuffer : array<LightPixel>;
+@group(0) @binding(5) var<storage, read_write> outputPixelBuffer : array<LightPixel>;
 @group(0) @binding(6) var inputTex : texture_2d<f32>;
 @group(0) @binding(10) var blueNoiseTex : texture_2d<f32>;
 @group(0) @binding(11) var<uniform> time : Time;
 @group(0) @binding(12) var<uniform> cameraPosition : vec3<f32>;
 
-@group(1) @binding(0) var<uniform> lightConfig : LightConfig;
+@group(1) @binding(0) var<storage, read> inputPixelBuffer : array<LightPixel>;
 
 fn convert2DTo1D(width: u32, index2D: vec2<u32>) -> u32 {
     return index2D.y * width + index2D.x;
@@ -40,60 +40,73 @@ struct Light {
   color: vec3<f32>,
 };
 
-struct LightConfig {
-  constantAttenuation: f32,
-  linearAttenuation: f32,
-  quadraticAttenuation: f32,
-  maxSampleCount: f32,
-}
-
-
 struct LightPixel {
   sampleCount: u32,
   weight: f32,
   contribution: vec3<f32>,
-  lightIndex: atomic<u32>,
+  lightIndex: u32,
 }
 
-const NEIGHBOUR_OFFSETS = array<vec2<i32>, 4>(
+const NEIGHBOUR_OFFSETS = array<vec2<i32>, 8>(
+  vec2<i32>(-1, -1),
+  vec2<i32>(0, -1),
+  vec2<i32>(1, -1),
   vec2<i32>(-1, 0),
   vec2<i32>(1, 0),
-  vec2<i32>(0, -1),
-  vec2<i32>(0, 1)
+  vec2<i32>(-1, 1),
+  vec2<i32>(0, 1),
+  vec2<i32>(1, 1)
 );
+
+const SAMPLE_RADIUS = 2.0;
+const SAMPLE_BLEND_FACTOR = 0.95;
 
 @compute @workgroup_size(8,8,1)
 fn spatial(
 @builtin(global_invocation_id) id : vec3<u32>
 ){
-  var downscaledPixel = id.xy / DOWN_SAMPLE_FACTOR;
+  var downscaledPixel = id.xy;
+  let pixel = downscaledPixel * DOWN_SAMPLE_FACTOR;
+  let normalRef = textureLoad(normalTex, pixel, 0).xyz;
   let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
+  let uv = (vec2<f32>(downscaledPixel) + vec2(0.5)) / vec2<f32>(downscaledResolution);
+  if(uv.x < 0.5){
+    return;
+  }
+
+  var blueNoisePixel = vec2<i32>(id.xy);
   let index = convert2DTo1D(downscaledResolution.x, id.xy);
+  let frameOffsetX = (i32(time.frame) * 92821 + 71413) % 512;  // Large prime numbers for frame variation
+  let frameOffsetY = (i32(time.frame) * 13761 + 511) % 512;    // Different prime numbers
+  blueNoisePixel.x += frameOffsetX;
+  blueNoisePixel.y += frameOffsetY;
 
-  var totalWeight = 0.0;
-  var totalContribution = vec3<f32>(0.0);
-  var normalAtBestSample = textureLoad(normalTex, id.xy, 0).xyz;
-  for(var i = 0; i < 4; i++){
-    // TODO: figure out how to stop the temporal propagation
-    let neighbor = clamp(vec2<i32>(id.xy) + NEIGHBOUR_OFFSETS[i], vec2<i32>(0), vec2<i32>(downscaledResolution - vec2<u32>(1)));
-    let normalSample = textureLoad(normalTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
-    let normalDiff = dot(normalSample, normalAtBestSample);
-    if(normalDiff < 0.8){
-      continue;
-    }
+  for(var i = 0; i < 8; i++){
+    let iterOffsetX = (i * 193) % 512; // Large prime numbers for frame variation
+    let iterOffsetY = (i * 257) % 512; // Different prime numbers
+    let r = textureLoad(blueNoiseTex, (blueNoisePixel + vec2(iterOffsetX, iterOffsetY)) % 512, 0).xy;
+    let offset = vec2<i32>((r * 2.0 - 1.0) * SAMPLE_RADIUS);
+//    let offset = NEIGHBOUR_OFFSETS[i];
+
+    let normal = textureLoad(normalTex, vec2<i32>(pixel) + offset * DOWN_SAMPLE_FACTOR, 0).xyz;
+    let normalWeight = max(dot(normal, normalRef), 0.0);
+
+    let neighbor = clamp(vec2<i32>(downscaledPixel) + offset, vec2<i32>(0), vec2<i32>(downscaledResolution - vec2<u32>(1)));
     let neighborIndex = convert2DTo1D(downscaledResolution.x,vec2<u32>(neighbor));
-    let neighborContribution = pixelBuffer[neighborIndex].contribution;
-    let neighborWeight = pixelBuffer[neighborIndex].weight;
-    pixelBuffer[index].weight += neighborWeight;
 
-    let currentWeight = pixelBuffer[index].weight;
+    let sampleWeight =  normalWeight;
+
+    let neighborContribution = inputPixelBuffer[neighborIndex].contribution * sampleWeight;
+    let neighborWeight = inputPixelBuffer[neighborIndex].weight * sampleWeight;
+    let currentWeight = inputPixelBuffer[index].weight;
+    let currentSampleCount = inputPixelBuffer[index].sampleCount;
 
     if(neighborWeight > currentWeight){
-       pixelBuffer[index].contribution = neighborContribution;
-       let neighborLightIndex = atomicLoad(&pixelBuffer[neighborIndex].lightIndex);
-       atomicStore(&pixelBuffer[index].lightIndex, neighborLightIndex);
-       pixelBuffer[index].weight = neighborWeight;
+       outputPixelBuffer[index].contribution = neighborContribution;
+       outputPixelBuffer[index].weight = neighborWeight;
+       outputPixelBuffer[index].lightIndex = inputPixelBuffer[index].lightIndex;
+       outputPixelBuffer[index].sampleCount = inputPixelBuffer[neighborIndex].sampleCount;
     }
-    pixelBuffer[index].sampleCount+= pixelBuffer[neighborIndex].sampleCount;
+    outputPixelBuffer[index].sampleCount+= currentSampleCount;
   }
 }
