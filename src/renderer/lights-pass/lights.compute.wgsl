@@ -248,11 +248,16 @@ fn composite(
   let worldPos = textureLoad(worldPosTex, pixel, 0).xyz;
   var normalWeights = 0.0;
 
-  diffuse = bilinearLightContribution(jitteredPixel, downscaledResolution);
 
   let lightIndex = pixelBuffer[index].lightIndex;
-  let finalWeightSum = bilinearReservoirWeight(jitteredPixel, downscaledResolution);
-  let lightPosition = bilinearLightPosition(pixel, downscaledResolution);
+//  diffuse = bilinearLightContribution(jitteredPixel, downscaledResolution);
+//  let finalWeightSum = bilinearReservoirWeight(jitteredPixel, downscaledResolution);
+//  let lightPosition = bilinearLightPosition(pixel, downscaledResolution);
+
+  diffuse = pixelBuffer[index].contribution;
+  let finalWeightSum = pixelBuffer[index].weight;
+  let lightPosition = lightsBuffer[lightIndex].position;
+
   let finalSampleCount = pixelBuffer[index].sampleCount;
   let lightDir = normalize(lightPosition - worldPos);
   let nDotL = dot(normalRef, lightDir);

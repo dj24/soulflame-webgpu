@@ -532,12 +532,19 @@ ${lightsCompute}`;
 
     let passEncoder = commandEncoder.beginComputePass({ timestampWrites });
 
+    const downscaledWidth = Math.ceil(
+      outputTextures.finalTexture.width / DOWNSCALE_FACTOR,
+    );
+    const downscaledHeight = Math.ceil(
+      outputTextures.finalTexture.height / DOWNSCALE_FACTOR,
+    );
+
     passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.setPipeline(pipeline);
-    passEncoder.setBindGroup(1, lightConfigBindGroup);
+    passEncoder.setPipeline(temporalPipeline);
+    passEncoder.setBindGroup(1, temporalBindGroup);
     passEncoder.dispatchWorkgroups(
-      Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
-      Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
+      Math.ceil(downscaledWidth / 8),
+      Math.ceil(downscaledHeight / 8),
       1,
     );
 
@@ -551,30 +558,37 @@ ${lightsCompute}`;
       lightPixelBuffer.size,
     );
 
-    passEncoder = commandEncoder.beginComputePass();
+    passEncoder = commandEncoder.beginComputePass({
+      timestampWrites: {
+        querySet: timestampWrites.querySet,
+        beginningOfPassWriteIndex:
+          timestampWrites.beginningOfPassWriteIndex + 2,
+        endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 2,
+      },
+    });
+
     passEncoder.setBindGroup(0, bindGroup);
-
-    passEncoder.setPipeline(temporalPipeline);
-    passEncoder.setBindGroup(1, temporalBindGroup);
+    passEncoder.setPipeline(pipeline);
+    passEncoder.setBindGroup(1, lightConfigBindGroup);
     passEncoder.dispatchWorkgroups(
-      Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
-      Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
+      Math.ceil(downscaledWidth / 8),
+      Math.ceil(downscaledHeight / 8),
       1,
     );
 
-    passEncoder.setBindGroup(1, spatialBindGroup);
-    passEncoder.setPipeline(spatialPipeline);
-    passEncoder.dispatchWorkgroups(
-      Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
-      Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
-      1,
-    );
+    // passEncoder.setBindGroup(1, spatialBindGroup);
+    // passEncoder.setPipeline(spatialPipeline);
+    // passEncoder.dispatchWorkgroups(
+    //   Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
+    //   Math.ceil(outputTextures.finalTexture.height / 8 / DOWNSCALE_FACTOR),
+    //   1,
+    // );
 
     passEncoder.setPipeline(compositePipeline);
     passEncoder.setBindGroup(1, lightConfigBindGroup);
     passEncoder.dispatchWorkgroups(
       Math.ceil(outputTextures.finalTexture.width / 8),
-      Math.ceil(outputTextures.finalTexture.width / 8),
+      Math.ceil(outputTextures.finalTexture.height / 8),
       1,
     );
     passEncoder.end();
@@ -590,5 +604,9 @@ ${lightsCompute}`;
     commandEncoder.clearBuffer(lightPixelBuffer, 0, lightPixelBuffer.size);
   };
 
-  return { render, label: "lights" };
+  return {
+    render,
+    label: "lights",
+    timestampLabels: ["lights", "temporal + composite"],
+  };
 };

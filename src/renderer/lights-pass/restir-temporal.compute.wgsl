@@ -47,15 +47,55 @@ struct LightPixel {
   lightIndex: u32,
 }
 
-const NEIGHBOUR_OFFSETS = array<vec2<i32>, 4>(
-  vec2<i32>(-1, 0),
-  vec2<i32>(1, 0),
-  vec2<i32>(0, -1),
-  vec2<i32>(0, 1)
-);
-
 const DISTANCE_THRESHOLD = 100.0;
-const SAMPLE_BLEND_FACTOR = 0.95;
+const SAMPLE_BLEND_FACTOR = 0.9;
+
+// Given a pixel and 4 closest neighbors, interpolate the light
+fn bilinearLightContribution(pixel: vec2<f32>, resolution: vec2<u32>) -> vec3<f32> {
+  let p0 = vec2<u32>(pixel);
+  let p1 = vec2(p0.x + 1, p0.y);
+  let p2 = vec2(p0.x, p0.y + 1);
+  let p3 = vec2(p0.x + 1, p0.y + 1);
+
+  let t = fract(pixel);
+
+  let i0 = convert2DTo1D(resolution.x, p0);
+  let i1 = convert2DTo1D(resolution.x, p1);
+  let i2 = convert2DTo1D(resolution.x, p2);
+  let i3 = convert2DTo1D(resolution.x, p3);
+
+  let c0 = previousPixelBuffer[i0].contribution;
+  let c1 = previousPixelBuffer[i1].contribution;
+  let c2 = previousPixelBuffer[i2].contribution;
+  let c3 = previousPixelBuffer[i3].contribution;
+
+  let bottom = mix(c0, c1, t.x);
+  let top = mix(c2, c3, t.x);
+  return mix(bottom, top, t.y);
+}
+
+fn bilinearReservoirWeight(pixel: vec2<f32>, resolution: vec2<u32>) -> f32 {
+  let p0 = vec2<u32>(pixel);
+  let p1 = vec2<u32>(p0.x + 1, p0.y);
+  let p2 = vec2<u32>(p0.x, p0.y + 1);
+  let p3 = vec2<u32>(p0.x + 1, p0.y + 1);
+
+  let t = fract(pixel);
+
+  let i0 = convert2DTo1D(resolution.x, p0);
+  let i1 = convert2DTo1D(resolution.x, p1);
+  let i2 = convert2DTo1D(resolution.x, p2);
+  let i3 = convert2DTo1D(resolution.x, p3);
+
+  let w0 = previousPixelBuffer[i0].weight;
+  let w1 = previousPixelBuffer[i1].weight;
+  let w2 = previousPixelBuffer[i2].weight;
+  let w3 = previousPixelBuffer[i3].weight;
+
+  let bottom = mix(w0, w1, t.x);
+  let top = mix(w2, w3, t.x);
+  return mix(bottom, top, t.y);
+}
 
 @compute @workgroup_size(8,8,1)
 fn main(
@@ -65,36 +105,34 @@ fn main(
   let resolution = textureDimensions(inputTex);
   let downscaledResolution = resolution / DOWN_SAMPLE_FACTOR;
 
-  var pixel = vec2<i32>((vec2<f32>(downscaledPixel) + vec2(0.5)) * DOWN_SAMPLE_FACTOR);
-  let uv = vec2<f32>(pixel) / vec2<f32>(resolution);
-  let velocity = textureLoad(velocityTex, pixel, 0).xy;
-//  let velocity = vec2(0.0);
-  let worldPos = textureLoad(worldPosTex, pixel, 0).xyz;
+  var pixel = vec2<f32>(downscaledPixel) * f32(DOWN_SAMPLE_FACTOR);
+  let uv = pixel / vec2<f32>(resolution);
+  let velocity = textureLoad(velocityTex, vec2<u32>(pixel), 0).xy;
 
-  let pixelVelocity = velocity * vec2<f32>(resolution);
   let previousUv = uv - velocity;
-  let previousPixel = vec2<u32>(previousUv * vec2<f32>(resolution));
-  let previousDownscaledPixel = vec2<u32>(previousUv * vec2<f32>(downscaledResolution));
-  let worldPosAtPrevious = textureLoad(worldPosTex, vec2<u32>(previousPixel), 0).xyz;
-
+  let previousPixel = previousUv * vec2<f32>(resolution);
+  let previousDownscaledPixel = previousUv * vec2<f32>(downscaledResolution);
 
   let index = convert2DTo1D(downscaledResolution.x, downscaledPixel);
   let previousIndex = convert2DTo1D(downscaledResolution.x, vec2<u32>(previousDownscaledPixel));
 
-  if(distance(worldPos, worldPosAtPrevious) > DISTANCE_THRESHOLD){
-    return;
-  }
+//  let worldPos = textureLoad(worldPosTex, pixel, 0).xyz;
+//  let worldPosAtPrevious = textureLoad(worldPosTex, vec2<u32>(previousPixel), 0).xyz;
+//  if(distance(worldPos, worldPosAtPrevious) > DISTANCE_THRESHOLD){
+//    return;
+//  }
 
   var previousLightPixel = previousPixelBuffer[previousIndex];
   let previousCount = previousLightPixel.sampleCount;
+  let previousWeight = bilinearReservoirWeight(previousDownscaledPixel, downscaledResolution);
 
-  if(previousLightPixel.weight > pixelBuffer[index].weight){
-    pixelBuffer[index].contribution = previousLightPixel.contribution;
-    pixelBuffer[index].weight = previousLightPixel.weight;
+  if(previousWeight > pixelBuffer[index].weight){
+    pixelBuffer[index].contribution = bilinearLightContribution(previousDownscaledPixel, downscaledResolution);
+    pixelBuffer[index].weight = previousWeight;
     pixelBuffer[index].lightIndex = previousLightPixel.lightIndex;
   }
   pixelBuffer[index].sampleCount += previousCount;
-  if(pixelBuffer[index].sampleCount > 128){
+  if(pixelBuffer[index].sampleCount > MAX_SAMPLES){
     pixelBuffer[index].contribution = pixelBuffer[index].contribution * SAMPLE_BLEND_FACTOR;
     pixelBuffer[index].sampleCount = u32(f32(pixelBuffer[index].sampleCount) * SAMPLE_BLEND_FACTOR);
     pixelBuffer[index].weight *= SAMPLE_BLEND_FACTOR;
