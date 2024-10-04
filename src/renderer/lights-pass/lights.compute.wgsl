@@ -62,6 +62,14 @@ const LINEAR_ATTENUATION = 0.1;
 const QUADRATIC_ATTENUATION = 0.1;
 const LIGHT_COUNT = 25;
 const SAMPLE_BLEND_FACTOR = 0.95;
+const SAMPLES_PER_FRAME = 8;
+
+fn getLightWeight(light: Light, worldPos: vec3<f32>) -> f32 {
+  let lightDir = light.position - worldPos;
+  let d = length(lightDir);
+  let attenuation = lightConfig.constantAttenuation + lightConfig.linearAttenuation * d + lightConfig.quadraticAttenuation * d * d;
+  return (1.0 / attenuation) * length(light.color);
+}
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
@@ -69,6 +77,12 @@ fn main(
 ) {
   let pixel = id.xy;
   var blueNoisePixel = vec2<i32>(id.xy);
+  let downscaledPixelOrigin = vec2<u32>(id.xy) * DOWN_SAMPLE_FACTOR;
+  let downscaledPixel = vec2<u32>(id.xy);
+  let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
+  let worldPos = textureLoad(worldPosTex, downscaledPixel, 0).xyz;
+  let normal = textureLoad(normalTex, downscaledPixel, 0).xyz;
+  let pixelBufferIndex = convert2DTo1D(downscaledResolution.x, pixel);
 
   let frameOffsetX = (i32(time.frame) * 92821 + 71413) % 512;  // Large prime numbers for frame variation
   let frameOffsetY = (i32(time.frame) * 13761 + 511) % 512;    // Different prime numbers
@@ -76,53 +90,38 @@ fn main(
   blueNoisePixel.y += frameOffsetY;
   let r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy;
 
-  let lightIndex = u32(r.x * f32(LIGHT_COUNT));
+//  var bestWeight = -10000.0;
+//  var lightIndex = 0u;
+//  for(var i = 0; i < SAMPLES_PER_FRAME; i++){
+//    let iterOffsetX = (i * 193) % 512; // Large prime numbers for frame variation
+//    let iterOffsetY = (i * 257) % 512; // Different prime numbers
+//    let sampleR = textureLoad(blueNoiseTex, (blueNoisePixel + vec2(iterOffsetX, iterOffsetY)) % 512, 0).xy;
+//    let sampleLightIndex = u32(sampleR.x * f32(LIGHT_COUNT));
+//    let light = lightsBuffer[sampleLightIndex];
+//    let jitteredLightPosition = light.position + randomInUnitSphere(r);
+//    let lightDir = jitteredLightPosition - worldPos;
+//    let d = length(lightDir);
+//    let attenuation = lightConfig.constantAttenuation + lightConfig.linearAttenuation * d + lightConfig.quadraticAttenuation * d * d;
+//    var weight = (1.0 / attenuation) * length(light.color);
+//    if(weight > bestWeight){
+//      bestWeight = weight;
+//      lightIndex = sampleLightIndex;
+//    }
+//  }
 
-  // alternate through 4x4 grid of pixels based on frame index
-  let frameIndex = time.frame % (DOWN_SAMPLE_FACTOR * DOWN_SAMPLE_FACTOR);
-  let x = frameIndex % DOWN_SAMPLE_FACTOR;
-  let y = frameIndex / DOWN_SAMPLE_FACTOR;
-  let downscaledPixelOrigin = vec2<u32>(id.xy) * DOWN_SAMPLE_FACTOR;
-  let downscaledPixel = downscaledPixelOrigin + vec2<u32>(x, y);
-  let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
-  let worldPos = textureLoad(worldPosTex, downscaledPixel, 0).xyz;
-  let normal = textureLoad(normalTex, downscaledPixel, 0).xyz;
+  let light = lightsBuffer[0];
+  let lightDir = light.position - worldPos;
+  let weight = getLightWeight(light, worldPos);
 
-  let light = lightsBuffer[lightIndex];
-  let jitteredLightPosition = light.position + randomInUnitSphere(r);
+//  let raymarchResult = rayMarchBVH(worldPos + normal * 0.001, normalize(lightDir));
+//  if(raymarchResult.hit){
+//      bestWeight = 0.0;
+//  }
 
-  let lightDir = jitteredLightPosition - worldPos;
-  let d = length(lightDir);
-
-  let attenuation = lightConfig.constantAttenuation + lightConfig.linearAttenuation * d + lightConfig.quadraticAttenuation * d * d;
-  var intensity = (1.0 / attenuation) * length(light.color);
-
-  let pixelBufferIndex = convert2DTo1D(downscaledResolution.x, pixel);
-  pixelBuffer[pixelBufferIndex].sampleCount += 1;
-
-  let isSky = distance(worldPos, cameraPosition) > 10000.0;
-  let hasExceededSampleCount = pixelBuffer[pixelBufferIndex].sampleCount >= MAX_SAMPLES;
-
-  if(isSky || hasExceededSampleCount){
-    pixelBuffer[pixelBufferIndex].weight *= SAMPLE_BLEND_FACTOR;
-    pixelBuffer[pixelBufferIndex].sampleCount = u32(f32(pixelBuffer[pixelBufferIndex].sampleCount) * SAMPLE_BLEND_FACTOR);
-    pixelBuffer[pixelBufferIndex].sampleCount = clamp(pixelBuffer[pixelBufferIndex].sampleCount, 1, MAX_SAMPLES);
-    return;
-  }
-
-  let raymarchResult = rayMarchBVH(worldPos + normal * 0.001, normalize(lightDir));
-
-  if(raymarchResult.hit){
-      intensity = 0.0;
-  }
-
-  let newWeight = intensity;
-  let currentWeight = pixelBuffer[pixelBufferIndex].weight;
-  if(newWeight > currentWeight){
-    pixelBuffer[pixelBufferIndex].weight = newWeight;
-    pixelBuffer[pixelBufferIndex].contribution = intensity * normalize(light.color);
-    pixelBuffer[pixelBufferIndex].lightIndex = lightIndex;
-  }
+  pixelBuffer[pixelBufferIndex].weight = weight;
+  pixelBuffer[pixelBufferIndex].contribution = weight * normalize(light.color);
+  pixelBuffer[pixelBufferIndex].lightIndex = 0;
+  pixelBuffer[pixelBufferIndex].sampleCount = SAMPLES_PER_FRAME;
 }
 
 // Given a pixel and 4 closest neighbors, interpolate the light
@@ -236,29 +235,23 @@ fn composite(
   blueNoisePixel.x += frameOffsetX;
   blueNoisePixel.y += frameOffsetY;
   var r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy * DOWN_SAMPLE_FACTOR;
-//  let jitteredPixel = vec2<u32>(vec2<i32>(pixel) + vec2<i32>(r));
-  let jitteredPixel = pixel;
 
-  var downscaledPixel = jitteredPixel / DOWN_SAMPLE_FACTOR;
+  var downscaledPixel = pixel / DOWN_SAMPLE_FACTOR;
   let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
   let index = convert2DTo1D(downscaledResolution.x, downscaledPixel);
 
   var diffuse = vec3<f32>(0.0);
   let normalRef = textureLoad(normalTex, pixel, 0).xyz;
   let worldPos = textureLoad(worldPosTex, pixel, 0).xyz;
-  var normalWeights = 0.0;
-
 
   let lightIndex = pixelBuffer[index].lightIndex;
-//  diffuse = bilinearLightContribution(jitteredPixel, downscaledResolution);
-//  let finalWeightSum = bilinearReservoirWeight(jitteredPixel, downscaledResolution);
+//  diffuse = bilinearLightContribution(pixel, downscaledResolution);
+//  let finalWeightSum = bilinearReservoirWeight(pixel, downscaledResolution);
 //  let lightPosition = bilinearLightPosition(pixel, downscaledResolution);
 
   diffuse = pixelBuffer[index].contribution;
   let finalWeightSum = pixelBuffer[index].weight;
   let lightPosition = lightsBuffer[lightIndex].position;
-
-  let finalSampleCount = pixelBuffer[index].sampleCount;
   let lightDir = normalize(lightPosition - worldPos);
   let nDotL = dot(normalRef, lightDir);
   diffuse *= nDotL;
@@ -270,7 +263,7 @@ fn composite(
   let specularIntensity = pow(max(dot(normalRef, halfDir), 0.0), shininess);
   let specular = specularStrength * specularIntensity * vec3<f32>(1.0);
 
-  var lightProbability = bilinearLightProbability(jitteredPixel, downscaledResolution);
+  var lightProbability = bilinearLightProbability(pixel, downscaledResolution);
   diffuse = diffuse * finalWeightSum * lightProbability;
 
   // Composite the light

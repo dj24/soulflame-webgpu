@@ -116,7 +116,11 @@ fn main(
   let index = convert2DTo1D(downscaledResolution.x, downscaledPixel);
   let previousIndex = convert2DTo1D(downscaledResolution.x, vec2<u32>(previousDownscaledPixel));
 
-//  let worldPos = textureLoad(worldPosTex, pixel, 0).xyz;
+  let worldPos = textureLoad(worldPosTex, vec2<u32>(pixel), 0).xyz;
+
+  if(distance(cameraPosition, worldPos) > 10000.0){
+    return;
+  }
 //  let worldPosAtPrevious = textureLoad(worldPosTex, vec2<u32>(previousPixel), 0).xyz;
 //  if(distance(worldPos, worldPosAtPrevious) > DISTANCE_THRESHOLD){
 //    return;
@@ -131,10 +135,10 @@ fn main(
     pixelBuffer[index].weight = previousWeight;
     pixelBuffer[index].lightIndex = previousLightPixel.lightIndex;
   }
-  pixelBuffer[index].sampleCount += previousCount;
-  if(pixelBuffer[index].sampleCount > MAX_SAMPLES){
+  else if(pixelBuffer[index].sampleCount > MAX_SAMPLES){
     pixelBuffer[index].contribution = pixelBuffer[index].contribution * SAMPLE_BLEND_FACTOR;
     pixelBuffer[index].sampleCount = u32(f32(pixelBuffer[index].sampleCount) * SAMPLE_BLEND_FACTOR);
     pixelBuffer[index].weight *= SAMPLE_BLEND_FACTOR;
   }
+   pixelBuffer[index].sampleCount += previousCount;
 }

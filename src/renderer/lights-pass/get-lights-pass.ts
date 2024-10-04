@@ -540,8 +540,8 @@ ${lightsCompute}`;
     );
 
     passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.setPipeline(temporalPipeline);
-    passEncoder.setBindGroup(1, temporalBindGroup);
+    passEncoder.setPipeline(pipeline);
+    passEncoder.setBindGroup(1, lightConfigBindGroup);
     passEncoder.dispatchWorkgroups(
       Math.ceil(downscaledWidth / 8),
       Math.ceil(downscaledHeight / 8),
@@ -558,23 +558,34 @@ ${lightsCompute}`;
       lightPixelBuffer.size,
     );
 
+    // passEncoder = commandEncoder.beginComputePass({
+    //   timestampWrites: {
+    //     querySet: timestampWrites.querySet,
+    //     beginningOfPassWriteIndex:
+    //       timestampWrites.beginningOfPassWriteIndex + 2,
+    //     endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 2,
+    //   },
+    // });
+    //
+    // passEncoder.setBindGroup(0, bindGroup);
+    // passEncoder.setPipeline(temporalPipeline);
+    // passEncoder.setBindGroup(1, temporalBindGroup);
+    // passEncoder.dispatchWorkgroups(
+    //   Math.ceil(downscaledWidth / 8),
+    //   Math.ceil(downscaledHeight / 8),
+    //   1,
+    // );
+    //
+    // passEncoder.end();
+
     passEncoder = commandEncoder.beginComputePass({
       timestampWrites: {
         querySet: timestampWrites.querySet,
         beginningOfPassWriteIndex:
-          timestampWrites.beginningOfPassWriteIndex + 2,
-        endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 2,
+          timestampWrites.beginningOfPassWriteIndex + 4,
+        endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 4,
       },
     });
-
-    passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.setPipeline(pipeline);
-    passEncoder.setBindGroup(1, lightConfigBindGroup);
-    passEncoder.dispatchWorkgroups(
-      Math.ceil(downscaledWidth / 8),
-      Math.ceil(downscaledHeight / 8),
-      1,
-    );
 
     // passEncoder.setBindGroup(1, spatialBindGroup);
     // passEncoder.setPipeline(spatialPipeline);
@@ -585,6 +596,7 @@ ${lightsCompute}`;
     // );
 
     passEncoder.setPipeline(compositePipeline);
+    passEncoder.setBindGroup(0, bindGroup);
     passEncoder.setBindGroup(1, lightConfigBindGroup);
     passEncoder.dispatchWorkgroups(
       Math.ceil(outputTextures.finalTexture.width / 8),
@@ -607,6 +619,10 @@ ${lightsCompute}`;
   return {
     render,
     label: "lights",
-    timestampLabels: ["lights", "temporal + composite"],
+    timestampLabels: [
+      "restir lights",
+      // "restir temporal",
+      "restir composite",
+    ],
   };
 };
