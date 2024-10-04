@@ -155,8 +155,8 @@ const LIGHT_SIZE = 5;
 const LIGHT_INTENSITY = 2000;
 //
 
-for (let x = 0; x <= 512; x += 128) {
-  for (let z = 0; z <= 512; z += 128) {
+for (let x = 0; x <= 512; x += 96) {
+  for (let z = 0; z <= 512; z += 96) {
     lights.push({
       position: [x, 64, z],
       size: LIGHT_SIZE,

@@ -15,8 +15,9 @@ export type Light = {
 };
 
 const LIGHT_BUFFER_STRIDE = 32;
-const DOWNSCALE_FACTOR = 4;
-const MAX_SAMPLES = 32;
+const DOWNSCALE_FACTOR = 3;
+const RESERVOIR_DECAY = 0.5;
+const MAX_SAMPLES = 128;
 
 export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   const bindGroupLayout = device.createBindGroupLayout({
@@ -195,6 +196,7 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   const code = `
 const DOWN_SAMPLE_FACTOR = ${DOWNSCALE_FACTOR};
 const MAX_SAMPLES = ${MAX_SAMPLES};
+const RESERVOIR_DECAY = ${RESERVOIR_DECAY};
 @group(0) @binding(7) var<storage, read> octreeBuffer : array<vec2<u32>>;
 @group(0) @binding(8) var<storage> voxelObjects : array<VoxelObject>;
 @group(0) @binding(9) var<storage> bvhNodes: array<BVHNode>;
@@ -232,6 +234,7 @@ ${lightsCompute}`;
         code: `
             const DOWN_SAMPLE_FACTOR = ${DOWNSCALE_FACTOR};
             const MAX_SAMPLES = ${MAX_SAMPLES};
+            const RESERVOIR_DECAY = ${RESERVOIR_DECAY};
             @group(0) @binding(7) var<storage, read> octreeBuffer : array<vec2<u32>>;
             @group(0) @binding(8) var<storage> voxelObjects : array<VoxelObject>;
             @group(0) @binding(9) var<storage> bvhNodes: array<BVHNode>;
@@ -254,6 +257,7 @@ ${lightsCompute}`;
         code: `
             const DOWN_SAMPLE_FACTOR = ${DOWNSCALE_FACTOR};
             const MAX_SAMPLES = ${MAX_SAMPLES};
+            const RESERVOIR_DECAY = ${RESERVOIR_DECAY};
             ${restirTemporal}`,
       }),
       entryPoint: "main",
@@ -530,8 +534,6 @@ ${lightsCompute}`;
     }
     device.queue.writeBuffer(lightBuffer, 0, arrayBuffer);
 
-    let passEncoder = commandEncoder.beginComputePass({ timestampWrites });
-
     const downscaledWidth = Math.ceil(
       outputTextures.finalTexture.width / DOWNSCALE_FACTOR,
     );
@@ -539,17 +541,105 @@ ${lightsCompute}`;
       outputTextures.finalTexture.height / DOWNSCALE_FACTOR,
     );
 
-    passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.setPipeline(pipeline);
-    passEncoder.setBindGroup(1, lightConfigBindGroup);
-    passEncoder.dispatchWorkgroups(
-      Math.ceil(downscaledWidth / 8),
-      Math.ceil(downscaledHeight / 8),
-      1,
-    );
+    let passWriteOffset = 0;
 
-    passEncoder.end();
+    let passEncoder: GPUComputePassEncoder;
 
+    const temporalPass = () => {
+      passEncoder = commandEncoder.beginComputePass({
+        label: "temporal",
+        timestampWrites: {
+          querySet: timestampWrites.querySet,
+          beginningOfPassWriteIndex:
+            timestampWrites.beginningOfPassWriteIndex + passWriteOffset,
+          endOfPassWriteIndex:
+            timestampWrites.endOfPassWriteIndex + passWriteOffset,
+        },
+      });
+      passEncoder.setBindGroup(0, bindGroup);
+      passEncoder.setPipeline(temporalPipeline);
+      passEncoder.setBindGroup(1, temporalBindGroup);
+      passEncoder.dispatchWorkgroups(
+        Math.ceil(downscaledWidth / 8),
+        Math.ceil(downscaledHeight / 8),
+        1,
+      );
+      passEncoder.end();
+      passWriteOffset += 2;
+    };
+
+    const compositePass = () => {
+      passEncoder = commandEncoder.beginComputePass({
+        label: "composite-pass",
+        timestampWrites: {
+          querySet: timestampWrites.querySet,
+          beginningOfPassWriteIndex:
+            timestampWrites.beginningOfPassWriteIndex + passWriteOffset,
+          endOfPassWriteIndex:
+            timestampWrites.endOfPassWriteIndex + passWriteOffset,
+        },
+      });
+      passEncoder.setPipeline(compositePipeline);
+      passEncoder.setBindGroup(0, bindGroup);
+      passEncoder.setBindGroup(1, lightConfigBindGroup);
+      passEncoder.dispatchWorkgroups(
+        Math.ceil(outputTextures.finalTexture.width / 8),
+        Math.ceil(outputTextures.finalTexture.height / 8),
+        1,
+      );
+      passEncoder.end();
+      passWriteOffset += 2;
+    };
+
+    const sampleLightsPass = () => {
+      passEncoder = commandEncoder.beginComputePass({
+        label: "sample-lights",
+        timestampWrites: {
+          querySet: timestampWrites.querySet,
+          beginningOfPassWriteIndex:
+            timestampWrites.beginningOfPassWriteIndex + passWriteOffset,
+          endOfPassWriteIndex:
+            timestampWrites.endOfPassWriteIndex + passWriteOffset,
+        },
+      });
+      passEncoder.setBindGroup(0, bindGroup);
+      passEncoder.setPipeline(pipeline);
+      passEncoder.setBindGroup(1, lightConfigBindGroup);
+      passEncoder.dispatchWorkgroups(
+        Math.ceil(downscaledWidth / 8),
+        Math.ceil(downscaledHeight / 8),
+        1,
+      );
+
+      passEncoder.end();
+      passWriteOffset += 2;
+    };
+
+    const spatialPass = () => {
+      passEncoder = commandEncoder.beginComputePass({
+        label: "spatial-pass",
+        timestampWrites: {
+          querySet: timestampWrites.querySet,
+          beginningOfPassWriteIndex:
+            timestampWrites.beginningOfPassWriteIndex + passWriteOffset,
+          endOfPassWriteIndex:
+            timestampWrites.endOfPassWriteIndex + passWriteOffset,
+        },
+      });
+      passEncoder.setBindGroup(0, bindGroup);
+      passEncoder.setBindGroup(1, spatialBindGroup);
+      passEncoder.setPipeline(spatialPipeline);
+      passEncoder.dispatchWorkgroups(
+        Math.ceil(downscaledWidth / 8),
+        Math.ceil(downscaledHeight / 8),
+        1,
+      );
+      passEncoder.end();
+      passWriteOffset += 2;
+    };
+
+    sampleLightsPass();
+    temporalPass();
     commandEncoder.copyBufferToBuffer(
       lightPixelBuffer,
       0,
@@ -557,54 +647,8 @@ ${lightsCompute}`;
       0,
       lightPixelBuffer.size,
     );
-
-    // passEncoder = commandEncoder.beginComputePass({
-    //   timestampWrites: {
-    //     querySet: timestampWrites.querySet,
-    //     beginningOfPassWriteIndex:
-    //       timestampWrites.beginningOfPassWriteIndex + 2,
-    //     endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 2,
-    //   },
-    // });
-    //
-    // passEncoder.setBindGroup(0, bindGroup);
-    // passEncoder.setPipeline(temporalPipeline);
-    // passEncoder.setBindGroup(1, temporalBindGroup);
-    // passEncoder.dispatchWorkgroups(
-    //   Math.ceil(downscaledWidth / 8),
-    //   Math.ceil(downscaledHeight / 8),
-    //   1,
-    // );
-    //
-    // passEncoder.end();
-
-    passEncoder = commandEncoder.beginComputePass({
-      timestampWrites: {
-        querySet: timestampWrites.querySet,
-        beginningOfPassWriteIndex:
-          timestampWrites.beginningOfPassWriteIndex + 4,
-        endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 4,
-      },
-    });
-
-    // passEncoder.setBindGroup(1, spatialBindGroup);
-    // passEncoder.setPipeline(spatialPipeline);
-    // passEncoder.dispatchWorkgroups(
-    //   Math.ceil(outputTextures.finalTexture.width / 8 / DOWNSCALE_FACTOR),
-    //   Math.ceil(outputTextures.finalTexture.height / 8 / DOWNSCALE_FACTOR),
-    //   1,
-    // );
-
-    passEncoder.setPipeline(compositePipeline);
-    passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.setBindGroup(1, lightConfigBindGroup);
-    passEncoder.dispatchWorkgroups(
-      Math.ceil(outputTextures.finalTexture.width / 8),
-      Math.ceil(outputTextures.finalTexture.height / 8),
-      1,
-    );
-    passEncoder.end();
-
+    spatialPass();
+    compositePass();
     commandEncoder.copyBufferToBuffer(
       lightPixelBuffer,
       0,
@@ -612,8 +656,12 @@ ${lightsCompute}`;
       0,
       lightPixelBuffer.size,
     );
-
     commandEncoder.clearBuffer(lightPixelBuffer, 0, lightPixelBuffer.size);
+    commandEncoder.clearBuffer(
+      copyLightPixelBuffer,
+      0,
+      copyLightPixelBuffer.size,
+    );
   };
 
   return {
@@ -621,7 +669,8 @@ ${lightsCompute}`;
     label: "lights",
     timestampLabels: [
       "restir lights",
-      // "restir temporal",
+      "restir temporal",
+      "restir spatial",
       "restir composite",
     ],
   };

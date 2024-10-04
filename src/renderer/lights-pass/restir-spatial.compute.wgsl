@@ -47,19 +47,14 @@ struct LightPixel {
   lightIndex: u32,
 }
 
-const NEIGHBOUR_OFFSETS = array<vec2<i32>, 8>(
-  vec2<i32>(-1, -1),
-  vec2<i32>(0, -1),
-  vec2<i32>(1, -1),
+const NEIGHBOUR_OFFSETS = array<vec2<i32>, 4>(
   vec2<i32>(-1, 0),
   vec2<i32>(1, 0),
-  vec2<i32>(-1, 1),
-  vec2<i32>(0, 1),
-  vec2<i32>(1, 1)
+  vec2<i32>(0, -1),
+  vec2<i32>(0, 1)
 );
 
 const SAMPLE_RADIUS = 2.0;
-const SAMPLE_BLEND_FACTOR = 0.95;
 
 @compute @workgroup_size(8,8,1)
 fn spatial(
@@ -69,44 +64,34 @@ fn spatial(
   let pixel = downscaledPixel * DOWN_SAMPLE_FACTOR;
   let normalRef = textureLoad(normalTex, pixel, 0).xyz;
   let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
+  let index = convert2DTo1D(downscaledResolution.x, id.xy);
   let uv = (vec2<f32>(downscaledPixel) + vec2(0.5)) / vec2<f32>(downscaledResolution);
-  if(uv.x < 0.5){
+  if(uv.y > 0.66){
     return;
   }
 
-  var blueNoisePixel = vec2<i32>(id.xy);
-  let index = convert2DTo1D(downscaledResolution.x, id.xy);
-  let frameOffsetX = (i32(time.frame) * 92821 + 71413) % 512;  // Large prime numbers for frame variation
-  let frameOffsetY = (i32(time.frame) * 13761 + 511) % 512;    // Different prime numbers
-  blueNoisePixel.x += frameOffsetX;
-  blueNoisePixel.y += frameOffsetY;
-
-  for(var i = 0; i < 8; i++){
-    let iterOffsetX = (i * 193) % 512; // Large prime numbers for frame variation
-    let iterOffsetY = (i * 257) % 512; // Different prime numbers
-    let r = textureLoad(blueNoiseTex, (blueNoisePixel + vec2(iterOffsetX, iterOffsetY)) % 512, 0).xy;
-    let offset = vec2<i32>((r * 2.0 - 1.0) * SAMPLE_RADIUS);
-//    let offset = NEIGHBOUR_OFFSETS[i];
-
-    let normal = textureLoad(normalTex, vec2<i32>(pixel) + offset * DOWN_SAMPLE_FACTOR, 0).xyz;
-    let normalWeight = max(dot(normal, normalRef), 0.0);
-
+  for(var i = 0; i < 4; i++){
+    let offset = NEIGHBOUR_OFFSETS[i];
     let neighbor = clamp(vec2<i32>(downscaledPixel) + offset, vec2<i32>(0), vec2<i32>(downscaledResolution - vec2<u32>(1)));
     let neighborIndex = convert2DTo1D(downscaledResolution.x,vec2<u32>(neighbor));
-
-    let sampleWeight =  normalWeight;
-
-    let neighborContribution = inputPixelBuffer[neighborIndex].contribution * sampleWeight;
-    let neighborWeight = inputPixelBuffer[neighborIndex].weight * sampleWeight;
+    let neighborContribution = inputPixelBuffer[neighborIndex].contribution;
+    let neighborWeight = inputPixelBuffer[neighborIndex].weight;
+    let neighborCount = inputPixelBuffer[neighborIndex].sampleCount;
     let currentWeight = inputPixelBuffer[index].weight;
     let currentSampleCount = inputPixelBuffer[index].sampleCount;
 
     if(neighborWeight > currentWeight){
-       outputPixelBuffer[index].contribution = neighborContribution;
-       outputPixelBuffer[index].weight = neighborWeight;
+      let totalWeight = currentWeight + neighborWeight;
+      let normalizedNeighborWeight = neighborWeight / totalWeight;
+       outputPixelBuffer[index].contribution = mix(inputPixelBuffer[index].contribution, neighborContribution, normalizedNeighborWeight);
+       outputPixelBuffer[index].weight = totalWeight;
        outputPixelBuffer[index].lightIndex = inputPixelBuffer[index].lightIndex;
-       outputPixelBuffer[index].sampleCount = inputPixelBuffer[neighborIndex].sampleCount;
+       outputPixelBuffer[index].sampleCount += u32(f32(neighborCount) * normalizedNeighborWeight);
     }
-    outputPixelBuffer[index].sampleCount+= currentSampleCount;
   }
+   if(outputPixelBuffer[index].sampleCount > MAX_SAMPLES){
+      outputPixelBuffer[index].contribution = outputPixelBuffer[index].contribution * RESERVOIR_DECAY;
+      outputPixelBuffer[index].sampleCount = u32(f32(outputPixelBuffer[index].sampleCount) * RESERVOIR_DECAY);
+      outputPixelBuffer[index].weight *= RESERVOIR_DECAY;
+    }
 }

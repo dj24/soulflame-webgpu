@@ -48,7 +48,6 @@ struct LightPixel {
 }
 
 const DISTANCE_THRESHOLD = 100.0;
-const SAMPLE_BLEND_FACTOR = 0.9;
 
 // Given a pixel and 4 closest neighbors, interpolate the light
 fn bilinearLightContribution(pixel: vec2<f32>, resolution: vec2<u32>) -> vec3<f32> {
@@ -106,12 +105,18 @@ fn main(
   let downscaledResolution = resolution / DOWN_SAMPLE_FACTOR;
 
   var pixel = vec2<f32>(downscaledPixel) * f32(DOWN_SAMPLE_FACTOR);
-  let uv = pixel / vec2<f32>(resolution);
-  let velocity = textureLoad(velocityTex, vec2<u32>(pixel), 0).xy;
 
-  let previousUv = uv - velocity;
-  let previousPixel = previousUv * vec2<f32>(resolution);
-  let previousDownscaledPixel = previousUv * vec2<f32>(downscaledResolution);
+  let uv = (vec2<f32>(downscaledPixel) + vec2(0.5)) / vec2<f32>(downscaledResolution);
+  if(uv.x < 0.5){
+    return;
+  }
+
+//  let velocity = textureLoad(velocityTex, vec2<u32>(pixel), 0).xy;
+  let velocity = vec2<f32>(0.0);
+  let pixelVelocity = velocity * vec2<f32>(resolution);
+  let downscaledPixelVelocity = pixelVelocity / f32(DOWN_SAMPLE_FACTOR);
+  let previousPixel = pixel - pixelVelocity;
+  let previousDownscaledPixel = vec2<f32>(downscaledPixel) - downscaledPixelVelocity;
 
   let index = convert2DTo1D(downscaledResolution.x, downscaledPixel);
   let previousIndex = convert2DTo1D(downscaledResolution.x, vec2<u32>(previousDownscaledPixel));
@@ -121,24 +126,25 @@ fn main(
   if(distance(cameraPosition, worldPos) > 10000.0){
     return;
   }
-//  let worldPosAtPrevious = textureLoad(worldPosTex, vec2<u32>(previousPixel), 0).xyz;
-//  if(distance(worldPos, worldPosAtPrevious) > DISTANCE_THRESHOLD){
-//    return;
-//  }
 
   var previousLightPixel = previousPixelBuffer[previousIndex];
   let previousCount = previousLightPixel.sampleCount;
   let previousWeight = bilinearReservoirWeight(previousDownscaledPixel, downscaledResolution);
+  let previousLightContribution = bilinearLightContribution(previousDownscaledPixel, downscaledResolution);
 
   if(previousWeight > pixelBuffer[index].weight){
-    pixelBuffer[index].contribution = bilinearLightContribution(previousDownscaledPixel, downscaledResolution);
-    pixelBuffer[index].weight = previousWeight;
+    let totalWeight = pixelBuffer[index].weight + previousWeight;
+    let normalizedPreviousWeight = previousWeight / totalWeight;
+    pixelBuffer[index].contribution = mix(pixelBuffer[index].contribution, previousLightContribution, normalizedPreviousWeight);
+    pixelBuffer[index].weight = totalWeight;
     pixelBuffer[index].lightIndex = previousLightPixel.lightIndex;
+    pixelBuffer[index].sampleCount += u32(f32(previousCount) * normalizedPreviousWeight);
   }
-  else if(pixelBuffer[index].sampleCount > MAX_SAMPLES){
-    pixelBuffer[index].contribution = pixelBuffer[index].contribution * SAMPLE_BLEND_FACTOR;
-    pixelBuffer[index].sampleCount = u32(f32(pixelBuffer[index].sampleCount) * SAMPLE_BLEND_FACTOR);
-    pixelBuffer[index].weight *= SAMPLE_BLEND_FACTOR;
+
+  if(pixelBuffer[index].sampleCount > MAX_SAMPLES){
+    pixelBuffer[index].contribution = pixelBuffer[index].contribution * RESERVOIR_DECAY;
+    pixelBuffer[index].sampleCount = u32(f32(pixelBuffer[index].sampleCount) * RESERVOIR_DECAY);
+    pixelBuffer[index].weight *= RESERVOIR_DECAY;
   }
-   pixelBuffer[index].sampleCount += previousCount;
+
 }
