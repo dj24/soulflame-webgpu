@@ -67,8 +67,9 @@ const SAMPLES_PER_FRAME = 8;
 fn getLightWeight(light: Light, worldPos: vec3<f32>) -> f32 {
   let lightDir = light.position - worldPos;
   let d = length(lightDir);
-  let attenuation = lightConfig.constantAttenuation + lightConfig.linearAttenuation * d + lightConfig.quadraticAttenuation * d * d;
-  return (1.0 / attenuation) * length(light.color);
+  return (1.0 / d) * 10000.0;
+//  let attenuation = lightConfig.constantAttenuation + lightConfig.linearAttenuation * d + lightConfig.quadraticAttenuation * d * d;
+//  return (1.0 / attenuation) * length(light.color);
 }
 
 @compute @workgroup_size(8, 8, 1)
@@ -90,28 +91,24 @@ fn main(
   blueNoisePixel.y += frameOffsetY;
   let r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy;
 
-//  var bestWeight = -10000.0;
-//  var lightIndex = 0u;
-//  for(var i = 0; i < SAMPLES_PER_FRAME; i++){
-//    let iterOffsetX = (i * 193) % 512; // Large prime numbers for frame variation
-//    let iterOffsetY = (i * 257) % 512; // Different prime numbers
-//    let sampleR = textureLoad(blueNoiseTex, (blueNoisePixel + vec2(iterOffsetX, iterOffsetY)) % 512, 0).xy;
-//    let sampleLightIndex = u32(sampleR.x * f32(LIGHT_COUNT));
-//    let light = lightsBuffer[sampleLightIndex];
-//    let jitteredLightPosition = light.position + randomInUnitSphere(r);
-//    let lightDir = jitteredLightPosition - worldPos;
-//    let d = length(lightDir);
-//    let attenuation = lightConfig.constantAttenuation + lightConfig.linearAttenuation * d + lightConfig.quadraticAttenuation * d * d;
-//    var weight = (1.0 / attenuation) * length(light.color);
-//    if(weight > bestWeight){
-//      bestWeight = weight;
-//      lightIndex = sampleLightIndex;
-//    }
-//  }
+  var bestWeight = -10000.0;
+  var lightIndex = 0u;
+  for(var i = 0; i < SAMPLES_PER_FRAME; i++){
+    let iterOffsetX = (i * 193) % 512; // Large prime numbers for frame variation
+    let iterOffsetY = (i * 257) % 512; // Different prime numbers
+    let sampleR = textureLoad(blueNoiseTex, (blueNoisePixel + vec2(iterOffsetX, iterOffsetY)) % 512, 0).xy;
+    let sampleLightIndex = u32(sampleR.x * f32(LIGHT_COUNT));
+    let light = lightsBuffer[sampleLightIndex];
+    var weight = getLightWeight(light, worldPos);
+    if(weight > bestWeight){
+      bestWeight = weight;
+      lightIndex = sampleLightIndex;
+    }
+  }
 
-  let light = lightsBuffer[0];
+  let light = lightsBuffer[lightIndex];
   let lightDir = light.position - worldPos;
-  let weight = getLightWeight(light, worldPos);
+  let weight = bestWeight;
 
 //  let raymarchResult = rayMarchBVH(worldPos + normal * 0.001, normalize(lightDir));
 //  if(raymarchResult.hit){
