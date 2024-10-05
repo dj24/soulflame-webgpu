@@ -15,7 +15,7 @@ export type Light = {
 };
 
 const LIGHT_BUFFER_STRIDE = 32;
-const DOWNSCALE_FACTOR = 3;
+const DOWNSCALE_FACTOR = 4;
 const RESERVOIR_DECAY = 0.5;
 const MAX_SAMPLES = 128;
 

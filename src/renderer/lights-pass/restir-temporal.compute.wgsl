@@ -107,7 +107,7 @@ fn main(
   var pixel = vec2<f32>(downscaledPixel) * f32(DOWN_SAMPLE_FACTOR);
 
   let uv = (vec2<f32>(downscaledPixel) + vec2(0.5)) / vec2<f32>(downscaledResolution);
-  if(uv.x < 0.5){
+  if(uv.x > 0.5){
     return;
   }
 
@@ -116,29 +116,31 @@ fn main(
   let pixelVelocity = velocity * vec2<f32>(resolution);
   let downscaledPixelVelocity = pixelVelocity / f32(DOWN_SAMPLE_FACTOR);
   let previousPixel = pixel - pixelVelocity;
+
+  if(any(previousPixel < vec2<f32>(0.0)) || any(previousPixel >= vec2<f32>(resolution))){
+    return;
+  }
+
   let previousDownscaledPixel = vec2<f32>(downscaledPixel) - downscaledPixelVelocity;
 
   let index = convert2DTo1D(downscaledResolution.x, downscaledPixel);
   let previousIndex = convert2DTo1D(downscaledResolution.x, vec2<u32>(previousDownscaledPixel));
-
-  let worldPos = textureLoad(worldPosTex, vec2<u32>(pixel), 0).xyz;
-
-  if(distance(cameraPosition, worldPos) > 10000.0){
-    return;
-  }
-
   var previousLightPixel = previousPixelBuffer[previousIndex];
   let previousCount = previousLightPixel.sampleCount;
-  let previousWeight = bilinearReservoirWeight(previousDownscaledPixel, downscaledResolution);
-  let previousLightContribution = bilinearLightContribution(previousDownscaledPixel, downscaledResolution);
+//  let previousWeight = bilinearReservoirWeight(previousDownscaledPixel, downscaledResolution);
+//  let previousLightContribution = bilinearLightContribution(previousDownscaledPixel, downscaledResolution);
+  let previousWeight = previousLightPixel.weight;
+  let previousLightContribution = previousLightPixel.contribution;
 
   if(previousWeight > pixelBuffer[index].weight){
     let totalWeight = pixelBuffer[index].weight + previousWeight;
     let normalizedPreviousWeight = previousWeight / totalWeight;
-    pixelBuffer[index].contribution = mix(pixelBuffer[index].contribution, previousLightContribution, normalizedPreviousWeight);
+    let normalizedCurrentWeight = pixelBuffer[index].weight / totalWeight;
+    pixelBuffer[index].contribution *= normalizedCurrentWeight;
+    pixelBuffer[index].contribution += previousLightContribution * normalizedPreviousWeight;
     pixelBuffer[index].weight = totalWeight;
     pixelBuffer[index].lightIndex = previousLightPixel.lightIndex;
-    pixelBuffer[index].sampleCount += u32(f32(previousCount) * normalizedPreviousWeight);
+    pixelBuffer[index].sampleCount += previousCount;
   }
 
   if(pixelBuffer[index].sampleCount > MAX_SAMPLES){

@@ -47,14 +47,19 @@ struct LightPixel {
   lightIndex: u32,
 }
 
-const NEIGHBOUR_OFFSETS = array<vec2<i32>, 4>(
+const NEIGHBOUR_OFFSETS = array<vec2<i32>, 8>(
   vec2<i32>(-1, 0),
   vec2<i32>(1, 0),
   vec2<i32>(0, -1),
-  vec2<i32>(0, 1)
+  vec2<i32>(0, 1),
+  vec2<i32>(-1, -1),
+  vec2<i32>(1, -1),
+  vec2<i32>(-1, 1),
+  vec2<i32>(1, 1)
 );
 
-const SAMPLE_RADIUS = 2.0;
+const SAMPLE_RADIUS = 2;
+const MAX_WEIGHT = 1.0;
 
 @compute @workgroup_size(8,8,1)
 fn spatial(
@@ -66,32 +71,59 @@ fn spatial(
   let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
   let index = convert2DTo1D(downscaledResolution.x, id.xy);
   let uv = (vec2<f32>(downscaledPixel) + vec2(0.5)) / vec2<f32>(downscaledResolution);
-  if(uv.y > 0.66){
+  if(uv.x < 0.5){
     return;
   }
 
-  for(var i = 0; i < 4; i++){
-    let offset = NEIGHBOUR_OFFSETS[i];
-    let neighbor = clamp(vec2<i32>(downscaledPixel) + offset, vec2<i32>(0), vec2<i32>(downscaledResolution - vec2<u32>(1)));
-    let neighborIndex = convert2DTo1D(downscaledResolution.x,vec2<u32>(neighbor));
-    let neighborContribution = inputPixelBuffer[neighborIndex].contribution;
-    let neighborWeight = inputPixelBuffer[neighborIndex].weight;
-    let neighborCount = inputPixelBuffer[neighborIndex].sampleCount;
-    let currentWeight = inputPixelBuffer[index].weight;
-    let currentSampleCount = inputPixelBuffer[index].sampleCount;
+  let worldPos = textureLoad(worldPosTex, vec2<u32>(pixel), 0).xyz;
+  if(distance(cameraPosition, worldPos) > 10000.0){
+    return;
+  }
 
-    if(neighborWeight > currentWeight){
-      let totalWeight = currentWeight + neighborWeight;
-      let normalizedNeighborWeight = neighborWeight / totalWeight;
-       outputPixelBuffer[index].contribution = mix(inputPixelBuffer[index].contribution, neighborContribution, normalizedNeighborWeight);
-       outputPixelBuffer[index].weight = totalWeight;
-       outputPixelBuffer[index].lightIndex = inputPixelBuffer[index].lightIndex;
-       outputPixelBuffer[index].sampleCount += u32(f32(neighborCount) * normalizedNeighborWeight);
+  let currentWeight = inputPixelBuffer[index].weight;
+  var accumulatedWeight = 0.0;
+  var accumulatedContribution = vec3<f32>(0.0);
+  var bestWeight = 0.0;
+  for(var x = -SAMPLE_RADIUS; x <= SAMPLE_RADIUS; x = x + 1){
+    for(var y = -SAMPLE_RADIUS; y <= SAMPLE_RADIUS; y = y + 1){
+      let offset = vec2<i32>(x, y);
+      let neighbor = vec2<i32>(downscaledPixel) + offset;
+      let neighborIndex = convert2DTo1D(downscaledResolution.x,vec2<u32>(neighbor));
+      let neighborContribution = inputPixelBuffer[neighborIndex].contribution;
+      let neighborWeight = inputPixelBuffer[neighborIndex].weight;
+      let neighborCount = inputPixelBuffer[neighborIndex].sampleCount;
+      let currentSampleCount = inputPixelBuffer[index].sampleCount;
+//      let normalSample = textureLoad(normalTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
+//      let normalDifference = dot(normalRef, normalSample);
+//      if(normalDifference < 0.5){
+//        continue;
+//      }
+
+      if(neighborWeight > currentWeight){
+        accumulatedWeight += neighborWeight;
+        accumulatedContribution += neighborContribution;
+        if(neighborWeight > bestWeight){
+          bestWeight = neighborWeight;
+          outputPixelBuffer[index].lightIndex = inputPixelBuffer[neighborIndex].lightIndex;
+        }
+      }
     }
   }
-   if(outputPixelBuffer[index].sampleCount > MAX_SAMPLES){
-      outputPixelBuffer[index].contribution = outputPixelBuffer[index].contribution * RESERVOIR_DECAY;
-      outputPixelBuffer[index].sampleCount = u32(f32(outputPixelBuffer[index].sampleCount) * RESERVOIR_DECAY);
-      outputPixelBuffer[index].weight *= RESERVOIR_DECAY;
-    }
+
+  if(accumulatedWeight <= 0.0){
+    return;
+  }
+
+  let totalWeight = currentWeight + accumulatedWeight;
+  let normalizedSpatialWeight = accumulatedWeight / totalWeight;
+  let normalizedCurrentWeight = currentWeight / totalWeight;
+  outputPixelBuffer[index].contribution *= normalizedCurrentWeight;
+  outputPixelBuffer[index].contribution += accumulatedContribution * normalizedSpatialWeight;
+
+
+  if(outputPixelBuffer[index].sampleCount > MAX_SAMPLES){
+    outputPixelBuffer[index].contribution = outputPixelBuffer[index].contribution * RESERVOIR_DECAY;
+    outputPixelBuffer[index].sampleCount = u32(f32(outputPixelBuffer[index].sampleCount) * RESERVOIR_DECAY);
+    outputPixelBuffer[index].weight *= RESERVOIR_DECAY;
+  }
 }
