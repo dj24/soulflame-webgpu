@@ -264,12 +264,12 @@ fn composite(
   let specularIntensity = pow(max(dot(normalRef, halfDir), 0.0), shininess);
   let specular = specularStrength * specularIntensity * vec3<f32>(1.0);
 
-  diffuse = diffuse * finalWeightSum * lightProbability;
+//  diffuse = diffuse * finalWeightSum * lightProbability;
 
   // Composite the light
   let inputColor = textureLoad(inputTex, pixel, 0).xyz;
   let outputColor = diffuse + inputColor + specular;
 
-  textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(diffuse, 1.));
+  textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(diffuse, 1.0));
 
 }
