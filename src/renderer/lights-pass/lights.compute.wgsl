@@ -245,13 +245,13 @@ fn composite(
 //  diffuse = bilinearLightContribution(pixel, downscaledResolution);
 //  let finalWeightSum = bilinearReservoirWeight(pixel, downscaledResolution);
 //  let lightPosition = bilinearLightPosition(pixel, downscaledResolution);
-//  let lightProbability = bilinearLightProbability(pixel, downscaledResolution);
 
   diffuse = pixelBuffer[index].contribution;
   let finalWeightSum = pixelBuffer[index].weight;
+  let sampleCount = pixelBuffer[index].sampleCount;
   let lightPosition = lightsBuffer[lightIndex].position;
-  let lightProbability = 1.0 / f32(LIGHT_COUNT);
 
+  let lightProbability = 1.0 / f32(sampleCount);
   let lightDir = normalize(lightPosition - worldPos);
   let nDotL = dot(normalRef, lightDir);
 //  diffuse *= nDotL;

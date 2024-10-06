@@ -47,18 +47,14 @@ struct LightPixel {
   lightIndex: u32,
 }
 
-const NEIGHBOUR_OFFSETS = array<vec2<i32>, 8>(
+const NEIGHBOUR_OFFSETS = array<vec2<i32>, 4>(
   vec2<i32>(-1, 0),
   vec2<i32>(1, 0),
   vec2<i32>(0, -1),
   vec2<i32>(0, 1),
-  vec2<i32>(-1, -1),
-  vec2<i32>(1, -1),
-  vec2<i32>(-1, 1),
-  vec2<i32>(1, 1)
 );
 
-const SAMPLE_RADIUS = 8;
+const SAMPLE_RADIUS = 1;
 const MAX_WEIGHT = 1.0;
 
 @compute @workgroup_size(8,8,1)
@@ -71,36 +67,36 @@ fn spatial(
   let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
   let index = convert2DTo1D(downscaledResolution.x, id.xy);
   let uv = (vec2<f32>(downscaledPixel) + vec2(0.5)) / vec2<f32>(downscaledResolution);
-  if(uv.x < 0.5){
-    return;
-  }
+//  if(uv.y < 0.5){
+//    return;
+//  }
 
   let worldPos = textureLoad(worldPosTex, vec2<u32>(pixel), 0).xyz;
   if(distance(cameraPosition, worldPos) > 10000.0){
     return;
   }
 
-  for(var x = -SAMPLE_RADIUS; x <= SAMPLE_RADIUS; x = x + 1){
-    for(var y = -SAMPLE_RADIUS; y <= SAMPLE_RADIUS; y = y + 1){
-      let offset = vec2<i32>(x, y);
-      let neighbor = vec2<i32>(downscaledPixel) + offset;
-      let neighborIndex = convert2DTo1D(downscaledResolution.x,vec2<u32>(neighbor));
-      let neighborContribution = inputPixelBuffer[neighborIndex].contribution;
-      let neighborWeight = inputPixelBuffer[neighborIndex].weight;
-      let neighborCount = inputPixelBuffer[neighborIndex].sampleCount;
-      let normalSample = textureLoad(normalTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
-      let normalDifference = dot(normalRef, normalSample);
-      if(normalDifference < 0.5){
-        continue;
-      }
-      let currentWeight = inputPixelBuffer[index].weight;
-      if(neighborWeight > currentWeight){
-          let totalWeight = currentWeight + neighborWeight;
-          let normalizedSpatialWeight = neighborWeight / totalWeight;
-          outputPixelBuffer[index].contribution = mix(inputPixelBuffer[index].contribution, neighborContribution, normalizedSpatialWeight);
-          outputPixelBuffer[index].weight = totalWeight;
-          outputPixelBuffer[index].sampleCount += neighborCount;
-      }
+  var currentWeight = outputPixelBuffer[index].weight;
+
+  for(var i = 0u; i < 4; i = i + 1u){
+    let offset = NEIGHBOUR_OFFSETS[i];
+    let neighbor = vec2<i32>(downscaledPixel) + offset;
+    let neighborIndex = convert2DTo1D(downscaledResolution.x,vec2<u32>(neighbor));
+    let neighborContribution = inputPixelBuffer[neighborIndex].contribution;
+    let neighborWeight = inputPixelBuffer[neighborIndex].weight;
+    let neighborCount = inputPixelBuffer[neighborIndex].sampleCount;
+    let normalSample = textureLoad(normalTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
+    let normalDifference = dot(normalRef, normalSample);
+    if(normalDifference < 0.9){
+      continue;
     }
+    if(neighborWeight > currentWeight){
+        let totalWeight = currentWeight + neighborWeight;
+        let normalizedSpatialWeight = neighborWeight / totalWeight;
+        outputPixelBuffer[index].contribution = mix(inputPixelBuffer[index].contribution, neighborContribution, normalizedSpatialWeight);
+        outputPixelBuffer[index].sampleCount += neighborCount;
+        currentWeight = totalWeight;
+      }
   }
+  outputPixelBuffer[index].weight = currentWeight;
 }

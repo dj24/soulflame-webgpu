@@ -107,7 +107,7 @@ fn main(
   var pixel = vec2<f32>(downscaledPixel) * f32(DOWN_SAMPLE_FACTOR);
 
   let uv = (vec2<f32>(downscaledPixel) + vec2(0.5)) / vec2<f32>(downscaledResolution);
-  if(uv.x > 0.5){
+  if(uv.x < 0.5){
     return;
   }
 
