@@ -61,7 +61,6 @@ const CONSTANT_ATTENUATION = 0.0;
 const LINEAR_ATTENUATION = 0.1;
 const QUADRATIC_ATTENUATION = 0.1;
 const LIGHT_COUNT = 32;
-const SAMPLE_BLEND_FACTOR = 0.95;
 const SAMPLES_PER_FRAME = 8;
 
 fn getLightWeight(lightPos: vec3<f32>, lightColour: vec3<f32>, worldPos: vec3<f32>) -> f32 {
@@ -90,7 +89,7 @@ fn main(
   let r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy;
   let jitterOffset = randomInUnitSphere(r);
 
-  var bestWeight = -10000.0;
+  var bestWeight = 0.0;
   var lightIndex = 0u;
   for(var i = 0; i < SAMPLES_PER_FRAME; i++){
     let iterOffsetX = (i * 193) % 512; // Large prime numbers for frame variation
@@ -112,7 +111,7 @@ fn main(
 
   let raymarchResult = rayMarchBVH(worldPos + normal * 0.001, normalize(lightDir));
   if(raymarchResult.hit){
-      bestWeight = 0.0;
+      bestWeight *= 0.1;
   }
 
   pixelBuffer[pixelBufferIndex].weight = bestWeight;
@@ -251,11 +250,11 @@ fn composite(
   diffuse = pixelBuffer[index].contribution;
   let finalWeightSum = pixelBuffer[index].weight;
   let lightPosition = lightsBuffer[lightIndex].position;
-  let lightProbability = 1.0 / f32(pixelBuffer[index].sampleCount);
+  let lightProbability = 1.0 / f32(LIGHT_COUNT);
 
   let lightDir = normalize(lightPosition - worldPos);
   let nDotL = dot(normalRef, lightDir);
-  diffuse *= nDotL;
+//  diffuse *= nDotL;
 
   let viewDir = normalize(cameraPosition - worldPos);
   let halfDir = normalize(viewDir + lightDir);
@@ -264,12 +263,14 @@ fn composite(
   let specularIntensity = pow(max(dot(normalRef, halfDir), 0.0), shininess);
   let specular = specularStrength * specularIntensity * vec3<f32>(1.0);
 
-//  diffuse = diffuse * finalWeightSum * lightProbability;
+  diffuse = diffuse * finalWeightSum * lightProbability;
 
   // Composite the light
   let inputColor = textureLoad(inputTex, pixel, 0).xyz;
   let outputColor = diffuse + inputColor + specular;
 
   textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(diffuse, 1.0));
+//    textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(finalWeightSum));
+
 
 }

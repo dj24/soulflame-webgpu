@@ -107,9 +107,9 @@ fn main(
   var pixel = vec2<f32>(downscaledPixel) * f32(DOWN_SAMPLE_FACTOR);
 
   let uv = (vec2<f32>(downscaledPixel) + vec2(0.5)) / vec2<f32>(downscaledResolution);
-//  if(uv.x > 0.5){
-//    return;
-//  }
+  if(uv.x > 0.5){
+    return;
+  }
 
 //  let velocity = textureLoad(velocityTex, vec2<u32>(pixel), 0).xy;
   let velocity = vec2<f32>(0.0);
@@ -118,6 +118,13 @@ fn main(
   let previousPixel = pixel - pixelVelocity;
 
   if(any(previousPixel < vec2<f32>(0.0)) || any(previousPixel >= vec2<f32>(resolution))){
+    return;
+  }
+
+  let normalRef = textureLoad(normalTex, vec2<u32>(pixel), 0).xyz;
+  let previousNormal = textureLoad(normalTex, vec2<u32>(previousPixel), 0).xyz;
+  let normalDifference = dot(normalRef, previousNormal);
+  if(normalDifference < 0.5){
     return;
   }
 
@@ -135,9 +142,7 @@ fn main(
   if(previousWeight > pixelBuffer[index].weight){
     let totalWeight = pixelBuffer[index].weight + previousWeight;
     let normalizedPreviousWeight = previousWeight / totalWeight;
-    let normalizedCurrentWeight = pixelBuffer[index].weight / totalWeight;
-    pixelBuffer[index].contribution *= normalizedCurrentWeight;
-    pixelBuffer[index].contribution += previousLightContribution * normalizedPreviousWeight;
+    pixelBuffer[index].contribution = mix(pixelBuffer[index].contribution, previousLightContribution, normalizedPreviousWeight);
     pixelBuffer[index].weight = totalWeight;
     pixelBuffer[index].lightIndex = previousLightPixel.lightIndex;
     pixelBuffer[index].sampleCount += previousCount;
