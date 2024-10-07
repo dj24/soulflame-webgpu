@@ -259,7 +259,7 @@ export const init = async (
         },
       };
     })(),
-    getTaaPass(normalTexture),
+    // getTaaPass(normalTexture),
     getLightsPass(device),
     // getShadowsPass(),
     // getGlobalIlluminationPass(),

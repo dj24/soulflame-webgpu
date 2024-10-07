@@ -219,18 +219,22 @@ fn bilinearLightProbability(pixel: vec2<u32>, downscaledResolution: vec2<u32>) -
   return mix(bottom, top, t.y);
 }
 
+const NEIGHBOR_OFFSETS = array<vec2<i32>, 8>(
+  vec2<i32>(-1, 0),
+  vec2<i32>(1, 0),
+  vec2<i32>(0, -1),
+  vec2<i32>(0, 1),
+  vec2<i32>(-1, -1),
+  vec2<i32>(1, -1),
+  vec2<i32>(-1, 1),
+  vec2<i32>(1, 1)
+);
+
 @compute @workgroup_size(8,8,1)
 fn composite(
 @builtin(global_invocation_id) id : vec3<u32>
 ){
   let pixel = id.xy;
-
-//  var blueNoisePixel = vec2<i32>(id.xy);
-//  let frameOffsetX = (i32(time.frame) * 92821 + 71413) % 512;  // Large prime numbers for frame variation
-//  let frameOffsetY = (i32(time.frame) * 13761 + 511) % 512;    // Different prime numbers
-//  blueNoisePixel.x += frameOffsetX;
-//  blueNoisePixel.y += frameOffsetY;
-//  var r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy * DOWN_SAMPLE_FACTOR;
 
   var downscaledPixel = pixel / DOWN_SAMPLE_FACTOR;
   let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
@@ -242,19 +246,39 @@ fn composite(
 
   let lightIndex = pixelBuffer[index].lightIndex;
 
-//  diffuse = bilinearLightContribution(pixel, downscaledResolution);
-//  let finalWeightSum = bilinearReservoirWeight(pixel, downscaledResolution);
-//  let lightPosition = bilinearLightPosition(pixel, downscaledResolution);
+  var averageLightPosition = vec3<f32>(0.0);
+  var averageLightProbability = 0.0;
+  var averageWeight = 0.0;
+  var averageContribution = vec3<f32>(0.0);
+  var validNeighbors = 0;
 
-  diffuse = pixelBuffer[index].contribution;
-  let finalWeightSum = pixelBuffer[index].weight;
-  let lightPosition = lightsBuffer[lightIndex].position;
+  for(var i = 0; i < 8; i++){
+    let neighbor = vec2<i32>(downscaledPixel) + NEIGHBOR_OFFSETS[i];
+    let neighborIndex = convert2DTo1D(downscaledResolution.x, vec2<u32>(neighbor));
+    let neighborLightIndex = pixelBuffer[neighborIndex].lightIndex;
+    let neighborLightPosition = lightsBuffer[neighborLightIndex].position;
+    let neighborLightProbability = 1.0 / f32(pixelBuffer[neighborIndex].sampleCount);
+    let neighborWeight = pixelBuffer[neighborIndex].weight;
+    let neighborContribution = pixelBuffer[neighborIndex].contribution;
+    let normalSample = textureLoad(normalTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
+    if(dot(normalSample, normalRef) < 0.9){
+      continue;
+    }
 
-  let sampleCount = pixelBuffer[index].sampleCount;
+    averageLightPosition += neighborLightPosition;
+    averageLightProbability += neighborLightProbability;
+    averageWeight += neighborWeight;
+    averageContribution += neighborContribution;
+    validNeighbors += 1;
+  }
+
+  averageLightPosition /= f32(validNeighbors);
+  averageLightProbability /= f32(validNeighbors);
+  averageContribution /= f32(validNeighbors);
+  averageWeight /= f32(validNeighbors);
 
 
-  let lightProbability = 1.0 / f32(sampleCount);
-  let lightDir = normalize(lightPosition - worldPos);
+  let lightDir = normalize(averageLightPosition - worldPos);
   let nDotL = dot(normalRef, lightDir);
 //  diffuse *= nDotL;
 
@@ -265,7 +289,7 @@ fn composite(
   let specularIntensity = pow(max(dot(normalRef, halfDir), 0.0), shininess);
   let specular = specularStrength * specularIntensity * vec3<f32>(1.0);
 
-  diffuse = diffuse * finalWeightSum * lightProbability;
+  diffuse = averageContribution * averageWeight * averageLightProbability;
 
   // Composite the light
   let inputColor = textureLoad(inputTex, pixel, 0).xyz;
