@@ -10,6 +10,7 @@
 
 @group(1) @binding(0) var velocityTex : texture_2d<f32>;
 @group(1) @binding(1) var<storage, read> previousPixelBuffer : array<LightPixel>;
+@group(1) @binding(2) var depthTex : texture_2d<f32>;
 
 fn convert2DTo1D(width: u32, index2D: vec2<u32>) -> u32 {
     return index2D.y * width + index2D.x;
@@ -48,6 +49,7 @@ struct LightPixel {
 }
 
 const DISTANCE_THRESHOLD = 100.0;
+const WEIGHT_THRESHOLD = 100.0;
 
 // Given a pixel and 4 closest neighbors, interpolate the light
 fn bilinearLightContribution(pixel: vec2<f32>, resolution: vec2<u32>) -> vec3<f32> {
@@ -96,6 +98,19 @@ fn bilinearReservoirWeight(pixel: vec2<f32>, resolution: vec2<u32>) -> f32 {
   return mix(bottom, top, t.y);
 }
 
+const NEIGHBORHOOD_SAMPLE_POSITIONS = array<vec2<i32>, 8>(
+    vec2<i32>(-1, -1),
+    vec2<i32>(0, -1),
+    vec2<i32>(1, -1),
+    vec2<i32>(-1, 0),
+    vec2<i32>(1, 0),
+    vec2<i32>(-1, 1),
+    vec2<i32>(0, 1),
+    vec2<i32>(1, 1)
+);
+
+const DEPTH_THRESHOLD : f32 = 1.0;
+
 @compute @workgroup_size(8,8,1)
 fn main(
 @builtin(global_invocation_id) id : vec3<u32>
@@ -103,55 +118,80 @@ fn main(
   var downscaledPixel = id.xy;
   let resolution = textureDimensions(inputTex);
   let downscaledResolution = resolution / DOWN_SAMPLE_FACTOR;
-
   var pixel = vec2<f32>(downscaledPixel) * f32(DOWN_SAMPLE_FACTOR);
 
-  let uv = (vec2<f32>(downscaledPixel) + vec2(0.5)) / vec2<f32>(downscaledResolution);
-  if(uv.x < 0.5){
-    return;
+  let uv = vec2<f32>(downscaledPixel) / vec2<f32>(downscaledResolution);
+//  if(uv.x < 0.5){
+//    return;
+//  }
+
+  // Get velocity from pixel with closest depth value in 3x3 neighborhood
+  let depthSample = textureLoad(depthTex, vec2<u32>(pixel), 0).r;
+  var closestDepthPixel = vec2<i32>(pixel);
+  var closestDepth = 999999999.0;
+  for (var i = 0; i < 8; i = i + 1) {
+      let neighbourPixel = clamp(vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[i], vec2<i32>(0), vec2<i32>(resolution - 1));
+      let neighbourDepth = textureLoad(depthTex, neighbourPixel, 0).r;
+      if (abs(neighbourDepth - depthSample) < abs(closestDepth - depthSample)) {
+          closestDepth = neighbourDepth;
+          closestDepthPixel = neighbourPixel;
+      }
   }
 
-//  let velocity = textureLoad(velocityTex, vec2<u32>(pixel), 0).xy;
-  let velocity = vec2<f32>(0.0);
-  let pixelVelocity = velocity * vec2<f32>(resolution);
-  let downscaledPixelVelocity = pixelVelocity / f32(DOWN_SAMPLE_FACTOR);
-  let previousPixel = pixel - pixelVelocity;
-
-  if(any(previousPixel < vec2<f32>(0.0)) || any(previousPixel >= vec2<f32>(resolution))){
-    return;
-  }
-
+  let velocity = textureLoad(velocityTex, closestDepthPixel, 0).xy;
+  let previousUv = uv - velocity;
+  let previousPixel = previousUv * vec2<f32>(resolution) - vec2<f32>(0.5);
+//
   let normalRef = textureLoad(normalTex, vec2<u32>(pixel), 0).xyz;
   let previousNormal = textureLoad(normalTex, vec2<u32>(previousPixel), 0).xyz;
-  let normalDifference = dot(normalRef, previousNormal);
-  if(normalDifference < 0.5){
+  let normalDifference = -dot(normalRef, previousNormal);
+  if(normalDifference > 0.5){
     return;
   }
 
-  let previousDownscaledPixel = vec2<f32>(downscaledPixel) - downscaledPixelVelocity;
 
+  // Calculate depth difference between source and history samples
+  let depthAtPreviousPixel = textureLoad(depthTex, vec2<u32>(previousPixel), 0).r;
+  let depthDifference: f32 = abs(depthSample - depthAtPreviousPixel);
+
+  // Apply depth clamping
+  if (depthDifference > DEPTH_THRESHOLD) {
+      return;
+  }
+//
+
+  let previousDownscaledPixel = previousPixel / f32(DOWN_SAMPLE_FACTOR);
   let index = convert2DTo1D(downscaledResolution.x, downscaledPixel);
   let previousIndex = convert2DTo1D(downscaledResolution.x, vec2<u32>(previousDownscaledPixel));
   var previousLightPixel = previousPixelBuffer[previousIndex];
   let previousCount = previousLightPixel.sampleCount;
-//  let previousWeight = bilinearReservoirWeight(previousDownscaledPixel, downscaledResolution);
-//  let previousLightContribution = bilinearLightContribution(previousDownscaledPixel, downscaledResolution);
-  let previousWeight = previousLightPixel.weight;
-  let previousLightContribution = previousLightPixel.contribution;
+  let previousWeight = bilinearReservoirWeight(previousDownscaledPixel, downscaledResolution);
+  let previousLightContribution = bilinearLightContribution(previousDownscaledPixel, downscaledResolution);
+
+//  if(abs(previousWeight - pixelBuffer[index].weight) > WEIGHT_THRESHOLD){
+//    return;
+//  }
+
+  var currentWeight = pixelBuffer[index].weight;
+  var currentContribution = pixelBuffer[index].contribution;
+  var currentSampleCount = pixelBuffer[index].sampleCount;
 
   if(previousWeight > pixelBuffer[index].weight){
     let totalWeight = pixelBuffer[index].weight + previousWeight;
     let normalizedPreviousWeight = previousWeight / totalWeight;
-    pixelBuffer[index].contribution = mix(pixelBuffer[index].contribution, previousLightContribution, normalizedPreviousWeight);
-    pixelBuffer[index].weight = totalWeight;
+    currentContribution = mix(currentContribution, previousLightContribution, normalizedPreviousWeight);
+    currentWeight = totalWeight;
     pixelBuffer[index].lightIndex = previousLightPixel.lightIndex;
-    pixelBuffer[index].sampleCount += previousCount;
+    currentSampleCount += previousCount;
   }
 
-  if(pixelBuffer[index].sampleCount > MAX_SAMPLES){
-    pixelBuffer[index].contribution = pixelBuffer[index].contribution * RESERVOIR_DECAY;
-    pixelBuffer[index].sampleCount = u32(f32(pixelBuffer[index].sampleCount) * RESERVOIR_DECAY);
-    pixelBuffer[index].weight *= RESERVOIR_DECAY;
+  if(currentSampleCount > MAX_SAMPLES){
+    currentContribution *= RESERVOIR_DECAY;
+    currentSampleCount = u32(f32(currentSampleCount) * RESERVOIR_DECAY);
+    currentWeight *= RESERVOIR_DECAY;
   }
 
+  pixelBuffer[index].contribution = currentContribution;
+  pixelBuffer[index].weight = currentWeight;
+  pixelBuffer[index].sampleCount = currentSampleCount;
 }

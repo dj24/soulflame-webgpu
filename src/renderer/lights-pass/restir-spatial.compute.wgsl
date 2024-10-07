@@ -56,6 +56,7 @@ const NEIGHBOUR_OFFSETS = array<vec2<i32>, 4>(
 
 const SAMPLE_RADIUS = 1;
 const MAX_WEIGHT = 1.0;
+const WEIGHT_THRESHOLD = 50.0;
 
 @compute @workgroup_size(8,8,1)
 fn spatial(
@@ -77,6 +78,8 @@ fn spatial(
   }
 
   var currentWeight = outputPixelBuffer[index].weight;
+  var currentContribution = outputPixelBuffer[index].contribution;
+  var currentSampleCount = outputPixelBuffer[index].sampleCount;
 
   for(var i = 0u; i < 4; i = i + 1u){
     let offset = NEIGHBOUR_OFFSETS[i];
@@ -90,13 +93,19 @@ fn spatial(
     if(normalDifference < 0.9){
       continue;
     }
+   // Restrict based on weight difference
+    if (abs(neighborWeight - currentWeight) > WEIGHT_THRESHOLD) {
+      continue; // Skip neighbors with too large weight difference
+    }
     if(neighborWeight > currentWeight){
         let totalWeight = currentWeight + neighborWeight;
         let normalizedSpatialWeight = neighborWeight / totalWeight;
-        outputPixelBuffer[index].contribution = mix(inputPixelBuffer[index].contribution, neighborContribution, normalizedSpatialWeight);
-        outputPixelBuffer[index].sampleCount += neighborCount;
+        currentContribution = mix(currentContribution, neighborContribution, normalizedSpatialWeight);
+        currentSampleCount += neighborCount;
         currentWeight = totalWeight;
       }
   }
   outputPixelBuffer[index].weight = currentWeight;
+  outputPixelBuffer[index].contribution = currentContribution;
+  outputPixelBuffer[index].sampleCount = currentSampleCount;
 }

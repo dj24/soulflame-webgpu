@@ -165,6 +165,15 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
           type: "read-only-storage",
         },
       },
+      // Depth texture
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "unfilterable-float",
+          viewDimension: "2d",
+        },
+      },
     ],
   });
 
@@ -485,6 +494,10 @@ ${lightsCompute}`;
             resource: {
               buffer: previousLightPixelBuffer,
             },
+          },
+          {
+            binding: 2,
+            resource: outputTextures.depthTexture.view,
           },
         ],
       });

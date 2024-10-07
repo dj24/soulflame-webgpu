@@ -248,8 +248,10 @@ fn composite(
 
   diffuse = pixelBuffer[index].contribution;
   let finalWeightSum = pixelBuffer[index].weight;
-  let sampleCount = pixelBuffer[index].sampleCount;
   let lightPosition = lightsBuffer[lightIndex].position;
+
+  let sampleCount = pixelBuffer[index].sampleCount;
+
 
   let lightProbability = 1.0 / f32(sampleCount);
   let lightDir = normalize(lightPosition - worldPos);
