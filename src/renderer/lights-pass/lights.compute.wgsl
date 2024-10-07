@@ -32,7 +32,7 @@ struct LightConfig {
   constantAttenuation: f32,
   linearAttenuation: f32,
   quadraticAttenuation: f32,
-  maxSampleCount: f32,
+  normalSigma: f32
 }
 
 
@@ -52,7 +52,6 @@ struct LightPixel {
 @group(0) @binding(10) var blueNoiseTex : texture_2d<f32>;
 @group(0) @binding(11) var<uniform> time : Time;
 @group(0) @binding(12) var<uniform> cameraPosition : vec3<f32>;
-
 
 @group(1) @binding(0) var<uniform> lightConfig : LightConfig;
 
@@ -95,7 +94,8 @@ fn main(
     let iterOffsetX = (i * 193) % 512; // Large prime numbers for frame variation
     let iterOffsetY = (i * 257) % 512; // Different prime numbers
     let sampleR = textureLoad(blueNoiseTex, (blueNoisePixel + vec2(iterOffsetX, iterOffsetY)) % 512, 0).xy;
-    let sampleLightIndex = u32(sampleR.x * f32(LIGHT_COUNT));
+    let normalisedSampleR = sampleR * 2.0 - 1.0;
+    let sampleLightIndex = u32(normalisedSampleR.x * f32(LIGHT_COUNT));
     let light = lightsBuffer[sampleLightIndex];
     let lightPos = light.position + jitterOffset;
     var weight = getLightWeight(lightPos, light.color, worldPos);
@@ -118,185 +118,4 @@ fn main(
   pixelBuffer[pixelBufferIndex].contribution = bestWeight * normalize(light.color);
   pixelBuffer[pixelBufferIndex].lightIndex = lightIndex;
   pixelBuffer[pixelBufferIndex].sampleCount = SAMPLES_PER_FRAME;
-}
-
-// Given a pixel and 4 closest neighbors, interpolate the light
-fn bilinearLightContribution(pixel: vec2<u32>, downscaledResolution: vec2<u32>) -> vec3<f32> {
-  let p0 = pixel / DOWN_SAMPLE_FACTOR;
-  let p1 = vec2<u32>(p0.x + 1, p0.y);
-  let p2 = vec2<u32>(p0.x, p0.y + 1);
-  let p3 = vec2<u32>(p0.x + 1, p0.y + 1);
-
-
-  let t = fract(vec2<f32>(pixel) / vec2<f32>(DOWN_SAMPLE_FACTOR));
-
-  let i0 = convert2DTo1D(downscaledResolution.x, p0);
-  let i1 = convert2DTo1D(downscaledResolution.x, p1);
-  let i2 = convert2DTo1D(downscaledResolution.x, p2);
-  let i3 = convert2DTo1D(downscaledResolution.x, p3);
-
-  let c0 = pixelBuffer[i0].contribution;
-  let c1 = pixelBuffer[i1].contribution;
-  let c2 = pixelBuffer[i2].contribution;
-  let c3 = pixelBuffer[i3].contribution;
-
-  let bottom = mix(c0, c1, t.x);
-  let top = mix(c2, c3, t.x);
-  return mix(bottom, top, t.y);
-}
-
-fn bilinearLightPosition(pixel: vec2<u32>, downscaledResolution: vec2<u32>) -> vec3<f32> {
-  let p0 = pixel / DOWN_SAMPLE_FACTOR;
-  let p1 = vec2<u32>(p0.x + 1, p0.y);
-  let p2 = vec2<u32>(p0.x, p0.y + 1);
-  let p3 = vec2<u32>(p0.x + 1, p0.y + 1);
-
-  let t = fract(vec2<f32>(pixel) / vec2<f32>(DOWN_SAMPLE_FACTOR));
-
-  let i0 = convert2DTo1D(downscaledResolution.x, p0);
-  let i1 = convert2DTo1D(downscaledResolution.x, p1);
-  let i2 = convert2DTo1D(downscaledResolution.x, p2);
-  let i3 = convert2DTo1D(downscaledResolution.x, p3);
-
-  let l0 = pixelBuffer[i0].lightIndex;
-  let l1 = pixelBuffer[i1].lightIndex;
-  let l2 = pixelBuffer[i2].lightIndex;
-  let l3 = pixelBuffer[i3].lightIndex;
-
-  let lp0 = lightsBuffer[l0].position;
-  let lp1 = lightsBuffer[l1].position;
-  let lp2 = lightsBuffer[l2].position;
-  let lp3 = lightsBuffer[l3].position;
-
-  let bottom = mix(lp0, lp1, t.x);
-  let top = mix(lp2, lp3, t.x);
-  return mix(bottom, top, t.y);
-}
-
-fn bilinearReservoirWeight(pixel: vec2<u32>, downscaledResolution: vec2<u32>) -> f32 {
-  let p0 = pixel / DOWN_SAMPLE_FACTOR;
-  let p1 = vec2<u32>(p0.x + 1, p0.y);
-  let p2 = vec2<u32>(p0.x, p0.y + 1);
-  let p3 = vec2<u32>(p0.x + 1, p0.y + 1);
-
-  let t = fract(vec2<f32>(pixel) / vec2<f32>(DOWN_SAMPLE_FACTOR));
-
-  let i0 = convert2DTo1D(downscaledResolution.x, p0);
-  let i1 = convert2DTo1D(downscaledResolution.x, p1);
-  let i2 = convert2DTo1D(downscaledResolution.x, p2);
-  let i3 = convert2DTo1D(downscaledResolution.x, p3);
-
-  let w0 = pixelBuffer[i0].weight;
-  let w1 = pixelBuffer[i1].weight;
-  let w2 = pixelBuffer[i2].weight;
-  let w3 = pixelBuffer[i3].weight;
-
-  let bottom = mix(w0, w1, t.x);
-  let top = mix(w2, w3, t.x);
-  return mix(bottom, top, t.y);
-}
-
-fn bilinearLightProbability(pixel: vec2<u32>, downscaledResolution: vec2<u32>) -> f32 {
-  let p0 = pixel / DOWN_SAMPLE_FACTOR;
-  let p1 = vec2<u32>(p0.x + 1, p0.y);
-  let p2 = vec2<u32>(p0.x, p0.y + 1);
-  let p3 = vec2<u32>(p0.x + 1, p0.y + 1);
-
-  let t = fract(vec2<f32>(pixel) / vec2<f32>(DOWN_SAMPLE_FACTOR));
-
-  let i0 = convert2DTo1D(downscaledResolution.x, p0);
-  let i1 = convert2DTo1D(downscaledResolution.x, p1);
-  let i2 = convert2DTo1D(downscaledResolution.x, p2);
-  let i3 = convert2DTo1D(downscaledResolution.x, p3);
-
-  let w0 = 1.0 / f32(pixelBuffer[i0].sampleCount);
-  let w1 = 1.0 / f32(pixelBuffer[i1].sampleCount);
-  let w2 = 1.0 / f32(pixelBuffer[i2].sampleCount);
-  let w3 = 1.0 / f32(pixelBuffer[i3].sampleCount);
-
-  let bottom = mix(w0, w1, t.x);
-  let top = mix(w2, w3, t.x);
-  return mix(bottom, top, t.y);
-}
-
-const NEIGHBOR_OFFSETS = array<vec2<i32>, 8>(
-  vec2<i32>(-1, 0),
-  vec2<i32>(1, 0),
-  vec2<i32>(0, -1),
-  vec2<i32>(0, 1),
-  vec2<i32>(-1, -1),
-  vec2<i32>(1, -1),
-  vec2<i32>(-1, 1),
-  vec2<i32>(1, 1)
-);
-
-@compute @workgroup_size(8,8,1)
-fn composite(
-@builtin(global_invocation_id) id : vec3<u32>
-){
-  let pixel = id.xy;
-
-  var downscaledPixel = pixel / DOWN_SAMPLE_FACTOR;
-  let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
-  let index = convert2DTo1D(downscaledResolution.x, downscaledPixel);
-
-  var diffuse = vec3<f32>(0.0);
-  let normalRef = textureLoad(normalTex, pixel, 0).xyz;
-  let worldPos = textureLoad(worldPosTex, pixel, 0).xyz;
-
-  let lightIndex = pixelBuffer[index].lightIndex;
-
-  var averageLightPosition = vec3<f32>(0.0);
-  var averageLightProbability = 0.0;
-  var averageWeight = 0.0;
-  var averageContribution = vec3<f32>(0.0);
-  var validNeighbors = 0;
-
-  for(var i = 0; i < 8; i++){
-    let neighbor = vec2<i32>(downscaledPixel) + NEIGHBOR_OFFSETS[i];
-    let neighborIndex = convert2DTo1D(downscaledResolution.x, vec2<u32>(neighbor));
-    let neighborLightIndex = pixelBuffer[neighborIndex].lightIndex;
-    let neighborLightPosition = lightsBuffer[neighborLightIndex].position;
-    let neighborLightProbability = 1.0 / f32(pixelBuffer[neighborIndex].sampleCount);
-    let neighborWeight = pixelBuffer[neighborIndex].weight;
-    let neighborContribution = pixelBuffer[neighborIndex].contribution;
-    let normalSample = textureLoad(normalTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
-    if(dot(normalSample, normalRef) < 0.9){
-      continue;
-    }
-
-    averageLightPosition += neighborLightPosition;
-    averageLightProbability += neighborLightProbability;
-    averageWeight += neighborWeight;
-    averageContribution += neighborContribution;
-    validNeighbors += 1;
-  }
-
-  averageLightPosition /= f32(validNeighbors);
-  averageLightProbability /= f32(validNeighbors);
-  averageContribution /= f32(validNeighbors);
-  averageWeight /= f32(validNeighbors);
-
-
-  let lightDir = normalize(averageLightPosition - worldPos);
-  let nDotL = dot(normalRef, lightDir);
-//  diffuse *= nDotL;
-
-  let viewDir = normalize(cameraPosition - worldPos);
-  let halfDir = normalize(viewDir + lightDir);
-  let specularStrength = 0.5;
-  let shininess = 32.0;
-  let specularIntensity = pow(max(dot(normalRef, halfDir), 0.0), shininess);
-  let specular = specularStrength * specularIntensity * vec3<f32>(1.0);
-
-  diffuse = averageContribution * averageWeight * averageLightProbability;
-
-  // Composite the light
-  let inputColor = textureLoad(inputTex, pixel, 0).xyz;
-  let outputColor = diffuse + inputColor + specular;
-
-  textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(diffuse, 1.0));
-//    textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(finalWeightSum));
-
-
 }

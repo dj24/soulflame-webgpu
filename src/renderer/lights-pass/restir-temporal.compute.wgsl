@@ -140,6 +140,7 @@ fn main(
 
   let velocity = textureLoad(velocityTex, closestDepthPixel, 0).xy;
   let previousUv = uv - velocity;
+
   let previousPixel = previousUv * vec2<f32>(resolution) - vec2<f32>(0.5);
 //
   let normalRef = textureLoad(normalTex, vec2<u32>(pixel), 0).xyz;
@@ -186,9 +187,10 @@ fn main(
   }
 
   if(currentSampleCount > MAX_SAMPLES){
-    currentContribution *= RESERVOIR_DECAY;
-    currentSampleCount = u32(f32(currentSampleCount) * RESERVOIR_DECAY);
-    currentWeight *= RESERVOIR_DECAY;
+    let decayFactor = f32(MAX_SAMPLES) / f32(currentSampleCount);
+    currentContribution *= decayFactor;
+    currentWeight *= decayFactor;
+    currentSampleCount = MAX_SAMPLES;
   }
 
   pixelBuffer[index].contribution = currentContribution;

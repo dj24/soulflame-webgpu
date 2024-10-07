@@ -47,14 +47,18 @@ struct LightPixel {
   lightIndex: u32,
 }
 
-const NEIGHBOUR_OFFSETS = array<vec2<i32>, 4>(
+const NEIGHBOUR_OFFSETS = array<vec2<i32>, 8>(
   vec2<i32>(-1, 0),
   vec2<i32>(1, 0),
   vec2<i32>(0, -1),
   vec2<i32>(0, 1),
+  vec2<i32>(-1, -1),
+  vec2<i32>(1, -1),
+  vec2<i32>(-1, 1),
+  vec2<i32>(1, 1)
 );
 
-const SAMPLE_RADIUS = 1;
+const SAMPLE_RADIUS = 3;
 const MAX_WEIGHT = 1.0;
 const WEIGHT_THRESHOLD = 50.0;
 
@@ -81,7 +85,7 @@ fn spatial(
   var currentContribution = outputPixelBuffer[index].contribution;
   var currentSampleCount = outputPixelBuffer[index].sampleCount;
 
-  for(var i = 0u; i < 4; i = i + 1u){
+  for(var i = 0u; i < 8; i = i + 1u){
     let offset = NEIGHBOUR_OFFSETS[i];
     let neighbor = vec2<i32>(downscaledPixel) + offset;
     let neighborIndex = convert2DTo1D(downscaledResolution.x,vec2<u32>(neighbor));

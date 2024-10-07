@@ -3,6 +3,7 @@ import { Vec3 } from "wgpu-matrix";
 import lightsCompute from "./lights.compute.wgsl";
 import restirSpatial from "./restir-spatial.compute.wgsl";
 import restirTemporal from "./restir-temporal.compute.wgsl";
+import lightsComposite from "./lights-composite.compute.wgsl";
 import bvh from "../shader/bvh.wgsl";
 import randomCommon from "../random-common.wgsl";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
@@ -15,9 +16,9 @@ export type Light = {
 };
 
 const LIGHT_BUFFER_STRIDE = 32;
-const DOWNSCALE_FACTOR = 4;
+const DOWNSCALE_FACTOR = 3;
 const RESERVOIR_DECAY = 0.5;
-const MAX_SAMPLES = 128;
+const MAX_SAMPLES = 196;
 
 export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   const bindGroupLayout = device.createBindGroupLayout({
@@ -190,6 +191,28 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
     ],
   });
 
+  const svgfConfigBindGroupLayout = device.createBindGroupLayout({
+    label: "svgf-config-bind-group-layout",
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
+      //Depth texture
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "unfilterable-float",
+          viewDimension: "2d",
+        },
+      },
+    ],
+  });
+
   const pipelineLayout = device.createPipelineLayout({
     bindGroupLayouts: [bindGroupLayout, lightConfigBindGroupLayout],
   });
@@ -199,7 +222,7 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   });
 
   const compositePipelineLayout = device.createPipelineLayout({
-    bindGroupLayouts: [bindGroupLayout],
+    bindGroupLayouts: [bindGroupLayout, svgfConfigBindGroupLayout],
   });
 
   const code = `
@@ -230,7 +253,9 @@ ${lightsCompute}`;
   const compositePipeline = device.createComputePipeline({
     compute: {
       module: device.createShaderModule({
-        code,
+        code: `
+        const DOWN_SAMPLE_FACTOR = ${DOWNSCALE_FACTOR};
+        ${lightsComposite}`,
       }),
       entryPoint: "composite",
     },
@@ -293,18 +318,28 @@ ${lightsCompute}`;
   let copyFinalTextureView: GPUTextureView;
   let temporalBindGroup: GPUBindGroup;
   let spatialBindGroup: GPUBindGroup;
+  let svgfConfigBuffer: GPUBuffer;
+  let svgfConfigBindGroup: GPUBindGroup;
 
   let lightConfig = {
-    constantAttenuation: 0.0,
-    linearAttenuation: 0.1,
-    quadraticAttenuation: 0.1,
-    maxSampleCount: 16,
+    constantAttenuation: 0.1,
+    linearAttenuation: 0.2,
+    quadraticAttenuation: 0.05,
+  };
+
+  let svgfConfig = {
+    normalSigma: 0.6,
+    depthSigma: 0.8,
+    blueNoiseSCale: 4,
   };
 
   const folder = (window as any).debugUI.gui.addFolder("lighting");
   folder.add(lightConfig, "constantAttenuation", 0, 1.0, 0.1);
   folder.add(lightConfig, "linearAttenuation", 0.01, 1, 0.01);
   folder.add(lightConfig, "quadraticAttenuation", 0.005, 0.1, 0.001);
+  folder.add(svgfConfig, "normalSigma", 0.1, 2, 0.05);
+  folder.add(svgfConfig, "depthSigma", 0.1, 2, 0.05);
+  folder.add(svgfConfig, "blueNoiseSCale", 0, 10, 0.1);
 
   const render = ({
     commandEncoder,
@@ -345,6 +380,41 @@ ${lightsCompute}`;
         height: outputTextures.finalTexture.height,
       },
     );
+
+    if (!svgfConfigBuffer) {
+      svgfConfigBuffer = device.createBuffer({
+        label: "svgf-config-buffer",
+        size: 12,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+    }
+    device.queue.writeBuffer(
+      svgfConfigBuffer,
+      0,
+      new Float32Array([
+        svgfConfig.normalSigma,
+        svgfConfig.depthSigma,
+        svgfConfig.blueNoiseSCale,
+      ]),
+    );
+
+    if (!svgfConfigBindGroup) {
+      svgfConfigBindGroup = device.createBindGroup({
+        layout: svgfConfigBindGroupLayout,
+        entries: [
+          {
+            binding: 0,
+            resource: {
+              buffer: svgfConfigBuffer,
+            },
+          },
+          {
+            binding: 1,
+            resource: outputTextures.depthTexture.view,
+          },
+        ],
+      });
+    }
 
     // TODO: account for resolution changes
     if (!lightPixelBuffer) {
@@ -396,7 +466,6 @@ ${lightsCompute}`;
         lightConfig.constantAttenuation,
         lightConfig.linearAttenuation,
         lightConfig.quadraticAttenuation,
-        lightConfig.maxSampleCount,
       ]),
     );
 
@@ -594,7 +663,7 @@ ${lightsCompute}`;
       });
       passEncoder.setPipeline(compositePipeline);
       passEncoder.setBindGroup(0, bindGroup);
-      passEncoder.setBindGroup(1, lightConfigBindGroup);
+      passEncoder.setBindGroup(1, svgfConfigBindGroup);
       passEncoder.dispatchWorkgroups(
         Math.ceil(outputTextures.finalTexture.width / 8),
         Math.ceil(outputTextures.finalTexture.height / 8),
@@ -651,15 +720,19 @@ ${lightsCompute}`;
       passWriteOffset += 2;
     };
 
+    const copyPass = () => {
+      commandEncoder.copyBufferToBuffer(
+        lightPixelBuffer,
+        0,
+        copyLightPixelBuffer,
+        0,
+        lightPixelBuffer.size,
+      );
+    };
+
     sampleLightsPass();
     temporalPass();
-    commandEncoder.copyBufferToBuffer(
-      lightPixelBuffer,
-      0,
-      copyLightPixelBuffer,
-      0,
-      lightPixelBuffer.size,
-    );
+    copyPass();
     spatialPass();
     compositePass();
     commandEncoder.copyBufferToBuffer(
