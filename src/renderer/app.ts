@@ -152,7 +152,7 @@ let nearestSampler: GPUSampler;
 let timestampLabels: string[];
 
 const LIGHT_SIZE = 5;
-const LIGHT_INTENSITY = 2000;
+const LIGHT_INTENSITY = 500;
 //
 
 for (let x = 0; x <= 512; x += 96) {

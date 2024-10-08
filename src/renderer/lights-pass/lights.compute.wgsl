@@ -36,10 +36,10 @@ struct LightConfig {
 }
 
 
-struct LightPixel {
+struct Resevoir {
   sampleCount: u32,
-  weight: f32,
-  contribution: vec3<f32>,
+  weightSum: f32,
+  lightWeight: vec3<f32>,
   lightIndex: u32,
 }
 
@@ -47,7 +47,7 @@ struct LightPixel {
 @group(0) @binding(2) var normalTex : texture_2d<f32>;
 @group(0) @binding(3) var<storage, read> lightsBuffer : array<Light>;
 @group(0) @binding(4) var outputTex : texture_storage_2d<rgba16float, write>;
-@group(0) @binding(5) var<storage, read_write> pixelBuffer : array<LightPixel>;
+@group(0) @binding(5) var<storage, read_write> pixelBuffer : array<Resevoir>;
 @group(0) @binding(6) var inputTex : texture_2d<f32>;
 @group(0) @binding(10) var blueNoiseTex : texture_2d<f32>;
 @group(0) @binding(11) var<uniform> time : Time;
@@ -74,13 +74,12 @@ fn main(
     @builtin(global_invocation_id) id : vec3<u32>,
 ) {
   let pixel = id.xy;
-  var blueNoisePixel = vec2<i32>(id.xy);
   let downscaledPixel = vec2<u32>(id.xy) * DOWN_SAMPLE_FACTOR;
   let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
   let worldPos = textureLoad(worldPosTex, downscaledPixel, 0).xyz;
   let normal = textureLoad(normalTex, downscaledPixel, 0).xyz;
   let pixelBufferIndex = convert2DTo1D(downscaledResolution.x, pixel);
-
+  var blueNoisePixel = vec2<i32>(id.xy);
   let frameOffsetX = (i32(time.frame) * 92821 + 71413) % 512;  // Large prime numbers for frame variation
   let frameOffsetY = (i32(time.frame) * 13761 + 511) % 512;    // Different prime numbers
   blueNoisePixel.x += frameOffsetX;
@@ -89,6 +88,7 @@ fn main(
   let jitterOffset = randomInUnitSphere(r);
 
   var bestWeight = 0.0;
+  var weightSum = 0.0;
   var lightIndex = 0u;
   for(var i = 0; i < SAMPLES_PER_FRAME; i++){
     let iterOffsetX = (i * 193) % 512; // Large prime numbers for frame variation
@@ -97,9 +97,10 @@ fn main(
     let sampleLightIndex = u32(sampleR.x * f32(LIGHT_COUNT));
     let light = lightsBuffer[sampleLightIndex];
     let lightPos = light.position + jitterOffset;
-    var weight = getLightWeight(lightPos, light.color, worldPos, normal);
+    let weight = getLightWeight(lightPos, light.color, worldPos, normal);
 
-    if(weight > bestWeight){
+    weightSum += weight;
+    if(sampleR.y < weight / weightSum){
       bestWeight = weight;
       lightIndex = sampleLightIndex;
     }
@@ -113,8 +114,8 @@ fn main(
       bestWeight *= 0.1;
   }
 
-  pixelBuffer[pixelBufferIndex].weight = bestWeight;
-  pixelBuffer[pixelBufferIndex].contribution = bestWeight * normalize(light.color);
+  pixelBuffer[pixelBufferIndex].weightSum = weightSum;
+  pixelBuffer[pixelBufferIndex].lightWeight = vec3(bestWeight);
   pixelBuffer[pixelBufferIndex].lightIndex = lightIndex;
   pixelBuffer[pixelBufferIndex].sampleCount = SAMPLES_PER_FRAME;
 }

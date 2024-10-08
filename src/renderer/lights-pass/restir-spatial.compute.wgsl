@@ -2,13 +2,13 @@
 @group(0) @binding(2) var normalTex : texture_2d<f32>;
 @group(0) @binding(3) var<storage, read> lightsBuffer : array<Light>;
 @group(0) @binding(4) var outputTex : texture_storage_2d<rgba16float, write>;
-@group(0) @binding(5) var<storage, read_write> outputPixelBuffer : array<LightPixel>;
+@group(0) @binding(5) var<storage, read_write> outputPixelBuffer : array<Reservoir>;
 @group(0) @binding(6) var inputTex : texture_2d<f32>;
 @group(0) @binding(10) var blueNoiseTex : texture_2d<f32>;
 @group(0) @binding(11) var<uniform> time : Time;
 @group(0) @binding(12) var<uniform> cameraPosition : vec3<f32>;
 
-@group(1) @binding(0) var<storage, read> inputPixelBuffer : array<LightPixel>;
+@group(1) @binding(0) var<storage, read> inputPixelBuffer : array<Reservoir>;
 
 fn convert2DTo1D(width: u32, index2D: vec2<u32>) -> u32 {
     return index2D.y * width + index2D.x;
@@ -40,10 +40,10 @@ struct Light {
   color: vec3<f32>,
 };
 
-struct LightPixel {
+struct Reservoir {
   sampleCount: u32,
-  weight: f32,
-  contribution: vec3<f32>,
+  weightSum: f32,
+  lightWeight: vec3<f32>,
   lightIndex: u32,
 }
 
@@ -72,44 +72,45 @@ fn spatial(
   let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
   let index = convert2DTo1D(downscaledResolution.x, id.xy);
   let uv = (vec2<f32>(downscaledPixel) + vec2(0.5)) / vec2<f32>(downscaledResolution);
-//  if(uv.y < 0.5){
-//    return;
-//  }
-
   let worldPos = textureLoad(worldPosTex, vec2<u32>(pixel), 0).xyz;
+
   if(distance(cameraPosition, worldPos) > 10000.0){
     return;
   }
 
-  var currentWeight = outputPixelBuffer[index].weight;
-  var currentContribution = outputPixelBuffer[index].contribution;
+  var weightSum = outputPixelBuffer[index].weightSum;
+  var currentWeight = outputPixelBuffer[index].lightWeight;
   var currentSampleCount = outputPixelBuffer[index].sampleCount;
+  var lightIndex = outputPixelBuffer[index].lightIndex;
 
   for(var i = 0u; i < 8; i = i + 1u){
     let offset = NEIGHBOUR_OFFSETS[i];
     let neighbor = vec2<i32>(downscaledPixel) + offset;
     let neighborIndex = convert2DTo1D(downscaledResolution.x,vec2<u32>(neighbor));
-    let neighborContribution = inputPixelBuffer[neighborIndex].contribution;
-    let neighborWeight = inputPixelBuffer[neighborIndex].weight;
+    let neighborWeight = inputPixelBuffer[neighborIndex].lightWeight.x;
+    let neighborWeightSum = inputPixelBuffer[neighborIndex].weightSum;
     let neighborCount = inputPixelBuffer[neighborIndex].sampleCount;
     let normalSample = textureLoad(normalTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
     let normalDifference = dot(normalRef, normalSample);
-    if(normalDifference < 0.9){
+    if(normalDifference < 0.5){
       continue;
     }
-   // Restrict based on weight difference
-    if (abs(neighborWeight - currentWeight) > WEIGHT_THRESHOLD) {
+    if (abs(neighborWeightSum - weightSum) > WEIGHT_THRESHOLD) {
       continue; // Skip neighbors with too large weight difference
     }
-    if(neighborWeight > currentWeight){
-        let totalWeight = currentWeight + neighborWeight;
-        let normalizedSpatialWeight = neighborWeight / totalWeight;
-        currentContribution = mix(currentContribution, neighborContribution, normalizedSpatialWeight);
-        currentSampleCount += neighborCount;
-        currentWeight = totalWeight;
-      }
+    let iterOffsetX = (i * 193) % 512; // Large prime numbers for frame variation
+    let iterOffsetY = (i * 257) % 512; // Different prime numbers
+    let sampleR = textureLoad(blueNoiseTex, (downscaledPixel + vec2(iterOffsetX, iterOffsetY)) % 512, 0).xy;
+
+    weightSum += neighborWeight;
+    currentSampleCount += neighborCount;
+    if(sampleR.y < neighborWeight / weightSum){
+        lightIndex = inputPixelBuffer[neighborIndex].lightIndex;
+        currentWeight = vec3(neighborWeight);
+    }
   }
-  outputPixelBuffer[index].weight = currentWeight;
-  outputPixelBuffer[index].contribution = currentContribution;
+  outputPixelBuffer[index].weightSum = weightSum;
+  outputPixelBuffer[index].lightWeight = currentWeight;
   outputPixelBuffer[index].sampleCount = currentSampleCount;
+  outputPixelBuffer[index].lightIndex = lightIndex;
 }

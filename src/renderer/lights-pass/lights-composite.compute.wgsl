@@ -9,10 +9,10 @@ struct Time {
   elapsed: f32
 };
 
-struct LightPixel {
+struct Reservoir {
   sampleCount: u32,
-  weight: f32,
-  contribution: vec3<f32>,
+  weightSum: f32,
+  lightWeight: vec3<f32>,
   lightIndex: u32,
 }
 
@@ -27,7 +27,7 @@ struct SVGFConfig {
 @group(0) @binding(2) var normalTex : texture_2d<f32>;
 @group(0) @binding(3) var<storage, read> lightsBuffer : array<Light>;
 @group(0) @binding(4) var outputTex : texture_storage_2d<rgba16float, write>;
-@group(0) @binding(5) var<storage, read_write> pixelBuffer : array<LightPixel>;
+@group(0) @binding(5) var<storage, read_write> pixelBuffer : array<Reservoir>;
 @group(0) @binding(6) var inputTex : texture_2d<f32>;
 @group(0) @binding(10) var blueNoiseTex : texture_2d<f32>;
 @group(0) @binding(11) var<uniform> time : Time;
@@ -84,8 +84,9 @@ fn composite(
   let depthWeight = exp(-pow(depthRef - depthSample, 2.0) / (2.0 * svgfConfig.depthSigma * svgfConfig.depthSigma));
   var blurWeightSum = depthWeight * normalWeight;
   var averageSampleCount = f32(pixelBuffer[index].sampleCount) * blurWeightSum;
-  var averageWeight = pixelBuffer[index].weight * blurWeightSum;
-  var averageContribution = pixelBuffer[index].contribution * blurWeightSum;
+  var averageWeightSum = pixelBuffer[index].weightSum * blurWeightSum;
+  var averageWeight = pixelBuffer[index].lightWeight * blurWeightSum;
+  var averageContribution = pixelBuffer[index].lightWeight * lightsBuffer[pixelBuffer[index].lightIndex].color * blurWeightSum;
 
   for(var x = -BLUR_RADIUS; x <= BLUR_RADIUS; x++){
     for(var y = -BLUR_RADIUS; y <= BLUR_RADIUS; y++){
@@ -97,8 +98,10 @@ fn composite(
       let neighborLightIndex = pixelBuffer[neighborIndex].lightIndex;
       let neighborLightPosition = lightsBuffer[neighborLightIndex].position;
       let neighborLightSampleCount = pixelBuffer[neighborIndex].sampleCount;
-      let neighborWeight = pixelBuffer[neighborIndex].weight;
-      let neighborContribution = pixelBuffer[neighborIndex].contribution;
+      let neighborWeight = pixelBuffer[neighborIndex].lightWeight;
+      let neighborWeightSum = pixelBuffer[neighborIndex].weightSum;
+
+      let neighborContribution = neighborWeight * normalize(lightsBuffer[neighborLightIndex].color);
       let normalSample = textureLoad(normalTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
       let worldPosSample = textureLoad(worldPosTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
       let depthSample = distance(cameraPosition, worldPosSample);
@@ -114,16 +117,18 @@ fn composite(
       let finalWeight = pixelDistanceWeight * depthWeight * normalWeight;
 
       averageSampleCount += f32(neighborLightSampleCount) * finalWeight;
-      averageWeight += neighborWeight * finalWeight;
       averageContribution += neighborContribution * finalWeight;
+      averageWeight += neighborWeight * finalWeight;
+      averageWeightSum += neighborWeightSum * finalWeight;
       blurWeightSum += finalWeight;
     }
   }
 
   averageSampleCount /= blurWeightSum;
   let averageLightProbability = 1.0 / averageSampleCount;
-  averageContribution /= blurWeightSum;
+  averageWeightSum /= blurWeightSum;
   averageWeight /= blurWeightSum;
+  averageContribution /= blurWeightSum;
 
   let diffuse = averageContribution * averageWeight * averageLightProbability;
 
