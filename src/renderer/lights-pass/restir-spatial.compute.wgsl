@@ -58,7 +58,7 @@ const NEIGHBOUR_OFFSETS = array<vec2<i32>, 8>(
   vec2<i32>(1, 1)
 );
 
-const SAMPLE_RADIUS = 3;
+const SAMPLE_RADIUS = 1;
 const MAX_WEIGHT = 1.0;
 const WEIGHT_THRESHOLD = 50.0;
 

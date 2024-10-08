@@ -18,7 +18,7 @@ export type Light = {
 const LIGHT_BUFFER_STRIDE = 32;
 const DOWNSCALE_FACTOR = 3;
 const RESERVOIR_DECAY = 0.5;
-const MAX_SAMPLES = 196;
+const MAX_SAMPLES = 128;
 
 export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   const bindGroupLayout = device.createBindGroupLayout({
@@ -331,6 +331,7 @@ ${lightsCompute}`;
     normalSigma: 0.6,
     depthSigma: 0.8,
     blueNoiseSCale: 0,
+    spatialSigma: 0.5,
   };
 
   let passConfig = {
@@ -343,7 +344,8 @@ ${lightsCompute}`;
   folder.add(lightConfig, "linearAttenuation", 0.01, 1, 0.01);
   folder.add(lightConfig, "quadraticAttenuation", 0.005, 0.1, 0.001);
   folder.add(svgfConfig, "normalSigma", 0.1, 2, 0.05);
-  folder.add(svgfConfig, "depthSigma", 0.1, 2, 0.05);
+  folder.add(svgfConfig, "depthSigma", 0.1, 8, 0.05);
+  folder.add(svgfConfig, "spatialSigma", 0.1, 4, 0.05);
   folder.add(svgfConfig, "blueNoiseSCale", 0, 10, 0.1);
   folder.add(passConfig, "spatialEnabled");
   folder.add(passConfig, "temporalEnabled");
@@ -391,7 +393,7 @@ ${lightsCompute}`;
     if (!svgfConfigBuffer) {
       svgfConfigBuffer = device.createBuffer({
         label: "svgf-config-buffer",
-        size: 12,
+        size: 16,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       });
     }
@@ -402,6 +404,7 @@ ${lightsCompute}`;
         svgfConfig.normalSigma,
         svgfConfig.depthSigma,
         svgfConfig.blueNoiseSCale,
+        svgfConfig.spatialSigma,
       ]),
     );
 

@@ -20,6 +20,7 @@ struct SVGFConfig {
   normalSigma: f32,
   depthSigma: f32,
   blueNoiseScale: f32,
+  spatialSigma: f32,
 }
 
 @group(0) @binding(1) var worldPosTex : texture_2d<f32>;
@@ -106,7 +107,11 @@ fn composite(
       let normalWeight = exp(-dot(normalRef - normalSample, normalRef - normalSample) / (2.0 * svgfConfig.normalSigma * svgfConfig.normalSigma));
       // Compute weight based on depth similarity (Gaussian weighting)
       let depthWeight = exp(-pow(depthRef - depthSample, 2.0) / (2.0 * svgfConfig.depthSigma * svgfConfig.depthSigma));
-      let finalWeight = depthWeight * normalWeight;
+      // Compute distance from source pixel to downscaled resevoir pixel
+      let fullResNeighbor = vec2<i32>(neighbor) * DOWN_SAMPLE_FACTOR;
+      let pixelDistance = distance(vec2<f32>(fullResNeighbor), vec2<f32>(pixel));
+      let pixelDistanceWeight = exp(-pow(pixelDistance, 2.0) / (2.0 * svgfConfig.spatialSigma * svgfConfig.spatialSigma));
+      let finalWeight = pixelDistanceWeight * depthWeight * normalWeight;
 
       averageSampleCount += f32(neighborLightSampleCount) * finalWeight;
       averageWeight += neighborWeight * finalWeight;
