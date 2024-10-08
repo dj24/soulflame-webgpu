@@ -345,7 +345,7 @@ ${lightsCompute}`;
   folder.add(lightConfig, "quadraticAttenuation", 0.005, 0.1, 0.001);
   folder.add(svgfConfig, "normalSigma", 0.1, 2, 0.05);
   folder.add(svgfConfig, "depthSigma", 0.1, 8, 0.05);
-  folder.add(svgfConfig, "spatialSigma", 0.1, 4, 0.05);
+  folder.add(svgfConfig, "spatialSigma", 0.5, 10, 0.1);
   folder.add(svgfConfig, "blueNoiseSCale", 0, 10, 0.1);
   folder.add(passConfig, "spatialEnabled");
   folder.add(passConfig, "temporalEnabled");
