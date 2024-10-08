@@ -55,18 +55,18 @@ struct LightPixel {
 
 @group(1) @binding(0) var<uniform> lightConfig : LightConfig;
 
-const INTENSITY_ANTI_QUANTIZATION_FACTOR = 255.0;
 const CONSTANT_ATTENUATION = 0.0;
 const LINEAR_ATTENUATION = 0.1;
 const QUADRATIC_ATTENUATION = 0.1;
 const LIGHT_COUNT = 32;
 const SAMPLES_PER_FRAME = 8;
 
-fn getLightWeight(lightPos: vec3<f32>, lightColour: vec3<f32>, worldPos: vec3<f32>) -> f32 {
+fn getLightWeight(lightPos: vec3<f32>, lightColour: vec3<f32>, worldPos: vec3<f32>, normal: vec3<f32>) -> f32 {
   let lightDir = lightPos - worldPos;
   let d = length(lightDir);
   let attenuation = lightConfig.constantAttenuation + lightConfig.linearAttenuation * d + lightConfig.quadraticAttenuation * d * d;
-  return (1.0 / attenuation) * length(lightColour);
+  let ndotl = dot(normalize(lightDir), normal);
+  return (1.0 / attenuation) * length(lightColour) * ndotl;
 }
 
 @compute @workgroup_size(8, 8, 1)
@@ -94,11 +94,10 @@ fn main(
     let iterOffsetX = (i * 193) % 512; // Large prime numbers for frame variation
     let iterOffsetY = (i * 257) % 512; // Different prime numbers
     let sampleR = textureLoad(blueNoiseTex, (blueNoisePixel + vec2(iterOffsetX, iterOffsetY)) % 512, 0).xy;
-    let normalisedSampleR = sampleR * 2.0 - 1.0;
-    let sampleLightIndex = u32(normalisedSampleR.x * f32(LIGHT_COUNT));
+    let sampleLightIndex = u32(sampleR.x * f32(LIGHT_COUNT));
     let light = lightsBuffer[sampleLightIndex];
     let lightPos = light.position + jitterOffset;
-    var weight = getLightWeight(lightPos, light.color, worldPos);
+    var weight = getLightWeight(lightPos, light.color, worldPos, normal);
 
     if(weight > bestWeight){
       bestWeight = weight;

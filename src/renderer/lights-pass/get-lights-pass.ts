@@ -330,7 +330,12 @@ ${lightsCompute}`;
   let svgfConfig = {
     normalSigma: 0.6,
     depthSigma: 0.8,
-    blueNoiseSCale: 4,
+    blueNoiseSCale: 0,
+  };
+
+  let passConfig = {
+    spatialEnabled: true,
+    temporalEnabled: true,
   };
 
   const folder = (window as any).debugUI.gui.addFolder("lighting");
@@ -340,6 +345,8 @@ ${lightsCompute}`;
   folder.add(svgfConfig, "normalSigma", 0.1, 2, 0.05);
   folder.add(svgfConfig, "depthSigma", 0.1, 2, 0.05);
   folder.add(svgfConfig, "blueNoiseSCale", 0, 10, 0.1);
+  folder.add(passConfig, "spatialEnabled");
+  folder.add(passConfig, "temporalEnabled");
 
   const render = ({
     commandEncoder,
@@ -731,9 +738,13 @@ ${lightsCompute}`;
     };
 
     sampleLightsPass();
-    temporalPass();
+    if (passConfig.temporalEnabled) {
+      temporalPass();
+    }
     copyPass();
-    spatialPass();
+    if (passConfig.spatialEnabled) {
+      spatialPass();
+    }
     compositePass();
     commandEncoder.copyBufferToBuffer(
       lightPixelBuffer,

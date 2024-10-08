@@ -119,46 +119,32 @@ fn main(
   let resolution = textureDimensions(inputTex);
   let downscaledResolution = resolution / DOWN_SAMPLE_FACTOR;
   var pixel = vec2<f32>(downscaledPixel) * f32(DOWN_SAMPLE_FACTOR);
-
   let uv = vec2<f32>(downscaledPixel) / vec2<f32>(downscaledResolution);
 //  if(uv.x < 0.5){
 //    return;
 //  }
 
-  // Get velocity from pixel with closest depth value in 3x3 neighborhood
-  let depthSample = textureLoad(depthTex, vec2<u32>(pixel), 0).r;
-  var closestDepthPixel = vec2<i32>(pixel);
-  var closestDepth = 999999999.0;
-  for (var i = 0; i < 8; i = i + 1) {
-      let neighbourPixel = clamp(vec2<i32>(pixel) + NEIGHBORHOOD_SAMPLE_POSITIONS[i], vec2<i32>(0), vec2<i32>(resolution - 1));
-      let neighbourDepth = textureLoad(depthTex, neighbourPixel, 0).r;
-      if (abs(neighbourDepth - depthSample) < abs(closestDepth - depthSample)) {
-          closestDepth = neighbourDepth;
-          closestDepthPixel = neighbourPixel;
-      }
-  }
 
-  let velocity = textureLoad(velocityTex, closestDepthPixel, 0).xy;
-  let previousUv = uv - velocity;
-
-  let previousPixel = previousUv * vec2<f32>(resolution) - vec2<f32>(0.5);
+  let velocity = textureLoad(velocityTex, vec2<u32>(pixel), 0).xy;
+  let pixelVelocity = velocity * vec2<f32>(resolution);
+  let previousPixel = vec2<f32>(pixel) - pixelVelocity;
 //
-  let normalRef = textureLoad(normalTex, vec2<u32>(pixel), 0).xyz;
-  let previousNormal = textureLoad(normalTex, vec2<u32>(previousPixel), 0).xyz;
-  let normalDifference = -dot(normalRef, previousNormal);
-  if(normalDifference > 0.5){
-    return;
-  }
+//  let normalRef = textureLoad(normalTex, vec2<u32>(pixel), 0).xyz;
+//  let previousNormal = textureLoad(normalTex, vec2<u32>(previousPixel), 0).xyz;
+//  let normalDifference = -dot(normalRef, previousNormal);
+//  if(normalDifference > 0.5){
+//    return;
+//  }
 
 
   // Calculate depth difference between source and history samples
-  let depthAtPreviousPixel = textureLoad(depthTex, vec2<u32>(previousPixel), 0).r;
-  let depthDifference: f32 = abs(depthSample - depthAtPreviousPixel);
-
-  // Apply depth clamping
-  if (depthDifference > DEPTH_THRESHOLD) {
-      return;
-  }
+//  let depthAtPreviousPixel = textureLoad(depthTex, vec2<u32>(previousPixel), 0).r;
+//  let depthDifference: f32 = abs(depthSample - depthAtPreviousPixel);
+//
+//  // Apply depth clamping
+//  if (depthDifference > DEPTH_THRESHOLD) {
+//      return;
+//  }
 //
 
   let previousDownscaledPixel = previousPixel / f32(DOWN_SAMPLE_FACTOR);
