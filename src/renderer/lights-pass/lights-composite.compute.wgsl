@@ -47,7 +47,7 @@ const NEIGHBORHOOD_SAMPLE_POSITIONS = array<vec2<i32>, 8>(
     vec2<i32>(1, 1)
 );
 
-const BLUR_RADIUS = 1;
+const BLUR_RADIUS = 2;
 
 fn convert2DTo1D(width: u32, index2D: vec2<u32>) -> u32 {
     return index2D.y * width + index2D.x;
@@ -76,60 +76,67 @@ fn composite(
   let r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy;
   var index = convert2DTo1D(downscaledResolution.x, downscaledPixel);
 
-  // Get initial light contribution, so we dont have a black screen with no valid blur samples
+  // Compute weight based on normal similarity (Gaussian weighting)
   let normalSample = textureLoad(normalTex, downscaledPixel * DOWN_SAMPLE_FACTOR, 0).xyz;
   let normalWeight = exp(-dot(normalRef - normalSample, normalRef - normalSample) / (2.0 * svgfConfig.normalSigma * svgfConfig.normalSigma));
   let worldPosSample = textureLoad(worldPosTex, downscaledPixel * DOWN_SAMPLE_FACTOR, 0).xyz;
+  // Depth weighting
   let depthSample = distance(cameraPosition, worldPosSample);
   let depthWeight = exp(-pow(depthRef - depthSample, 2.0) / (2.0 * svgfConfig.depthSigma * svgfConfig.depthSigma));
-  var blurWeightSum = depthWeight * normalWeight;
+  // Spatial weighting
+  let gauss = distance(vec2<f32>(pixel), vec2<f32>(downscaledPixel));
+  let gaussWeight = exp(-pow(gauss, 2.0) / (2.0 * svgfConfig.spatialSigma * svgfConfig.spatialSigma));
+
+//  var blurWeightSum = gaussWeight * normalWeight * depthWeight;
+var blurWeightSum = 1.0;
   var averageSampleCount = f32(pixelBuffer[index].sampleCount) * blurWeightSum;
   var averageWeightSum = pixelBuffer[index].weightSum * blurWeightSum;
   var averageWeight = pixelBuffer[index].lightWeight * blurWeightSum;
   var averageContribution = pixelBuffer[index].lightWeight * lightsBuffer[pixelBuffer[index].lightIndex].color * blurWeightSum;
 
-  for(var x = -BLUR_RADIUS; x <= BLUR_RADIUS; x++){
-    for(var y = -BLUR_RADIUS; y <= BLUR_RADIUS; y++){
-      if(x == 0 && y == 0) {
-      continue;
-      }
-      let neighbor = vec2<i32>(downscaledPixel) + vec2<i32>(x, y) + vec2<i32>(r * svgfConfig.blueNoiseScale);
-      let neighborIndex = convert2DTo1D(downscaledResolution.x, vec2<u32>(neighbor));
-      let neighborLightIndex = pixelBuffer[neighborIndex].lightIndex;
-      let neighborLightPosition = lightsBuffer[neighborLightIndex].position;
-      let neighborLightSampleCount = pixelBuffer[neighborIndex].sampleCount;
-      let neighborWeight = pixelBuffer[neighborIndex].lightWeight;
-      let neighborWeightSum = pixelBuffer[neighborIndex].weightSum;
-
-      let neighborContribution = neighborWeight * normalize(lightsBuffer[neighborLightIndex].color);
-      let normalSample = textureLoad(normalTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
-      let worldPosSample = textureLoad(worldPosTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
-      let depthSample = distance(cameraPosition, worldPosSample);
-
-      // Compute weight based on normal similarity (Gaussian weighting)
-      let normalWeight = exp(-dot(normalRef - normalSample, normalRef - normalSample) / (2.0 * svgfConfig.normalSigma * svgfConfig.normalSigma));
-      // Compute weight based on depth similarity (Gaussian weighting)
-      let depthWeight = exp(-pow(depthRef - depthSample, 2.0) / (2.0 * svgfConfig.depthSigma * svgfConfig.depthSigma));
-      // Compute distance from source pixel to downscaled resevoir pixel
-      let fullResNeighbor = vec2<i32>(neighbor) * DOWN_SAMPLE_FACTOR;
-      let pixelDistance = distance(vec2<f32>(fullResNeighbor), vec2<f32>(pixel));
-      let pixelDistanceWeight = exp(-pow(pixelDistance, 2.0) / (2.0 * svgfConfig.spatialSigma * svgfConfig.spatialSigma));
-      let finalWeight = pixelDistanceWeight * depthWeight * normalWeight;
-
-      averageSampleCount += f32(neighborLightSampleCount) * finalWeight;
-      averageContribution += neighborContribution * finalWeight;
-      averageWeight += neighborWeight * finalWeight;
-      averageWeightSum += neighborWeightSum * finalWeight;
-      blurWeightSum += finalWeight;
-    }
-  }
+//  for(var x = -BLUR_RADIUS; x <= BLUR_RADIUS; x++){
+//    for(var y = -BLUR_RADIUS; y <= BLUR_RADIUS; y++){
+//      if(x == 0 && y == 0) {
+//      continue;
+//      }
+//      let neighbor = vec2<i32>(downscaledPixel) + vec2<i32>(x, y) + vec2<i32>(r * svgfConfig.blueNoiseScale);
+//      let neighborIndex = convert2DTo1D(downscaledResolution.x, vec2<u32>(neighbor));
+//      let neighborLightIndex = pixelBuffer[neighborIndex].lightIndex;
+//      let neighborLightPosition = lightsBuffer[neighborLightIndex].position;
+//      let neighborLightSampleCount = pixelBuffer[neighborIndex].sampleCount;
+//      let neighborWeight = pixelBuffer[neighborIndex].lightWeight;
+//      let neighborWeightSum = pixelBuffer[neighborIndex].weightSum;
+//
+//      let neighborContribution = neighborWeight * normalize(lightsBuffer[neighborLightIndex].color);
+//      let normalSample = textureLoad(normalTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
+//      let worldPosSample = textureLoad(worldPosTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
+//      let depthSample = distance(cameraPosition, worldPosSample);
+//
+//      // Compute weight based on normal similarity (Gaussian weighting)
+//      let normalWeight = exp(-dot(normalRef - normalSample, normalRef - normalSample) / (2.0 * svgfConfig.normalSigma * svgfConfig.normalSigma));
+//      // Compute weight based on depth similarity (Gaussian weighting)
+//      let depthWeight = exp(-pow(depthRef - depthSample, 2.0) / (2.0 * svgfConfig.depthSigma * svgfConfig.depthSigma));
+//      // Compute distance from source pixel to downscaled resevoir pixel
+//      let fullResNeighbor = vec2<i32>(neighbor) * DOWN_SAMPLE_FACTOR;
+//      let gauss = distance(vec2<f32>(fullResNeighbor), vec2<f32>(pixel));
+//      let gaussWeight = exp(-pow(gauss, 2.0) / (2.0 * svgfConfig.spatialSigma * svgfConfig.spatialSigma));
+//      let finalWeight = gaussWeight * normalWeight * depthWeight;
+//
+//      averageSampleCount += f32(neighborLightSampleCount) * finalWeight;
+//      averageContribution += neighborContribution * finalWeight;
+//      averageWeight += neighborWeight * finalWeight;
+//      averageWeightSum += neighborWeightSum * finalWeight;
+//      blurWeightSum += finalWeight;
+//    }
+//  }
+  blurWeightSum = max(blurWeightSum, 0.0001); // Prevent division by zero (or close to zero
 
   averageSampleCount /= blurWeightSum;
-  let averageLightProbability = 1.0 / averageSampleCount;
   averageWeightSum /= blurWeightSum;
   averageWeight /= blurWeightSum;
   averageContribution /= blurWeightSum;
 
+  let averageLightProbability = 1.0 / averageSampleCount;
   let diffuse = averageContribution * averageWeight * averageLightProbability;
 
   // Composite the light

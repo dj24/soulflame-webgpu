@@ -82,8 +82,8 @@ fn main(
   var blueNoisePixel = vec2<i32>(id.xy);
   let frameOffsetX = (i32(time.frame) * 92821 + 71413) % 512;  // Large prime numbers for frame variation
   let frameOffsetY = (i32(time.frame) * 13761 + 511) % 512;    // Different prime numbers
-  blueNoisePixel.x += frameOffsetX;
-  blueNoisePixel.y += frameOffsetY;
+//  blueNoisePixel.x += frameOffsetX;
+//  blueNoisePixel.y += frameOffsetY;
   let r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy;
   let jitterOffset = randomInUnitSphere(r);
 
@@ -93,14 +93,14 @@ fn main(
   for(var i = 0; i < SAMPLES_PER_FRAME; i++){
     let iterOffsetX = (i * 193) % 512; // Large prime numbers for frame variation
     let iterOffsetY = (i * 257) % 512; // Different prime numbers
-    let sampleR = textureLoad(blueNoiseTex, (blueNoisePixel + vec2(iterOffsetX, iterOffsetY)) % 512, 0).xy;
+    let sampleR = textureLoad(blueNoiseTex, (blueNoisePixel + vec2(frameOffsetX + iterOffsetX, frameOffsetY + iterOffsetY)) % 512, 0).xy;
     let sampleLightIndex = u32(sampleR.x * f32(LIGHT_COUNT));
     let light = lightsBuffer[sampleLightIndex];
     let lightPos = light.position + jitterOffset;
     let weight = getLightWeight(lightPos, light.color, worldPos, normal);
 
     weightSum += weight;
-    if(sampleR.y < weight / weightSum){
+    if(r.y < weight / weightSum){
       bestWeight = weight;
       lightIndex = sampleLightIndex;
     }

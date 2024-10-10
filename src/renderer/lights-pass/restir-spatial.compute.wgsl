@@ -83,6 +83,11 @@ fn spatial(
   var currentSampleCount = outputPixelBuffer[index].sampleCount;
   var lightIndex = outputPixelBuffer[index].lightIndex;
 
+  let frameOffsetX = (i32(time.frame) * 92821 + 71413) % 512;  // Large prime numbers for frame variation
+  let frameOffsetY = (i32(time.frame) * 13761 + 511) % 512;    // Different prime numbers
+  //  blueNoisePixel.x += frameOffsetX;
+  //  blueNoisePixel.y += frameOffsetY;
+
   for(var i = 0u; i < 8; i = i + 1u){
     let offset = NEIGHBOUR_OFFSETS[i];
     let neighbor = vec2<i32>(downscaledPixel) + offset;
@@ -100,7 +105,7 @@ fn spatial(
     }
     let iterOffsetX = (i * 193) % 512; // Large prime numbers for frame variation
     let iterOffsetY = (i * 257) % 512; // Different prime numbers
-    let sampleR = textureLoad(blueNoiseTex, (downscaledPixel + vec2(iterOffsetX, iterOffsetY)) % 512, 0).xy;
+    let sampleR = textureLoad(blueNoiseTex, (vec2<i32>(downscaledPixel) + vec2(frameOffsetX, frameOffsetY)) % 512, 0).xy;
 
     weightSum += neighborWeight;
     currentSampleCount += neighborCount;
