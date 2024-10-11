@@ -434,7 +434,7 @@ ${lightsCompute}`;
       const downscaledHeight = Math.ceil(
         outputTextures.finalTexture.height / DOWNSCALE_FACTOR,
       );
-      const stride = 32;
+      const stride = 16;
       lightPixelBuffer = device.createBuffer({
         label: "light-pixel-buffer",
         size: stride * downscaledWidth * downscaledHeight,

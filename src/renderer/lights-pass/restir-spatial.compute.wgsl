@@ -43,7 +43,7 @@ struct Light {
 struct Reservoir {
   sampleCount: u32,
   weightSum: f32,
-  lightWeight: vec3<f32>,
+  lightWeight: f32,
   lightIndex: u32,
 }
 
@@ -92,7 +92,7 @@ fn spatial(
     let offset = NEIGHBOUR_OFFSETS[i];
     let neighbor = vec2<i32>(downscaledPixel) + offset;
     let neighborIndex = convert2DTo1D(downscaledResolution.x,vec2<u32>(neighbor));
-    let neighborWeight = inputPixelBuffer[neighborIndex].lightWeight.x;
+    let neighborWeight = inputPixelBuffer[neighborIndex].lightWeight;
     let neighborWeightSum = inputPixelBuffer[neighborIndex].weightSum;
     let neighborCount = inputPixelBuffer[neighborIndex].sampleCount;
     let normalSample = textureLoad(normalTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
@@ -111,7 +111,7 @@ fn spatial(
     currentSampleCount += neighborCount;
     if(sampleR.y < neighborWeight / weightSum){
         lightIndex = inputPixelBuffer[neighborIndex].lightIndex;
-        currentWeight = vec3(neighborWeight);
+        currentWeight = neighborWeight;
     }
   }
   outputPixelBuffer[index].weightSum = weightSum;

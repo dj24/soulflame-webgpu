@@ -44,7 +44,7 @@ struct Light {
 struct Reservoir {
   sampleCount: u32,
   weightSum: f32,
-  lightWeight: vec3<f32>,
+  lightWeight: f32,
   lightIndex: u32,
 }
 
@@ -65,15 +65,38 @@ fn bilinearReservoirWeight(pixel: vec2<f32>, resolution: vec2<u32>) -> f32 {
   let i2 = convert2DTo1D(resolution.x, p2);
   let i3 = convert2DTo1D(resolution.x, p3);
 
-  let w0 = previousPixelBuffer[i0].lightWeight.x;
-  let w1 = previousPixelBuffer[i1].lightWeight.x;
-  let w2 = previousPixelBuffer[i2].lightWeight.x;
-  let w3 = previousPixelBuffer[i3].lightWeight.x;
+  let w0 = previousPixelBuffer[i0].lightWeight;
+  let w1 = previousPixelBuffer[i1].lightWeight;
+  let w2 = previousPixelBuffer[i2].lightWeight;
+  let w3 = previousPixelBuffer[i3].lightWeight;
 
   let bottom = mix(w0, w1, t.x);
   let top = mix(w2, w3, t.x);
   return mix(bottom, top, t.y);
 }
+
+fn bilinearReservoirWeightSum(pixel: vec2<f32>, resolution: vec2<u32>) -> f32 {
+   let p0 = vec2<u32>(pixel);
+   let p1 = vec2<u32>(p0.x + 1, p0.y);
+   let p2 = vec2<u32>(p0.x, p0.y + 1);
+   let p3 = vec2<u32>(p0.x + 1, p0.y + 1);
+
+   let t = fract(pixel);
+
+   let i0 = convert2DTo1D(resolution.x, p0);
+   let i1 = convert2DTo1D(resolution.x, p1);
+   let i2 = convert2DTo1D(resolution.x, p2);
+   let i3 = convert2DTo1D(resolution.x, p3);
+
+   let w0 = previousPixelBuffer[i0].weightSum;
+   let w1 = previousPixelBuffer[i1].weightSum;
+   let w2 = previousPixelBuffer[i2].weightSum;
+   let w3 = previousPixelBuffer[i3].weightSum;
+
+   let bottom = mix(w0, w1, t.x);
+   let top = mix(w2, w3, t.x);
+   return mix(bottom, top, t.y);
+ }
 
 const NEIGHBORHOOD_SAMPLE_POSITIONS = array<vec2<i32>, 8>(
     vec2<i32>(-1, -1),
@@ -95,39 +118,25 @@ fn main(
   var downscaledPixel = id.xy;
   let resolution = textureDimensions(inputTex);
   let downscaledResolution = resolution / DOWN_SAMPLE_FACTOR;
-  var pixel = vec2<f32>(downscaledPixel) * f32(DOWN_SAMPLE_FACTOR);
-//  let velocity = textureLoad(velocityTex, vec2<u32>(pixel), 0).xy;
-  let velocity = vec2(0.0);
+  var pixel = (vec2<f32>(downscaledPixel)) * f32(DOWN_SAMPLE_FACTOR);
+  let velocity = textureLoad(velocityTex, vec2<u32>(pixel), 0).xy;
   let pixelVelocity = velocity * vec2<f32>(resolution);
   let previousPixel = vec2<f32>(pixel) - pixelVelocity;
-
-//  let normalRef = textureLoad(normalTex, vec2<u32>(pixel), 0).xyz;
-//  let previousNormal = textureLoad(normalTex, vec2<u32>(previousPixel), 0).xyz;
-//  let normalDifference = -dot(normalRef, previousNormal);
-//  if(normalDifference > 0.5){
-//    return;
-//  }
-
-// Calculate depth difference between source and history samples
-//  let depthAtPreviousPixel = textureLoad(depthTex, vec2<u32>(previousPixel), 0).r;
-//  let depthDifference: f32 = abs(depthSample - depthAtPreviousPixel);
-//
-//  // Apply depth clamping
-//  if (depthDifference > DEPTH_THRESHOLD) {
-//      return;
-//  }
-//
+  let previousWorldPos = textureLoad(worldPosTex, vec2<u32>(previousPixel), 0);
+  if(previousWorldPos.w > 10000.0){
+    return;
+  }
 
   let previousDownscaledPixel = previousPixel / f32(DOWN_SAMPLE_FACTOR);
   let index = convert2DTo1D(downscaledResolution.x, downscaledPixel);
   let previousIndex = convert2DTo1D(downscaledResolution.x, vec2<u32>(previousDownscaledPixel));
   var previousLightPixel = previousPixelBuffer[previousIndex];
   let previousCount = previousLightPixel.sampleCount;
-  let previousWeight = previousLightPixel.lightWeight.x;
-  let previousWeightSum = previousLightPixel.weightSum;
+  let previousWeight = bilinearReservoirWeight(previousDownscaledPixel, downscaledResolution);
+  let previousWeightSum = bilinearReservoirWeightSum(previousDownscaledPixel, downscaledResolution);
 
   var currentWeightSum = pixelBuffer[index].weightSum;
-  var currentWeight = pixelBuffer[index].lightWeight.x;
+  var currentWeight = pixelBuffer[index].lightWeight;
   var currentSampleCount = pixelBuffer[index].sampleCount;
 
   var blueNoisePixel = vec2<i32>(id.xy);
@@ -151,7 +160,7 @@ fn main(
     currentSampleCount = MAX_SAMPLES;
   }
 
-  pixelBuffer[index].lightWeight = vec3(currentWeight);
+  pixelBuffer[index].lightWeight = currentWeight;
   pixelBuffer[index].weightSum = currentWeightSum;
   pixelBuffer[index].sampleCount = currentSampleCount;
 }

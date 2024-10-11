@@ -35,11 +35,11 @@ struct LightConfig {
   normalSigma: f32
 }
 
-
+// 8 byte
 struct Resevoir {
   sampleCount: u32,
   weightSum: f32,
-  lightWeight: vec3<f32>,
+  lightWeight: f32,
   lightIndex: u32,
 }
 
@@ -115,7 +115,7 @@ fn main(
   }
 
   pixelBuffer[pixelBufferIndex].weightSum = weightSum;
-  pixelBuffer[pixelBufferIndex].lightWeight = vec3(bestWeight);
+  pixelBuffer[pixelBufferIndex].lightWeight = bestWeight;
   pixelBuffer[pixelBufferIndex].lightIndex = lightIndex;
   pixelBuffer[pixelBufferIndex].sampleCount = SAMPLES_PER_FRAME;
 }

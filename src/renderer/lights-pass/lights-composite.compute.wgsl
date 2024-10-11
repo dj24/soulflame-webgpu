@@ -12,7 +12,7 @@ struct Time {
 struct Reservoir {
   sampleCount: u32,
   weightSum: f32,
-  lightWeight: vec3<f32>,
+  lightWeight: f32,
   lightIndex: u32,
 }
 
