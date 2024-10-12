@@ -16,7 +16,7 @@ export type Light = {
 };
 
 const LIGHT_BUFFER_STRIDE = 32;
-const DOWNSCALE_FACTOR = 3;
+const DOWNSCALE_FACTOR = 2;
 const RESERVOIR_DECAY = 0.5;
 const MAX_SAMPLES = 128;
 const RESERVOIR_TEXTURE_FORMAT: GPUTextureFormat = "rgba32float";
@@ -438,8 +438,8 @@ ${lightsCompute}`;
       );
       reservoirTexture = device.createTexture({
         size: {
-          width: downscaledWidth,
-          height: downscaledHeight,
+          width: outputTextures.finalTexture.width,
+          height: outputTextures.finalTexture.height,
         },
         format: RESERVOIR_TEXTURE_FORMAT,
         usage:
@@ -681,8 +681,8 @@ ${lightsCompute}`;
       passEncoder.setPipeline(temporalPipeline);
       passEncoder.setBindGroup(1, temporalBindGroup);
       passEncoder.dispatchWorkgroups(
-        Math.ceil(downscaledWidth / 8),
-        Math.ceil(downscaledHeight / 8),
+        Math.ceil(reservoirTexture.width / 8),
+        Math.ceil(reservoirTexture.height / 8),
         1,
       );
       passEncoder.end();
@@ -751,8 +751,8 @@ ${lightsCompute}`;
       passEncoder.setBindGroup(1, spatialBindGroup);
       passEncoder.setPipeline(spatialPipeline);
       passEncoder.dispatchWorkgroups(
-        Math.ceil(downscaledWidth / 8),
-        Math.ceil(downscaledHeight / 8),
+        Math.ceil(reservoirTexture.width / 8),
+        Math.ceil(reservoirTexture.height / 8),
         1,
       );
       passEncoder.end();
@@ -768,8 +768,8 @@ ${lightsCompute}`;
           texture: copyReservoirTexture,
         },
         {
-          width: downscaledWidth,
-          height: downscaledHeight,
+          width: reservoirTexture.width,
+          height: reservoirTexture.height,
         },
       );
     };
@@ -783,6 +783,7 @@ ${lightsCompute}`;
     if (passConfig.spatialEnabled) {
       spatialPass();
     }
+    copyPass();
     compositePass();
     commandEncoder.copyTextureToTexture(
       {
@@ -792,16 +793,10 @@ ${lightsCompute}`;
         texture: previousReservoirTexture,
       },
       {
-        width: downscaledWidth,
-        height: downscaledHeight,
+        width: reservoirTexture.width,
+        height: reservoirTexture.height,
       },
     );
-    // commandEncoder.clearBuffer(lightPixelBuffer, 0, lightPixelBuffer.size);
-    // commandEncoder.clearBuffer(
-    //   copyLightPixelBuffer,
-    //   0,
-    //   copyLightPixelBuffer.size,
-    // );
   };
 
   return {

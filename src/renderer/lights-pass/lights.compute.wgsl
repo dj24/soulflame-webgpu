@@ -74,11 +74,8 @@ fn getLightWeight(lightPos: vec3<f32>, lightColour: vec3<f32>, worldPos: vec3<f3
 fn main(
     @builtin(global_invocation_id) id : vec3<u32>,
 ) {
-  let pixel = id.xy;
-  let downscaledPixel = vec2<u32>(id.xy) * DOWN_SAMPLE_FACTOR;
-  let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
-  let worldPos = textureLoad(worldPosTex, downscaledPixel, 0).xyz;
-  let normal = textureLoad(normalTex, downscaledPixel, 0).xyz;
+  let worldPos = textureLoad(worldPosTex, id.xy * DOWN_SAMPLE_FACTOR, 0).xyz;
+  let normal = textureLoad(normalTex, id.xy * DOWN_SAMPLE_FACTOR, 0).xyz;
   var blueNoisePixel = vec2<i32>(id.xy);
   let frameOffsetX = (i32(time.frame) * 92821 + 71413) % 512;  // Large prime numbers for frame variation
   let frameOffsetY = (i32(time.frame) * 13761 + 511) % 512;    // Different prime numbers
@@ -119,5 +116,12 @@ fn main(
      bitcast<f32>(lightIndex),
   );
 
-  textureStore(reservoirTex, pixel, reservoir);
+//  textureStore(reservoirTex, id.xy * DOWN_SAMPLE_FACTOR, reservoir);
+
+
+  for(var x = 0u; x < DOWN_SAMPLE_FACTOR; x++){
+    for(var y = 0u; y < DOWN_SAMPLE_FACTOR; y++){
+      textureStore(reservoirTex, id.xy * DOWN_SAMPLE_FACTOR + vec2(x, y), reservoir);
+    }
+  }
 }

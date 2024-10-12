@@ -1,3 +1,4 @@
+@group(0) @binding(0) var nearestSampler : sampler;
 @group(0) @binding(1) var worldPosTex : texture_2d<f32>;
 @group(0) @binding(2) var normalTex : texture_2d<f32>;
 @group(0) @binding(3) var<storage, read> lightsBuffer : array<Light>;
@@ -7,6 +8,8 @@
 @group(0) @binding(10) var blueNoiseTex : texture_2d<f32>;
 @group(0) @binding(11) var<uniform> time : Time;
 @group(0) @binding(12) var<uniform> cameraPosition : vec3<f32>;
+@group(0) @binding(13) var linearSampler : sampler;
+
 
 @group(1) @binding(0) var inputReservoirTex : texture_2d<f32>;
 
@@ -47,15 +50,15 @@ struct Reservoir {
   lightIndex: u32,
 }
 
-const NEIGHBOUR_OFFSETS = array<vec2<i32>, 8>(
+const NEIGHBOUR_OFFSETS = array<vec2<i32>, 4>(
   vec2<i32>(-1, 0),
   vec2<i32>(1, 0),
   vec2<i32>(0, -1),
   vec2<i32>(0, 1),
-  vec2<i32>(-1, -1),
-  vec2<i32>(1, -1),
-  vec2<i32>(-1, 1),
-  vec2<i32>(1, 1)
+//  vec2<i32>(-1, -1),
+//  vec2<i32>(1, -1),
+//  vec2<i32>(-1, 1),
+//  vec2<i32>(1, 1)
 );
 
 const SAMPLE_RADIUS = 1;
@@ -85,19 +88,16 @@ fn packReservoir(reservoir: Reservoir) -> vec4<f32> {
 fn spatial(
 @builtin(global_invocation_id) id : vec3<u32>
 ){
-  var downscaledPixel = id.xy;
-  let pixel = downscaledPixel * DOWN_SAMPLE_FACTOR;
-  let normalRef = textureLoad(normalTex, pixel, 0).xyz;
-  let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
-  let index = convert2DTo1D(downscaledResolution.x, id.xy);
-  let uv = (vec2<f32>(downscaledPixel) + vec2(0.5)) / vec2<f32>(downscaledResolution);
-  let worldPos = textureLoad(worldPosTex, vec2<u32>(pixel), 0).xyz;
+  let normalRef = textureLoad(normalTex, id.xy, 0).xyz;
+  let resolution = textureDimensions(worldPosTex).xy;
+  let uv = vec2<f32>(id.xy) / vec2<f32>(resolution);
+  let worldPos = textureLoad(worldPosTex, id.xy, 0).xyz;
 
   if(distance(cameraPosition, worldPos) > 10000.0){
     return;
   }
 
-  let reservoir = unpackReservoir(textureLoad(inputReservoirTex, id.xy, 0));
+  let reservoir = unpackReservoir(textureSampleLevel(inputReservoirTex, nearestSampler, uv, 0));
   var weightSum = reservoir.weightSum;
   var currentWeight = reservoir.lightWeight;
   var currentSampleCount = reservoir.sampleCount;
@@ -106,22 +106,24 @@ fn spatial(
   let frameOffsetX = (i32(time.frame) * 92821 + 71413) % 512;  // Large prime numbers for frame variation
   let frameOffsetY = (i32(time.frame) * 13761 + 511) % 512;    // Different prime numbers
 
-  for(var i = 0u; i < 8; i = i + 1u){
-    let offset = NEIGHBOUR_OFFSETS[i];
+  for(var i = 0u; i < 4; i = i + 1u){
+    let offset = NEIGHBOUR_OFFSETS[i] * DOWN_SAMPLE_FACTOR;
     let neighbor = vec2<i32>(id.xy) + offset;
+    let neighborUv = vec2<f32>(neighbor) / vec2<f32>(resolution);
     let neighborReservoir = unpackReservoir(textureLoad(inputReservoirTex, neighbor, 0));
-    let neighborWeight = neighborReservoir.lightWeight;
-    let normalSample = textureLoad(normalTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
+    let linearReservoir = unpackReservoir(textureSampleLevel(inputReservoirTex, linearSampler, neighborUv, 0));
+    let neighborWeight = linearReservoir.lightWeight;
+    let normalSample = textureLoad(normalTex, neighbor, 0).xyz;
     let normalDifference = dot(normalRef, normalSample);
     if(normalDifference < 0.5){
       continue;
     }
-    if (abs(neighborReservoir.weightSum - weightSum) > WEIGHT_THRESHOLD) {
+    if (abs(linearReservoir.weightSum - weightSum) > WEIGHT_THRESHOLD) {
       continue; // Skip neighbors with too large weight difference
     }
     let iterOffsetX = (i * 193) % 512; // Large prime numbers for frame variation
     let iterOffsetY = (i * 257) % 512; // Different prime numbers
-    let sampleR = textureLoad(blueNoiseTex, (vec2<i32>(downscaledPixel) + vec2(frameOffsetX, frameOffsetY)) % 512, 0).xy;
+    let sampleR = textureLoad(blueNoiseTex, (vec2<i32>(id.xy) + vec2(frameOffsetX, frameOffsetY)) % 512, 0).xy;
 
     weightSum += neighborWeight;
     currentSampleCount += neighborReservoir.sampleCount;

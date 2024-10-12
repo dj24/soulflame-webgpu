@@ -90,16 +90,12 @@ fn packReservoir(reservoir: Reservoir) -> vec4<f32> {
 fn main(
 @builtin(global_invocation_id) id : vec3<u32>
 ){
-  var downscaledPixel = id.xy;
   let resolution = textureDimensions(inputTex);
-  let downscaledResolution = resolution / DOWN_SAMPLE_FACTOR;
-  var pixel = (vec2<f32>(downscaledPixel)) * f32(DOWN_SAMPLE_FACTOR);
-
-  let uv = pixel / vec2<f32>(resolution);
-  let velocity = textureLoad(velocityTex, vec2<u32>(pixel), 0).xy;
+  let uv = vec2<f32>(id.xy) / vec2<f32>(resolution);
+  let velocity = textureLoad(velocityTex, id.xy, 0).xy;
   let previousUv = uv - velocity;
   let pixelVelocity = velocity * vec2<f32>(resolution);
-  let previousPixel = vec2<f32>(pixel) - pixelVelocity;
+  let previousPixel = vec2<f32>(id.xy) - pixelVelocity;
   let previousWorldPos = textureLoad(worldPosTex, vec2<u32>(previousPixel), 0);
 
   if(previousWorldPos.w > 10000.0){
@@ -141,5 +137,5 @@ fn main(
   }
 
   var newReservoir  = Reservoir(currentSampleCount, currentWeightSum, currentWeight, currentLightIndex);
-  textureStore(reservoirTex, vec2<u32>(downscaledPixel), packReservoir(newReservoir));
+  textureStore(reservoirTex, id.xy, packReservoir(newReservoir));
 }

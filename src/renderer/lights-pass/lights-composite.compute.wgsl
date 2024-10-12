@@ -72,8 +72,6 @@ fn composite(
 ){
   let pixel = id.xy;
   let uv = vec2<f32>(pixel) / vec2<f32>(textureDimensions(outputTex));
-  var downscaledPixel = pixel / DOWN_SAMPLE_FACTOR;
-  let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
   let normalRef = textureLoad(normalTex, pixel, 0).xyz;
   let worldPosRef = textureLoad(worldPosTex, pixel, 0).xyz;
   let depthRef = distance(cameraPosition, worldPosRef);
@@ -86,19 +84,19 @@ fn composite(
   let r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy;
 
   // Compute weight based on normal similarity (Gaussian weighting)
-  let normalSample = textureLoad(normalTex, downscaledPixel * DOWN_SAMPLE_FACTOR, 0).xyz;
+  let normalSample = textureLoad(normalTex, pixel, 0).xyz;
   let normalWeight = exp(-dot(normalRef - normalSample, normalRef - normalSample) / (2.0 * svgfConfig.normalSigma * svgfConfig.normalSigma));
-  let worldPosSample = textureLoad(worldPosTex, downscaledPixel * DOWN_SAMPLE_FACTOR, 0).xyz;
+  let worldPosSample = textureLoad(worldPosTex, pixel, 0).xyz;
   // Depth weighting
   let depthSample = distance(cameraPosition, worldPosSample);
   let depthWeight = exp(-pow(depthRef - depthSample, 2.0) / (2.0 * svgfConfig.depthSigma * svgfConfig.depthSigma));
   // Spatial weighting
-  let gauss = distance(vec2<f32>(pixel), vec2<f32>(downscaledPixel));
-  let gaussWeight = exp(-pow(gauss, 2.0) / (2.0 * svgfConfig.spatialSigma * svgfConfig.spatialSigma));
+//  let gauss = distance(vec2<f32>(pixel), vec2<f32>(downscaledPixel));
+//  let gaussWeight = exp(-pow(gauss, 2.0) / (2.0 * svgfConfig.spatialSigma * svgfConfig.spatialSigma));
 
 //  var blurWeightSum = gaussWeight * normalWeight * depthWeight;
 var blurWeightSum = 1.0;
-  let reservoir = unpackReservoir(textureLoad(reservoirTex, downscaledPixel, 0));
+  let reservoir = unpackReservoir(textureLoad(reservoirTex, pixel, 0));
   let linearReservoir = unpackReservoir(textureSampleLevel(reservoirTex, linearSampler, uv, 0));
   var averageSampleCount = f32(reservoir.sampleCount) * blurWeightSum;
   var averageWeightSum = linearReservoir.weightSum * blurWeightSum;
