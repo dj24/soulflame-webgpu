@@ -47,13 +47,14 @@ struct Resevoir {
 @group(0) @binding(2) var normalTex : texture_2d<f32>;
 @group(0) @binding(3) var<storage, read> lightsBuffer : array<Light>;
 @group(0) @binding(4) var outputTex : texture_storage_2d<rgba16float, write>;
-@group(0) @binding(5) var<storage, read_write> pixelBuffer : array<Resevoir>;
+@group(0) @binding(5) var reservoirTex : texture_storage_2d<rgba32float, write>;
 @group(0) @binding(6) var inputTex : texture_2d<f32>;
 @group(0) @binding(10) var blueNoiseTex : texture_2d<f32>;
 @group(0) @binding(11) var<uniform> time : Time;
 @group(0) @binding(12) var<uniform> cameraPosition : vec3<f32>;
 
 @group(1) @binding(0) var<uniform> lightConfig : LightConfig;
+
 
 const CONSTANT_ATTENUATION = 0.0;
 const LINEAR_ATTENUATION = 0.1;
@@ -78,12 +79,9 @@ fn main(
   let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
   let worldPos = textureLoad(worldPosTex, downscaledPixel, 0).xyz;
   let normal = textureLoad(normalTex, downscaledPixel, 0).xyz;
-  let pixelBufferIndex = convert2DTo1D(downscaledResolution.x, pixel);
   var blueNoisePixel = vec2<i32>(id.xy);
   let frameOffsetX = (i32(time.frame) * 92821 + 71413) % 512;  // Large prime numbers for frame variation
   let frameOffsetY = (i32(time.frame) * 13761 + 511) % 512;    // Different prime numbers
-//  blueNoisePixel.x += frameOffsetX;
-//  blueNoisePixel.y += frameOffsetY;
   let r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy;
   let jitterOffset = randomInUnitSphere(r);
 
@@ -114,8 +112,12 @@ fn main(
       bestWeight *= 0.1;
   }
 
-  pixelBuffer[pixelBufferIndex].weightSum = weightSum;
-  pixelBuffer[pixelBufferIndex].lightWeight = bestWeight;
-  pixelBuffer[pixelBufferIndex].lightIndex = lightIndex;
-  pixelBuffer[pixelBufferIndex].sampleCount = SAMPLES_PER_FRAME;
+  var reservoir = vec4(
+    bitcast<f32>(SAMPLES_PER_FRAME),
+     weightSum,
+     bestWeight,
+     bitcast<f32>(lightIndex),
+  );
+
+  textureStore(reservoirTex, pixel, reservoir);
 }

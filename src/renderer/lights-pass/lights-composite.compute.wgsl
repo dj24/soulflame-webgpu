@@ -27,14 +27,14 @@ struct SVGFConfig {
 @group(0) @binding(2) var normalTex : texture_2d<f32>;
 @group(0) @binding(3) var<storage, read> lightsBuffer : array<Light>;
 @group(0) @binding(4) var outputTex : texture_storage_2d<rgba16float, write>;
-@group(0) @binding(5) var<storage, read_write> pixelBuffer : array<Reservoir>;
 @group(0) @binding(6) var inputTex : texture_2d<f32>;
 @group(0) @binding(10) var blueNoiseTex : texture_2d<f32>;
 @group(0) @binding(11) var<uniform> time : Time;
 @group(0) @binding(12) var<uniform> cameraPosition : vec3<f32>;
+@group(0) @binding(13) var linearSampler : sampler;
 
 @group(1) @binding(0) var<uniform> svgfConfig : SVGFConfig;
-@group(1) @binding(1) var depthTex : texture_2d<f32>;
+@group(1) @binding(1) var reservoirTex : texture_2d<f32>;
 
 const NEIGHBORHOOD_SAMPLE_POSITIONS = array<vec2<i32>, 8>(
     vec2<i32>(-1, -1),
@@ -57,11 +57,21 @@ fn convert1DTo2D(width: u32, index1D: u32) -> vec2<u32> {
     return vec2<u32>(index1D % width, index1D / width);
 }
 
+fn unpackReservoir(reservoir: vec4<f32>) -> Reservoir {
+    return Reservoir(
+        bitcast<u32>(reservoir.x),
+        reservoir.y,
+        reservoir.z,
+        bitcast<u32>(reservoir.w)
+    );
+}
+
 @compute @workgroup_size(8,8,1)
 fn composite(
 @builtin(global_invocation_id) id : vec3<u32>
 ){
   let pixel = id.xy;
+  let uv = vec2<f32>(pixel) / vec2<f32>(textureDimensions(outputTex));
   var downscaledPixel = pixel / DOWN_SAMPLE_FACTOR;
   let downscaledResolution = textureDimensions(outputTex) / DOWN_SAMPLE_FACTOR;
   let normalRef = textureLoad(normalTex, pixel, 0).xyz;
@@ -74,7 +84,6 @@ fn composite(
   blueNoisePixel.x += frameOffsetX;
   blueNoisePixel.y += frameOffsetY;
   let r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy;
-  var index = convert2DTo1D(downscaledResolution.x, downscaledPixel);
 
   // Compute weight based on normal similarity (Gaussian weighting)
   let normalSample = textureLoad(normalTex, downscaledPixel * DOWN_SAMPLE_FACTOR, 0).xyz;
@@ -89,10 +98,12 @@ fn composite(
 
 //  var blurWeightSum = gaussWeight * normalWeight * depthWeight;
 var blurWeightSum = 1.0;
-  var averageSampleCount = f32(pixelBuffer[index].sampleCount) * blurWeightSum;
-  var averageWeightSum = pixelBuffer[index].weightSum * blurWeightSum;
-  var averageWeight = pixelBuffer[index].lightWeight * blurWeightSum;
-  var averageContribution = pixelBuffer[index].lightWeight * lightsBuffer[pixelBuffer[index].lightIndex].color * blurWeightSum;
+  let reservoir = unpackReservoir(textureLoad(reservoirTex, downscaledPixel, 0));
+  let linearReservoir = unpackReservoir(textureSampleLevel(reservoirTex, linearSampler, uv, 0));
+  var averageSampleCount = f32(reservoir.sampleCount) * blurWeightSum;
+  var averageWeightSum = linearReservoir.weightSum * blurWeightSum;
+  var averageWeight = linearReservoir.lightWeight * blurWeightSum;
+  var averageContribution = linearReservoir.lightWeight * lightsBuffer[reservoir.lightIndex].color * blurWeightSum;
 
 //  for(var x = -BLUR_RADIUS; x <= BLUR_RADIUS; x++){
 //    for(var y = -BLUR_RADIUS; y <= BLUR_RADIUS; y++){

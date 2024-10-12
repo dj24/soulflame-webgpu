@@ -19,6 +19,7 @@ const LIGHT_BUFFER_STRIDE = 32;
 const DOWNSCALE_FACTOR = 3;
 const RESERVOIR_DECAY = 0.5;
 const MAX_SAMPLES = 128;
+const RESERVOIR_TEXTURE_FORMAT: GPUTextureFormat = "rgba32float";
 
 export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   const bindGroupLayout = device.createBindGroupLayout({
@@ -65,12 +66,12 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
           format: "rgba16float",
         },
       },
-      // Pixel buffer
+      // Reservoir texture
       {
         binding: 5,
         visibility: GPUShaderStage.COMPUTE,
-        buffer: {
-          type: "storage",
+        storageTexture: {
+          format: RESERVOIR_TEXTURE_FORMAT,
         },
       },
       // Input texture
@@ -131,6 +132,14 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
           type: "uniform",
         },
       },
+      //linear sampler
+      {
+        binding: 13,
+        visibility: GPUShaderStage.COMPUTE,
+        sampler: {
+          type: "filtering",
+        },
+      },
     ],
   });
 
@@ -158,20 +167,21 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
           viewDimension: "2d",
         },
       },
-      // Previous light buffer
+      // Previous reservoir texture
       {
         binding: 1,
         visibility: GPUShaderStage.COMPUTE,
-        buffer: {
-          type: "read-only-storage",
+        texture: {
+          sampleType: "float",
+          viewDimension: "2d",
         },
       },
-      // Depth texture
+      // Copy reservoir texture
       {
         binding: 2,
         visibility: GPUShaderStage.COMPUTE,
         texture: {
-          sampleType: "unfilterable-float",
+          sampleType: "float",
           viewDimension: "2d",
         },
       },
@@ -180,12 +190,13 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
 
   const spatialBindGroupLayout = device.createBindGroupLayout({
     entries: [
-      // Copy light buffer
+      // Copy Reservoir texture
       {
         binding: 0,
         visibility: GPUShaderStage.COMPUTE,
-        buffer: {
-          type: "read-only-storage",
+        texture: {
+          sampleType: "float",
+          viewDimension: "2d",
         },
       },
     ],
@@ -201,12 +212,12 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
           type: "uniform",
         },
       },
-      //Depth texture
+      // Reservoir texture
       {
         binding: 1,
         visibility: GPUShaderStage.COMPUTE,
         texture: {
-          sampleType: "unfilterable-float",
+          sampleType: "float",
           viewDimension: "2d",
         },
       },
@@ -307,12 +318,21 @@ ${lightsCompute}`;
     mipmapFilter: "nearest",
   });
 
+  const linearSampler = device.createSampler({
+    magFilter: "linear",
+    minFilter: "linear",
+    mipmapFilter: "linear",
+  });
+
   let lightBuffer: GPUBuffer;
   let bindGroup: GPUBindGroup;
   let lightConfigBindGroup: GPUBindGroup;
-  let lightPixelBuffer: GPUBuffer;
-  let previousLightPixelBuffer: GPUBuffer;
-  let copyLightPixelBuffer: GPUBuffer;
+  let reservoirTexture: GPUTexture;
+  let rerervoirTextureView: GPUTextureView;
+  let previousReservoirTexture: GPUTexture;
+  let previousReservoirTextureView: GPUTextureView;
+  let copyReservoirTexture: GPUTexture;
+  let copyReservoirTextureView: GPUTextureView;
   let lightConfigBuffer: GPUBuffer;
   let copyFinalTexture: GPUTexture;
   let copyFinalTextureView: GPUTextureView;
@@ -408,6 +428,52 @@ ${lightsCompute}`;
       ]),
     );
 
+    // TODO: account for resolution changes
+    if (!reservoirTexture) {
+      const downscaledWidth = Math.ceil(
+        outputTextures.finalTexture.width / DOWNSCALE_FACTOR,
+      );
+      const downscaledHeight = Math.ceil(
+        outputTextures.finalTexture.height / DOWNSCALE_FACTOR,
+      );
+      reservoirTexture = device.createTexture({
+        size: {
+          width: downscaledWidth,
+          height: downscaledHeight,
+        },
+        format: RESERVOIR_TEXTURE_FORMAT,
+        usage:
+          GPUTextureUsage.STORAGE_BINDING |
+          GPUTextureUsage.COPY_SRC |
+          GPUTextureUsage.TEXTURE_BINDING,
+      });
+      rerervoirTextureView = reservoirTexture.createView();
+    }
+
+    if (!previousReservoirTexture) {
+      previousReservoirTexture = device.createTexture({
+        size: {
+          width: reservoirTexture.width,
+          height: reservoirTexture.height,
+        },
+        format: RESERVOIR_TEXTURE_FORMAT,
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+      });
+      previousReservoirTextureView = previousReservoirTexture.createView();
+    }
+
+    if (!copyReservoirTexture) {
+      copyReservoirTexture = device.createTexture({
+        size: {
+          width: reservoirTexture.width,
+          height: reservoirTexture.height,
+        },
+        format: RESERVOIR_TEXTURE_FORMAT,
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+      });
+      copyReservoirTextureView = copyReservoirTexture.createView();
+    }
+
     if (!svgfConfigBindGroup) {
       svgfConfigBindGroup = device.createBindGroup({
         layout: svgfConfigBindGroupLayout,
@@ -420,44 +486,9 @@ ${lightsCompute}`;
           },
           {
             binding: 1,
-            resource: outputTextures.depthTexture.view,
+            resource: copyReservoirTextureView,
           },
         ],
-      });
-    }
-
-    // TODO: account for resolution changes
-    if (!lightPixelBuffer) {
-      const downscaledWidth = Math.ceil(
-        outputTextures.finalTexture.width / DOWNSCALE_FACTOR,
-      );
-      const downscaledHeight = Math.ceil(
-        outputTextures.finalTexture.height / DOWNSCALE_FACTOR,
-      );
-      const stride = 16;
-      lightPixelBuffer = device.createBuffer({
-        label: "light-pixel-buffer",
-        size: stride * downscaledWidth * downscaledHeight,
-        usage:
-          GPUBufferUsage.STORAGE |
-          GPUBufferUsage.COPY_DST |
-          GPUBufferUsage.COPY_SRC,
-      });
-    }
-
-    if (!previousLightPixelBuffer) {
-      previousLightPixelBuffer = device.createBuffer({
-        label: "light-pixel-buffer",
-        size: lightPixelBuffer.size,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-      });
-    }
-
-    if (!copyLightPixelBuffer) {
-      copyLightPixelBuffer = device.createBuffer({
-        label: "light-pixel-buffer",
-        size: lightPixelBuffer.size,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       });
     }
 
@@ -515,9 +546,7 @@ ${lightsCompute}`;
         },
         {
           binding: 5,
-          resource: {
-            buffer: lightPixelBuffer,
-          },
+          resource: rerervoirTextureView,
         },
         {
           binding: 6,
@@ -557,6 +586,10 @@ ${lightsCompute}`;
             buffer: cameraPositionBuffer,
           },
         },
+        {
+          binding: 13,
+          resource: linearSampler,
+        },
       ],
     });
 
@@ -570,13 +603,11 @@ ${lightsCompute}`;
           },
           {
             binding: 1,
-            resource: {
-              buffer: previousLightPixelBuffer,
-            },
+            resource: previousReservoirTextureView,
           },
           {
             binding: 2,
-            resource: outputTextures.depthTexture.view,
+            resource: copyReservoirTextureView,
           },
         ],
       });
@@ -588,9 +619,7 @@ ${lightsCompute}`;
         entries: [
           {
             binding: 0,
-            resource: {
-              buffer: copyLightPixelBuffer,
-            },
+            resource: copyReservoirTextureView,
           },
         ],
       });
@@ -731,16 +760,22 @@ ${lightsCompute}`;
     };
 
     const copyPass = () => {
-      commandEncoder.copyBufferToBuffer(
-        lightPixelBuffer,
-        0,
-        copyLightPixelBuffer,
-        0,
-        lightPixelBuffer.size,
+      commandEncoder.copyTextureToTexture(
+        {
+          texture: reservoirTexture,
+        },
+        {
+          texture: copyReservoirTexture,
+        },
+        {
+          width: downscaledWidth,
+          height: downscaledHeight,
+        },
       );
     };
 
     sampleLightsPass();
+    copyPass();
     if (passConfig.temporalEnabled) {
       temporalPass();
     }
@@ -749,19 +784,24 @@ ${lightsCompute}`;
       spatialPass();
     }
     compositePass();
-    commandEncoder.copyBufferToBuffer(
-      lightPixelBuffer,
-      0,
-      previousLightPixelBuffer,
-      0,
-      lightPixelBuffer.size,
+    commandEncoder.copyTextureToTexture(
+      {
+        texture: reservoirTexture,
+      },
+      {
+        texture: previousReservoirTexture,
+      },
+      {
+        width: downscaledWidth,
+        height: downscaledHeight,
+      },
     );
-    commandEncoder.clearBuffer(lightPixelBuffer, 0, lightPixelBuffer.size);
-    commandEncoder.clearBuffer(
-      copyLightPixelBuffer,
-      0,
-      copyLightPixelBuffer.size,
-    );
+    // commandEncoder.clearBuffer(lightPixelBuffer, 0, lightPixelBuffer.size);
+    // commandEncoder.clearBuffer(
+    //   copyLightPixelBuffer,
+    //   0,
+    //   copyLightPixelBuffer.size,
+    // );
   };
 
   return {

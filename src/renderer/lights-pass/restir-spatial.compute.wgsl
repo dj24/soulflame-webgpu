@@ -2,13 +2,13 @@
 @group(0) @binding(2) var normalTex : texture_2d<f32>;
 @group(0) @binding(3) var<storage, read> lightsBuffer : array<Light>;
 @group(0) @binding(4) var outputTex : texture_storage_2d<rgba16float, write>;
-@group(0) @binding(5) var<storage, read_write> outputPixelBuffer : array<Reservoir>;
+@group(0) @binding(5) var reservoirTex : texture_storage_2d<rgba32float, write>;
 @group(0) @binding(6) var inputTex : texture_2d<f32>;
 @group(0) @binding(10) var blueNoiseTex : texture_2d<f32>;
 @group(0) @binding(11) var<uniform> time : Time;
 @group(0) @binding(12) var<uniform> cameraPosition : vec3<f32>;
 
-@group(1) @binding(0) var<storage, read> inputPixelBuffer : array<Reservoir>;
+@group(1) @binding(0) var inputReservoirTex : texture_2d<f32>;
 
 fn convert2DTo1D(width: u32, index2D: vec2<u32>) -> u32 {
     return index2D.y * width + index2D.x;
@@ -62,6 +62,25 @@ const SAMPLE_RADIUS = 1;
 const MAX_WEIGHT = 1.0;
 const WEIGHT_THRESHOLD = 50.0;
 
+
+fn unpackReservoir(reservoir: vec4<f32>) -> Reservoir {
+    return Reservoir(
+        bitcast<u32>(reservoir.x),
+        reservoir.y,
+        reservoir.z,
+        bitcast<u32>(reservoir.w)
+    );
+}
+
+fn packReservoir(reservoir: Reservoir) -> vec4<f32> {
+    return vec4<f32>(
+        bitcast<f32>(reservoir.sampleCount),
+        reservoir.weightSum,
+        reservoir.lightWeight,
+        bitcast<f32>(reservoir.lightIndex)
+    );
+}
+
 @compute @workgroup_size(8,8,1)
 fn spatial(
 @builtin(global_invocation_id) id : vec3<u32>
@@ -78,29 +97,26 @@ fn spatial(
     return;
   }
 
-  var weightSum = outputPixelBuffer[index].weightSum;
-  var currentWeight = outputPixelBuffer[index].lightWeight;
-  var currentSampleCount = outputPixelBuffer[index].sampleCount;
-  var lightIndex = outputPixelBuffer[index].lightIndex;
+  let reservoir = unpackReservoir(textureLoad(inputReservoirTex, id.xy, 0));
+  var weightSum = reservoir.weightSum;
+  var currentWeight = reservoir.lightWeight;
+  var currentSampleCount = reservoir.sampleCount;
+  var lightIndex = reservoir.lightIndex;
 
   let frameOffsetX = (i32(time.frame) * 92821 + 71413) % 512;  // Large prime numbers for frame variation
   let frameOffsetY = (i32(time.frame) * 13761 + 511) % 512;    // Different prime numbers
-  //  blueNoisePixel.x += frameOffsetX;
-  //  blueNoisePixel.y += frameOffsetY;
 
   for(var i = 0u; i < 8; i = i + 1u){
     let offset = NEIGHBOUR_OFFSETS[i];
-    let neighbor = vec2<i32>(downscaledPixel) + offset;
-    let neighborIndex = convert2DTo1D(downscaledResolution.x,vec2<u32>(neighbor));
-    let neighborWeight = inputPixelBuffer[neighborIndex].lightWeight;
-    let neighborWeightSum = inputPixelBuffer[neighborIndex].weightSum;
-    let neighborCount = inputPixelBuffer[neighborIndex].sampleCount;
+    let neighbor = vec2<i32>(id.xy) + offset;
+    let neighborReservoir = unpackReservoir(textureLoad(inputReservoirTex, neighbor, 0));
+    let neighborWeight = neighborReservoir.lightWeight;
     let normalSample = textureLoad(normalTex, vec2<u32>(neighbor) * DOWN_SAMPLE_FACTOR, 0).xyz;
     let normalDifference = dot(normalRef, normalSample);
     if(normalDifference < 0.5){
       continue;
     }
-    if (abs(neighborWeightSum - weightSum) > WEIGHT_THRESHOLD) {
+    if (abs(neighborReservoir.weightSum - weightSum) > WEIGHT_THRESHOLD) {
       continue; // Skip neighbors with too large weight difference
     }
     let iterOffsetX = (i * 193) % 512; // Large prime numbers for frame variation
@@ -108,14 +124,13 @@ fn spatial(
     let sampleR = textureLoad(blueNoiseTex, (vec2<i32>(downscaledPixel) + vec2(frameOffsetX, frameOffsetY)) % 512, 0).xy;
 
     weightSum += neighborWeight;
-    currentSampleCount += neighborCount;
+    currentSampleCount += neighborReservoir.sampleCount;
     if(sampleR.y < neighborWeight / weightSum){
-        lightIndex = inputPixelBuffer[neighborIndex].lightIndex;
+        lightIndex = neighborReservoir.lightIndex;
         currentWeight = neighborWeight;
     }
   }
-  outputPixelBuffer[index].weightSum = weightSum;
-  outputPixelBuffer[index].lightWeight = currentWeight;
-  outputPixelBuffer[index].sampleCount = currentSampleCount;
-  outputPixelBuffer[index].lightIndex = lightIndex;
+
+  let newReservoir = Reservoir(currentSampleCount, weightSum, currentWeight, lightIndex);
+  textureStore(reservoirTex, id.xy, packReservoir(newReservoir));
 }

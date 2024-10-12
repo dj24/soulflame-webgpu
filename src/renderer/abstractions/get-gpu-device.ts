@@ -5,7 +5,7 @@ export const getGpuDevice = async (): Promise<GPUDevice> => {
   let device: GPUDevice;
   try {
     device = await adapter.requestDevice({
-      requiredFeatures: ["timestamp-query"],
+      requiredFeatures: ["timestamp-query", "float32-filterable"],
       requiredLimits: { maxColorAttachmentBytesPerSample: 64 },
     });
   } catch (e) {
