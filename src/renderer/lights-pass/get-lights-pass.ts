@@ -16,7 +16,7 @@ export type Light = {
 };
 
 const LIGHT_BUFFER_STRIDE = 32;
-const DOWNSCALE_FACTOR = 2;
+const DOWNSCALE_FACTOR = 3;
 const RESERVOIR_DECAY = 0.5;
 const MAX_SAMPLES = 128;
 const RESERVOIR_TEXTURE_FORMAT: GPUTextureFormat = "rgba32float";
