@@ -348,7 +348,7 @@ ${lightsCompute}`;
   };
 
   let svgfConfig = {
-    normalSigma: 0.6,
+    normalSigma: 0.2,
     depthSigma: 0.8,
     blueNoiseSCale: 0,
     spatialSigma: 3,
@@ -778,12 +778,12 @@ ${lightsCompute}`;
     copyPass();
     if (passConfig.temporalEnabled) {
       temporalPass();
+      copyPass();
     }
-    copyPass();
     if (passConfig.spatialEnabled) {
       spatialPass();
+      copyPass();
     }
-    copyPass();
     compositePass();
     commandEncoder.copyTextureToTexture(
       {
@@ -804,7 +804,6 @@ ${lightsCompute}`;
     label: "lights",
     timestampLabels: [
       "restir lights",
-
       "restir temporal",
       "restir spatial",
       "restir composite",

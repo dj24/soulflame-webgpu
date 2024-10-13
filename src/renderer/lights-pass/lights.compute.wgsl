@@ -96,7 +96,6 @@ fn main(
 
     weightSum += weight;
     if(r.y < weight / weightSum){
-      bestWeight = weight;
       lightIndex = sampleLightIndex;
     }
   }
@@ -105,9 +104,8 @@ fn main(
   let lightDir = light.position + jitterOffset - worldPos;
 
   let raymarchResult = rayMarchBVH(worldPos + normal * 0.001, normalize(lightDir));
-  if(raymarchResult.hit){
-      bestWeight *= 0.1;
-      weightSum *= 0.1;
+  if(!raymarchResult.hit){
+      bestWeight = getLightWeight(light.position, light.color, worldPos, normal);
   }
 
   var reservoir = vec4(
@@ -116,8 +114,6 @@ fn main(
      bestWeight,
      bitcast<f32>(lightIndex),
   );
-
-//  textureStore(reservoirTex, id.xy * DOWN_SAMPLE_FACTOR, reservoir);
 
 
   for(var x = 0u; x < DOWN_SAMPLE_FACTOR; x++){

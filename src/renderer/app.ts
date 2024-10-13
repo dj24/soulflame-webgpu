@@ -152,11 +152,11 @@ let nearestSampler: GPUSampler;
 let timestampLabels: string[];
 
 const LIGHT_SIZE = 5;
-const LIGHT_INTENSITY = 500;
+const LIGHT_INTENSITY = 50;
 //
 
-for (let x = 0; x <= 512; x += 96) {
-  for (let z = 0; z <= 512; z += 96) {
+for (let x = 0; x <= 768; x += 96) {
+  for (let z = 0; z <= 768; z += 96) {
     lights.push({
       position: [x, 16, z],
       size: LIGHT_SIZE,

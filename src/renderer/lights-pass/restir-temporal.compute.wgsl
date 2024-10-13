@@ -98,9 +98,9 @@ fn main(
   let previousPixel = vec2<f32>(id.xy) - pixelVelocity;
   let previousWorldPos = textureLoad(worldPosTex, vec2<u32>(previousPixel), 0);
 
-//  if(previousWorldPos.w > 10000.0){
-//    return;
-//  }
+  if(previousWorldPos.w > 10000.0){
+    return;
+  }
 
   let reservoir = unpackReservoir(textureSampleLevel(inputReservoirTex, nearestSampler, uv, 0.));
   var currentWeightSum = reservoir.weightSum;
@@ -111,9 +111,6 @@ fn main(
   let normalSample = textureSampleLevel(normalTex, linearSampler, uv, 0);
   let previousNormal = textureSampleLevel(normalTex, linearSampler, previousUv, 0);
   let normalDifference = dot(previousNormal, normalSample);
-  if(normalDifference < 0.5){
-    return;
-  }
 
   var previousReservoir = unpackReservoir(textureSampleLevel(previousReservoirTex, nearestSampler, previousUv, 0.));
   let previousCount = previousReservoir.sampleCount;
@@ -131,9 +128,10 @@ fn main(
 
   currentSampleCount += previousCount;
   currentWeightSum += previousWeight;
-  if(r.y < previousWeight / currentWeightSum){
-    currentWeight = previousWeight;
+
+  if(r.y < previousWeight / currentWeightSum && normalDifference > 0.9){
     currentLightIndex = previousReservoir.lightIndex;
+    currentWeight = previousWeight;
   }
 
   if(currentSampleCount > MAX_SAMPLES){
