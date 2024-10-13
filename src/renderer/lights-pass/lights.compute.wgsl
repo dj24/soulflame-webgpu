@@ -107,6 +107,7 @@ fn main(
   let raymarchResult = rayMarchBVH(worldPos + normal * 0.001, normalize(lightDir));
   if(raymarchResult.hit){
       bestWeight *= 0.1;
+      weightSum *= 0.1;
   }
 
   var reservoir = vec4(

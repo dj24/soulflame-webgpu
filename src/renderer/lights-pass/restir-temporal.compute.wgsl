@@ -91,22 +91,29 @@ fn main(
 @builtin(global_invocation_id) id : vec3<u32>
 ){
   let resolution = textureDimensions(inputTex);
-  let uv = vec2<f32>(id.xy) / vec2<f32>(resolution);
+  let uv = (vec2<f32>(id.xy) + vec2(0.5)) / vec2<f32>(resolution);
   let velocity = textureLoad(velocityTex, id.xy, 0).xy;
   let previousUv = uv - velocity;
   let pixelVelocity = velocity * vec2<f32>(resolution);
   let previousPixel = vec2<f32>(id.xy) - pixelVelocity;
   let previousWorldPos = textureLoad(worldPosTex, vec2<u32>(previousPixel), 0);
 
-  if(previousWorldPos.w > 10000.0){
-    return;
-  }
+//  if(previousWorldPos.w > 10000.0){
+//    return;
+//  }
 
   let reservoir = unpackReservoir(textureSampleLevel(inputReservoirTex, nearestSampler, uv, 0.));
   var currentWeightSum = reservoir.weightSum;
   var currentWeight = reservoir.lightWeight;
   var currentSampleCount = reservoir.sampleCount;
   var currentLightIndex = reservoir.lightIndex;
+
+  let normalSample = textureSampleLevel(normalTex, linearSampler, uv, 0);
+  let previousNormal = textureSampleLevel(normalTex, linearSampler, previousUv, 0);
+  let normalDifference = dot(previousNormal, normalSample);
+  if(normalDifference < 0.5){
+    return;
+  }
 
   var previousReservoir = unpackReservoir(textureSampleLevel(previousReservoirTex, nearestSampler, previousUv, 0.));
   let previousCount = previousReservoir.sampleCount;

@@ -113,14 +113,14 @@ fn spatial(
     let neighborReservoir = unpackReservoir(textureLoad(inputReservoirTex, neighbor, 0));
     let linearReservoir = unpackReservoir(textureSampleLevel(inputReservoirTex, linearSampler, neighborUv, 0));
     let neighborWeight = linearReservoir.lightWeight;
-    let normalSample = textureLoad(normalTex, neighbor, 0).xyz;
+    let normalSample = textureSampleLevel(normalTex, nearestSampler, neighborUv, 0).xyz;
     let normalDifference = dot(normalRef, normalSample);
     if(normalDifference < 0.5){
       continue;
     }
-    if (abs(linearReservoir.weightSum - weightSum) > WEIGHT_THRESHOLD) {
-      continue; // Skip neighbors with too large weight difference
-    }
+//    if (abs(linearReservoir.weightSum - weightSum) > WEIGHT_THRESHOLD) {
+//      continue; // Skip neighbors with too large weight difference
+//    }
     let iterOffsetX = (i * 193) % 512; // Large prime numbers for frame variation
     let iterOffsetY = (i * 257) % 512; // Different prime numbers
     let sampleR = textureLoad(blueNoiseTex, (vec2<i32>(id.xy) + vec2(frameOffsetX, frameOffsetY)) % 512, 0).xy;
