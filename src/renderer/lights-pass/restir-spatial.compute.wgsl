@@ -50,7 +50,8 @@ struct Reservoir {
   lightIndex: u32,
 }
 
-const NEIGHBOUR_OFFSETS = array<vec2<i32>, 4>(
+const NEIGHBOUR_OFFSETS = array<vec2<i32>, 5>(
+  vec2<i32>(0, 0),
   vec2<i32>(-1, 0),
   vec2<i32>(1, 0),
   vec2<i32>(0, -1),
@@ -62,7 +63,7 @@ const NEIGHBOUR_OFFSETS = array<vec2<i32>, 4>(
 );
 
 const SAMPLE_RADIUS = 1;
-const MAX_WEIGHT = 1.0;
+const MAX_WEIGHT = 5.0;
 const WEIGHT_THRESHOLD = 50.0;
 
 
@@ -84,49 +85,49 @@ fn packReservoir(reservoir: Reservoir) -> vec4<f32> {
     );
 }
 
+const DEPTH_THRESHOLD = 16.0;
+
 @compute @workgroup_size(8,8,1)
 fn spatial(
 @builtin(global_invocation_id) id : vec3<u32>
 ){
-  let normalRef = textureLoad(normalTex, id.xy, 0).xyz;
+
   let resolution = textureDimensions(worldPosTex).xy;
   let uv = vec2<f32>(id.xy) / vec2<f32>(resolution);
-  let worldPos = textureLoad(worldPosTex, id.xy, 0).xyz;
+  let normalRef = textureSampleLevel(normalTex, linearSampler, uv, 0).xyz;
+  let worldPos = textureLoad(worldPosTex, id.xy, 0);
 
-  if(distance(cameraPosition, worldPos) > 10000.0){
+  if(worldPos.w > 10000.0){
     return;
   }
 
   let reservoir = unpackReservoir(textureSampleLevel(inputReservoirTex, nearestSampler, uv, 0));
   var weightSum = reservoir.weightSum;
-  var currentWeight = reservoir.lightWeight;
+  var currentWeight = 0.0;
   var currentSampleCount = reservoir.sampleCount;
   var lightIndex = reservoir.lightIndex;
 
   let frameOffsetX = (i32(time.frame) * 92821 + 71413) % 512;  // Large prime numbers for frame variation
   let frameOffsetY = (i32(time.frame) * 13761 + 511) % 512;    // Different prime numbers
 
-  for(var i = 0u; i < 4; i = i + 1u){
+  for(var i = 0u; i < 5; i = i + 1u){
     let offset = NEIGHBOUR_OFFSETS[i] * DOWN_SAMPLE_FACTOR;
     let neighbor = vec2<i32>(id.xy) + offset;
     let neighborUv = vec2<f32>(neighbor) / vec2<f32>(resolution);
     let neighborReservoir = unpackReservoir(textureLoad(inputReservoirTex, neighbor, 0));
-    let linearReservoir = unpackReservoir(textureSampleLevel(inputReservoirTex, linearSampler, neighborUv, 0));
-    let neighborWeight = linearReservoir.lightWeight;
-    let normalSample = textureSampleLevel(normalTex, nearestSampler, neighborUv, 0).xyz;
-    let normalDifference = dot(normalRef, normalSample);
+    let neighborWeight = neighborReservoir.lightWeight;
+    let normalSample = textureSampleLevel(normalTex, linearSampler, neighborUv, 0).xyz;
+    let normalSimilarity = dot(normalRef, normalSample);
 
     weightSum += neighborWeight;
     currentSampleCount += neighborReservoir.sampleCount;
 
-    if(normalDifference < 0.9){
-      continue;
-    }
-    let iterOffsetX = (i * 193) % 512; // Large prime numbers for frame variation
-    let iterOffsetY = (i * 257) % 512; // Different prime numbers
-    let sampleR = textureLoad(blueNoiseTex, (vec2<i32>(id.xy) + vec2(frameOffsetX, frameOffsetY)) % 512, 0).xy;
+    let sampleR = textureLoad(blueNoiseTex, (neighbor + vec2(frameOffsetX, frameOffsetY)) % 512, 0).xy;
 
-    if(sampleR.y < neighborWeight / weightSum){
+    let depthSample = textureLoad(worldPosTex, neighbor, 0).w;
+    let depthDifference: f32 = abs(depthSample - worldPos.w);
+
+    if(sampleR.y < neighborWeight / weightSum && normalSimilarity > 0.5 && depthDifference < DEPTH_THRESHOLD){
         lightIndex = neighborReservoir.lightIndex;
         currentWeight = neighborWeight;
     }

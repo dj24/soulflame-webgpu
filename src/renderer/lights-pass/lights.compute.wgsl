@@ -86,8 +86,8 @@ fn main(
   var weightSum = 0.0;
   var lightIndex = 0u;
   for(var i = 0; i < SAMPLES_PER_FRAME; i++){
-    let iterOffsetX = (i * 193) % 512; // Large prime numbers for frame variation
-    let iterOffsetY = (i * 257) % 512; // Different prime numbers
+    let iterOffsetX = (i * 193); // Large prime numbers for frame variation
+    let iterOffsetY = (i * 257); // Different prime numbers
     let sampleR = textureLoad(blueNoiseTex, (blueNoisePixel + vec2(frameOffsetX + iterOffsetX, frameOffsetY + iterOffsetY)) % 512, 0).xy;
     let sampleLightIndex = u32(sampleR.x * f32(LIGHT_COUNT));
     let light = lightsBuffer[sampleLightIndex];
