@@ -236,6 +236,71 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
     ],
   });
 
+  const denoiseBindGroupLayout = device.createBindGroupLayout({
+    label: "denoise-bind-group-layout",
+    entries: [
+      // Input texture
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+          viewDimension: "2d",
+        },
+      },
+      // normal texture
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+          viewDimension: "2d",
+        },
+      },
+      // world position texture
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+          viewDimension: "2d",
+        },
+      },
+      // Output texture
+      {
+        binding: 3,
+        visibility: GPUShaderStage.COMPUTE,
+        storageTexture: {
+          format: "rgba16float",
+        },
+      },
+      // A-Trous rate
+      {
+        binding: 4,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
+      // Sampler
+      {
+        binding: 5,
+        visibility: GPUShaderStage.COMPUTE,
+        sampler: {
+          type: "filtering",
+        },
+      },
+      // Sampler
+      {
+        binding: 6,
+        visibility: GPUShaderStage.COMPUTE,
+        sampler: {
+          type: "non-filtering",
+        },
+      },
+    ],
+  });
+
   const pipelineLayout = device.createPipelineLayout({
     bindGroupLayouts: [bindGroupLayout, lightConfigBindGroupLayout],
   });
@@ -250,6 +315,72 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
 
   const clearReservoirPipelineLayout = device.createPipelineLayout({
     bindGroupLayouts: [clearReservoirTextureLayout],
+  });
+
+  const denoisePipelineLayout = device.createPipelineLayout({
+    bindGroupLayouts: [denoiseBindGroupLayout, svgfConfigBindGroupLayout],
+  });
+
+  const denoisePipeline = device.createComputePipeline({
+    compute: {
+      module: device.createShaderModule({
+        code: `
+        struct SVGFConfig {
+          normalSigma: f32,
+          depthSigma: f32,
+          blueNoiseScale: f32,
+          spatialSigma: f32,
+        }
+
+        @group(0) @binding(0) var inputTex : texture_2d<f32>;
+        @group(0) @binding(1) var normalTex : texture_2d<f32>;
+        @group(0) @binding(2) var worldPosTex : texture_2d<f32>;
+        @group(0) @binding(3) var outputTex : texture_storage_2d<rgba16float, write>;
+        @group(0) @binding(4) var<uniform> atrousRate : u32;
+        @group(0) @binding(5) var linearSampler : sampler;
+        @group(0) @binding(6) var nearestSampler : sampler;
+        
+        @group(1) @binding(0) var<uniform> svgfConfig : SVGFConfig;
+        
+        const OFFSETS = array<vec2<i32>, 9>(
+            vec2<i32>(-1, -1), vec2<i32>(0, -1), vec2<i32>(1, -1),
+            vec2<i32>(-1, 0), vec2<i32>(0, 0), vec2<i32>(1, 0),
+            vec2<i32>(-1, 1), vec2<i32>(0, 1), vec2<i32>(1, 1)
+        );
+        
+        const WEIGHTS = array<f32, 9>(
+            0.0625, 0.125, 0.0625,
+            0.125, 0.25, 0.125,
+            0.0625, 0.125, 0.0625
+        );
+        
+        @compute @workgroup_size(8,8,1)
+        fn main(
+         @builtin(global_invocation_id) id : vec3<u32>
+        ){
+            var colour = vec3(0.0);
+            var weightSum = 0.0;
+            var resolution = vec2<f32>(textureDimensions(inputTex));
+            let uv = (vec2<f32>(id.xy) + vec2(0.5)) / resolution;
+            let normalRef = textureSampleLevel(normalTex, nearestSampler, uv, 0);
+            for(var i = 0; i < 9; i = i + 1){
+                let uvOffset = (vec2<f32>(OFFSETS[i]) / resolution) * f32(atrousRate);
+                let sample = textureSampleLevel(inputTex, linearSampler, uv + uvOffset, 0);
+                let normal = textureSampleLevel(normalTex, nearestSampler, uv + uvOffset, 0);
+                let normalSimilarity = clamp(dot(normal, normalRef), 0.,1.);
+                let normalWeight = exp(-pow(1.0 - normalSimilarity, 2.0) / (2.0 * svgfConfig.normalSigma * svgfConfig.normalSigma));
+                let weight = normalWeight;
+                colour += sample.rgb * weight;
+                weightSum += weight;
+            }
+            colour /= weightSum;
+            textureStore(outputTex, id.xy, vec4<f32>(colour, 1.0));
+        }
+       `,
+      }),
+      entryPoint: "main",
+    },
+    layout: denoisePipelineLayout,
   });
 
   const clearReservoirPipeline = device.createComputePipeline({
@@ -375,6 +506,8 @@ ${lightsCompute}`;
   let svgfConfigBuffer: GPUBuffer;
   let svgfConfigBindGroup: GPUBindGroup;
   let clearReservoirBindGroup: GPUBindGroup;
+  let denoiseBindGroup: GPUBindGroup;
+  let atrousRateBuffer: GPUBuffer;
 
   let lightConfig = {
     constantAttenuation: 0.1,
@@ -392,6 +525,7 @@ ${lightsCompute}`;
   let passConfig = {
     spatialEnabled: false,
     temporalEnabled: false,
+    denoiseEnabled: false,
   };
 
   const folder = (window as any).debugUI.gui.addFolder("lighting");
@@ -404,6 +538,7 @@ ${lightsCompute}`;
   folder.add(svgfConfig, "blueNoiseSCale", 0, 10, 0.1);
   folder.add(passConfig, "spatialEnabled");
   folder.add(passConfig, "temporalEnabled");
+  folder.add(passConfig, "denoiseEnabled");
 
   const render = ({
     commandEncoder,
@@ -428,7 +563,11 @@ ${lightsCompute}`;
           height: outputTextures.finalTexture.height,
         },
         format: outputTextures.finalTexture.format,
-        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+        usage:
+          GPUTextureUsage.COPY_DST |
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.STORAGE_BINDING |
+          GPUTextureUsage.COPY_SRC,
       });
       copyFinalTextureView = copyFinalTexture.createView();
     }
@@ -559,6 +698,51 @@ ${lightsCompute}`;
           {
             binding: 0,
             resource: reservoirTexture.createView(),
+          },
+        ],
+      });
+    }
+
+    if (!atrousRateBuffer) {
+      atrousRateBuffer = device.createBuffer({
+        size: 4,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+    }
+
+    if (!denoiseBindGroup) {
+      denoiseBindGroup = device.createBindGroup({
+        layout: denoiseBindGroupLayout,
+        entries: [
+          {
+            binding: 0,
+            resource: outputTextures.finalTexture.view,
+          },
+          {
+            binding: 1,
+            resource: outputTextures.normalTexture.view,
+          },
+          {
+            binding: 2,
+            resource: outputTextures.worldPositionTexture.view,
+          },
+          {
+            binding: 3,
+            resource: copyFinalTextureView,
+          },
+          {
+            binding: 4,
+            resource: {
+              buffer: atrousRateBuffer,
+            },
+          },
+          {
+            binding: 5,
+            resource: linearSampler,
+          },
+          {
+            binding: 6,
+            resource: nearestSampler,
           },
         ],
       });
@@ -842,6 +1026,45 @@ ${lightsCompute}`;
       passWriteOffset += 2;
     };
 
+    const denoisePass = (rate: number) => {
+      device.queue.writeBuffer(atrousRateBuffer, 0, new Uint32Array([rate]));
+      passEncoder = commandEncoder.beginComputePass({
+        label: "denoise-pass",
+        timestampWrites: {
+          querySet: timestampWrites.querySet,
+          beginningOfPassWriteIndex:
+            timestampWrites.beginningOfPassWriteIndex + passWriteOffset,
+          endOfPassWriteIndex:
+            timestampWrites.endOfPassWriteIndex + passWriteOffset,
+        },
+      });
+      passEncoder.setPipeline(denoisePipeline);
+      passEncoder.setBindGroup(0, denoiseBindGroup);
+      passEncoder.setBindGroup(1, svgfConfigBindGroup);
+      passEncoder.dispatchWorkgroups(
+        Math.ceil(outputTextures.finalTexture.width / 8),
+        Math.ceil(outputTextures.finalTexture.height / 8),
+        1,
+      );
+      passEncoder.end();
+      passWriteOffset += 2;
+    };
+
+    const copyFinalTextureBack = () => {
+      commandEncoder.copyTextureToTexture(
+        {
+          texture: copyFinalTexture,
+        },
+        {
+          texture: outputTextures.finalTexture.texture,
+        },
+        {
+          width: outputTextures.finalTexture.width,
+          height: outputTextures.finalTexture.height,
+        },
+      );
+    };
+
     clearReservoirPass();
     sampleLightsPass();
     copyPass();
@@ -853,8 +1076,17 @@ ${lightsCompute}`;
       temporalPass();
       copyPass();
     }
-
     compositePass();
+    if (passConfig.denoiseEnabled) {
+      denoisePass(1);
+      copyFinalTextureBack();
+      denoisePass(2);
+      copyFinalTextureBack();
+      denoisePass(4);
+      copyFinalTextureBack();
+      // denoisePass(8);
+      // copyFinalTextureBack();
+    }
     commandEncoder.copyTextureToTexture(
       {
         texture: reservoirTexture,

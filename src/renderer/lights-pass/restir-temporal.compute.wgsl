@@ -128,7 +128,6 @@ fn main(
   currentSampleCount += previousCount;
   currentWeightSum += previousWeight;
 
-
   let depthSample = textureLoad(worldPosTex, id.xy, 0).w;
   let depthDifference: f32 = abs(depthSample - previousWorldPos.w);
 

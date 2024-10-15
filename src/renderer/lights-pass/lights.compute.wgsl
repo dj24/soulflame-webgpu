@@ -79,7 +79,7 @@ fn main(
   let offsetPixel = id.xy * DOWN_SAMPLE_FACTOR + vec2<u32>(kernelX, kernelY);
   let worldPos = textureLoad(worldPosTex, offsetPixel, 0).xyz;
   let normal = textureLoad(normalTex, offsetPixel, 0).xyz;
-  var blueNoisePixel = vec2<i32>(offsetPixel);
+  var blueNoisePixel = vec2<i32>(id.xy);
   let frameOffsetX = (i32(time.frame) * 92821 + 71413);  // Large prime numbers for frame variation
   let frameOffsetY = (i32(time.frame) * 13761 + 512);    // Different prime numbers
   blueNoisePixel.x += frameOffsetX;
