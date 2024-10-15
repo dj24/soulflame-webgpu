@@ -202,6 +202,18 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
     ],
   });
 
+  const clearReservoirTextureLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        storageTexture: {
+          format: RESERVOIR_TEXTURE_FORMAT,
+        },
+      },
+    ],
+  });
+
   const svgfConfigBindGroupLayout = device.createBindGroupLayout({
     label: "svgf-config-bind-group-layout",
     entries: [
@@ -234,6 +246,28 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
 
   const compositePipelineLayout = device.createPipelineLayout({
     bindGroupLayouts: [bindGroupLayout, svgfConfigBindGroupLayout],
+  });
+
+  const clearReservoirPipelineLayout = device.createPipelineLayout({
+    bindGroupLayouts: [clearReservoirTextureLayout],
+  });
+
+  const clearReservoirPipeline = device.createComputePipeline({
+    compute: {
+      module: device.createShaderModule({
+        code: `
+        @group(0) @binding(0) var reservoirTex : texture_storage_2d<rgba32float, write>;
+        @compute @workgroup_size(8,8,1)
+        fn main(
+        @builtin(global_invocation_id) id : vec3<u32>
+        ){
+            textureStore(reservoirTex, id.xy, vec4<f32>(0.0, 0.0, 0.0, 0.0));
+        }
+          `,
+      }),
+      entryPoint: "main",
+    },
+    layout: clearReservoirPipelineLayout,
   });
 
   const code = `
@@ -340,6 +374,7 @@ ${lightsCompute}`;
   let spatialBindGroup: GPUBindGroup;
   let svgfConfigBuffer: GPUBuffer;
   let svgfConfigBindGroup: GPUBindGroup;
+  let clearReservoirBindGroup: GPUBindGroup;
 
   let lightConfig = {
     constantAttenuation: 0.1,
@@ -514,6 +549,18 @@ ${lightsCompute}`;
       lightBuffer = device.createBuffer({
         size: LIGHT_BUFFER_STRIDE * lights.length,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      });
+    }
+
+    if (!clearReservoirBindGroup) {
+      clearReservoirBindGroup = device.createBindGroup({
+        layout: clearReservoirTextureLayout,
+        entries: [
+          {
+            binding: 0,
+            resource: reservoirTexture.createView(),
+          },
+        ],
       });
     }
 
@@ -774,14 +821,36 @@ ${lightsCompute}`;
       );
     };
 
+    const clearReservoirPass = () => {
+      passEncoder = commandEncoder.beginComputePass({
+        label: "clear-reservoir-pass",
+        timestampWrites: {
+          querySet: timestampWrites.querySet,
+          beginningOfPassWriteIndex:
+            timestampWrites.beginningOfPassWriteIndex + passWriteOffset,
+          endOfPassWriteIndex:
+            timestampWrites.endOfPassWriteIndex + passWriteOffset,
+        },
+      });
+      passEncoder.setPipeline(clearReservoirPipeline);
+      passEncoder.setBindGroup(0, clearReservoirBindGroup);
+      passEncoder.dispatchWorkgroups(
+        Math.ceil(reservoirTexture.width / 8),
+        Math.ceil(reservoirTexture.height / 8),
+      );
+      passEncoder.end();
+      passWriteOffset += 2;
+    };
+
+    clearReservoirPass();
     sampleLightsPass();
     copyPass();
-    if (passConfig.temporalEnabled) {
-      temporalPass();
-      copyPass();
-    }
     if (passConfig.spatialEnabled) {
       spatialPass();
+      copyPass();
+    }
+    if (passConfig.temporalEnabled) {
+      temporalPass();
       copyPass();
     }
 
@@ -804,6 +873,7 @@ ${lightsCompute}`;
     render,
     label: "lights",
     timestampLabels: [
+      "restir clear",
       "restir lights",
       "restir temporal",
       "restir spatial",

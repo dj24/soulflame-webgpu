@@ -114,8 +114,8 @@ fn main(
   var currentSampleCount = reservoir.sampleCount;
   var currentLightIndex = reservoir.lightIndex;
 
-  let normalSample = textureSampleLevel(normalTex, linearSampler, uv, 0);
-  let previousNormal = textureSampleLevel(normalTex, linearSampler, previousUv, 0);
+  let normalSample = textureSampleLevel(normalTex, nearestSampler, uv, 0);
+  let previousNormal = textureSampleLevel(normalTex, nearestSampler, previousUv, 0);
   let normalSimilarity = dot(previousNormal, normalSample);
 
   var previousReservoir = unpackReservoir(textureSampleLevel(previousReservoirTex, nearestSampler, previousUv, 0.));

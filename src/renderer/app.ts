@@ -498,7 +498,7 @@ export const frame = (
   deltaTime = newElapsedTime - elapsedTime;
   frameTimeTracker.addSample("frame time", deltaTime);
   elapsedTime = newElapsedTime;
-  frameCount = (frameCount + 1) % 1000000;
+  frameCount = (frameCount + 2) % 2048;
 
   getMatricesBuffer(camera, cameraTransform);
   getVoxelObjectsBuffer(device, ecs, renderableEntities);

@@ -50,8 +50,7 @@ struct Reservoir {
   lightIndex: u32,
 }
 
-const NEIGHBOUR_OFFSETS = array<vec2<i32>, 5>(
-  vec2<i32>(0, 0),
+const NEIGHBOUR_OFFSETS = array<vec2<i32>, 4>(
   vec2<i32>(-1, 0),
   vec2<i32>(1, 0),
   vec2<i32>(0, -1),
@@ -94,7 +93,7 @@ fn spatial(
 
   let resolution = textureDimensions(worldPosTex).xy;
   let uv = vec2<f32>(id.xy) / vec2<f32>(resolution);
-  let normalRef = textureSampleLevel(normalTex, linearSampler, uv, 0).xyz;
+  let normalRef = textureSampleLevel(normalTex, nearestSampler, uv, 0).xyz;
   let worldPos = textureLoad(worldPosTex, id.xy, 0);
 
   if(worldPos.w > 10000.0){
@@ -103,20 +102,20 @@ fn spatial(
 
   let reservoir = unpackReservoir(textureSampleLevel(inputReservoirTex, nearestSampler, uv, 0));
   var weightSum = reservoir.weightSum;
-  var currentWeight = 0.0;
+  var currentWeight = reservoir.lightWeight;
   var currentSampleCount = reservoir.sampleCount;
   var lightIndex = reservoir.lightIndex;
 
   let frameOffsetX = (i32(time.frame) * 92821 + 71413) % 512;  // Large prime numbers for frame variation
   let frameOffsetY = (i32(time.frame) * 13761 + 511) % 512;    // Different prime numbers
 
-  for(var i = 0u; i < 5; i = i + 1u){
-    let offset = NEIGHBOUR_OFFSETS[i] * DOWN_SAMPLE_FACTOR;
+  for(var i = 0u; i < 4; i = i + 1u){
+    let offset = NEIGHBOUR_OFFSETS[i];
     let neighbor = vec2<i32>(id.xy) + offset;
     let neighborUv = vec2<f32>(neighbor) / vec2<f32>(resolution);
     let neighborReservoir = unpackReservoir(textureLoad(inputReservoirTex, neighbor, 0));
     let neighborWeight = neighborReservoir.lightWeight;
-    let normalSample = textureSampleLevel(normalTex, linearSampler, neighborUv, 0).xyz;
+    let normalSample = textureSampleLevel(normalTex, nearestSampler, neighborUv, 0).xyz;
     let normalSimilarity = dot(normalRef, normalSample);
 
     weightSum += neighborWeight;
@@ -131,6 +130,7 @@ fn spatial(
         lightIndex = neighborReservoir.lightIndex;
         currentWeight = neighborWeight;
     }
+
   }
 
   let newReservoir = Reservoir(currentSampleCount, weightSum, currentWeight, lightIndex);

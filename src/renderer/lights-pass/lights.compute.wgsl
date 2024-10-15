@@ -74,13 +74,17 @@ fn getLightWeight(lightPos: vec3<f32>, lightColour: vec3<f32>, worldPos: vec3<f3
 fn main(
     @builtin(global_invocation_id) id : vec3<u32>,
 ) {
-  let worldPos = textureLoad(worldPosTex, id.xy * DOWN_SAMPLE_FACTOR, 0).xyz;
-  let normal = textureLoad(normalTex, id.xy * DOWN_SAMPLE_FACTOR, 0).xyz;
-  var blueNoisePixel = vec2<i32>(id.xy);
-  let frameOffsetX = (i32(time.frame) * 92821 + 71413) % 512;  // Large prime numbers for frame variation
-  let frameOffsetY = (i32(time.frame) * 13761 + 511) % 512;    // Different prime numbers
+  let kernelX = time.frame % DOWN_SAMPLE_FACTOR;
+  let kernelY = time.frame / DOWN_SAMPLE_FACTOR;
+  let offsetPixel = id.xy * DOWN_SAMPLE_FACTOR + vec2<u32>(kernelX, kernelY);
+  let worldPos = textureLoad(worldPosTex, offsetPixel, 0).xyz;
+  let normal = textureLoad(normalTex, offsetPixel, 0).xyz;
+  var blueNoisePixel = vec2<i32>(offsetPixel);
+  let frameOffsetX = (i32(time.frame) * 92821 + 71413);  // Large prime numbers for frame variation
+  let frameOffsetY = (i32(time.frame) * 13761 + 512);    // Different prime numbers
+  blueNoisePixel.x += frameOffsetX;
+  blueNoisePixel.y += frameOffsetY;
   let r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy;
-  let jitterOffset = randomInUnitSphere(r);
 
   var bestWeight = 0.0;
   var weightSum = 0.0;
@@ -88,10 +92,10 @@ fn main(
   for(var i = 0; i < SAMPLES_PER_FRAME; i++){
     let iterOffsetX = (i * 193); // Large prime numbers for frame variation
     let iterOffsetY = (i * 257); // Different prime numbers
-    let sampleR = textureLoad(blueNoiseTex, (blueNoisePixel + vec2(frameOffsetX + iterOffsetX, frameOffsetY + iterOffsetY)) % 512, 0).xy;
+    let sampleR = textureLoad(blueNoiseTex, (blueNoisePixel + vec2(iterOffsetX, iterOffsetY)) % 512, 0).xy;
     let sampleLightIndex = u32(sampleR.x * f32(LIGHT_COUNT));
     let light = lightsBuffer[sampleLightIndex];
-    let lightPos = light.position + jitterOffset;
+    let lightPos = light.position + randomInUnitSphere(sampleR);
     let weight = getLightWeight(lightPos, light.color, worldPos, normal);
 
     weightSum += weight;
@@ -101,7 +105,7 @@ fn main(
   }
 
   let light = lightsBuffer[lightIndex];
-  let lightDir = light.position + jitterOffset - worldPos;
+  let lightDir = light.position + randomInUnitSphere(r) - worldPos;
 
   let raymarchResult = rayMarchBVH(worldPos + normal * 0.001, normalize(lightDir));
   if(!raymarchResult.hit){
@@ -115,10 +119,6 @@ fn main(
      bitcast<f32>(lightIndex),
   );
 
+  textureStore(reservoirTex, offsetPixel, reservoir);
 
-  for(var x = 0u; x < DOWN_SAMPLE_FACTOR; x++){
-    for(var y = 0u; y < DOWN_SAMPLE_FACTOR; y++){
-      textureStore(reservoirTex, id.xy * DOWN_SAMPLE_FACTOR + vec2(x, y), reservoir);
-    }
-  }
 }
