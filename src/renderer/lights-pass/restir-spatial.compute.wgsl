@@ -92,7 +92,7 @@ fn spatial(
 ){
 
   let resolution = textureDimensions(worldPosTex).xy;
-  let uv = vec2<f32>(id.xy) / vec2<f32>(resolution);
+  let uv = (vec2<f32>(id.xy) + vec2(0.5)) / vec2<f32>(resolution);
   let normalRef = textureSampleLevel(normalTex, nearestSampler, uv, 0).xyz;
   let worldPos = textureLoad(worldPosTex, id.xy, 0);
 

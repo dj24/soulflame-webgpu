@@ -259,15 +259,16 @@ export const init = async (
         },
       };
     })(),
-    getTaaPass(normalTexture),
+    // getTaaPass(normalTexture),
+    getShadowsPass(),
     getLightsPass(device),
-    // getShadowsPass(),
+
     // getGlobalIlluminationPass(),
     // getBloomPass(),
     getSimpleFogPass(),
-    // getTaaPass(outputTexture),
+    getTaaPass(outputTexture),
     getTonemapPass(),
-    // getMotionBlurPass(),
+    getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
     // getVignettePass(10.0),
     fullscreenQuad(device),
@@ -502,6 +503,10 @@ export const frame = (
 
   getMatricesBuffer(camera, cameraTransform);
   getVoxelObjectsBuffer(device, ecs, renderableEntities);
+
+  lights[0].position[0] = 128 * Math.sin(elapsedTime / 1000);
+  lights[0].position[1] = 4;
+  lights[0].color = vec3.create(100, 80, 50);
 
   getTimeBuffer();
   getSunDirectionBuffer();

@@ -114,7 +114,6 @@ fn composite(
   let reservoir = unpackReservoir(textureSampleLevel(reservoirTex, nearestSampler, uv, 0));
   let diffuse = reservoir.lightWeight * lightsBuffer[reservoir.lightIndex].color;
 
-
   // Composite the light
   let inputColor = textureLoad(inputTex, pixel, 0).xyz;
   let outputColor = diffuse + inputColor;

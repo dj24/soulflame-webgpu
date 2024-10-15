@@ -8,6 +8,7 @@ import bvh from "../shader/bvh.wgsl";
 import randomCommon from "../random-common.wgsl";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import boxIntersection from "../shader/box-intersection.wgsl";
+import computeDenoise from "./denoise.compute.wgsl";
 
 export type Light = {
   position: [number, number, number];
@@ -16,9 +17,9 @@ export type Light = {
 };
 
 const LIGHT_BUFFER_STRIDE = 32;
-const DOWNSCALE_FACTOR = 4;
+const DOWNSCALE_FACTOR = 3;
 const RESERVOIR_DECAY = 0.5;
-const MAX_SAMPLES = 512;
+const MAX_SAMPLES = 256;
 const RESERVOIR_TEXTURE_FORMAT: GPUTextureFormat = "rgba32float";
 
 export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
@@ -324,59 +325,7 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   const denoisePipeline = device.createComputePipeline({
     compute: {
       module: device.createShaderModule({
-        code: `
-        struct SVGFConfig {
-          normalSigma: f32,
-          depthSigma: f32,
-          blueNoiseScale: f32,
-          spatialSigma: f32,
-        }
-
-        @group(0) @binding(0) var inputTex : texture_2d<f32>;
-        @group(0) @binding(1) var normalTex : texture_2d<f32>;
-        @group(0) @binding(2) var worldPosTex : texture_2d<f32>;
-        @group(0) @binding(3) var outputTex : texture_storage_2d<rgba16float, write>;
-        @group(0) @binding(4) var<uniform> atrousRate : u32;
-        @group(0) @binding(5) var linearSampler : sampler;
-        @group(0) @binding(6) var nearestSampler : sampler;
-        
-        @group(1) @binding(0) var<uniform> svgfConfig : SVGFConfig;
-        
-        const OFFSETS = array<vec2<i32>, 9>(
-            vec2<i32>(-1, -1), vec2<i32>(0, -1), vec2<i32>(1, -1),
-            vec2<i32>(-1, 0), vec2<i32>(0, 0), vec2<i32>(1, 0),
-            vec2<i32>(-1, 1), vec2<i32>(0, 1), vec2<i32>(1, 1)
-        );
-        
-        const WEIGHTS = array<f32, 9>(
-            0.0625, 0.125, 0.0625,
-            0.125, 0.25, 0.125,
-            0.0625, 0.125, 0.0625
-        );
-        
-        @compute @workgroup_size(8,8,1)
-        fn main(
-         @builtin(global_invocation_id) id : vec3<u32>
-        ){
-            var colour = vec3(0.0);
-            var weightSum = 0.0;
-            var resolution = vec2<f32>(textureDimensions(inputTex));
-            let uv = (vec2<f32>(id.xy) + vec2(0.5)) / resolution;
-            let normalRef = textureSampleLevel(normalTex, nearestSampler, uv, 0);
-            for(var i = 0; i < 9; i = i + 1){
-                let uvOffset = (vec2<f32>(OFFSETS[i]) / resolution) * f32(atrousRate);
-                let sample = textureSampleLevel(inputTex, linearSampler, uv + uvOffset, 0);
-                let normal = textureSampleLevel(normalTex, nearestSampler, uv + uvOffset, 0);
-                let normalSimilarity = clamp(dot(normal, normalRef), 0.,1.);
-                let normalWeight = exp(-pow(1.0 - normalSimilarity, 2.0) / (2.0 * svgfConfig.normalSigma * svgfConfig.normalSigma));
-                let weight = normalWeight;
-                colour += sample.rgb * weight;
-                weightSum += weight;
-            }
-            colour /= weightSum;
-            textureStore(outputTex, id.xy, vec4<f32>(colour, 1.0));
-        }
-       `,
+        code: computeDenoise,
       }),
       entryPoint: "main",
     },
@@ -517,15 +466,16 @@ ${lightsCompute}`;
 
   let svgfConfig = {
     normalSigma: 0.2,
-    depthSigma: 0.8,
+    depthSigma: 0.6,
     blueNoiseSCale: 0,
-    spatialSigma: 3,
+    spatialSigma: 6,
   };
 
   let passConfig = {
     spatialEnabled: false,
-    temporalEnabled: false,
-    denoiseEnabled: false,
+    temporalEnabled: true,
+    denoiseEnabled: true,
+    maxDenoiseRate: 16,
   };
 
   const folder = (window as any).debugUI.gui.addFolder("lighting");
@@ -534,11 +484,12 @@ ${lightsCompute}`;
   folder.add(lightConfig, "quadraticAttenuation", 0.005, 0.1, 0.001);
   folder.add(svgfConfig, "normalSigma", 0.1, 2, 0.05);
   folder.add(svgfConfig, "depthSigma", 0.1, 8, 0.05);
-  folder.add(svgfConfig, "spatialSigma", 0.2, 4, 0.1);
+  folder.add(svgfConfig, "spatialSigma", 0.2, 16, 0.1);
   folder.add(svgfConfig, "blueNoiseSCale", 0, 10, 0.1);
   folder.add(passConfig, "spatialEnabled");
   folder.add(passConfig, "temporalEnabled");
   folder.add(passConfig, "denoiseEnabled");
+  folder.add(passConfig, "maxDenoiseRate", 1, 16, 1);
 
   const render = ({
     commandEncoder,
@@ -1048,6 +999,7 @@ ${lightsCompute}`;
       );
       passEncoder.end();
       passWriteOffset += 2;
+      copyFinalTextureBack();
     };
 
     const copyFinalTextureBack = () => {
@@ -1068,24 +1020,31 @@ ${lightsCompute}`;
     clearReservoirPass();
     sampleLightsPass();
     copyPass();
-    if (passConfig.spatialEnabled) {
-      spatialPass();
-      copyPass();
-    }
     if (passConfig.temporalEnabled) {
       temporalPass();
       copyPass();
     }
+    if (passConfig.spatialEnabled) {
+      spatialPass();
+      copyPass();
+    }
     compositePass();
     if (passConfig.denoiseEnabled) {
-      denoisePass(1);
-      copyFinalTextureBack();
-      denoisePass(2);
-      copyFinalTextureBack();
-      denoisePass(4);
-      copyFinalTextureBack();
-      // denoisePass(8);
-      // copyFinalTextureBack();
+      if (passConfig.maxDenoiseRate >= 1) {
+        denoisePass(1);
+      }
+      if (passConfig.maxDenoiseRate >= 2) {
+        denoisePass(2);
+      }
+      if (passConfig.maxDenoiseRate >= 4) {
+        denoisePass(4);
+      }
+      if (passConfig.maxDenoiseRate >= 8) {
+        denoisePass(8);
+      }
+      if (passConfig.maxDenoiseRate >= 16) {
+        denoisePass(16);
+      }
     }
     commandEncoder.copyTextureToTexture(
       {
