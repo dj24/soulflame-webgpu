@@ -40,11 +40,6 @@ struct SVGFConfig {
             let normalRef = textureSampleLevel(normalTex, nearestSampler, uv, 0).rgb;
             let worldPosRef = textureSampleLevel(worldPosTex, nearestSampler, uv, 0);
 
-            if(worldPosRef.w > 10000.0){
-                textureStore(outputTex, id.xy, vec4<f32>(colourRef, 1.0));
-                return;
-            }
-
             let depthRef = worldPosRef.w;
             for(var i = 0; i < 9; i = i + 1){
                 let uvOffset = (vec2<f32>(OFFSETS[i]) / resolution) * f32(atrousRate);

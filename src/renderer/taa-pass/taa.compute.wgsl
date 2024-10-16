@@ -15,11 +15,6 @@ struct ViewProjectionMatrices {
   inverseProjection: mat4x4<f32>
 };
 
-//fn calculateWorldDisplacementFromVelocity(velocity: vec2<f32>, depth: f32) -> vec3<f32> {
-//    let worldDisplacement = vec3<f32>(velocity, depth);
-//    return worldDisplacement;
-//}
-
 fn calculateUvFromWorldPostion(worldPos: vec3<f32>, matrices: ViewProjectionMatrices) -> vec2<f32> {
   let clipPos = matrices.viewProjection * vec4<f32>(worldPos, 1.0);
   let uv = (matrices.inverseProjection * clipPos).xy;
@@ -39,13 +34,10 @@ const NEIGHBORHOOD_SAMPLE_POSITIONS = array<vec2<i32>, 8>(
 
 @group(0) @binding(0) var CurrentColor : texture_2d<f32>;
 @group(0) @binding(1) var Velocity : texture_2d<f32>;
-@group(0) @binding(2) var HistoryWrite : texture_storage_2d<rgba16float, write>;
 @group(0) @binding(3) var HistoryRead : texture_2d<f32>;
-@group(0) @binding(5) var Depth : texture_2d<f32>;
-@group(0) @binding(6) var linearSampler : sampler;
-@group(0) @binding(7) var nearestSampler : sampler;
-@group(0) @binding(8) var worldPosTex : texture_2d<f32>;
-//@group(0) @binding(9) var<uniform> viewProjectionMatrices : ViewProjectionMatrices;
+@group(0) @binding(4) var linearSampler : sampler;
+@group(0) @binding(5) var nearestSampler : sampler;
+@group(0) @binding(6) var worldPosTex : texture_2d<f32>;
 
 const DEPTH_THRESHOLD : f32 = 4.0;
 const MIN_SOURCE_BLEND = 0.1;
@@ -56,14 +48,16 @@ fn main(
 ) {
     let texSize = vec2<f32>(textureDimensions(CurrentColor));
     let uv = (vec2<f32>(id.xy) + vec2(0.5)) / texSize;
-    let depthSample: f32 = textureLoad(Depth, id.xy, 0).r;
+    let worldPosSample = textureLoad(worldPosTex, id.xy, 0);
+    let worldPos = worldPosSample.xyz;
+    let depthSample = worldPosSample.w;
 
     // Get velocity from pixel with closest depth value in 3x3 neighborhood
     var closestDepthPixel = vec2<i32>(id.xy);
     var closestDepth = 999999999.0;
     for (var i = 0; i < 8; i = i + 1) {
         let neighbourPixel = clamp(vec2<i32>(id.xy) + NEIGHBORHOOD_SAMPLE_POSITIONS[i], vec2<i32>(0), vec2<i32>(texSize - 1));
-        let neighbourDepth = textureLoad(Depth, neighbourPixel, 0).r;
+        let neighbourDepth = textureLoad(worldPosTex, neighbourPixel, 0).w;
         if (abs(neighbourDepth - depthSample) < abs(closestDepth - depthSample)) {
             closestDepth = neighbourDepth;
             closestDepthPixel = neighbourPixel;
@@ -74,10 +68,9 @@ fn main(
     let previousUv = uv - velocity;
     let previousPixel = vec2<i32>(previousUv * texSize);
 
-    let worldPos = textureLoad(worldPosTex, id.xy, 0).xyz;
-    let worldPosPrev = textureLoad(worldPosTex, previousPixel, 0).xyz;
-
-    var depthAtPreviousPixel: f32 = textureLoad(Depth, previousPixel, 0).r;
+    let worldPosPrevSample = textureLoad(worldPosTex, previousPixel, 0);
+    let worldPosPrev = worldPosPrevSample.xyz;
+    var depthAtPreviousPixel = worldPosPrevSample.w;
 
     var sourceSample: vec3<f32> = textureSampleLevel(CurrentColor, nearestSampler, uv, 0).rgb;
     var historySample: vec3<f32> = textureSampleLevel(HistoryRead, linearSampler, previousUv, 0).rgb;

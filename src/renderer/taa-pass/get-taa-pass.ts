@@ -9,30 +9,32 @@ export const getTaaPass = async (
   let historyTexture: GPUTexture;
   let currentFrameTexture: GPUTexture;
   let currentFrameTextureView: GPUTextureView;
+  let historyTextureView: GPUTextureView;
+  let copyWorldPosTexture: GPUTexture;
+  let copyWorldPosTextureView: GPUTextureView;
 
   const taaPipeline = device.createComputePipeline({
     layout: "auto",
     compute: {
       module: device.createShaderModule({
-        code: taa,
+        code: `
+        @group(0) @binding(2) var HistoryWrite : texture_storage_2d<${gBufferTexture.format}, write>;
+        ${taa}`,
       }),
       entryPoint: "main",
     },
   });
 
-  let historyTextureView: GPUTextureView;
-
   const render = ({
     commandEncoder,
     timestampWrites,
     outputTextures,
-    viewProjectionMatricesBuffer,
   }: RenderArgs) => {
     if (!historyTexture) {
       historyTexture = device.createTexture({
         label: "TAA History Texture",
         size: [resolution[0], resolution[1], 1],
-        format: OUTPUT_TEXTURE_FORMAT,
+        format: gBufferTexture.format,
         usage:
           GPUTextureUsage.TEXTURE_BINDING |
           GPUTextureUsage.STORAGE_BINDING |
@@ -40,10 +42,35 @@ export const getTaaPass = async (
       });
       historyTextureView = historyTexture.createView();
     }
+    if (!copyWorldPosTexture) {
+      copyWorldPosTexture = device.createTexture({
+        size: [resolution[0], resolution[1], 1],
+        format: outputTextures.worldPositionTexture.format,
+        usage:
+          GPUTextureUsage.STORAGE_BINDING |
+          GPUTextureUsage.COPY_DST |
+          GPUTextureUsage.TEXTURE_BINDING,
+      });
+      copyWorldPosTextureView = copyWorldPosTexture.createView();
+    }
+    commandEncoder.copyTextureToTexture(
+      {
+        texture: outputTextures.worldPositionTexture.texture,
+      },
+      {
+        texture: copyWorldPosTexture,
+      },
+      {
+        width: copyWorldPosTexture.width,
+        height: copyWorldPosTexture.height,
+        depthOrArrayLayers: 1, // Copy one layer (z-axis slice)
+      },
+    );
+
     if (!currentFrameTexture) {
       currentFrameTexture = device.createTexture({
         size: [resolution[0], resolution[1], 1],
-        format: OUTPUT_TEXTURE_FORMAT,
+        format: gBufferTexture.format,
         usage:
           GPUTextureUsage.TEXTURE_BINDING |
           GPUTextureUsage.STORAGE_BINDING |
@@ -91,11 +118,7 @@ export const getTaaPass = async (
           resource: historyTextureView,
         },
         {
-          binding: 5,
-          resource: outputTextures.depthTexture.view,
-        },
-        {
-          binding: 6,
+          binding: 4,
           resource: device.createSampler({
             magFilter: "linear",
             minFilter: "linear",
@@ -103,7 +126,7 @@ export const getTaaPass = async (
           }),
         },
         {
-          binding: 7,
+          binding: 5,
           resource: device.createSampler({
             magFilter: "nearest",
             minFilter: "nearest",
@@ -111,15 +134,9 @@ export const getTaaPass = async (
           }),
         },
         {
-          binding: 8,
-          resource: outputTextures.worldPositionTexture.view,
+          binding: 6,
+          resource: copyWorldPosTextureView,
         },
-        // {
-        //   binding: 9,
-        //   resource: {
-        //     buffer: viewProjectionMatricesBuffer,
-        //   },
-        // },
       ],
     });
 

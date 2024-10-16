@@ -103,15 +103,15 @@ fn main(
   let pixelVelocity = velocity * vec2<f32>(resolution);
   let previousPixel = vec2<f32>(id.xy) - pixelVelocity;
   let previousWorldPos = textureLoad(worldPosTex, vec2<u32>(previousPixel), 0);
-  let depthSample = textureLoad(worldPosTex, id.xy, 0).w;
+  var depthSample = textureLoad(worldPosTex, id.xy, 0).w;
 
-  if(depthSample > 10000.0){
-    textureStore(reservoirTex, id.xy, vec4(0.0));
-    return;
-  }
-
-  if(previousWorldPos.w > 10000.0 ){
-    return;
+  // Get closest depth value in 3x3 neighborhood
+  for(var i = 0; i < 8; i = i + 1) {
+    let neighbourPixel = clamp(vec2<i32>(id.xy) + NEIGHBORHOOD_SAMPLE_POSITIONS[i], vec2<i32>(0), vec2<i32>(resolution - 1));
+    let neighbourDepth = textureLoad(worldPosTex, vec2<u32>(neighbourPixel), 0).w;
+    if (abs(neighbourDepth - depthSample) < abs(depthSample - previousWorldPos.w)) {
+      depthSample = neighbourDepth;
+    }
   }
 
   let reservoir = unpackReservoir(textureSampleLevel(inputReservoirTex, nearestSampler, uv, 0.));

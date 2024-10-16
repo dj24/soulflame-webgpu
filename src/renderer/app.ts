@@ -52,6 +52,7 @@ import { getGlobalIlluminationPass } from "@renderer/get-global-illumination/get
 import { copyGBufferTexture } from "@renderer/abstractions/copy-g-buffer-texture";
 import { getBloomPass } from "@renderer/bloom-pass/get-bloom-pass";
 import { getRasterTracePass } from "@renderer/raster-trace/get-raster-trace-pass";
+import { getGapFillPass } from "@renderer/gap-fill/get-gap-fill-pass";
 
 export const debugValues = new DebugValuesStore();
 export let gpuContext: GPUCanvasContext;
@@ -263,14 +264,12 @@ export const init = async (
         },
       };
     })(),
-    // getTaaPass(normalTexture),
+    getTaaPass(normalTexture),
     // getShadowsPass(),
     getLightsPass(device),
-
-    // getGlobalIlluminationPass(),
     // getBloomPass(),
     getSimpleFogPass(),
-    getTaaPass(outputTexture),
+    // getTaaPass(outputTexture),
     getTonemapPass(),
     getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
