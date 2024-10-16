@@ -155,6 +155,10 @@ const LIGHT_SIZE = 5;
 const LIGHT_INTENSITY = 50;
 //
 
+let foo = {
+  lightY: 16,
+};
+
 for (let x = 0; x <= 768; x += 96) {
   for (let z = 0; z <= 768; z += 96) {
     lights.push({
@@ -171,7 +175,7 @@ for (let x = 0; x <= 768; x += 96) {
   }
 }
 
-console.log(lights.length);
+const folder = (window as any).debugUI.gui.add(foo, "lightY", 0, 64, 1);
 
 const setupCanvasAndTextures = () => {
   // if (albedoTexture) {
@@ -260,7 +264,7 @@ export const init = async (
       };
     })(),
     // getTaaPass(normalTexture),
-    getShadowsPass(),
+    // getShadowsPass(),
     getLightsPass(device),
 
     // getGlobalIlluminationPass(),
@@ -490,6 +494,13 @@ export const frame = (
     return;
   }
 
+  lights = lights.map((light) => {
+    return {
+      ...light,
+      position: [light.position[0], foo.lightY, light.position[2]],
+    };
+  });
+
   const commandEncoder = device.createCommandEncoder();
   if (startTime === 0) {
     startTime = now;
@@ -503,10 +514,6 @@ export const frame = (
 
   getMatricesBuffer(camera, cameraTransform);
   getVoxelObjectsBuffer(device, ecs, renderableEntities);
-
-  lights[0].position[0] = 128 * Math.sin(elapsedTime / 1000);
-  lights[0].position[1] = 4;
-  lights[0].color = vec3.create(100, 80, 50);
 
   getTimeBuffer();
   getSunDirectionBuffer();

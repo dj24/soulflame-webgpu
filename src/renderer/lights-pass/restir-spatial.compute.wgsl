@@ -115,7 +115,7 @@ fn spatial(
     let neighborUv = vec2<f32>(neighbor) / vec2<f32>(resolution);
     let neighborReservoir = unpackReservoir(textureLoad(inputReservoirTex, neighbor, 0));
     let linearReservoir = unpackReservoir(textureSampleLevel(inputReservoirTex, linearSampler, neighborUv, 0));
-    let neighborWeight = linearReservoir.lightWeight;
+    let neighborWeight = neighborReservoir.lightWeight;
     let normalSample = textureSampleLevel(normalTex, nearestSampler, neighborUv, 0).xyz;
     let normalSimilarity = dot(normalRef, normalSample);
 

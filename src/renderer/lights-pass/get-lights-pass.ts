@@ -475,7 +475,7 @@ ${lightsCompute}`;
     spatialEnabled: false,
     temporalEnabled: true,
     denoiseEnabled: true,
-    maxDenoiseRate: 16,
+    maxDenoiseRate: 4,
   };
 
   const folder = (window as any).debugUI.gui.addFolder("lighting");
@@ -1030,9 +1030,9 @@ ${lightsCompute}`;
     }
     compositePass();
     if (passConfig.denoiseEnabled) {
-      if (passConfig.maxDenoiseRate >= 1) {
-        denoisePass(1);
-      }
+      // if (passConfig.maxDenoiseRate >= 1) {
+      //   denoisePass(1);
+      // }
       if (passConfig.maxDenoiseRate >= 2) {
         denoisePass(2);
       }
@@ -1069,6 +1069,9 @@ ${lightsCompute}`;
       "restir temporal",
       "restir spatial",
       "restir composite",
+      // "denoise 1",
+      "denoise 2",
+      "denoise 4",
     ],
   };
 };
