@@ -17,9 +17,9 @@ export type Light = {
 };
 
 const LIGHT_BUFFER_STRIDE = 32;
-const DOWNSCALE_FACTOR = 3;
+const DOWNSCALE_FACTOR = 4;
 const RESERVOIR_DECAY = 0.5;
-const MAX_SAMPLES = 256;
+const MAX_SAMPLES = 50000;
 const RESERVOIR_TEXTURE_FORMAT: GPUTextureFormat = "rgba32float";
 
 export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {

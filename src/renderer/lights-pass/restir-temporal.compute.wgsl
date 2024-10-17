@@ -125,7 +125,6 @@ fn main(
   currentSampleCount += previousCount;
   currentWeightSum += previousWeight;
 
-
   let depthDifference: f32 = abs(depthSample - previousWorldPos.w);
 
   if(normalSimilarity > 0.5 && depthDifference < DEPTH_THRESHOLD){

@@ -60,7 +60,6 @@ fn unpackReservoir(reservoir: vec4<f32>) -> Reservoir {
     );
 }
 
-
 @group(0) @binding(1) var worldPosTex : texture_2d<f32>;
 @group(0) @binding(2) var normalTex : texture_2d<f32>;
 @group(0) @binding(3) var<storage, read> lightsBuffer : array<Light>;
@@ -131,7 +130,19 @@ fn main(
       bestWeight = 0.0;
   }
 
+  var currentReservoir = unpackReservoir(textureLoad(inputReservoirTex, offsetPixel, 0));
+
+  sampleCount += currentReservoir.sampleCount;
+  weightSum += currentReservoir.weightSum;
+
+  // Resample last frames pixel afterwards to better account for occlusion from raycast hit
+  if(r.y < currentReservoir.lightWeight / weightSum){
+    lightIndex = currentReservoir.lightIndex;
+    bestWeight = currentReservoir.lightWeight;
+  }
+
   bestWeight = clamp(bestWeight, 0.0, 8.0);
+
 
   var reservoir = vec4(
     bitcast<f32>(SAMPLES_PER_FRAME),
@@ -139,9 +150,6 @@ fn main(
      bestWeight,
      bitcast<f32>(lightIndex),
   );
+  textureStore(reservoirTex, offsetPixel, reservoir);
 
-
-  if(r.y < bestWeight / weightSum){
-    textureStore(reservoirTex, offsetPixel, reservoir);
-  }
 }
