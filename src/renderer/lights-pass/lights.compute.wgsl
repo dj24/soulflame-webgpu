@@ -32,7 +32,7 @@ struct LightConfig {
   constantAttenuation: f32,
   linearAttenuation: f32,
   quadraticAttenuation: f32,
-  normalSigma: f32
+  lightCutoff: f32
 }
 
 // 8 byte
@@ -43,13 +43,7 @@ struct Reservoir {
   lightIndex: u32,
 }
 
-fn getLightWeight(lightPos: vec3<f32>, lightColour: vec3<f32>, worldPos: vec3<f32>, normal: vec3<f32>) -> f32 {
-  let lightDir = lightPos - worldPos;
-  let d = length(lightDir);
-  let attenuation = lightConfig.constantAttenuation + lightConfig.linearAttenuation * d + lightConfig.quadraticAttenuation * d * d;
-  let ndotl = dot(normalize(lightDir), normal);
-  return (1.0 / attenuation) * length(lightColour) * ndotl;
-}
+
 
 fn unpackReservoir(reservoir: vec4<f32>) -> Reservoir {
     return Reservoir(
@@ -79,6 +73,19 @@ const QUADRATIC_ATTENUATION = 0.1;
 const LIGHT_COUNT = 32;
 const SAMPLES_PER_FRAME = 8;
 
+fn getLightWeight(lightPos: vec3<f32>, lightColour: vec3<f32>, worldPos: vec3<f32>, normal: vec3<f32>) -> f32 {
+  let lightDir = lightPos - worldPos;
+  let d = length(lightDir);
+  if(d > lightConfig.lightCutoff){
+    return 0.0;
+  }
+  let attenuation = lightConfig.constantAttenuation + lightConfig.linearAttenuation * d + lightConfig.quadraticAttenuation * d * d;
+  let ndotl = dot(normalize(lightDir), normal);
+  var weight = (1.0 / attenuation) * length(lightColour) * ndotl;
+//  weight *= step(lightConfig.lightCutoff, weight);
+  return weight;
+}
+
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
@@ -102,13 +109,13 @@ fn main(
 
   var bestWeight = 0.0;
   var weightSum = 0.0;
-  var lightIndex = 0u;
+  var lightIndex = 100000u;
   var sampleCount = 0u;
   for(var i = 0; i < SAMPLES_PER_FRAME; i++){
     let iterOffsetX = (i * 193); // Large prime numbers for frame variation
     let iterOffsetY = (i * 257); // Different prime numbers
     let sampleR = textureLoad(blueNoiseTex, (blueNoisePixel + vec2(iterOffsetX, iterOffsetY)) % 512, 0).xy;
-    let sampleLightIndex = u32(sampleR.x * f32(LIGHT_COUNT));
+    let sampleLightIndex = u32(round(sampleR.x * f32(LIGHT_COUNT)));
     let light = lightsBuffer[sampleLightIndex];
     let lightPos = light.position + randomInUnitSphere(sampleR);
     let weight = getLightWeight(lightPos, light.color, worldPos, normal);
@@ -125,6 +132,8 @@ fn main(
   let light = lightsBuffer[lightIndex];
   let lightDir = light.position + randomInUnitSphere(r) - worldPos;
 
+//  bestWeight *= step(lightConfig.lightCutoff, bestWeight);
+
   let raymarchResult = rayMarchBVH(worldPos + normal * 0.001, normalize(lightDir));
   if(raymarchResult.hit){
       bestWeight = 0.0;
@@ -140,9 +149,6 @@ fn main(
     lightIndex = currentReservoir.lightIndex;
     bestWeight = currentReservoir.lightWeight;
   }
-
-//  bestWeight = clamp(bestWeight, 0.0, 8.0);
-
 
   var reservoir = vec4(
     bitcast<f32>(SAMPLES_PER_FRAME),

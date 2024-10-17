@@ -159,7 +159,7 @@ let nearestSampler: GPUSampler;
 let timestampLabels: string[];
 
 const LIGHT_SIZE = 5;
-const LIGHT_INTENSITY = 100;
+const LIGHT_INTENSITY = 50;
 //
 
 let foo = {
@@ -170,24 +170,38 @@ const debugColours = [
   [1, 0, 0],
   [0, 1, 0],
   [0, 0, 1],
-  [1, 1, 0],
-  [1, 0, 1],
-  [0, 1, 1],
-  [1, 1, 1],
 ];
 
-for (let x = 0; x <= 768; x += 256) {
-  for (let z = 0; z <= 768; z += 256) {
-    lights.push({
-      position: [x, 16, z],
-      size: LIGHT_SIZE,
-      color: vec3.mulScalar(
-        debugColours[(x + z) % debugColours.length],
-        LIGHT_INTENSITY,
-      ),
-    });
-  }
-}
+// for (let x = 0; x <= 768; x += 256) {
+//   for (let z = 0; z <= 768; z += 256) {
+//     lights.push({
+//       position: [x, 16, z],
+//       size: LIGHT_SIZE,
+//       color: vec3.mulScalar(
+//         debugColours[(x + z) % debugColours.length],
+//         LIGHT_INTENSITY,
+//       ),
+//     });
+//   }
+// }
+
+lights.push({
+  position: [64, 16, 64],
+  size: LIGHT_SIZE,
+  color: vec3.mulScalar(debugColours[0], LIGHT_INTENSITY),
+});
+
+lights.push({
+  position: [192, 16, 64],
+  size: LIGHT_SIZE,
+  color: vec3.mulScalar(debugColours[1], LIGHT_INTENSITY),
+});
+
+lights.push({
+  position: [320, 16, 64],
+  size: LIGHT_SIZE,
+  color: vec3.mulScalar(debugColours[2], LIGHT_INTENSITY),
+});
 
 const folder = (window as any).debugUI.gui.add(foo, "lightY", 0, 64, 1);
 
@@ -282,7 +296,7 @@ export const init = async (
     getLightsPass(device),
     // getBloomPass(),
     getSimpleFogPass(),
-    getTaaPass(outputTexture),
+    // getTaaPass(outputTexture),
     getTonemapPass(),
     getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),

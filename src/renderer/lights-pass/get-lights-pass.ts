@@ -488,6 +488,7 @@ ${lightsCompute}`;
     constantAttenuation: 0.1,
     linearAttenuation: 0.2,
     quadraticAttenuation: 0.05,
+    lightWeightCutOff: 1000,
   };
 
   let svgfConfig = {
@@ -500,7 +501,7 @@ ${lightsCompute}`;
   let passConfig = {
     spatialEnabled: false,
     temporalEnabled: true,
-    denoiseEnabled: true,
+    denoiseEnabled: false,
     maxDenoiseRate: 6,
   };
 
@@ -508,6 +509,7 @@ ${lightsCompute}`;
   folder.add(lightConfig, "constantAttenuation", 0, 1.0, 0.1);
   folder.add(lightConfig, "linearAttenuation", 0.01, 1, 0.01);
   folder.add(lightConfig, "quadraticAttenuation", 0.005, 0.1, 0.001);
+  folder.add(lightConfig, "lightWeightCutOff", 0, 1000, 1);
   folder.add(svgfConfig, "normalSigma", 0.1, 2, 0.05);
   folder.add(svgfConfig, "depthSigma", 0.1, 8, 0.05);
   folder.add(svgfConfig, "spatialSigma", 0.2, 16, 0.1);
@@ -670,6 +672,7 @@ ${lightsCompute}`;
         lightConfig.constantAttenuation,
         lightConfig.linearAttenuation,
         lightConfig.quadraticAttenuation,
+        lightConfig.lightWeightCutOff,
       ]),
     );
 

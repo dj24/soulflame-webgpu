@@ -1,7 +1,7 @@
 import seedrandom from "seedrandom";
 import { createNoise3D } from "simplex-noise";
 
-export const myrng = seedrandom("crystals3");
+export const myrng = seedrandom("crystals5");
 const noise3D = createNoise3D(myrng);
 
 export const fractalNoise3D = (
