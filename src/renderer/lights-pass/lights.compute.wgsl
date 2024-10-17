@@ -141,7 +141,7 @@ fn main(
     bestWeight = currentReservoir.lightWeight;
   }
 
-  bestWeight = clamp(bestWeight, 0.0, 8.0);
+//  bestWeight = clamp(bestWeight, 0.0, 8.0);
 
 
   var reservoir = vec4(

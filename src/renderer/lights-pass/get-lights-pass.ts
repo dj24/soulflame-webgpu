@@ -312,6 +312,14 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
           type: "non-filtering",
         },
       },
+      // Time buffer
+      {
+        binding: 7,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
     ],
   });
 
@@ -483,7 +491,7 @@ ${lightsCompute}`;
   };
 
   let svgfConfig = {
-    normalSigma: 0.5,
+    normalSigma: 0.15,
     depthSigma: 1.5,
     blueNoiseSCale: 0,
     spatialSigma: 6,
@@ -491,9 +499,9 @@ ${lightsCompute}`;
 
   let passConfig = {
     spatialEnabled: false,
-    temporalEnabled: false,
-    denoiseEnabled: false,
-    maxDenoiseRate: 4,
+    temporalEnabled: true,
+    denoiseEnabled: true,
+    maxDenoiseRate: 6,
   };
 
   const folder = (window as any).debugUI.gui.addFolder("lighting");
@@ -724,6 +732,12 @@ ${lightsCompute}`;
           {
             binding: 6,
             resource: nearestSampler,
+          },
+          {
+            binding: 7,
+            resource: {
+              buffer: timeBuffer,
+            },
           },
         ],
       });
@@ -1069,11 +1083,11 @@ ${lightsCompute}`;
       if (passConfig.maxDenoiseRate >= 4) {
         denoisePass(4);
       }
+      if (passConfig.maxDenoiseRate >= 6) {
+        denoisePass(6);
+      }
       if (passConfig.maxDenoiseRate >= 8) {
         denoisePass(8);
-      }
-      if (passConfig.maxDenoiseRate >= 16) {
-        denoisePass(16);
       }
     }
     commandEncoder.copyTextureToTexture(
