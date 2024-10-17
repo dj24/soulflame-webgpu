@@ -68,6 +68,12 @@ export let device: GPUDevice;
 const debugUI = new DebugUI();
 (window as any).debugUI = debugUI;
 
+let timeDebug = {
+  isPaused: false,
+};
+
+(window as any).debugUI.gui.add(timeDebug, "isPaused");
+
 export const frameTimeTracker = getFrameTimeTracker();
 frameTimeTracker.addSample("frame time", 0);
 
@@ -506,10 +512,12 @@ export const frame = (
   }
   commandEncoder.pushDebugGroup("frame");
   const newElapsedTime = now - startTime;
-  deltaTime = newElapsedTime - elapsedTime;
-  frameTimeTracker.addSample("frame time", deltaTime);
-  elapsedTime = newElapsedTime;
-  frameCount = (frameCount + 1) % 2048;
+  if (!timeDebug.isPaused) {
+    deltaTime = newElapsedTime - elapsedTime;
+    frameTimeTracker.addSample("frame time", deltaTime);
+    elapsedTime = newElapsedTime;
+    frameCount = (frameCount + 1) % 2048;
+  }
 
   getMatricesBuffer(camera, cameraTransform);
   getVoxelObjectsBuffer(device, ecs, renderableEntities);

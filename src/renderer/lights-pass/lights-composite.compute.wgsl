@@ -67,7 +67,7 @@ fn composite(
   let uv = vec2<f32>(pixel) / vec2<f32>(resolution);
   let reservoir = unpackReservoir(textureSampleLevel(reservoirTex, nearestSampler, uv, 0));
   let linearReservoir = unpackReservoir(textureSampleLevel(reservoirTex, linearSampler, uv, 0));
-  let diffuse = linearReservoir.lightWeight * lightsBuffer[reservoir.lightIndex].color;
+  let diffuse = reservoir.lightWeight * lightsBuffer[reservoir.lightIndex].color;
 //  textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(linearReservoir.lightWeight * 200.0));
   textureStore(outputTex, vec2<i32>(id.xy), vec4<f32>(diffuse, 1.0));
 

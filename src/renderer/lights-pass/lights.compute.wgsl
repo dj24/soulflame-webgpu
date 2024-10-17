@@ -36,12 +36,30 @@ struct LightConfig {
 }
 
 // 8 byte
-struct Resevoir {
+struct Reservoir {
   sampleCount: u32,
   weightSum: f32,
   lightWeight: f32,
   lightIndex: u32,
 }
+
+fn getLightWeight(lightPos: vec3<f32>, lightColour: vec3<f32>, worldPos: vec3<f32>, normal: vec3<f32>) -> f32 {
+  let lightDir = lightPos - worldPos;
+  let d = length(lightDir);
+  let attenuation = lightConfig.constantAttenuation + lightConfig.linearAttenuation * d + lightConfig.quadraticAttenuation * d * d;
+  let ndotl = dot(normalize(lightDir), normal);
+  return (1.0 / attenuation) * length(lightColour) * ndotl;
+}
+
+fn unpackReservoir(reservoir: vec4<f32>) -> Reservoir {
+    return Reservoir(
+        bitcast<u32>(reservoir.x),
+        reservoir.y,
+        reservoir.z,
+        bitcast<u32>(reservoir.w)
+    );
+}
+
 
 @group(0) @binding(1) var worldPosTex : texture_2d<f32>;
 @group(0) @binding(2) var normalTex : texture_2d<f32>;
@@ -54,7 +72,7 @@ struct Resevoir {
 @group(0) @binding(12) var<uniform> cameraPosition : vec3<f32>;
 
 @group(1) @binding(0) var<uniform> lightConfig : LightConfig;
-
+@group(2) @binding(0) var inputReservoirTex : texture_2d<f32>;
 
 const CONSTANT_ATTENUATION = 0.0;
 const LINEAR_ATTENUATION = 0.1;
@@ -62,26 +80,21 @@ const QUADRATIC_ATTENUATION = 0.1;
 const LIGHT_COUNT = 32;
 const SAMPLES_PER_FRAME = 8;
 
-fn getLightWeight(lightPos: vec3<f32>, lightColour: vec3<f32>, worldPos: vec3<f32>, normal: vec3<f32>) -> f32 {
-  let lightDir = lightPos - worldPos;
-  let d = length(lightDir);
-  let attenuation = lightConfig.constantAttenuation + lightConfig.linearAttenuation * d + lightConfig.quadraticAttenuation * d * d;
-  let ndotl = dot(normalize(lightDir), normal);
-  return (1.0 / attenuation) * length(lightColour) * ndotl;
-}
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
     @builtin(global_invocation_id) id : vec3<u32>,
 ) {
-  let kernelX = time.frame % DOWN_SAMPLE_FACTOR;
-  let kernelY = time.frame / DOWN_SAMPLE_FACTOR;
-  let offsetPixel = id.xy * DOWN_SAMPLE_FACTOR + vec2<u32>(kernelX, kernelY);
+  let frameCycle =u32(DOWN_SAMPLE_FACTOR * DOWN_SAMPLE_FACTOR);
+  let frameIndex = time.frame % frameCycle;
+  let kernelX = frameIndex % DOWN_SAMPLE_FACTOR;
+  let kernelY = (frameIndex / DOWN_SAMPLE_FACTOR) % DOWN_SAMPLE_FACTOR;
+  let offsetPixel = id.xy * DOWN_SAMPLE_FACTOR  + vec2<u32>(kernelX, kernelY);
   let worldPosSample = textureLoad(worldPosTex, offsetPixel, 0);
   let worldPos = worldPosSample.xyz;
 
   let normal = textureLoad(normalTex, offsetPixel, 0).xyz;
-  var blueNoisePixel = vec2<i32>(id.xy);
+  var blueNoisePixel = vec2<i32>(offsetPixel);
   let frameOffsetX = (i32(time.frame) * 92821 + 71413);  // Large prime numbers for frame variation
   let frameOffsetY = (i32(time.frame) * 13761 + 512);    // Different prime numbers
   blueNoisePixel.x += frameOffsetX;
@@ -91,6 +104,7 @@ fn main(
   var bestWeight = 0.0;
   var weightSum = 0.0;
   var lightIndex = 0u;
+  var sampleCount = 0u;
   for(var i = 0; i < SAMPLES_PER_FRAME; i++){
     let iterOffsetX = (i * 193); // Large prime numbers for frame variation
     let iterOffsetY = (i * 257); // Different prime numbers
@@ -101,8 +115,11 @@ fn main(
     let weight = getLightWeight(lightPos, light.color, worldPos, normal);
 
     weightSum += weight;
+    sampleCount++;
+
     if(r.y < weight / weightSum){
       lightIndex = sampleLightIndex;
+      bestWeight = weight;
     }
   }
 
@@ -110,9 +127,11 @@ fn main(
   let lightDir = light.position + randomInUnitSphere(r) - worldPos;
 
   let raymarchResult = rayMarchBVH(worldPos + normal * 0.001, normalize(lightDir));
-  if(!raymarchResult.hit){
-      bestWeight = getLightWeight(light.position, light.color, worldPos, normal);
+  if(raymarchResult.hit){
+      bestWeight = 0.0;
   }
+
+  bestWeight = clamp(bestWeight, 0.0, 8.0);
 
   var reservoir = vec4(
     bitcast<f32>(SAMPLES_PER_FRAME),
@@ -121,6 +140,8 @@ fn main(
      bitcast<f32>(lightIndex),
   );
 
-  textureStore(reservoirTex, offsetPixel, reservoir);
 
+  if(r.y < bestWeight / weightSum){
+    textureStore(reservoirTex, offsetPixel, reservoir);
+  }
 }

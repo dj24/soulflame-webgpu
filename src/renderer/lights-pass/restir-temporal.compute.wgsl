@@ -105,15 +105,6 @@ fn main(
   let previousWorldPos = textureLoad(worldPosTex, vec2<u32>(previousPixel), 0);
   var depthSample = textureLoad(worldPosTex, id.xy, 0).w;
 
-  // Get closest depth value in 3x3 neighborhood
-  for(var i = 0; i < 8; i = i + 1) {
-    let neighbourPixel = clamp(vec2<i32>(id.xy) + NEIGHBORHOOD_SAMPLE_POSITIONS[i], vec2<i32>(0), vec2<i32>(resolution - 1));
-    let neighbourDepth = textureLoad(worldPosTex, vec2<u32>(neighbourPixel), 0).w;
-    if (abs(neighbourDepth - depthSample) < abs(depthSample - previousWorldPos.w)) {
-      depthSample = neighbourDepth;
-    }
-  }
-
   let reservoir = unpackReservoir(textureSampleLevel(inputReservoirTex, nearestSampler, uv, 0.));
   var currentWeightSum = reservoir.weightSum;
   var currentWeight = reservoir.lightWeight;
@@ -137,17 +128,11 @@ fn main(
 
   let depthDifference: f32 = abs(depthSample - previousWorldPos.w);
 
-  if(r.y < previousWeight / currentWeightSum && normalSimilarity > 0.5 && depthDifference < DEPTH_THRESHOLD){
+  if(normalSimilarity > 0.5 && depthDifference < DEPTH_THRESHOLD){
     currentLightIndex = previousReservoir.lightIndex;
     currentWeight = previousWeight;
   }
 
-   if(currentSampleCount > MAX_SAMPLES){
-     let decayFactor = f32(MAX_SAMPLES) / f32(currentSampleCount);
-     currentWeightSum *= decayFactor;
-     currentWeight *= decayFactor;
-     currentSampleCount = MAX_SAMPLES;
-   }
 
   var newReservoir  = Reservoir(currentSampleCount, currentWeightSum, currentWeight, currentLightIndex);
   textureStore(reservoirTex, id.xy, packReservoir(newReservoir));

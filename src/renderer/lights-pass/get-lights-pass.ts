@@ -157,6 +157,19 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
     ],
   });
 
+  const copyReservoirTextureLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
+          viewDimension: "2d",
+        },
+      },
+    ],
+  });
+
   const temporalBindGroupLayout = device.createBindGroupLayout({
     entries: [
       // Velocity texture
@@ -303,7 +316,11 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   });
 
   const pipelineLayout = device.createPipelineLayout({
-    bindGroupLayouts: [bindGroupLayout, lightConfigBindGroupLayout],
+    bindGroupLayouts: [
+      bindGroupLayout,
+      lightConfigBindGroupLayout,
+      copyReservoirTextureLayout,
+    ],
   });
 
   const spatialPipelineLayout = device.createPipelineLayout({
@@ -457,6 +474,7 @@ ${lightsCompute}`;
   let clearReservoirBindGroup: GPUBindGroup;
   let denoiseBindGroup: GPUBindGroup;
   let atrousRateBuffer: GPUBuffer;
+  let copyReservoirBindGroup: GPUBindGroup;
 
   let lightConfig = {
     constantAttenuation: 0.1,
@@ -465,16 +483,16 @@ ${lightsCompute}`;
   };
 
   let svgfConfig = {
-    normalSigma: 0.2,
-    depthSigma: 0.6,
+    normalSigma: 0.5,
+    depthSigma: 1.5,
     blueNoiseSCale: 0,
     spatialSigma: 6,
   };
 
   let passConfig = {
     spatialEnabled: false,
-    temporalEnabled: true,
-    denoiseEnabled: true,
+    temporalEnabled: false,
+    denoiseEnabled: false,
     maxDenoiseRate: 4,
   };
 
@@ -597,6 +615,18 @@ ${lightsCompute}`;
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
       });
       copyReservoirTextureView = copyReservoirTexture.createView();
+    }
+
+    if (!copyReservoirBindGroup) {
+      copyReservoirBindGroup = device.createBindGroup({
+        layout: copyReservoirTextureLayout,
+        entries: [
+          {
+            binding: 0,
+            resource: copyReservoirTextureView,
+          },
+        ],
+      });
     }
 
     if (!svgfConfigBindGroup) {
@@ -908,6 +938,7 @@ ${lightsCompute}`;
       passEncoder.setBindGroup(0, bindGroup);
       passEncoder.setPipeline(pipeline);
       passEncoder.setBindGroup(1, lightConfigBindGroup);
+      passEncoder.setBindGroup(2, copyReservoirBindGroup);
       passEncoder.dispatchWorkgroups(
         Math.ceil(downscaledWidth / 8),
         Math.ceil(downscaledHeight / 8),
@@ -1017,13 +1048,12 @@ ${lightsCompute}`;
       );
     };
 
-    clearReservoirPass();
-    sampleLightsPass();
-    copyPass();
     if (passConfig.temporalEnabled) {
       temporalPass();
       copyPass();
     }
+    sampleLightsPass();
+    copyPass();
     if (passConfig.spatialEnabled) {
       spatialPass();
       copyPass();
@@ -1058,6 +1088,7 @@ ${lightsCompute}`;
         height: reservoirTexture.height,
       },
     );
+    clearReservoirPass();
   };
 
   return {

@@ -44,6 +44,9 @@ struct SVGFConfig {
             for(var i = 0; i < 9; i = i + 1){
                 let uvOffset = (vec2<f32>(OFFSETS[i]) / resolution) * f32(atrousRate);
                 let colourSample = textureSampleLevel(inputTex, linearSampler, uv + uvOffset, 0);
+                if(length(colourSample.rgb) < 0.0001){
+                    continue;
+                }
 
                 let normal = textureSampleLevel(normalTex, nearestSampler, uv + uvOffset, 0).rgb;
                 let normalWeight = exp(-dot(normalRef - normal, normalRef - normal) / (2.0 * svgfConfig.normalSigma * svgfConfig.normalSigma));
