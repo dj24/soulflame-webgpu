@@ -72,6 +72,28 @@ const LINEAR_ATTENUATION = 0.1;
 const QUADRATIC_ATTENUATION = 0.1;
 const LIGHT_COUNT = 32;
 const SAMPLES_PER_FRAME = 8;
+const MAX_BINARY_SEARCH_ITERATIONS = 32;
+
+fn binarySearchCDF(CDF: array<f32, LIGHT_COUNT>, randomValue: f32)-> u32 {
+  var low = 0u;
+  var high = LIGHT_COUNT - 1u;
+  var iterations = 0;
+
+  while (low < high && iterations < MAX_BINARY_SEARCH_ITERATIONS) {
+    iterations += 1;
+    let mid = (low + high) / 2;
+
+    // Check if the random value is less than the current CDF midpoint
+    if (randomValue < CDF[mid]) {
+        high = mid; // Search the left half
+    } else {
+        low = mid + 1; // Search the right half
+    }
+  }
+
+  // After the loop, `low` should be the index of the selected light
+  return low;
+}
 
 fn getLightWeight(lightPos: vec3<f32>, lightColour: vec3<f32>, worldPos: vec3<f32>, normal: vec3<f32>) -> f32 {
   let lightDir = lightPos - worldPos;
@@ -107,6 +129,31 @@ fn main(
   blueNoisePixel.y += frameOffsetY;
   let r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy;
 
+
+  var importance = array<f32, LIGHT_COUNT>();
+  var CDF = array<f32, LIGHT_COUNT>();
+
+  // Calculate importance values based on intensity and distance
+  for (var i = 0; i < LIGHT_COUNT; i++) {
+      let light = lightsBuffer[i];
+      let lightPos = light.position + randomInUnitSphere(r);
+      importance[i] = getLightWeight(lightPos, light.color, worldPos, normal);
+  }
+
+  // Normalize and create CDF
+  var totalImportance = 0.0;
+  for (var i = 0; i < LIGHT_COUNT; i++) {
+      totalImportance += importance[i];
+  }
+  for (var i = 0; i < LIGHT_COUNT; i++) {
+    if(i == 0){
+      CDF[i] = importance[i] / totalImportance;
+    } else {
+      CDF[i] = CDF[i - 1] + importance[i] / totalImportance;
+    }
+  }
+
+
   var bestWeight = 0.0;
   var weightSum = 0.0;
   var lightIndex = 100000u;
@@ -115,11 +162,9 @@ fn main(
     let iterOffsetX = (i * 193); // Large prime numbers for frame variation
     let iterOffsetY = (i * 257); // Different prime numbers
     let sampleR = textureLoad(blueNoiseTex, (blueNoisePixel + vec2(iterOffsetX, iterOffsetY)) % 512, 0).xy;
-    let sampleLightIndex = u32(round(sampleR.x * f32(LIGHT_COUNT)));
+    let sampleLightIndex = binarySearchCDF(CDF, sampleR.y);
     let light = lightsBuffer[sampleLightIndex];
-    let lightPos = light.position + randomInUnitSphere(sampleR);
-    let weight = getLightWeight(lightPos, light.color, worldPos, normal);
-
+    let weight = getLightWeight(light.position + randomInUnitSphere(r), light.color, worldPos, normal);
     weightSum += weight;
     sampleCount++;
 

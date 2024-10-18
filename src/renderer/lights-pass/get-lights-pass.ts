@@ -17,7 +17,7 @@ export type Light = {
 };
 
 const LIGHT_BUFFER_STRIDE = 32;
-const DOWNSCALE_FACTOR = 4;
+const DOWNSCALE_FACTOR = 3;
 const RESERVOIR_DECAY = 0.5;
 const MAX_SAMPLES = 50000;
 const RESERVOIR_TEXTURE_FORMAT: GPUTextureFormat = "rgba32float";
@@ -488,14 +488,14 @@ ${lightsCompute}`;
     constantAttenuation: 0.1,
     linearAttenuation: 0.2,
     quadraticAttenuation: 0.05,
-    lightWeightCutOff: 1000,
+    lightWeightCutOff: 300,
   };
 
   let svgfConfig = {
     normalSigma: 0.15,
-    depthSigma: 1.5,
+    depthSigma: 0.15,
     blueNoiseSCale: 0,
-    spatialSigma: 6,
+    spatialSigma: 2,
   };
 
   let passConfig = {
@@ -509,10 +509,10 @@ ${lightsCompute}`;
   folder.add(lightConfig, "constantAttenuation", 0, 1.0, 0.1);
   folder.add(lightConfig, "linearAttenuation", 0.01, 1, 0.01);
   folder.add(lightConfig, "quadraticAttenuation", 0.005, 0.1, 0.001);
-  folder.add(lightConfig, "lightWeightCutOff", 0, 1000, 1);
+  folder.add(lightConfig, "lightWeightCutOff", 0, 500, 1);
   folder.add(svgfConfig, "normalSigma", 0.1, 2, 0.05);
   folder.add(svgfConfig, "depthSigma", 0.1, 8, 0.05);
-  folder.add(svgfConfig, "spatialSigma", 0.2, 16, 0.1);
+  folder.add(svgfConfig, "spatialSigma", 0.2, 4, 0.05);
   folder.add(svgfConfig, "blueNoiseSCale", 0, 10, 0.1);
   folder.add(passConfig, "spatialEnabled");
   folder.add(passConfig, "temporalEnabled");

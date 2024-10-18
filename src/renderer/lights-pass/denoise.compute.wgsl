@@ -54,7 +54,7 @@ fn rotatePoissonDisk(angle: f32) -> array<vec2<f32>, 8> {
     return rotatedOffsets;
 }
 
-const SOURCE_WEIGHT = 0.5;
+const SOURCE_WEIGHT = 1.0;
 
 fn rotate2D(angle: f32) -> mat2x2<f32> {
     let c = cos(angle);
@@ -69,21 +69,23 @@ fn rotate2D(angle: f32) -> mat2x2<f32> {
 fn main(
  @builtin(global_invocation_id) id : vec3<u32>
 ){
-    var colour = vec3(0.0001);
-    var weightSum = 0.01;
+
+    var weightSum = SOURCE_WEIGHT;
     var resolution = vec2<f32>(textureDimensions(inputTex));
     let uv = (vec2<f32>(id.xy) + vec2(0.5)) / resolution;
     var colourRef = textureLoad(inputTex, id.xy, 0).rgb;
     let normalRef = textureSampleLevel(normalTex, nearestSampler, uv, 0).rgb;
     let worldPosRef = textureSampleLevel(worldPosTex, nearestSampler, uv, 0);
+    let depthRef = worldPosRef.w;
 
+    var colour = colourRef;
     let rotation = ROTATIONS[id.x % 8];
     let rotatedOffsets = rotatePoissonDisk(rotation);
 
-    let depthRef = worldPosRef.w;
     for(var i = 0; i < 8; i = i + 1){
         let uvOffset = rotatedOffsets[i] / resolution * f32(atrousRate);
         let colourSample = textureSampleLevel(inputTex, linearSampler, uv + uvOffset, 0);
+
 
         let normal = textureSampleLevel(normalTex, nearestSampler, uv + uvOffset, 0).rgb;
         let normalWeight = exp(-dot(normalRef - normal, normalRef - normal) / (2.0 * svgfConfig.normalSigma * svgfConfig.normalSigma));
@@ -91,15 +93,16 @@ fn main(
         let worldPos = textureSampleLevel(worldPosTex, nearestSampler, uv + uvOffset, 0);
         let depth = worldPos.w;
 
+        let worldPosWeight = exp(-pow(length(worldPosRef.xyz - worldPos.xyz), 2.0) / (2.0 * svgfConfig.spatialSigma * svgfConfig.spatialSigma));
+
         let depthWeight = exp(-pow(depthRef - depth, 2.0) / (2.0 * svgfConfig.depthSigma * svgfConfig.depthSigma));
 
-        let weight = clamp(normalWeight, 0.0, 1.0) * clamp(depthWeight, 0.0, 1.0);
+        let weight = clamp(normalWeight, 0.0, 1.0) * clamp(worldPosWeight, 0.0, 1.0);
+
         colour += colourSample.rgb * weight;
         weightSum += weight;
     }
     colour /= weightSum;
 
-    let outputColour = mix(colourRef, colour, SOURCE_WEIGHT);
-
-    textureStore(outputTex, id.xy, vec4<f32>(outputColour, 1.0));
+    textureStore(outputTex, id.xy, vec4<f32>(colour, 1.0));
 }
