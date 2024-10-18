@@ -52,7 +52,6 @@ struct Reservoir {
 
 const DISTANCE_THRESHOLD = 100.0;
 const WEIGHT_THRESHOLD = 100.0;
-const DEPTH_THRESHOLD : f32 = 64.0;
 
 const NEIGHBORHOOD_SAMPLE_POSITIONS = array<vec2<i32>, 8>(
     vec2<i32>(-1, -1),
@@ -83,7 +82,6 @@ fn packReservoir(reservoir: Reservoir) -> vec4<f32> {
     );
 }
 
-
 @compute @workgroup_size(8,8,1)
 fn main(
 @builtin(global_invocation_id) id : vec3<u32>
@@ -99,10 +97,13 @@ fn main(
 
   let uv = (vec2<f32>(id.xy) + vec2(0.5)) / vec2<f32>(resolution);
   let velocity = textureLoad(velocityTex, id.xy, 0).xy;
-  let previousUv = uv - velocity;
+
+
+  let previousUv = clamp(uv - velocity, vec2(0.0), vec2(1.0));
   let pixelVelocity = velocity * vec2<f32>(resolution);
-  let previousPixel = vec2<f32>(id.xy) - pixelVelocity;
+  let previousPixel = clamp(vec2<f32>(id.xy) - pixelVelocity, vec2(0.0), vec2<f32>(resolution));
   let previousWorldPos = textureLoad(worldPosTex, vec2<u32>(previousPixel), 0);
+  let previousDepth = previousWorldPos.w;
   var depthSample = textureLoad(worldPosTex, id.xy, 0).w;
 
   let reservoir = unpackReservoir(textureSampleLevel(inputReservoirTex, nearestSampler, uv, 0.));
@@ -125,13 +126,10 @@ fn main(
   currentSampleCount += previousCount;
   currentWeightSum += previousWeight;
 
-  let depthDifference: f32 = abs(depthSample - previousWorldPos.w);
-
-  if(normalSimilarity > 0.5 && depthDifference < DEPTH_THRESHOLD){
+  if(normalSimilarity > 0.9){
     currentLightIndex = previousReservoir.lightIndex;
     currentWeight = previousWeight;
   }
-
 
   var newReservoir  = Reservoir(currentSampleCount, currentWeightSum, currentWeight, currentLightIndex);
   textureStore(reservoirTex, id.xy, packReservoir(newReservoir));

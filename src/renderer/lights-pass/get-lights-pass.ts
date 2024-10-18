@@ -18,7 +18,7 @@ export type Light = {
 };
 
 const LIGHT_BUFFER_STRIDE = 32;
-const DOWNSCALE_FACTOR = 3;
+const DOWNSCALE_FACTOR = 2;
 const RESERVOIR_DECAY = 0.5;
 const MAX_SAMPLES = 50000;
 const RESERVOIR_TEXTURE_FORMAT: GPUTextureFormat = "rgba32float";
@@ -564,9 +564,9 @@ ${lightsCompute}`;
   };
   let svgfConfig = {
     normalSigma: 0.15,
-    varianceSigma: 0.15,
+    varianceSigma: 1.2,
     blueNoiseSCale: 0,
-    spatialSigma: 2,
+    spatialSigma: 3,
   };
   let passConfig = {
     spatialEnabled: false,
@@ -1260,17 +1260,11 @@ ${lightsCompute}`;
     compositePass();
     if (passConfig.denoiseEnabled) {
       variancePass();
-      // if (passConfig.maxDenoiseRate >= 1) {
-      //   denoisePass(1);
-      // }
       if (passConfig.maxDenoiseRate >= 2) {
         denoisePass(2);
       }
       if (passConfig.maxDenoiseRate >= 4) {
         denoisePass(4);
-      }
-      if (passConfig.maxDenoiseRate >= 6) {
-        denoisePass(6);
       }
       if (passConfig.maxDenoiseRate >= 8) {
         denoisePass(8);
@@ -1303,6 +1297,7 @@ ${lightsCompute}`;
       // "denoise 1",
       "svgf denoise 2",
       "svgf denoise 4",
+      // "svgf denoise 8",
       "restir clear",
     ],
   };

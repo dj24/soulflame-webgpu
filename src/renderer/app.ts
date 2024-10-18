@@ -229,6 +229,7 @@ const setupCanvasAndTextures = () => {
   canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
   canvas.style.imageRendering = "pixelated";
   resolution = vec2.create(window.innerWidth, window.innerHeight);
+
   canvas.width = resolution[0];
   canvas.height = resolution[1];
 
@@ -298,11 +299,11 @@ export const init = async (
     getLightsPass(device),
     // getBloomPass(),
     getSimpleFogPass(),
-    // getTaaPass(outputTexture),
+    getTaaPass(outputTexture),
     getTonemapPass(),
     getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
-    // getVignettePass(10.0),
+    getVignettePass(10.0),
     fullscreenQuad(device),
     // getBoxOutlinePass(device),
   ]);

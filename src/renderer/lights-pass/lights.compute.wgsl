@@ -104,7 +104,6 @@ fn getLightWeight(lightPos: vec3<f32>, lightColour: vec3<f32>, worldPos: vec3<f3
   let attenuation = lightConfig.constantAttenuation + lightConfig.linearAttenuation * d + lightConfig.quadraticAttenuation * d * d;
   let ndotl = dot(normalize(lightDir), normal);
   var weight = (1.0 / attenuation) * length(lightColour) * ndotl;
-//  weight *= step(lightConfig.lightCutoff, weight);
   return weight;
 }
 
@@ -129,7 +128,6 @@ fn main(
   blueNoisePixel.y += frameOffsetY;
   let r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy;
 
-
   var importance = array<f32, LIGHT_COUNT>();
   var CDF = array<f32, LIGHT_COUNT>();
 
@@ -152,7 +150,6 @@ fn main(
       CDF[i] = CDF[i - 1] + importance[i] / totalImportance;
     }
   }
-
 
   var bestWeight = 0.0;
   var weightSum = 0.0;
@@ -177,14 +174,13 @@ fn main(
   let light = lightsBuffer[lightIndex];
   let lightDir = light.position + randomInUnitSphere(r) - worldPos;
 
-//  bestWeight *= step(lightConfig.lightCutoff, bestWeight);
-
   let raymarchResult = rayMarchBVH(worldPos + normal * 0.001, normalize(lightDir));
   if(raymarchResult.hit){
       bestWeight = 0.0;
   }
 
   var currentReservoir = unpackReservoir(textureLoad(inputReservoirTex, offsetPixel, 0));
+  var weightDifference = abs(bestWeight - currentReservoir.lightWeight);
 
   sampleCount += currentReservoir.sampleCount;
   weightSum += currentReservoir.weightSum;

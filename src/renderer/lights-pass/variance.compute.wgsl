@@ -17,7 +17,7 @@ const NEIGHBOUR_OFFSETS = array<vec2<i32>, 8>(
 @group(1) @binding(1) var normalTex : texture_2d<f32>;
 @group(1) @binding(2) var velocityTex : texture_2d<f32>;
 
-const MIN_SOURCE_BLEND = 0.05;
+const MIN_SOURCE_BLEND = 0.1;
 
 @compute @workgroup_size(8,8,1)
 fn main(
