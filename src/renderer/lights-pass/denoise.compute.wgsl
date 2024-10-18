@@ -1,6 +1,6 @@
 struct SVGFConfig {
   normalSigma: f32,
-  depthSigma: f32,
+  varianceSigma: f32,
   blueNoiseScale: f32,
   spatialSigma: f32,
 }
@@ -19,6 +19,7 @@ struct Time {
 @group(0) @binding(5) var linearSampler : sampler;
 @group(0) @binding(6) var nearestSampler : sampler;
 @group(0) @binding(7) var<uniform> time : Time;
+@group(0) @binding(8) var varianceTex : texture_2d<f32>;
 
 @group(1) @binding(0) var<uniform> svgfConfig : SVGFConfig;
 
@@ -76,7 +77,7 @@ fn main(
     var colourRef = textureLoad(inputTex, id.xy, 0).rgb;
     let normalRef = textureSampleLevel(normalTex, nearestSampler, uv, 0).rgb;
     let worldPosRef = textureSampleLevel(worldPosTex, nearestSampler, uv, 0);
-    let depthRef = worldPosRef.w;
+    let varianceRef = textureSampleLevel(varianceTex, nearestSampler, uv, 0).r;
 
     var colour = colourRef;
     let rotation = ROTATIONS[id.x % 8];
@@ -86,23 +87,24 @@ fn main(
         let uvOffset = rotatedOffsets[i] / resolution * f32(atrousRate);
         let colourSample = textureSampleLevel(inputTex, linearSampler, uv + uvOffset, 0);
 
-
         let normal = textureSampleLevel(normalTex, nearestSampler, uv + uvOffset, 0).rgb;
         let normalWeight = exp(-dot(normalRef - normal, normalRef - normal) / (2.0 * svgfConfig.normalSigma * svgfConfig.normalSigma));
 
         let worldPos = textureSampleLevel(worldPosTex, nearestSampler, uv + uvOffset, 0);
-        let depth = worldPos.w;
-
         let worldPosWeight = exp(-pow(length(worldPosRef.xyz - worldPos.xyz), 2.0) / (2.0 * svgfConfig.spatialSigma * svgfConfig.spatialSigma));
 
-        let depthWeight = exp(-pow(depthRef - depth, 2.0) / (2.0 * svgfConfig.depthSigma * svgfConfig.depthSigma));
+        let variance = textureSampleLevel(varianceTex, nearestSampler, uv + uvOffset, 0).r;
+        let varianceWeight = exp(-pow(varianceRef - variance, 2.0) / (2.0 * svgfConfig.varianceSigma * svgfConfig.varianceSigma));
 
-        let weight = clamp(normalWeight, 0.0, 1.0) * clamp(worldPosWeight, 0.0, 1.0);
+        let weight = clamp(normalWeight, 0.0, 1.0) * clamp(worldPosWeight, 0.0, 1.0) * clamp(varianceWeight, 0.0, 1.0);
 
         colour += colourSample.rgb * weight;
         weightSum += weight;
     }
     colour /= weightSum;
 
+    let variance = textureLoad(varianceTex, id.xy, 0).r;
+
     textureStore(outputTex, id.xy, vec4<f32>(colour, 1.0));
+//    textureStore(outputTex, id.xy, vec4<f32>(variance));
 }

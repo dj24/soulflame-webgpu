@@ -18,7 +18,7 @@ struct Reservoir {
 
 struct SVGFConfig {
   normalSigma: f32,
-  depthSigma: f32,
+  varianceSigma: f32,
   blueNoiseScale: f32,
   spatialSigma: f32,
 }
