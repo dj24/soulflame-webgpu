@@ -176,7 +176,7 @@ fn main(
 
   let raymarchResult = rayMarchBVH(worldPos + normal * 0.001, normalize(lightDir));
   if(raymarchResult.hit){
-      bestWeight = 0.0;
+      bestWeight = 0.01;
   }
 
   var currentReservoir = unpackReservoir(textureLoad(inputReservoirTex, offsetPixel, 0));
