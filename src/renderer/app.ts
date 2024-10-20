@@ -144,6 +144,7 @@ let depthTexture: GBufferTexture;
 let velocityTexture: GBufferTexture;
 let worldPositionTexture: GBufferTexture;
 let previousWorldPositionTexture: GBufferTexture;
+let previousNormalTexture: GBufferTexture;
 let blueNoiseTextureView: GPUTextureView;
 let timeBuffer: GPUBuffer;
 let transformationMatrixBuffer: GPUBuffer;
@@ -173,8 +174,8 @@ const debugColours = [
   [0, 0, 1],
 ];
 
-for (let x = 0; x <= 768; x += 96) {
-  for (let z = 0; z <= 768; z += 96) {
+for (let x = 64; x <= 512; x += 128) {
+  for (let z = 64; z <= 512; z += 128) {
     lights.push({
       position: [x, 16, z],
       size: LIGHT_SIZE,
@@ -245,6 +246,11 @@ const setupCanvasAndTextures = () => {
     resolution[1],
   );
   previousWorldPositionTexture = new WorldPositionTexture(
+    device,
+    resolution[0],
+    resolution[1],
+  );
+  previousNormalTexture = new NormalTexture(
     device,
     resolution[0],
     resolution[1],
@@ -617,6 +623,7 @@ export const frame = (
         velocityTexture,
         worldPositionTexture,
         previousWorldPositionTexture,
+        previousNormalTexture,
       },
       cameraPositionBuffer,
       volumeAtlas,

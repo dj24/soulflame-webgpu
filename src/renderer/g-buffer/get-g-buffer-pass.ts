@@ -16,6 +16,7 @@ export type OutputTextures = {
   worldPositionTexture?: GBufferTexture;
   skyTexture?: GPUTexture;
   previousWorldPositionTexture?: GBufferTexture;
+  previousNormalTexture?: GBufferTexture;
 };
 
 const ceilToNearestMultipleOf = (n: number, multiple: number) => {

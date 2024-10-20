@@ -70,9 +70,9 @@ fn unpackReservoir(reservoir: vec4<f32>) -> Reservoir {
 const CONSTANT_ATTENUATION = 0.0;
 const LINEAR_ATTENUATION = 0.1;
 const QUADRATIC_ATTENUATION = 0.1;
-const LIGHT_COUNT = 32;
+const LIGHT_COUNT = 64;
 const SAMPLES_PER_FRAME = 8;
-const MAX_BINARY_SEARCH_ITERATIONS = 32;
+const MAX_BINARY_SEARCH_ITERATIONS = 64;
 
 fn binarySearchCDF(CDF: array<f32, LIGHT_COUNT>, randomValue: f32)-> u32 {
   var low = 0u;

@@ -137,6 +137,10 @@ export const getTaaPass = async (
           binding: 6,
           resource: copyWorldPosTextureView,
         },
+        {
+          binding: 7,
+          resource: outputTextures.previousWorldPositionTexture.view,
+        },
       ],
     });
 

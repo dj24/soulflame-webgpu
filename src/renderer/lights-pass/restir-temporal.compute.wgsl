@@ -14,6 +14,7 @@
 @group(1) @binding(1) var previousReservoirTex : texture_2d<f32>;
 @group(1) @binding(2) var inputReservoirTex : texture_2d<f32>;
 @group(1) @binding(3) var previousWorldPosTex : texture_2d<f32>;
+@group(1) @binding(4) var previousNormalTex : texture_2d<f32>;
 
 fn convert2DTo1D(width: u32, index2D: vec2<u32>) -> u32 {
     return index2D.y * width + index2D.x;
@@ -51,8 +52,7 @@ struct Reservoir {
   lightIndex: u32,
 }
 
-const DISTANCE_THRESHOLD = 0.15;
-const WEIGHT_THRESHOLD = 0.5;
+const DISTANCE_THRESHOLD = 32.0;
 
 const NEIGHBORHOOD_SAMPLE_POSITIONS = array<vec2<i32>, 8>(
     vec2<i32>(-1, -1),
@@ -108,11 +108,19 @@ fn main(
   var depthSample = textureLoad(worldPosTex, id.xy, 0).w;
 
   // if previous sample is proportionally further the threshold, we don't want to blend
-  if((previousDepth / depthSample > 1.0 + DISTANCE_THRESHOLD) || (previousDepth / depthSample < 1.0 - DISTANCE_THRESHOLD)){
+  if(abs(previousDepth - depthSample) > DISTANCE_THRESHOLD){
     return;
   }
 
   if(any(previousUv < vec2(0.0)) || any(previousUv >= vec2(1.0))){
+    return;
+  }
+
+  let normalSample = textureSampleLevel(normalTex, nearestSampler, uv, 0);
+  let previousNormal = textureSampleLevel(previousNormalTex, nearestSampler, previousUv, 0);
+  let normalSimilarity = dot(previousNormal, normalSample);
+
+  if(normalSimilarity < 0.9){
     return;
   }
 
@@ -121,11 +129,6 @@ fn main(
   var currentWeight = reservoir.lightWeight;
   var currentSampleCount = reservoir.sampleCount;
   var currentLightIndex = reservoir.lightIndex;
-
-  let normalSample = textureSampleLevel(normalTex, nearestSampler, uv, 0);
-  // TODO: get actual previous normal
-  let previousNormal = textureSampleLevel(normalTex, nearestSampler, previousUv, 0);
-  let normalSimilarity = dot(previousNormal, normalSample);
 
   var previousReservoir = unpackReservoir(textureSampleLevel(previousReservoirTex, nearestSampler, previousUv, 0.));
   let previousCount = previousReservoir.sampleCount;

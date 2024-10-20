@@ -24,7 +24,7 @@ export type Light = {
 };
 
 const LIGHT_BUFFER_STRIDE = 32;
-const DOWNSCALE_FACTOR = 2;
+const DOWNSCALE_FACTOR = 3;
 const RESERVOIR_DECAY = 0.5;
 const MAX_SAMPLES = 50000;
 const RESERVOIR_TEXTURE_FORMAT: GPUTextureFormat = "rgba32float";
@@ -243,6 +243,15 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
         visibility: GPUShaderStage.COMPUTE,
         texture: {
           sampleType: "unfilterable-float",
+          viewDimension: "2d",
+        },
+      },
+      // Previous normal texture
+      {
+        binding: 4,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "float",
           viewDimension: "2d",
         },
       },
@@ -853,6 +862,10 @@ ${lightsCompute}`;
           {
             binding: 3,
             resource: outputTextures.previousWorldPositionTexture.view,
+          },
+          {
+            binding: 4,
+            resource: outputTextures.previousNormalTexture.view,
           },
         ],
       });

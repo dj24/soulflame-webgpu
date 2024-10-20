@@ -38,8 +38,9 @@ const NEIGHBORHOOD_SAMPLE_POSITIONS = array<vec2<i32>, 8>(
 @group(0) @binding(4) var linearSampler : sampler;
 @group(0) @binding(5) var nearestSampler : sampler;
 @group(0) @binding(6) var worldPosTex : texture_2d<f32>;
+@group(0) @binding(7) var previousWoldPosTex : texture_2d<f32>;
 
-const DEPTH_THRESHOLD : f32 = 4.0;
+const DEPTH_THRESHOLD : f32 = 32.0;
 const MIN_SOURCE_BLEND = 0.1;
 
 @compute @workgroup_size(8, 8, 1)
@@ -68,24 +69,15 @@ fn main(
     let previousUv = uv - velocity;
     let previousPixel = vec2<i32>(previousUv * texSize);
 
-    // TODO: store previous depth to get the actual previus world position
-//    let worldPosPrevSample = textureLoad(worldPosTex, previousPixel, 0);
-//    let worldPosPrev = worldPosPrevSample.xyz;
-//    var depthAtPreviousPixel = worldPosPrevSample.w;
-//
-//    // Calculate depth difference between source and history samples
-//    let depthDifference: f32 = abs(depthSample - depthAtPreviousPixel);
-//
-//    // Apply depth clamping
-//    if (depthDifference > DEPTH_THRESHOLD) {
-//        return;
-//    }
+    var depthAtPreviousPixel = textureLoad(previousWoldPosTex, previousPixel, 0).w;
 
+    // Apply depth clamping
+    if (abs(depthSample - depthAtPreviousPixel) > DEPTH_THRESHOLD) {
+        return;
+    }
 
     var sourceSample: vec3<f32> = textureSampleLevel(CurrentColor, nearestSampler, uv, 0).rgb;
-    let linearSample = textureSampleLevel(HistoryRead, linearSampler, previousUv, 0).rgb;
-    let nearestSample = textureSampleLevel(HistoryRead, nearestSampler, previousUv, 0).rgb;
-    var historySample = select(linearSample, nearestSample, length(velocity) < 1.0 / texSize.x);
+    var historySample = textureSampleLevel(HistoryRead, linearSampler, previousUv, 0).rgb;
 //
     // Clamp the history sample to the min and max of the 3x3 neighborhood
     var minCol: vec3<f32> = sourceSample;
