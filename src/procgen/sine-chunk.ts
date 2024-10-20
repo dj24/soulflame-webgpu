@@ -51,19 +51,19 @@ export const createOctreeAndReturnBytes = async (
   size: [number, number, number],
   buffer: SharedArrayBuffer,
 ) => {
-  const leafCache = new VoxelCache(
-    (x: number, y: number, z: number) =>
+  const leafCache = new VoxelCache({
+    getVoxel: (x, y, z) =>
       getCachedVoxel(x + position[0], y + position[1], z + position[2], 0),
     size,
-  );
+  });
 
   const octreeDepth = Math.log2(Math.max(...size));
 
   voxelCaches = [leafCache];
   for (let i = octreeDepth - 1; i >= 0; i--) {
     const sizeAtDepth = Math.ceil(size[0] / Math.pow(2, octreeDepth - i));
-    const cache = new VoxelCache(
-      (x: number, y: number, z: number) => {
+    const cache = new VoxelCache({
+      getVoxel: (x, y, z) => {
         const xStart = Math.floor(x / 2) * 2;
         const yStart = Math.floor(y / 2) * 2;
         const zStart = Math.floor(z / 2) * 2;
@@ -102,8 +102,8 @@ export const createOctreeAndReturnBytes = async (
           solid: solidCount === 8,
         };
       },
-      [sizeAtDepth, sizeAtDepth, sizeAtDepth],
-    );
+      size: [sizeAtDepth, sizeAtDepth, sizeAtDepth],
+    });
     voxelCaches.unshift(cache);
   }
 

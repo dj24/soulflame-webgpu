@@ -84,56 +84,56 @@ fn packReservoir(reservoir: Reservoir) -> vec4<f32> {
     );
 }
 
-const DEPTH_THRESHOLD = 16.0;
 
+// Fill in holes in the light buffer created by subsampling
 @compute @workgroup_size(8,8,1)
 fn spatial(
 @builtin(global_invocation_id) id : vec3<u32>
 ){
-
   let resolution = textureDimensions(worldPosTex).xy;
   let uv = (vec2<f32>(id.xy) + vec2(0.5)) / vec2<f32>(resolution);
   let normalRef = textureSampleLevel(normalTex, nearestSampler, uv, 0).xyz;
   let worldPos = textureLoad(worldPosTex, id.xy, 0);
-
-  if(worldPos.w > 10000.0){
-    return;
-  }
-
   let reservoir = unpackReservoir(textureSampleLevel(inputReservoirTex, nearestSampler, uv, 0));
   var weightSum = reservoir.weightSum;
   var currentWeight = reservoir.lightWeight;
+
+  // If the current pixel is already filled, return
+  if(currentWeight >= 0.0000001){
+    return;
+  }
+
   var currentSampleCount = reservoir.sampleCount;
   var lightIndex = reservoir.lightIndex;
 
   let frameOffsetX = (i32(time.frame) * 92821 + 71413) % 512;  // Large prime numbers for frame variation
   let frameOffsetY = (i32(time.frame) * 13761 + 511) % 512;    // Different prime numbers
+  let r = textureLoad(blueNoiseTex, vec2<i32>(id.xy) + vec2(frameOffsetX, frameOffsetY) % 512, 0).xy;
 
-  for(var i = 0u; i < 4; i = i + 1u){
-    let offset = NEIGHBOUR_OFFSETS[i];
-    let neighbor = vec2<i32>(id.xy) + offset;
-    let neighborUv = vec2<f32>(neighbor) / vec2<f32>(resolution);
-    let neighborReservoir = unpackReservoir(textureLoad(inputReservoirTex, neighbor, 0));
-    let linearReservoir = unpackReservoir(textureSampleLevel(inputReservoirTex, linearSampler, neighborUv, 0));
-    let neighborWeight = neighborReservoir.lightWeight;
-    let normalSample = textureSampleLevel(normalTex, nearestSampler, neighborUv, 0).xyz;
-    let normalSimilarity = dot(normalRef, normalSample);
+  var smallestDepthError = 999999.0;
 
-    weightSum += neighborWeight;
-    currentSampleCount += neighborReservoir.sampleCount;
+  for(var x = 0; x < DOWN_SAMPLE_FACTOR; x+= 1 ){
+    for(var y = 0; y <= DOWN_SAMPLE_FACTOR; y+= 1){
+      let neighbor = vec2<i32>(id.xy) + vec2<i32>(x, y);
+      let neighborUv = vec2<f32>(neighbor) / vec2<f32>(resolution);
+      let neighborReservoir = unpackReservoir(textureLoad(inputReservoirTex, neighbor, 0));
+      let neighborWeight = neighborReservoir.lightWeight;
+      let neighborDepth = textureLoad(worldPosTex, neighbor, 0).w;
+      let neighborNormal = textureSampleLevel(normalTex, nearestSampler, neighborUv, 0).xyz;
+      let depthError = abs(neighborDepth - worldPos.w);
 
-    let sampleR = textureLoad(blueNoiseTex, (neighbor + vec2(frameOffsetX, frameOffsetY)) % 512, 0).xy;
+      weightSum += neighborWeight;
+      currentSampleCount += neighborReservoir.sampleCount;
 
-    let depthSample = textureLoad(worldPosTex, neighbor, 0).w;
-    let depthDifference: f32 = abs(depthSample - worldPos.w);
+      let normalSimilarity = dot(normalRef, neighborNormal);
 
-    if(sampleR.y < neighborWeight / weightSum && normalSimilarity > 0.5 && depthDifference < DEPTH_THRESHOLD){
-        lightIndex = neighborReservoir.lightIndex;
-        currentWeight = neighborWeight;
+      if(depthError < smallestDepthError && neighborWeight > currentWeight && normalSimilarity > 0.9){
+          lightIndex = neighborReservoir.lightIndex;
+          currentWeight = neighborWeight;
+      }
     }
 
+    let newReservoir = Reservoir(currentSampleCount, weightSum, currentWeight, lightIndex);
+    textureStore(reservoirTex, id.xy, packReservoir(newReservoir));
   }
-
-  let newReservoir = Reservoir(currentSampleCount, weightSum, currentWeight, lightIndex);
-  textureStore(reservoirTex, id.xy, packReservoir(newReservoir));
 }

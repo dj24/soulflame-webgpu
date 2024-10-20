@@ -9,6 +9,7 @@ import { wrap } from "comlink";
 import { CHUNK_HEIGHT } from "../sine-chunk";
 import { mergeOctrees } from "@renderer/octree/merge-octrees";
 import { animate, spring } from "motion";
+import { processNewVoxelImport } from "@renderer/create-tavern";
 
 const chunkWidth = 128;
 
@@ -50,7 +51,7 @@ const foo = async (ecs: ECS) => {
     if (!terrainVoxels) {
       return index;
     }
-    ecs.addComponent(newEntity, new VoxelObject(terrainVoxels));
+    ecs.addComponent(newEntity, terrainVoxels);
     const transform = new Transform(
       [x, y - 128, z],
       quat.fromEuler(0, 0, 0, "xyz"),
@@ -112,8 +113,38 @@ export class TerrainSystem extends System {
     }
     const components = this.ecs.getComponents(entities.values().next().value);
     const terrainSingleton = components.get(TerrainSingleton);
+
     if (!this.isInitialized) {
       foo(this.ecs);
+      // DEBUG
+      processNewVoxelImport(
+        "./Tavern/teapot.vxm",
+        gpuSingleton.device,
+        gpuSingleton.volumeAtlas,
+      ).then((voxels) => {
+        const newEntity = this.ecs.addEntity();
+        this.ecs.addComponent(newEntity, voxels);
+        const transform = new Transform(
+          [0, 32, 160],
+          quat.fromEuler(0, 0, 0, "xyz"),
+          [0.5, 0.5, 0.5],
+        );
+        this.ecs.addComponent(newEntity, transform);
+      });
+      processNewVoxelImport(
+        "./Tavern/dragon.vxm",
+        gpuSingleton.device,
+        gpuSingleton.volumeAtlas,
+      ).then((voxels) => {
+        const newEntity = this.ecs.addEntity();
+        this.ecs.addComponent(newEntity, voxels);
+        const transform = new Transform(
+          [0, 32, 64],
+          quat.fromEuler(0, 0, 0, "xyz"),
+          [0.5, 0.5, 0.5],
+        );
+        this.ecs.addComponent(newEntity, transform);
+      });
       this.isInitialized = true;
     }
   }

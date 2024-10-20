@@ -52,7 +52,7 @@ struct Reservoir {
   lightIndex: u32,
 }
 
-const DISTANCE_THRESHOLD = 32.0;
+const DISTANCE_THRESHOLD = 64.0;
 
 const NEIGHBORHOOD_SAMPLE_POSITIONS = array<vec2<i32>, 8>(
     vec2<i32>(-1, -1),

@@ -593,12 +593,12 @@ ${lightsCompute}`;
   let lightConfig = {
     constantAttenuation: 0.1,
     linearAttenuation: 0.2,
-    quadraticAttenuation: 0.05,
+    quadraticAttenuation: 0.1,
     lightWeightCutOff: 300,
   };
   let svgfConfig = {
     normalSigma: 0.2,
-    varianceSigma: 4,
+    varianceSigma: 0.75,
     blueNoiseSCale: 0,
     spatialSigma: 0.75,
   };
@@ -611,7 +611,7 @@ ${lightsCompute}`;
   const folder = (window as any).debugUI.gui.addFolder("lighting");
   folder.add(lightConfig, "constantAttenuation", 0, 1.0, 0.1);
   folder.add(lightConfig, "linearAttenuation", 0.01, 1, 0.01);
-  folder.add(lightConfig, "quadraticAttenuation", 0.005, 0.1, 0.001);
+  folder.add(lightConfig, "quadraticAttenuation", 0.005, 0.3, 0.001);
   folder.add(lightConfig, "lightWeightCutOff", 0, 500, 1);
   folder.add(svgfConfig, "normalSigma", 0.1, 2, 0.05);
   folder.add(svgfConfig, "varianceSigma", 0.1, 8, 0.05);
@@ -1267,12 +1267,15 @@ ${lightsCompute}`;
       temporalPass();
       copyPass();
     }
-    sampleLightsPass();
-    copyPass();
+
     if (passConfig.spatialEnabled) {
       spatialPass();
       copyPass();
     }
+
+    sampleLightsPass();
+    copyPass();
+
     compositePass();
     if (passConfig.denoiseEnabled) {
       variancePass();

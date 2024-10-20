@@ -52,7 +52,6 @@ import { getGlobalIlluminationPass } from "@renderer/get-global-illumination/get
 import { copyGBufferTexture } from "@renderer/abstractions/copy-g-buffer-texture";
 import { getBloomPass } from "@renderer/bloom-pass/get-bloom-pass";
 import { getRasterTracePass } from "@renderer/raster-trace/get-raster-trace-pass";
-import { getGapFillPass } from "@renderer/gap-fill/get-gap-fill-pass";
 
 export const debugValues = new DebugValuesStore();
 export let gpuContext: GPUCanvasContext;
@@ -174,8 +173,8 @@ const debugColours = [
   [0, 0, 1],
 ];
 
-for (let x = 64; x <= 512; x += 128) {
-  for (let z = 64; z <= 512; z += 128) {
+for (let x = 0; x < 512; x += 128) {
+  for (let z = 0; z < 512; z += 128) {
     lights.push({
       position: [x, 16, z],
       size: LIGHT_SIZE,
@@ -188,6 +187,8 @@ for (let x = 64; x <= 512; x += 128) {
     });
   }
 }
+
+console.log(lights);
 
 // lights.push({
 //   position: [64, 16, 64],

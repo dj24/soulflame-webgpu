@@ -15,6 +15,16 @@ const convert3DTo1D = (
   );
 };
 
+type VoxelCacheConstructorArgs =
+  | {
+      getVoxel: GetVoxel;
+      size: [number, number, number];
+    }
+  | {
+      cache: Uint8Array;
+      size: [number, number, number];
+    };
+
 const STRIDE = 4;
 
 // Created a noise field for a given volume size
@@ -23,7 +33,14 @@ export class VoxelCache {
   private readonly size: [number, number, number];
   private readonly getVoxel: GetVoxel;
 
-  constructor(getVoxel: GetVoxel, size: [number, number, number]) {
+  constructor(args: VoxelCacheConstructorArgs) {
+    // If cache is provided, use it
+    if ("cache" in args) {
+      this.cache = args.cache;
+      return;
+    }
+    // Otherwise, create a new cache from the getVoxel function
+    const { getVoxel, size } = args;
     this.size = size;
     this.getVoxel = getVoxel;
     this.cache = new Uint8Array(size[0] * size[1] * size[2] * STRIDE);

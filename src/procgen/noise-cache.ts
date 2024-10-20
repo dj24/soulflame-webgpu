@@ -1,6 +1,6 @@
 import { Vec3 } from "wgpu-matrix";
 
-const convert3DTo1D = (
+export const convert3DTo1D = (
   size: [number, number, number] | Vec3,
   position: [number, number, number] | Vec3,
 ) => {

@@ -15,7 +15,7 @@ let averageChunkCreationTime = {
   averageChunkCreationTime,
 );
 
-const getMaxSizeOfOctree = (size: [number, number, number]) => {
+export const getMaxSizeOfOctree = (size: [number, number, number]) => {
   const depth = Math.ceil(Math.log2(Math.max(...size)));
   let total = 0;
   for (let i = 0; i <= depth; i++) {

@@ -1,19 +1,14 @@
 import { VolumeAtlas } from "./volume-atlas";
-import { generateOctreeMips } from "./create-3d-texture/generate-octree-mips";
-import { mat4, quat } from "wgpu-matrix";
+import { quat } from "wgpu-matrix";
 import { VoxelObject } from "./voxel-object";
-import { removeInternalVoxels } from "./create-3d-texture/remove-internal-voxels";
 import { convertVxm } from "./convert-vxm";
-import { createTextureFromVoxels } from "./create-texture-from-voxels/create-texture-from-voxels";
-import { createPaletteTextureFromVoxels } from "./create-texture-from-voxels/create-palette-texture-from-voxels";
-import { writeTextureToCanvas } from "./write-texture-to-canvas";
-import { Octree, octreeToArrayBuffer } from "./octree/octree";
 import { ECS } from "@ecs/ecs";
 import { Transform } from "@renderer/components/transform";
-import { GamepadControllable } from "@input/components/gamepad-controllable";
 import { KeyboardControllable } from "@input/components/keyboard-controllable";
-import { device } from "@renderer/app";
-import { createSineTerrain } from "../procgen/sine-chunk";
+import { convert3DTo1D } from "../procgen/noise-cache";
+import { createOctreeAndReturnBytes } from "../procgen/sine-chunk";
+import { Octree, OCTREE_STRIDE } from "@renderer/octree/octree";
+import { getMaxSizeOfOctree } from "../procgen/create-terrain-chunk";
 
 type TSceneDefinition = {
   name: string;
@@ -58,24 +53,69 @@ const NAME_ALLOWLIST = [
   // "Tavern",
 ];
 
-const processNewVoxelImport = async (
+export const processNewVoxelImport = async (
   path: string,
   device: GPUDevice,
   volumeAtlas: VolumeAtlas,
 ) => {
-  console.time(`Fetch ${path}`);
   const response = await fetch(path);
-  console.timeEnd(`Fetch ${path}`);
-
   const arrayBuffer = await response.arrayBuffer();
   const voxels = convertVxm(arrayBuffer);
-
   console.time(`Create octree for ${path}`);
-  const octree = new Octree(voxels);
-  const octreeArrayBuffer = octreeToArrayBuffer(octree);
+  const cache = new Uint8Array(
+    voxels.SIZE[0] * voxels.SIZE[1] * voxels.SIZE[2] * 3,
+  );
+  voxels.XYZI.forEach((voxel) => {
+    const index = convert3DTo1D(voxels.SIZE, [voxel.x, voxel.y, voxel.z]);
+    cache[index * 3] = voxels.RGBA[voxel.c].r;
+    cache[index * 3 + 1] = voxels.RGBA[voxel.c].g;
+    cache[index * 3 + 2] = voxels.RGBA[voxel.c].b;
+  });
+  const getVoxel = (x: number, y: number, z: number) => {
+    const index = convert3DTo1D(voxels.SIZE, [x, y, z]);
+    const red = cache[index * 3];
+    const green = cache[index * 3 + 1];
+    const blue = cache[index * 3 + 2];
+    if (red === 0 && green === 0 && blue === 0) {
+      return null;
+    }
+    return {
+      red: cache[index * 3],
+      green: cache[index * 3 + 1],
+      blue: cache[index * 3 + 2],
+      solid: true,
+    };
+  };
+  const uncompressedSize = getMaxSizeOfOctree(voxels.SIZE) * OCTREE_STRIDE;
+  let uncompressedArrayBuffer = new SharedArrayBuffer(uncompressedSize);
+  const octree = new Octree(
+    getVoxel,
+    () => 1,
+    Math.max(voxels.SIZE[0], voxels.SIZE[1], voxels.SIZE[2]),
+    uncompressedArrayBuffer,
+  );
   console.timeEnd(`Create octree for ${path}`);
-
-  await volumeAtlas.addVolume(path, voxels.SIZE, octreeArrayBuffer);
+  const octreeSizeBytes = octree.totalSizeBytes + OCTREE_STRIDE;
+  await volumeAtlas.addVolume(
+    path,
+    voxels.SIZE,
+    uncompressedArrayBuffer,
+    octreeSizeBytes,
+  );
+  uncompressedArrayBuffer = null;
+  const {
+    size: atlasSize,
+    location,
+    paletteIndex,
+    octreeOffset,
+  } = volumeAtlas.dictionary[path];
+  return new VoxelObject({
+    name: path,
+    size: atlasSize,
+    atlasLocation: location,
+    paletteIndex,
+    octreeBufferIndex: octreeOffset,
+  });
 };
 
 export const createVoxelObject = async (

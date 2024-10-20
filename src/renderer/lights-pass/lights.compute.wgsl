@@ -70,9 +70,9 @@ fn unpackReservoir(reservoir: vec4<f32>) -> Reservoir {
 const CONSTANT_ATTENUATION = 0.0;
 const LINEAR_ATTENUATION = 0.1;
 const QUADRATIC_ATTENUATION = 0.1;
-const LIGHT_COUNT = 64;
+const LIGHT_COUNT = 16;
 const SAMPLES_PER_FRAME = 8;
-const MAX_BINARY_SEARCH_ITERATIONS = 64;
+const MAX_BINARY_SEARCH_ITERATIONS = 16;
 
 fn binarySearchCDF(CDF: array<f32, LIGHT_COUNT>, randomValue: f32)-> u32 {
   var low = 0u;
@@ -107,6 +107,7 @@ fn getLightWeight(lightPos: vec3<f32>, lightColour: vec3<f32>, worldPos: vec3<f3
   return weight;
 }
 
+const WEIGHT_THRESHOLD = 0.02;
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
@@ -176,7 +177,7 @@ fn main(
 
   let raymarchResult = rayMarchBVH(worldPos + normal * 0.001, normalize(lightDir));
   if(raymarchResult.hit){
-      bestWeight = 0.01;
+      bestWeight = 0.0;
   }
 
   var currentReservoir = unpackReservoir(textureLoad(inputReservoirTex, offsetPixel, 0));
@@ -186,7 +187,7 @@ fn main(
   weightSum += currentReservoir.weightSum;
 
   // Resample last frames pixel afterwards to better account for occlusion from raycast hit
-  if(r.y < currentReservoir.lightWeight / weightSum){
+  if(r.y < currentReservoir.lightWeight / weightSum && weightDifference < WEIGHT_THRESHOLD){
     lightIndex = currentReservoir.lightIndex;
     bestWeight = currentReservoir.lightWeight;
   }
@@ -199,4 +200,17 @@ fn main(
   );
   textureStore(reservoirTex, offsetPixel, reservoir);
 
+  // if any blank pixels are found, fill them with this pixel's value
+//  for(var x = 0u; x < DOWN_SAMPLE_FACTOR; x++){
+//    for(var y = 0u; y < DOWN_SAMPLE_FACTOR; y++){
+//      let neighbourPixel = id.xy * DOWN_SAMPLE_FACTOR + vec2(x, y);
+//      if(all(neighbourPixel == offsetPixel)){
+//        continue;
+//      }
+//      let neighbourReservoir = unpackReservoir(textureLoad(inputReservoirTex, neighbourPixel, 0));
+//      if(neighbourReservoir.lightWeight < 0.00001){
+////        textureStore(reservoirTex, neighbourPixel, reservoir);
+//      }
+//    }
+//  }
 }
