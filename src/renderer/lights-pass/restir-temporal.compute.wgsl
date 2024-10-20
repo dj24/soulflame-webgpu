@@ -102,6 +102,7 @@ fn main(
   let previousUv = clamp(uv - velocity, vec2(0.0), vec2(1.0));
   let pixelVelocity = velocity * vec2<f32>(resolution);
   let previousPixel = clamp(vec2<f32>(id.xy) - pixelVelocity, vec2(0.0), vec2<f32>(resolution));
+  // TODO: store previous depth to get the actual previus world position
   let previousWorldPos = textureLoad(worldPosTex, vec2<u32>(previousPixel), 0);
   let previousDepth = previousWorldPos.w;
   var depthSample = textureLoad(worldPosTex, id.xy, 0).w;
