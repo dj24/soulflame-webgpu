@@ -81,8 +81,11 @@ fn main(
 //        return;
 //    }
 
+
     var sourceSample: vec3<f32> = textureSampleLevel(CurrentColor, nearestSampler, uv, 0).rgb;
-    var historySample: vec3<f32> = textureSampleLevel(HistoryRead, linearSampler, previousUv, 0).rgb;
+    let linearSample = textureSampleLevel(HistoryRead, linearSampler, previousUv, 0).rgb;
+    let nearestSample = textureSampleLevel(HistoryRead, nearestSampler, previousUv, 0).rgb;
+    var historySample = select(linearSample, nearestSample, length(velocity) < 1.0 / texSize.x);
 //
     // Clamp the history sample to the min and max of the 3x3 neighborhood
     var minCol: vec3<f32> = sourceSample;
