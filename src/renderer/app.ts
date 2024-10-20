@@ -143,6 +143,7 @@ let outputTexture: GBufferTexture;
 let depthTexture: GBufferTexture;
 let velocityTexture: GBufferTexture;
 let worldPositionTexture: GBufferTexture;
+let previousWorldPositionTexture: GBufferTexture;
 let blueNoiseTextureView: GPUTextureView;
 let timeBuffer: GPUBuffer;
 let transformationMatrixBuffer: GPUBuffer;
@@ -239,6 +240,11 @@ const setupCanvasAndTextures = () => {
   velocityTexture = new VelocityTexture(device, resolution[0], resolution[1]);
   outputTexture = new OutputTexture(device, resolution[0], resolution[1]);
   worldPositionTexture = new WorldPositionTexture(
+    device,
+    resolution[0],
+    resolution[1],
+  );
+  previousWorldPositionTexture = new WorldPositionTexture(
     device,
     resolution[0],
     resolution[1],
@@ -610,6 +616,7 @@ export const frame = (
         skyTexture,
         velocityTexture,
         worldPositionTexture,
+        previousWorldPositionTexture,
       },
       cameraPositionBuffer,
       volumeAtlas,
@@ -639,6 +646,19 @@ export const frame = (
     }
   });
   commandEncoder.popDebugGroup();
+  commandEncoder.copyTextureToTexture(
+    {
+      texture: worldPositionTexture.texture,
+    },
+    {
+      texture: previousWorldPositionTexture.texture,
+    },
+    {
+      width: worldPositionTexture.width,
+      height: worldPositionTexture.height,
+      depthOrArrayLayers: 0,
+    },
+  );
 
   if (device.features.has("timestamp-query")) {
     resolveTimestampQueries(

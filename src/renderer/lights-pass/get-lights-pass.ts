@@ -1,4 +1,4 @@
-import { RenderArgs, RenderPass } from "../app";
+import { device, RenderArgs, RenderPass, resolution } from "../app";
 import { Vec3 } from "wgpu-matrix";
 import lightsCompute from "./lights.compute.wgsl";
 import restirSpatial from "./restir-spatial.compute.wgsl";
@@ -10,6 +10,12 @@ import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import boxIntersection from "../shader/box-intersection.wgsl";
 import computeDenoise from "./denoise.compute.wgsl";
 import computeVariance from "./variance.compute.wgsl";
+import { OUTPUT_TEXTURE_FORMAT } from "@renderer/constants";
+import { getTaaPass } from "@renderer/taa-pass/get-taa-pass";
+import {
+  GBufferTexture,
+  gBufferTextureFactory,
+} from "@renderer/abstractions/g-buffer-texture";
 
 export type Light = {
   position: [number, number, number];
@@ -22,6 +28,8 @@ const DOWNSCALE_FACTOR = 2;
 const RESERVOIR_DECAY = 0.5;
 const MAX_SAMPLES = 50000;
 const RESERVOIR_TEXTURE_FORMAT: GPUTextureFormat = "rgba32float";
+
+const LightTexture = gBufferTextureFactory("lights", OUTPUT_TEXTURE_FORMAT);
 
 export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
   // Bind group layouts
@@ -229,6 +237,15 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
           viewDimension: "2d",
         },
       },
+      // Previous world position texture
+      {
+        binding: 3,
+        visibility: GPUShaderStage.COMPUTE,
+        texture: {
+          sampleType: "unfilterable-float",
+          viewDimension: "2d",
+        },
+      },
     ],
   });
   const spatialBindGroupLayout = device.createBindGroupLayout({
@@ -251,6 +268,13 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
         visibility: GPUShaderStage.COMPUTE,
         storageTexture: {
           format: RESERVOIR_TEXTURE_FORMAT,
+        },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        storageTexture: {
+          format: OUTPUT_TEXTURE_FORMAT,
         },
       },
     ],
@@ -486,12 +510,14 @@ ${lightsCompute}`;
     compute: {
       module: device.createShaderModule({
         code: `
-        @group(0) @binding(0) var reservoirTex : texture_storage_2d<rgba32float, write>;
+        @group(0) @binding(0) var reservoirTex : texture_storage_2d<${RESERVOIR_TEXTURE_FORMAT}, write>;
+        @group(0) @binding(1) var lightTex : texture_storage_2d<${OUTPUT_TEXTURE_FORMAT}, write>;
         @compute @workgroup_size(8,8,1)
         fn main(
         @builtin(global_invocation_id) id : vec3<u32>
         ){
-            textureStore(reservoirTex, id.xy, vec4<f32>(0.0, 0.0, 0.0, 0.0));
+            textureStore(reservoirTex, id.xy, vec4(0.0));
+            textureStore(lightTex, id.xy, vec4(0.0));
         }
           `,
       }),
@@ -534,8 +560,6 @@ ${lightsCompute}`;
   let copyReservoirTexture: GPUTexture;
   let copyReservoirTextureView: GPUTextureView;
   let lightConfigBuffer: GPUBuffer;
-  let copyFinalTexture: GPUTexture;
-  let copyFinalTextureView: GPUTextureView;
   let temporalBindGroup: GPUBindGroup;
   let spatialBindGroup: GPUBindGroup;
   let svgfConfigBuffer: GPUBuffer;
@@ -548,12 +572,13 @@ ${lightsCompute}`;
   let varianceTextureView: GPUTextureView;
   let previousVarianceTexture: GPUTexture;
   let previousVarianceTextureView: GPUTextureView;
-  let lightTexture: GPUTexture;
-  let lightTextureView: GPUTextureView;
-  let previousLightTexture: GPUTexture;
-  let previousLightTextureView: GPUTextureView;
+  let lightTexture = new LightTexture(device, resolution[0], resolution[1]);
   let varianceBindGroup: GPUBindGroup;
   let gBufferBindGroup: GPUBindGroup;
+  let copyLightTexture: GPUTexture;
+  let copyLightTextureView: GPUTextureView;
+
+  const taaSubpass = await getTaaPass(lightTexture);
 
   // Debug Controls
   let lightConfig = {
@@ -563,10 +588,10 @@ ${lightsCompute}`;
     lightWeightCutOff: 300,
   };
   let svgfConfig = {
-    normalSigma: 0.15,
-    varianceSigma: 1.2,
+    normalSigma: 0.2,
+    varianceSigma: 4,
     blueNoiseSCale: 0,
-    spatialSigma: 3,
+    spatialSigma: 0.75,
   };
   let passConfig = {
     spatialEnabled: false,
@@ -588,37 +613,19 @@ ${lightsCompute}`;
   folder.add(passConfig, "denoiseEnabled");
   folder.add(passConfig, "maxDenoiseRate", 1, 16, 1);
 
-  const render = ({
-    commandEncoder,
-    outputTextures,
-    timestampWrites,
-    lights,
-    volumeAtlas,
-    transformationMatrixBuffer,
-    bvhBuffer,
-    blueNoiseTextureView,
-    timeBuffer,
-    cameraPositionBuffer,
-  }: RenderArgs) => {
-    if (
-      !copyFinalTexture ||
-      copyFinalTexture.width !== outputTextures.finalTexture.width ||
-      copyFinalTexture.height !== outputTextures.finalTexture.height
-    ) {
-      copyFinalTexture = device.createTexture({
-        size: {
-          width: outputTextures.finalTexture.width,
-          height: outputTextures.finalTexture.height,
-        },
-        format: outputTextures.finalTexture.format,
-        usage:
-          GPUTextureUsage.COPY_DST |
-          GPUTextureUsage.TEXTURE_BINDING |
-          GPUTextureUsage.STORAGE_BINDING |
-          GPUTextureUsage.COPY_SRC,
-      });
-      copyFinalTextureView = copyFinalTexture.createView();
-    }
+  const render = (args: RenderArgs) => {
+    const {
+      commandEncoder,
+      outputTextures,
+      timestampWrites,
+      lights,
+      volumeAtlas,
+      transformationMatrixBuffer,
+      bvhBuffer,
+      blueNoiseTextureView,
+      timeBuffer,
+      cameraPositionBuffer,
+    } = args;
 
     if (!svgfConfigBuffer) {
       svgfConfigBuffer = device.createBuffer({
@@ -713,18 +720,6 @@ ${lightsCompute}`;
       });
     }
 
-    if (!clearReservoirBindGroup) {
-      clearReservoirBindGroup = device.createBindGroup({
-        layout: clearReservoirTextureLayout,
-        entries: [
-          {
-            binding: 0,
-            resource: reservoirTexture.createView(),
-          },
-        ],
-      });
-    }
-
     if (!atrousRateBuffer) {
       atrousRateBuffer = device.createBuffer({
         size: 4,
@@ -759,8 +754,8 @@ ${lightsCompute}`;
       previousVarianceTextureView = previousVarianceTexture.createView();
     }
 
-    if (!lightTexture) {
-      lightTexture = device.createTexture({
+    if (!copyLightTexture) {
+      copyLightTexture = device.createTexture({
         size: {
           width: outputTextures.finalTexture.width,
           height: outputTextures.finalTexture.height,
@@ -768,10 +763,27 @@ ${lightsCompute}`;
         format: "rgba16float",
         usage:
           GPUTextureUsage.STORAGE_BINDING |
-          GPUTextureUsage.COPY_SRC |
-          GPUTextureUsage.TEXTURE_BINDING,
+          GPUTextureUsage.COPY_DST |
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.COPY_SRC,
       });
-      lightTextureView = lightTexture.createView();
+      copyLightTextureView = copyLightTexture.createView();
+    }
+
+    if (!clearReservoirBindGroup) {
+      clearReservoirBindGroup = device.createBindGroup({
+        layout: clearReservoirTextureLayout,
+        entries: [
+          {
+            binding: 0,
+            resource: reservoirTexture.createView(),
+          },
+          {
+            binding: 1,
+            resource: copyLightTextureView,
+          },
+        ],
+      });
     }
 
     if (!denoiseBindGroup) {
@@ -780,7 +792,7 @@ ${lightsCompute}`;
         entries: [
           {
             binding: 0,
-            resource: outputTextures.finalTexture.view,
+            resource: lightTexture.view,
           },
           {
             binding: 1,
@@ -792,7 +804,7 @@ ${lightsCompute}`;
           },
           {
             binding: 3,
-            resource: copyFinalTextureView,
+            resource: copyLightTextureView,
           },
           {
             binding: 4,
@@ -838,6 +850,10 @@ ${lightsCompute}`;
             binding: 2,
             resource: copyReservoirTextureView,
           },
+          {
+            binding: 3,
+            resource: outputTextures.previousWorldPositionTexture.view,
+          },
         ],
       });
     }
@@ -875,7 +891,7 @@ ${lightsCompute}`;
         entries: [
           {
             binding: 0,
-            resource: outputTextures.finalTexture.view,
+            resource: lightTexture.view,
           },
           {
             binding: 1,
@@ -920,19 +936,6 @@ ${lightsCompute}`;
       ]),
     );
 
-    commandEncoder.copyTextureToTexture(
-      {
-        texture: outputTextures.finalTexture.texture,
-      },
-      {
-        texture: copyFinalTexture,
-      },
-      {
-        width: outputTextures.finalTexture.width,
-        height: outputTextures.finalTexture.height,
-      },
-    );
-
     device.queue.writeBuffer(
       lightConfigBuffer,
       0,
@@ -969,7 +972,7 @@ ${lightsCompute}`;
         },
         {
           binding: 4,
-          resource: outputTextures.finalTexture.view,
+          resource: lightTexture.view,
         },
         {
           binding: 5,
@@ -977,7 +980,7 @@ ${lightsCompute}`;
         },
         {
           binding: 6,
-          resource: copyFinalTextureView,
+          resource: copyLightTextureView,
         },
         {
           binding: 7,
@@ -1192,8 +1195,8 @@ ${lightsCompute}`;
       passEncoder.setBindGroup(0, denoiseBindGroup);
       passEncoder.setBindGroup(1, svgfConfigBindGroup);
       passEncoder.dispatchWorkgroups(
-        Math.ceil(outputTextures.finalTexture.width / 8),
-        Math.ceil(outputTextures.finalTexture.height / 8),
+        Math.ceil(lightTexture.width / 8),
+        Math.ceil(lightTexture.height / 8),
         1,
       );
       passEncoder.end();
@@ -1235,14 +1238,14 @@ ${lightsCompute}`;
     const copyFinalTextureBack = () => {
       commandEncoder.copyTextureToTexture(
         {
-          texture: copyFinalTexture,
+          texture: copyLightTexture,
         },
         {
-          texture: outputTextures.finalTexture.texture,
+          texture: lightTexture.texture,
         },
         {
-          width: outputTextures.finalTexture.width,
-          height: outputTextures.finalTexture.height,
+          width: lightTexture.width,
+          height: lightTexture.height,
         },
       );
     };
@@ -1282,6 +1285,22 @@ ${lightsCompute}`;
         height: reservoirTexture.height,
       },
     );
+    if (passConfig.denoiseEnabled) {
+      taaSubpass.render(args);
+    }
+
+    commandEncoder.copyTextureToTexture(
+      {
+        texture: lightTexture.texture,
+      },
+      {
+        texture: outputTextures.finalTexture.texture,
+      },
+      {
+        width: lightTexture.width,
+        height: lightTexture.height,
+      },
+    );
     clearReservoirPass();
   };
 
@@ -1298,6 +1317,7 @@ ${lightsCompute}`;
       "svgf denoise 2",
       "svgf denoise 4",
       // "svgf denoise 8",
+      "svgf taa",
       "restir clear",
     ],
   };

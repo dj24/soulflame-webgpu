@@ -13,6 +13,7 @@
 @group(1) @binding(0) var velocityTex : texture_2d<f32>;
 @group(1) @binding(1) var previousReservoirTex : texture_2d<f32>;
 @group(1) @binding(2) var inputReservoirTex : texture_2d<f32>;
+@group(1) @binding(3) var previousWorldPosTex : texture_2d<f32>;
 
 fn convert2DTo1D(width: u32, index2D: vec2<u32>) -> u32 {
     return index2D.y * width + index2D.x;
@@ -50,7 +51,7 @@ struct Reservoir {
   lightIndex: u32,
 }
 
-const DISTANCE_THRESHOLD = 100.0;
+const DISTANCE_THRESHOLD = 1.1;
 const WEIGHT_THRESHOLD = 100.0;
 
 const NEIGHBORHOOD_SAMPLE_POSITIONS = array<vec2<i32>, 8>(
@@ -99,13 +100,22 @@ fn main(
   let velocity = textureLoad(velocityTex, id.xy, 0).xy;
 
 
-  let previousUv = clamp(uv - velocity, vec2(0.0), vec2(1.0));
+  let previousUv = uv - velocity;
   let pixelVelocity = velocity * vec2<f32>(resolution);
   let previousPixel = clamp(vec2<f32>(id.xy) - pixelVelocity, vec2(0.0), vec2<f32>(resolution));
-  // TODO: store previous depth to get the actual previus world position
-  let previousWorldPos = textureLoad(worldPosTex, vec2<u32>(previousPixel), 0);
-  let previousDepth = previousWorldPos.w;
+
+  let previousDepth = textureLoad(previousWorldPosTex, vec2<u32>(previousPixel), 0).w;
   var depthSample = textureLoad(worldPosTex, id.xy, 0).w;
+
+  // if previous sample is proportionally further the threshold, we don't want to blend
+  if(previousDepth / depthSample > DISTANCE_THRESHOLD){
+    return;
+  }
+
+  if(any(previousUv < vec2(0.0)) || any(previousUv >= vec2(1.0))){
+    return;
+  }
+
 
   let reservoir = unpackReservoir(textureSampleLevel(inputReservoirTex, nearestSampler, uv, 0.));
   var currentWeightSum = reservoir.weightSum;

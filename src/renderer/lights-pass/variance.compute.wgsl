@@ -17,7 +17,8 @@ const NEIGHBOUR_OFFSETS = array<vec2<i32>, 8>(
 @group(1) @binding(1) var normalTex : texture_2d<f32>;
 @group(1) @binding(2) var velocityTex : texture_2d<f32>;
 
-const MIN_SOURCE_BLEND = 0.1;
+const MIN_SOURCE_BLEND = 0.2;
+const SPATIAL_WEIGHT = 8.0;
 
 @compute @workgroup_size(8,8,1)
 fn main(
@@ -51,7 +52,7 @@ fn main(
 
         let worldPos = textureLoad(worldPosTex, pixel + offset[i], 0);
         let worldPosVariance = length(worldPosRef.xyz - worldPos.xyz) * length(worldPosRef.xyz - worldPos.xyz);
-        newVariance += max(worldPosVariance, 0.0);
+        newVariance += max(worldPosVariance * SPATIAL_WEIGHT, 0.0);
     }
     newVariance /= 8.0;
 

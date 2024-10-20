@@ -68,20 +68,21 @@ fn main(
     let previousUv = uv - velocity;
     let previousPixel = vec2<i32>(previousUv * texSize);
 
-    let worldPosPrevSample = textureLoad(worldPosTex, previousPixel, 0);
-    let worldPosPrev = worldPosPrevSample.xyz;
-    var depthAtPreviousPixel = worldPosPrevSample.w;
+    // TODO: store previous depth to get the actual previus world position
+//    let worldPosPrevSample = textureLoad(worldPosTex, previousPixel, 0);
+//    let worldPosPrev = worldPosPrevSample.xyz;
+//    var depthAtPreviousPixel = worldPosPrevSample.w;
+//
+//    // Calculate depth difference between source and history samples
+//    let depthDifference: f32 = abs(depthSample - depthAtPreviousPixel);
+//
+//    // Apply depth clamping
+//    if (depthDifference > DEPTH_THRESHOLD) {
+//        return;
+//    }
 
     var sourceSample: vec3<f32> = textureSampleLevel(CurrentColor, nearestSampler, uv, 0).rgb;
     var historySample: vec3<f32> = textureSampleLevel(HistoryRead, linearSampler, previousUv, 0).rgb;
-
-    // Calculate depth difference between source and history samples
-    let depthDifference: f32 = abs(depthSample - depthAtPreviousPixel);
-
-    // Apply depth clamping
-    if (depthDifference > DEPTH_THRESHOLD) {
-        return;
-    }
 //
     // Clamp the history sample to the min and max of the 3x3 neighborhood
     var minCol: vec3<f32> = sourceSample;
