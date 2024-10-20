@@ -318,7 +318,7 @@ export const init = async (
     // getLutPass("luts/Reeve 38.CUBE"),
     getVignettePass(10.0),
     fullscreenQuad(device),
-    // getBoxOutlinePass(device),
+    getBoxOutlinePass(device),
   ]);
 
   timestampLabels = computePasses.reduce((acc, val) => {

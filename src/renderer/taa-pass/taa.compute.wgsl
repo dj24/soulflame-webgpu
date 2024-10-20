@@ -41,7 +41,7 @@ const NEIGHBORHOOD_SAMPLE_POSITIONS = array<vec2<i32>, 8>(
 @group(0) @binding(7) var previousWoldPosTex : texture_2d<f32>;
 
 const DEPTH_THRESHOLD : f32 = 16.0;
-const MIN_SOURCE_BLEND = 0.1;
+const MIN_SOURCE_BLEND = 0.2;
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
