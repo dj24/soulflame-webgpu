@@ -314,7 +314,7 @@ export const init = async (
     getSimpleFogPass(),
     getTaaPass(outputTexture),
     getTonemapPass(),
-    getMotionBlurPass(),
+    // getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
     getVignettePass(10.0),
     fullscreenQuad(device),

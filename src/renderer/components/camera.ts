@@ -12,8 +12,6 @@ type OrthographicCameraConfig = {
   size: number;
 };
 
-type ProjectionType = "perspective" | "orthographic";
-
 type CameraConfig = PersectiveCameraConfig | OrthographicCameraConfig;
 
 export class Camera extends Component {

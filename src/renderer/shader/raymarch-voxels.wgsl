@@ -282,7 +282,6 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
         output.t = nodeIntersection.tNear;
         output.normal = nodeIntersection.normal;
         output.colour = vec3<f32>(leafNode.colour) / 255.0;
-//        output.colour = vec3(f32(output.iterations) / 32.0);
         return output;
       }
 

@@ -12,6 +12,7 @@ import { TerrainSystem } from "./procgen/systems/terrain-system";
 import { TerrainSingleton } from "./procgen/components/terrain-singleton";
 import { VelocitySystem } from "./systems/velocity-system";
 import { Velocity } from "./components/velocity";
+import { MouseScrollZoomSystem } from "@input/systems/mouse-scroll-zoom-system";
 
 const ecs = new ECS();
 
@@ -21,6 +22,7 @@ ecs.addSystem(new Renderer());
 ecs.addSystem(new GamepadKinematicBoxControl());
 ecs.addSystem(new TerrainSystem());
 ecs.addSystem(new VelocitySystem());
+ecs.addSystem(new MouseScrollZoomSystem());
 
 const singleton = ecs.addEntity();
 ecs.addComponent(singleton, new GPUDeviceSingleton());
