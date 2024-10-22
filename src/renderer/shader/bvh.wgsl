@@ -24,6 +24,8 @@ fn nodeRayIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, node: BVHN
   return -1.0;
 }
 
+//480x270x256
+
 // Stack-based BVH traversal
 fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult {
   var closestIntersection = RayMarchResult();

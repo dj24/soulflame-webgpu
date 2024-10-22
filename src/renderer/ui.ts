@@ -1,6 +1,7 @@
 import { debugValues, RenderPass } from "./app";
 import GUI from "lil-gui";
 import { VolumeAtlas } from "@renderer/volume-atlas";
+import { BVH } from "@renderer/bvh";
 
 export class DebugUI {
   gui: GUI;
@@ -44,6 +45,11 @@ export class DebugUI {
   setupOctreeLogging(atlas: VolumeAtlas) {
     const octreeFolder = this.gui.addFolder("octree");
     octreeFolder.add(atlas, "octreeBufferSizeMB").listen();
+  }
+
+  setupBVHLogging(bvh: BVH) {
+    const bvhFolder = this.gui.addFolder("bvh");
+    bvhFolder.add(bvh, "sizeInMB").listen();
   }
 
   setupAverageChunkGenerationTimeLogging(obj: { time: number }) {

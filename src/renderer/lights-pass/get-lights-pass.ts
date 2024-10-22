@@ -153,6 +153,17 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
       },
     ],
   });
+  const viewProjectionsBindGroupLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform",
+        },
+      },
+    ],
+  });
   const gBufferBindGroupLayout = device.createBindGroupLayout({
     entries: [
       // World positions texture
@@ -449,6 +460,7 @@ ${lightsCompute}`;
         bindGroupLayout,
         lightConfigBindGroupLayout,
         copyReservoirTextureLayout,
+        viewProjectionsBindGroupLayout,
       ],
     }),
   });
@@ -586,6 +598,7 @@ ${lightsCompute}`;
   let gBufferBindGroup: GPUBindGroup;
   let copyLightTexture: GPUTexture;
   let copyLightTextureView: GPUTextureView;
+  let viewProjectionsBindGroup: GPUBindGroup;
 
   const taaSubpass = await getTaaPass(lightTexture);
 
@@ -708,6 +721,20 @@ ${lightsCompute}`;
           {
             binding: 1,
             resource: copyReservoirTextureView,
+          },
+        ],
+      });
+    }
+
+    if (!viewProjectionsBindGroup) {
+      viewProjectionsBindGroup = device.createBindGroup({
+        layout: viewProjectionsBindGroupLayout,
+        entries: [
+          {
+            binding: 0,
+            resource: {
+              buffer: args.viewProjectionMatricesBuffer,
+            },
           },
         ],
       });
@@ -1128,6 +1155,7 @@ ${lightsCompute}`;
       passEncoder.setPipeline(pipeline);
       passEncoder.setBindGroup(1, lightConfigBindGroup);
       passEncoder.setBindGroup(2, copyReservoirBindGroup);
+      passEncoder.setBindGroup(3, viewProjectionsBindGroup);
       passEncoder.dispatchWorkgroups(
         Math.ceil(downscaledWidth / 8),
         Math.ceil(downscaledHeight / 8),

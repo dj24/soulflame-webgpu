@@ -54,6 +54,7 @@ fn unpackReservoir(reservoir: vec4<f32>) -> Reservoir {
     );
 }
 
+@group(0) @binding(0) var nearestSampler : sampler;
 @group(0) @binding(1) var worldPosTex : texture_2d<f32>;
 @group(0) @binding(2) var normalTex : texture_2d<f32>;
 @group(0) @binding(3) var<storage, read> lightsBuffer : array<Light>;
@@ -66,6 +67,7 @@ fn unpackReservoir(reservoir: vec4<f32>) -> Reservoir {
 
 @group(1) @binding(0) var<uniform> lightConfig : LightConfig;
 @group(2) @binding(0) var inputReservoirTex : texture_2d<f32>;
+@group(3) @binding(0) var<uniform> viewProjections : ViewProjectionMatrices;
 
 const CONSTANT_ATTENUATION = 0.0;
 const LINEAR_ATTENUATION = 0.1;
@@ -107,6 +109,12 @@ fn getLightWeight(lightPos: vec3<f32>, lightColour: vec3<f32>, worldPos: vec3<f3
   return weight;
 }
 
+
+fn calculateNDC(worldPos: vec3<f32>, viewProjection: mat4x4<f32>) -> vec3<f32> {
+  let clipPos = viewProjection * vec4(worldPos, 1.0);
+  return clipPos.xyz / clipPos.w;
+}
+
 const WEIGHT_THRESHOLD = 0.02;
 
 @compute @workgroup_size(8, 8, 1)
@@ -119,6 +127,7 @@ fn main(
   let kernelY = (frameIndex / DOWN_SAMPLE_FACTOR) % DOWN_SAMPLE_FACTOR;
   let offsetPixel = id.xy * DOWN_SAMPLE_FACTOR  + vec2<u32>(kernelX, kernelY);
   let worldPosSample = textureLoad(worldPosTex, offsetPixel, 0);
+  let depth = worldPosSample.w;
   let worldPos = worldPosSample.xyz;
 
   let normal = textureLoad(normalTex, offsetPixel, 0).xyz;
@@ -173,12 +182,30 @@ fn main(
   }
 
   let light = lightsBuffer[lightIndex];
-  let lightDir = light.position + randomInUnitSphere(r) - worldPos;
+  let lightPos = light.position + randomInUnitSphere(r);
+  let lightDir = lightPos - worldPos;
 
-  let raymarchResult = rayMarchBVHFirstHit(worldPos + normal * 0.001, normalize(lightDir));
-  if(raymarchResult.hit){
+  let lightPosNDC = calculateNDC(lightPos, viewProjections.viewProjection);
+  let lightPosUV = lightPosNDC.xy * 0.5 + 0.5;
+  let resolution = vec2<f32>(textureDimensions(worldPosTex));
+  let uv = vec2<f32>(id.xy) / resolution;
+  let lightDirUV = lightPosUV - uv;
+
+  // Screen space raymarch to check for occlusion
+  for(var t = 0.0; t < length(lightDirUV); t+= length(lightDirUV) / 16.0){
+    let sampleUv = uv + normalize(lightDirUV) * t;
+    let depthSample = textureSampleLevel(worldPosTex, nearestSampler, sampleUv, 0).w;
+    // If the depth sample is closer than the current pixel, the light is occluded
+    if(depthSample < depth){
       bestWeight = 0.0;
+      break;
+    }
   }
+
+//  let raymarchResult = rayMarchBVHFirstHit(worldPos + normal * 0.001, normalize(lightDir));
+//  if(raymarchResult.hit){
+//      bestWeight = 0.0;
+//  }
 
   var currentReservoir = unpackReservoir(textureLoad(inputReservoirTex, offsetPixel, 0));
   var weightDifference = abs(bestWeight - currentReservoir.lightWeight);

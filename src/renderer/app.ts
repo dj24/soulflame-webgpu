@@ -278,6 +278,7 @@ export const init = async (
   );
 
   bvh = new BVH(device, []);
+  debugUI.setupBVHLogging(bvh);
 
   setupCanvasAndTextures();
 
@@ -561,10 +562,6 @@ export const frame = (
 
   getTimeBuffer();
   getSunDirectionBuffer();
-
-  // console.log(
-  //   ecs.getComponents(renderableEntities[1]).get(Transform).position[1],
-  // );
 
   const bvhStart = performance.now();
   // if (lastEntityCount !== renderableEntities.length) {

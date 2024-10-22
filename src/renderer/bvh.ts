@@ -97,6 +97,10 @@ export class BVH {
     return this.#gpuBuffer;
   }
 
+  get sizeInMB() {
+    return (this.#nodes.length * stride) / 1024 / 1024;
+  }
+
   update(boundingBoxes: BoundingBox[]) {
     this.#allLeafNodes = boundingBoxes.map((boundingBox, index) => {
       return {
