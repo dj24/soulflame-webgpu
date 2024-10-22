@@ -1063,6 +1063,7 @@ ${lightsCompute}`;
     let passEncoder: GPUComputePassEncoder;
 
     const temporalPass = () => {
+      commandEncoder.pushDebugGroup("restir temporal");
       passEncoder = commandEncoder.beginComputePass({
         label: "temporal",
         timestampWrites: {
@@ -1083,9 +1084,11 @@ ${lightsCompute}`;
       );
       passEncoder.end();
       passWriteOffset += 2;
+      commandEncoder.popDebugGroup();
     };
 
     const compositePass = () => {
+      commandEncoder.pushDebugGroup("restir composite");
       passEncoder = commandEncoder.beginComputePass({
         label: "composite-pass",
         timestampWrites: {
@@ -1106,9 +1109,11 @@ ${lightsCompute}`;
       );
       passEncoder.end();
       passWriteOffset += 2;
+      commandEncoder.popDebugGroup();
     };
 
     const sampleLightsPass = () => {
+      commandEncoder.pushDebugGroup("restir sample lights");
       passEncoder = commandEncoder.beginComputePass({
         label: "sample-lights",
         timestampWrites: {
@@ -1128,12 +1133,13 @@ ${lightsCompute}`;
         Math.ceil(downscaledHeight / 8),
         1,
       );
-
       passEncoder.end();
       passWriteOffset += 2;
+      commandEncoder.popDebugGroup();
     };
 
     const spatialPass = () => {
+      commandEncoder.pushDebugGroup("restir spatial");
       passEncoder = commandEncoder.beginComputePass({
         label: "spatial-pass",
         timestampWrites: {
@@ -1154,6 +1160,7 @@ ${lightsCompute}`;
       );
       passEncoder.end();
       passWriteOffset += 2;
+      commandEncoder.popDebugGroup();
     };
 
     const copyPass = () => {
@@ -1193,6 +1200,7 @@ ${lightsCompute}`;
     };
 
     const denoisePass = (rate: number) => {
+      commandEncoder.pushDebugGroup(`svgf denoise ${rate}`);
       device.queue.writeBuffer(atrousRateBuffer, 0, new Uint32Array([rate]));
       passEncoder = commandEncoder.beginComputePass({
         label: "denoise-pass",
@@ -1215,9 +1223,11 @@ ${lightsCompute}`;
       passEncoder.end();
       passWriteOffset += 2;
       copyFinalTextureBack();
+      commandEncoder.popDebugGroup();
     };
 
     const variancePass = () => {
+      commandEncoder.pushDebugGroup("svgf variance");
       passEncoder = commandEncoder.beginComputePass({
         label: "variance-pass",
         timestampWrites: {
@@ -1246,6 +1256,7 @@ ${lightsCompute}`;
           height: varianceTexture.height,
         },
       );
+      commandEncoder.popDebugGroup();
     };
 
     const copyFinalTextureBack = () => {

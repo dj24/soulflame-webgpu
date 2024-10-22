@@ -166,6 +166,11 @@ fn tracePixel(pixel: vec2<u32>){
       worldPos = rayOrigin + rayDirection * bvhResult.t;
       normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(bvhResult.normal));
     }
+//    if(rayMarchBVHFirstAABB(rayOrigin, rayDirection)){
+//      albedo = vec3(1.0);
+//      worldPos = rayOrigin + rayDirection * 10.0;
+//      normal = vec3(0.0, 1.0, 0.0);
+//    }
     else{
       albedo = vec3(0.0);
       worldPos = rayOrigin + skyDomeIntersection(rayOrigin, rayDirection) * rayDirection;
@@ -176,6 +181,7 @@ fn tracePixel(pixel: vec2<u32>){
     textureStore(normalTex, pixel, vec4(normal,1));
     textureStore(velocityTex, pixel, vec4(velocity,0,f32(bvhResult.voxelObjectIndex)));
     textureStore(worldPosTex, pixel, vec4(worldPos,bvhResult.t));
+//    textureStore(worldPosTex, pixel, vec4(worldPos,10.0));
 }
 
 @compute @workgroup_size(16, 8, 1)

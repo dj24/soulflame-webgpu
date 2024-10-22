@@ -175,7 +175,7 @@ fn main(
   let light = lightsBuffer[lightIndex];
   let lightDir = light.position + randomInUnitSphere(r) - worldPos;
 
-  let raymarchResult = rayMarchBVH(worldPos + normal * 0.001, normalize(lightDir));
+  let raymarchResult = rayMarchBVHFirstHit(worldPos + normal * 0.001, normalize(lightDir));
   if(raymarchResult.hit){
       bestWeight = 0.0;
   }

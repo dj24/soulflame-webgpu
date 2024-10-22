@@ -164,7 +164,7 @@ const LIGHT_INTENSITY = 50;
 //
 
 let foo = {
-  lightY: 16,
+  lightY: 64,
 };
 
 const debugColours = [
@@ -208,7 +208,7 @@ console.log(lights);
 //   color: vec3.mulScalar(debugColours[2], LIGHT_INTENSITY),
 // });
 
-const folder = (window as any).debugUI.gui.add(foo, "lightY", 0, 64, 1);
+const folder = (window as any).debugUI.gui.add(foo, "lightY", 0, 128, 1);
 
 const setupCanvasAndTextures = () => {
   // if (albedoTexture) {

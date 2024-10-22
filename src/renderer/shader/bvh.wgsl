@@ -79,3 +79,99 @@ fn rayMarchBVH(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult 
 
   return closestIntersection;
 }
+
+// Stack-based BVH traversal, stop at first BLAS hit (mostly used for shadow rays)
+fn rayMarchBVHFirstHit(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarchResult {
+  var stack = stack_new();
+  stack_push(&stack, 0);
+  var iterations = 0;
+
+  while (stack.head > 0u && iterations < MAX_BVH_STEPS) {
+    let nodeIndex = stack_pop(&stack);
+    let node = bvhNodes[nodeIndex];
+    if(node.objectCount > 1){
+      let leftNode = bvhNodes[node.leftIndex];
+      let rightNode = bvhNodes[node.rightIndex];
+      let leftDist = nodeRayIntersection(rayOrigin, rayDirection, leftNode);
+      let rightDist = nodeRayIntersection(rayOrigin, rayDirection, rightNode);
+      let hitLeft = leftDist >= 0.0;
+      let hitRight = rightDist >= 0.0;
+      if(hitLeft && hitRight){
+        if(leftDist < rightDist){
+          // left is closer, push right to stack
+          stack_push(&stack, node.rightIndex);
+          stack_push(&stack, node.leftIndex);
+        } else {
+          // right is closer, push left to stack
+          stack_push(&stack, node.leftIndex);
+          stack_push(&stack, node.rightIndex);
+        }
+      }
+      // We only hit the right Node
+      else if(hitRight){
+        stack_push(&stack, node.rightIndex);
+      }
+      else if(hitLeft){
+        stack_push(&stack, node.leftIndex);
+      }
+    }
+    // valid leaf, raymarch it
+    else if(node.objectCount == 1){
+        let voxelObject = voxelObjects[node.leftIndex];
+        var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, rayOrigin, 9999.0);
+        if(rayMarchResult.hit){
+           return rayMarchResult;
+        }
+    }
+    iterations += 1;
+  }
+  return RayMarchResult();
+}
+
+// Stack-based BVH traversal, stop at first TLAS hit
+fn rayMarchBVHFirstAABB(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> bool {
+  // Create a stack to store the nodes to visit
+  var stack = stack_new();
+  stack_push(&stack, 0);
+
+  var iterations = 0;
+  var closestRayMarchDistance = FAR_PLANE;
+
+  while (stack.head > 0u && iterations < MAX_BVH_STEPS) {
+    let nodeIndex = stack_pop(&stack);
+    let node = bvhNodes[nodeIndex];
+    if(node.objectCount > 1){
+      let leftNode = bvhNodes[node.leftIndex];
+      let rightNode = bvhNodes[node.rightIndex];
+      let leftDist = nodeRayIntersection(rayOrigin, rayDirection, leftNode);
+      let rightDist = nodeRayIntersection(rayOrigin, rayDirection, rightNode);
+      let hitLeft = leftDist >= 0.0;
+      let hitRight = rightDist >= 0.0;
+      if(hitLeft && hitRight){
+        if(leftDist < rightDist){
+          // left is closer, push right to stack
+          stack_push(&stack, node.rightIndex);
+          stack_push(&stack, node.leftIndex);
+        } else {
+          // right is closer, push left to stack
+          stack_push(&stack, node.leftIndex);
+          stack_push(&stack, node.rightIndex);
+        }
+      }
+      // We only hit the right Node
+      else if(hitRight){
+        stack_push(&stack, node.rightIndex);
+      }
+      else if(hitLeft){
+        stack_push(&stack, node.leftIndex);
+      }
+    }
+    // valid leaf, return it
+    else if(node.objectCount == 1){
+        return true;
+    }
+    iterations += 1;
+  }
+
+  return false;
+}
