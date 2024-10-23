@@ -39,7 +39,9 @@ export const createTerrainChunk = async (
   const start = performance.now();
   const name = `Terrain - ${position[0]}, ${position[1]}, ${position[2]}`;
   const uncompressedSize = getMaxSizeOfOctree(size) * OCTREE_STRIDE;
-  let uncompressedArrayBuffer = new SharedArrayBuffer(uncompressedSize);
+  let uncompressedArrayBuffer: SharedArrayBuffer | null = new SharedArrayBuffer(
+    uncompressedSize,
+  );
   const octreeSizeBytes = await createOctreeAndReturnBytes(
     position,
     size,

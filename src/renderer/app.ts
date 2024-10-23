@@ -15,7 +15,7 @@ import { createTextureFromImage } from "webgpu-utils";
 import { VolumeAtlas } from "./volume-atlas";
 import { getFrameTimeTracker } from "./frametime-tracker";
 import { BVH } from "./bvh";
-import { getLightsPass, Light } from "./lights-pass/get-lights-pass";
+import { getLightsPass } from "./lights-pass/get-lights-pass";
 import {
   AlbedoTexture,
   DepthTexture,
@@ -52,6 +52,7 @@ import { getGlobalIlluminationPass } from "@renderer/get-global-illumination/get
 import { copyGBufferTexture } from "@renderer/abstractions/copy-g-buffer-texture";
 import { getBloomPass } from "@renderer/bloom-pass/get-bloom-pass";
 import { getRasterTracePass } from "@renderer/raster-trace/get-raster-trace-pass";
+import { getLightDebugPass } from "@renderer/box-outline/get-light-debug-pass";
 
 export const debugValues = new DebugValuesStore();
 export let gpuContext: GPUCanvasContext;
@@ -101,8 +102,6 @@ export type RenderArgs = {
   blueNoiseTextureView?: GPUTextureView;
   /** Buffer containing the BVH acceleration structure */
   bvhBuffer: GPUBuffer;
-  /** The lights to render */
-  lights: Light[];
   /** The 3D texture atlas */
   volumeAtlas: VolumeAtlas;
   /** Texture sampler for linear filtering */
@@ -134,7 +133,6 @@ export const getViewMatrix = (transform: Transform) => {
 };
 
 let skyTexture: GPUTexture;
-let lights: Light[] = [];
 let computePasses: RenderPass[];
 let normalTexture: GBufferTexture;
 let albedoTexture: GBufferTexture;
@@ -159,10 +157,6 @@ let linearSampler: GPUSampler;
 let nearestSampler: GPUSampler;
 let timestampLabels: string[];
 
-const LIGHT_SIZE = 5;
-const LIGHT_INTENSITY = 50;
-//
-
 let foo = {
   lightY: 64,
 };
@@ -173,62 +167,9 @@ const debugColours = [
   [0, 0, 1],
 ];
 
-for (let x = 0; x < 512; x += 128) {
-  for (let z = 0; z < 512; z += 128) {
-    lights.push({
-      position: [x, 16, z],
-      size: LIGHT_SIZE,
-      color: vec3.mulScalar(
-        vec3.normalize(
-          vec3.create(Math.random(), Math.random(), Math.random()),
-        ),
-        LIGHT_INTENSITY,
-      ),
-    });
-  }
-}
-
-console.log(lights);
-
-// lights.push({
-//   position: [64, 16, 64],
-//   size: LIGHT_SIZE,
-//   color: vec3.mulScalar(debugColours[0], LIGHT_INTENSITY),
-// });
-//
-// lights.push({
-//   position: [192, 16, 64],
-//   size: LIGHT_SIZE,
-//   color: vec3.mulScalar(debugColours[1], LIGHT_INTENSITY),
-// });
-//
-// lights.push({
-//   position: [320, 16, 64],
-//   size: LIGHT_SIZE,
-//   color: vec3.mulScalar(debugColours[2], LIGHT_INTENSITY),
-// });
-
 const folder = (window as any).debugUI.gui.add(foo, "lightY", 0, 128, 1);
 
 const setupCanvasAndTextures = () => {
-  // if (albedoTexture) {
-  //   albedoTexture.texture.destroy();
-  // }
-  // if (normalTexture) {
-  //   normalTexture.texture.destroy();
-  // }
-  // if (depthTexture) {
-  //   depthTexture.texture.destroy();
-  // }
-  // if (velocityTexture) {
-  //   velocityTexture.texture.destroy();
-  // }
-  // if (outputTexture) {
-  //   outputTexture.texture.destroy();
-  // }
-  // if (worldPositionTexture) {
-  //   worldPositionTexture.texture.destroy();
-  // }
   canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
   canvas.style.imageRendering = "pixelated";
   resolution = vec2.create(window.innerWidth, window.innerHeight);
@@ -319,7 +260,8 @@ export const init = async (
     // getLutPass("luts/Reeve 38.CUBE"),
     getVignettePass(10.0),
     fullscreenQuad(device),
-    getBoxOutlinePass(device),
+    // getBoxOutlinePass(device),
+    getLightDebugPass(device),
   ]);
 
   timestampLabels = computePasses.reduce((acc, val) => {
@@ -537,13 +479,6 @@ export const frame = (
     return;
   }
 
-  lights = lights.map((light) => {
-    return {
-      ...light,
-      position: [light.position[0], foo.lightY, light.position[2]],
-    };
-  });
-
   const commandEncoder = device.createCommandEncoder();
   if (startTime === 0) {
     startTime = now;
@@ -632,7 +567,6 @@ export const frame = (
       sunDirectionBuffer,
       blueNoiseTextureView,
       bvhBuffer: bvh.gpuBuffer,
-      lights,
       linearSampler,
       nearestSampler,
       camera,

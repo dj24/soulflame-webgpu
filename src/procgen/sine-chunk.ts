@@ -111,7 +111,7 @@ export const createOctreeAndReturnBytes = async (
     return voxelCaches[depth].get([x, y, z]);
   };
 
-  octree = new Octree(getVoxel, () => 1, Math.max(...size), buffer);
+  octree = new Octree(getVoxel, () => 2, Math.max(...size), buffer);
   // voxelCaches = undefined;
   return octree.totalSizeBytes + OCTREE_STRIDE;
 };

@@ -195,18 +195,6 @@ export class Octree {
       return mask;
     }, 0);
 
-    if (size > 64) {
-      console.log(
-        scaledOffset[0],
-        scaledOffset[1],
-        scaledOffset[2],
-        size,
-        octantFlags,
-        foo,
-        voxel,
-      );
-    }
-
     const totalVoxels = childOctantsVoxelCount.reduce(
       (total, octantVoxels) => total + octantVoxels,
       0,

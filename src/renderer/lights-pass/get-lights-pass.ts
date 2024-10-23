@@ -1,5 +1,4 @@
-import { device, RenderArgs, RenderPass, resolution } from "../app";
-import { Vec3 } from "wgpu-matrix";
+import { RenderArgs, RenderPass, resolution } from "../app";
 import lightsCompute from "./lights.compute.wgsl";
 import restirSpatial from "./restir-spatial.compute.wgsl";
 import restirTemporal from "./restir-temporal.compute.wgsl";
@@ -12,16 +11,10 @@ import computeDenoise from "./denoise.compute.wgsl";
 import computeVariance from "./variance.compute.wgsl";
 import { OUTPUT_TEXTURE_FORMAT } from "@renderer/constants";
 import { getTaaPass } from "@renderer/taa-pass/get-taa-pass";
-import {
-  GBufferTexture,
-  gBufferTextureFactory,
-} from "@renderer/abstractions/g-buffer-texture";
-
-export type Light = {
-  position: [number, number, number];
-  size: number;
-  color: [number, number, number] | Vec3;
-};
+import { gBufferTextureFactory } from "@renderer/abstractions/g-buffer-texture";
+import { Light } from "@renderer/components/light";
+import { Transform } from "@renderer/components/transform";
+import { Vec3 } from "wgpu-matrix";
 
 const LIGHT_BUFFER_STRIDE = 32;
 const DOWNSCALE_FACTOR = 2;
@@ -640,14 +633,24 @@ ${lightsCompute}`;
       commandEncoder,
       outputTextures,
       timestampWrites,
-      lights,
       volumeAtlas,
       transformationMatrixBuffer,
       bvhBuffer,
       blueNoiseTextureView,
       timeBuffer,
       cameraPositionBuffer,
+      ecs,
     } = args;
+
+    let lights: { position: Vec3; color: Vec3 }[] = [];
+    ecs.getEntitiesithComponent(Light).forEach((entity) => {
+      const transform = ecs.getComponents(entity).get(Transform);
+      const light = ecs.getComponents(entity).get(Light);
+      lights.push({
+        position: transform.position,
+        color: light.color,
+      });
+    });
 
     if (!svgfConfigBuffer) {
       svgfConfigBuffer = device.createBuffer({

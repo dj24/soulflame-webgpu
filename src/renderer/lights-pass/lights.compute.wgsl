@@ -69,12 +69,10 @@ fn unpackReservoir(reservoir: vec4<f32>) -> Reservoir {
 @group(2) @binding(0) var inputReservoirTex : texture_2d<f32>;
 @group(3) @binding(0) var<uniform> viewProjections : ViewProjectionMatrices;
 
-const CONSTANT_ATTENUATION = 0.0;
-const LINEAR_ATTENUATION = 0.1;
 const QUADRATIC_ATTENUATION = 0.1;
-const LIGHT_COUNT = 16;
+const LIGHT_COUNT = 32;
 const SAMPLES_PER_FRAME = 8;
-const MAX_BINARY_SEARCH_ITERATIONS = 16;
+const MAX_BINARY_SEARCH_ITERATIONS = 32;
 
 fn binarySearchCDF(CDF: array<f32, LIGHT_COUNT>, randomValue: f32)-> u32 {
   var low = 0u;
@@ -112,7 +110,10 @@ fn getLightWeight(lightPos: vec3<f32>, lightColour: vec3<f32>, worldPos: vec3<f3
 
 fn calculateNDC(worldPos: vec3<f32>, viewProjection: mat4x4<f32>) -> vec3<f32> {
   let clipPos = viewProjection * vec4(worldPos, 1.0);
-  return clipPos.xyz / clipPos.w;
+  var ndc = clipPos.xyz / clipPos.w;
+  ndc.x = -ndc.x;
+  ndc.y = -ndc.y;
+  return ndc;
 }
 
 const WEIGHT_THRESHOLD = 0.02;
@@ -185,48 +186,11 @@ fn main(
   let lightPos = light.position + randomInUnitSphere(r);
   let lightDir = lightPos - worldPos;
 
-  let lightPosNDC = calculateNDC(lightPos, viewProjections.viewProjection);
-  let lightPosUV = lightPosNDC.xy * 0.5 + 0.5;
-  let resolution = vec2<f32>(textureDimensions(worldPosTex));
-  let uv = vec2<f32>(offsetPixel) / resolution;
-  let ndc = calculateNDC(worldPos, viewProjections.viewProjection);
-  let lightDirUV = lightPosUV - uv;
-
-  let worldPosSampleAtLight = textureSampleLevel(worldPosTex, nearestSampler, lightPosUV, 0);
-  let ndcAtLight = calculateNDC(worldPosSampleAtLight.xyz, viewProjections.viewProjection);
-  let isLightValid = all(ndcAtLight.xy > vec2<f32>(0.0)) && all(ndcAtLight.xy < vec2<f32>(1.0)) && ndcAtLight.z > 0.0;
-
-  // Screen space raymarch to check for occlusion
-  if(uv.x < 0.5){
-    if(!isLightValid){
+  let raymarchResult = rayMarchBVHFirstHit(worldPos + normal * 0.001, normalize(lightDir));
+  if(raymarchResult.hit){
       bestWeight = 0.0;
-    }
-    else{
-      for(var t = 0.0; t < length(lightDir); t+= length(lightDir) / 256.0){
-        let rayPos = worldPos + normal * 0.0001 + normalize(lightDir) * t;
-        let rayNDC = calculateNDC(rayPos, viewProjections.viewProjection);
-        // If the sample is outside the screen, break
-        if(any(rayNDC.xy < vec2<f32>(-1.0)) || any(rayNDC.xy > vec2<f32>(1.0))){
-          bestWeight = 0.0;
-          break;
-        }
-        let sampleUv = rayNDC.xy * 0.5 + 0.5;
-        let worldPosSample = textureSampleLevel(worldPosTex, nearestSampler, sampleUv, 0);
-        let ndcSample = calculateNDC(worldPosSample.xyz, viewProjections.viewProjection);
-        // If the position buffer is behind the current position, break
-        if(rayNDC.z > ndcSample.z){
-          bestWeight = 0.0;
-          break;
-        }
-      }
-    }
   }
-  else{
-    let raymarchResult = rayMarchBVHFirstHit(worldPos + normal * 0.001, normalize(lightDir));
-    if(raymarchResult.hit && uv.x > 0.5){
-        bestWeight = 0.0;
-    }
-  }
+
 
 
 

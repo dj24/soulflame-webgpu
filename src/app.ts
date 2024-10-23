@@ -13,8 +13,34 @@ import { TerrainSingleton } from "./procgen/components/terrain-singleton";
 import { VelocitySystem } from "./systems/velocity-system";
 import { Velocity } from "./components/velocity";
 import { MouseScrollZoomSystem } from "@input/systems/mouse-scroll-zoom-system";
+import { Light } from "@renderer/components/light";
+
+const LIGHT_INTENSITY = 50;
 
 const ecs = new ECS();
+
+// Lights
+for (let x = 0; x < 512; x += 128) {
+  for (let z = 0; z < 512; z += 128) {
+    const newEntity = ecs.addEntity();
+    ecs.addComponents(
+      newEntity,
+      new Transform(
+        vec3.create(x, 84, z),
+        quat.fromEuler(0, 0, 0, "xyz"),
+        vec3.create(128, 128, 128),
+      ),
+      new Light(
+        vec3.mulScalar(
+          vec3.normalize(
+            vec3.create(Math.random(), Math.random(), Math.random()),
+          ),
+          LIGHT_INTENSITY,
+        ),
+      ),
+    );
+  }
+}
 
 // Systems
 ecs.addSystem(new KeyboardControl());
@@ -35,7 +61,7 @@ ecs.addComponents(
   camera,
   new Camera({ fieldOfView: 70 * (Math.PI / 180), near: 0.5, far: 10000 }),
   new Transform(
-    vec3.create(-48, 64, -48),
+    vec3.create(-48, 84, -48),
     quat.fromEuler(0, 45 * (Math.PI / 180), 0, "xyz"),
     vec3.create(1, 1, 1),
   ),
