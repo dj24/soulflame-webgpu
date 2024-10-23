@@ -188,24 +188,47 @@ fn main(
   let lightPosNDC = calculateNDC(lightPos, viewProjections.viewProjection);
   let lightPosUV = lightPosNDC.xy * 0.5 + 0.5;
   let resolution = vec2<f32>(textureDimensions(worldPosTex));
-  let uv = vec2<f32>(id.xy) / resolution;
+  let uv = vec2<f32>(offsetPixel) / resolution;
+  let ndc = calculateNDC(worldPos, viewProjections.viewProjection);
   let lightDirUV = lightPosUV - uv;
 
+  let worldPosSampleAtLight = textureSampleLevel(worldPosTex, nearestSampler, lightPosUV, 0);
+  let ndcAtLight = calculateNDC(worldPosSampleAtLight.xyz, viewProjections.viewProjection);
+  let isLightValid = all(ndcAtLight.xy > vec2<f32>(0.0)) && all(ndcAtLight.xy < vec2<f32>(1.0)) && ndcAtLight.z > 0.0;
+
   // Screen space raymarch to check for occlusion
-  for(var t = 0.0; t < length(lightDirUV); t+= length(lightDirUV) / 16.0){
-    let sampleUv = uv + normalize(lightDirUV) * t;
-    let depthSample = textureSampleLevel(worldPosTex, nearestSampler, sampleUv, 0).w;
-    // If the depth sample is closer than the current pixel, the light is occluded
-    if(depthSample < depth){
+  if(uv.x < 0.5){
+    if(!isLightValid){
       bestWeight = 0.0;
-      break;
+    }
+    else{
+      for(var t = 0.0; t < length(lightDir); t+= length(lightDir) / 256.0){
+        let rayPos = worldPos + normal * 0.0001 + normalize(lightDir) * t;
+        let rayNDC = calculateNDC(rayPos, viewProjections.viewProjection);
+        // If the sample is outside the screen, break
+        if(any(rayNDC.xy < vec2<f32>(-1.0)) || any(rayNDC.xy > vec2<f32>(1.0))){
+          bestWeight = 0.0;
+          break;
+        }
+        let sampleUv = rayNDC.xy * 0.5 + 0.5;
+        let worldPosSample = textureSampleLevel(worldPosTex, nearestSampler, sampleUv, 0);
+        let ndcSample = calculateNDC(worldPosSample.xyz, viewProjections.viewProjection);
+        // If the position buffer is behind the current position, break
+        if(rayNDC.z > ndcSample.z){
+          bestWeight = 0.0;
+          break;
+        }
+      }
+    }
+  }
+  else{
+    let raymarchResult = rayMarchBVHFirstHit(worldPos + normal * 0.001, normalize(lightDir));
+    if(raymarchResult.hit && uv.x > 0.5){
+        bestWeight = 0.0;
     }
   }
 
-//  let raymarchResult = rayMarchBVHFirstHit(worldPos + normal * 0.001, normalize(lightDir));
-//  if(raymarchResult.hit){
-//      bestWeight = 0.0;
-//  }
+
 
   var currentReservoir = unpackReservoir(textureLoad(inputReservoirTex, offsetPixel, 0));
   var weightDifference = abs(bestWeight - currentReservoir.lightWeight);
