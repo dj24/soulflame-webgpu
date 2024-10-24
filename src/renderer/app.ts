@@ -35,7 +35,6 @@ import { Transform } from "@renderer/components/transform";
 import {
   getVoxelObjectBoundingBox,
   VoxelObject,
-  voxelObjectToArray,
   voxelObjectToDataView,
 } from "@renderer/voxel-object";
 import { ECS, Entity } from "@ecs/ecs";
@@ -272,7 +271,6 @@ export const init = async (
   }, []);
 
   debugUI.setupDebugControls(computePasses);
-  debugUI.setupOctreeLogging(volumeAtlas);
 
   linearSampler = device.createSampler({
     magFilter: "linear",

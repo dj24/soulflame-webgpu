@@ -48,7 +48,6 @@ ecs.addSystem(new Renderer());
 ecs.addSystem(new GamepadKinematicBoxControl());
 ecs.addSystem(new TerrainSystem());
 ecs.addSystem(new VelocitySystem());
-ecs.addSystem(new MouseScrollZoomSystem());
 
 const singleton = ecs.addEntity();
 ecs.addComponent(singleton, new GPUDeviceSingleton());

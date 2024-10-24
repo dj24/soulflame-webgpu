@@ -62,12 +62,7 @@ export const createTerrainChunk = async (
 
   uncompressedArrayBuffer = null;
 
-  const {
-    size: atlasSize,
-    location,
-    paletteIndex,
-    octreeOffset,
-  } = volumeAtlas.dictionary[name];
+  const { size: atlasSize, octreeOffset } = volumeAtlas.dictionary[name];
 
   const end = performance.now();
   chunkCreationTimes.push(end - start);
@@ -77,8 +72,6 @@ export const createTerrainChunk = async (
   return new VoxelObject({
     name,
     size: atlasSize,
-    atlasLocation: location,
-    paletteIndex,
     octreeBufferIndex: octreeOffset,
   });
 };

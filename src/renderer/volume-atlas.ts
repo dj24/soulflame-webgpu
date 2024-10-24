@@ -1,9 +1,7 @@
 import { Vec3 } from "wgpu-matrix";
 import { VOLUME_ATLAS_FORMAT, VOLUME_MIP_LEVELS } from "./constants";
-import { writeTextureToCanvas } from "./write-texture-to-canvas";
-import { generateOctreeMips } from "./create-3d-texture/generate-octree-mips";
-import { device } from "./app";
 import { Mutex } from "async-mutex";
+import { Controller } from "lil-gui";
 
 const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
   format: VOLUME_ATLAS_FORMAT,
@@ -15,24 +13,19 @@ const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
 };
 
 type VolumeAtlasEntry = {
-  /** The location of the volume in the atlas texture */
-  location: Vec3;
   /** The size of the volume in the atlas texture */
   size: Vec3;
-  /** The y position of the volume in the atlas texture */
-  paletteIndex: number;
   /** The offset of the octree in the octree buffer */
   octreeOffset: number;
   /** The size of the octree in the octree buffer in bytes */
   octreeSizeBytes: number;
-  /** The size of the texture in bytes */
-  textureSizeBytes: number;
 };
 
 export type VolumeAtlasDictionary = {
   [key: string]: VolumeAtlasEntry;
 };
 
+const folder = (window as any).debugUI.gui.addFolder("volume atlas");
 const MIN_VOLUME_SIZE = Math.pow(2, VOLUME_MIP_LEVELS - 1);
 const DEFAULT_ATLAS_SIZE = MIN_VOLUME_SIZE;
 const PALETTE_WIDTH = 256;
@@ -95,6 +88,20 @@ export class VolumeAtlas {
         GPUBufferUsage.COPY_SRC,
       label: "Octree buffer",
     });
+    folder.add(this, "octreeBufferSizeMB").listen().name("octree buffer size");
+    folder.add(
+      {
+        deleteVolume: () => {
+          const keys = Object.keys(this.#dictionary);
+          if (keys.length === 0) {
+            return;
+          }
+          const lastKey = keys[keys.length - 1];
+          this.removeVolume(lastKey);
+        },
+      },
+      "deleteVolume",
+    );
   }
 
   get dictionary() {
@@ -120,13 +127,19 @@ export class VolumeAtlas {
       const octreeSizeBytes = sizeBytes || octreeArrayBuffer.byteLength;
 
       this.#dictionary[label] = {
-        location: [0, 0, 0],
         size: [width, height, depth],
-        paletteIndex: 0,
         octreeOffset: bufferIndexForNewVolume,
         octreeSizeBytes,
-        textureSizeBytes: width * height * depth,
       };
+
+      folder
+        .add(
+          {
+            mb: `${(octreeSizeBytes / 1024 ** 2).toFixed(2)}MB`,
+          },
+          "mb",
+        )
+        .name(label);
 
       // Resize the octree buffer to fit the new data
       const newOctreeBuffer = this.#device.createBuffer({
@@ -158,6 +171,60 @@ export class VolumeAtlas {
       await this.#device.queue.onSubmittedWorkDone();
       this.#octreeBuffer = newOctreeBuffer;
       this.#octreeBuffer.unmap();
+    });
+  };
+
+  removeVolume = async (label: string) => {
+    if (!this.#dictionary[label]) {
+      throw new Error(
+        `Error removing volume from atlas: volume with label ${label} does not exist`,
+      );
+    }
+    const controller = folder.controllers.find(
+      (controller: Controller) => controller._name === label,
+    );
+    console.log(controller, label, folder.controllers[2]);
+    if (controller) {
+      controller.destroy();
+    }
+
+    await this.#mutex.runExclusive(async () => {
+      const commandEncoder = this.#device.createCommandEncoder();
+      const volume = this.#dictionary[label];
+      const octreeSizeBytes = volume.octreeSizeBytes;
+      const bufferIndexForVolume = volume.octreeOffset;
+      const bufferIndexForNextVolume = bufferIndexForVolume + octreeSizeBytes;
+
+      const newOctreeBuffer = this.#device.createBuffer({
+        label: "Octree buffer",
+        size: this.#octreeBuffer.size - octreeSizeBytes,
+        usage: this.#octreeBuffer.usage,
+      });
+
+      // write data before the volume to the new buffer
+      commandEncoder.copyBufferToBuffer(
+        this.#octreeBuffer,
+        0,
+        newOctreeBuffer,
+        0,
+        bufferIndexForVolume,
+      );
+
+      // write data after the volume to the new buffer
+      commandEncoder.copyBufferToBuffer(
+        this.#octreeBuffer,
+        bufferIndexForNextVolume,
+        newOctreeBuffer,
+        bufferIndexForVolume,
+        this.#octreeBuffer.size - bufferIndexForNextVolume,
+      );
+
+      this.#device.queue.submit([commandEncoder.finish()]);
+
+      await this.#device.queue.onSubmittedWorkDone();
+      this.#octreeBuffer = newOctreeBuffer;
+      this.#octreeBuffer.unmap();
+      delete this.#dictionary[label];
     });
   };
 

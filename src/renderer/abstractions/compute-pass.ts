@@ -5,7 +5,6 @@ import getRayDirection from "../shader/get-ray-direction.wgsl";
 import randomCommon from "../random-common.wgsl";
 import matrices from "../shader/matrices.wgsl";
 import bvh from "../shader/bvh.wgsl";
-import bvhCoarse from "../shader/bvh-coarse.wgsl";
 import { baseBindGroupLayoutEntries } from "./compute-composite-pass";
 import { OUTPUT_TEXTURE_FORMAT } from "../constants";
 
@@ -65,7 +64,6 @@ ${getRayDirection}
 ${boxIntersection}
 ${raymarchVoxels}
 ${bvh}
-${bvhCoarse}
 ${shaderCode}`;
 
   const effectPipeline = device.createComputePipeline({

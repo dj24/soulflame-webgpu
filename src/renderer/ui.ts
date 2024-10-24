@@ -42,11 +42,6 @@ export class DebugUI {
     });
   }
 
-  setupOctreeLogging(atlas: VolumeAtlas) {
-    const octreeFolder = this.gui.addFolder("octree");
-    octreeFolder.add(atlas, "octreeBufferSizeMB").listen();
-  }
-
   setupBVHLogging(bvh: BVH) {
     const bvhFolder = this.gui.addFolder("bvh");
     bvhFolder.add(bvh, "sizeInMB").listen();

@@ -103,17 +103,10 @@ export const processNewVoxelImport = async (
     octreeSizeBytes,
   );
   uncompressedArrayBuffer = null;
-  const {
-    size: atlasSize,
-    location,
-    paletteIndex,
-    octreeOffset,
-  } = volumeAtlas.dictionary[path];
+  const { size: atlasSize, octreeOffset } = volumeAtlas.dictionary[path];
   return new VoxelObject({
     name: path,
     size: atlasSize,
-    atlasLocation: location,
-    paletteIndex,
     octreeBufferIndex: octreeOffset,
   });
 };
@@ -129,14 +122,11 @@ export const createVoxelObject = async (
     await processNewVoxelImport(path, device, volumeAtlas);
   }
 
-  const { size, location, paletteIndex, octreeOffset } =
-    volumeAtlas.dictionary[path];
+  const { size, octreeOffset } = volumeAtlas.dictionary[path];
 
   return new VoxelObject({
     name,
     size,
-    atlasLocation: location,
-    paletteIndex,
     octreeBufferIndex: octreeOffset,
   });
 };

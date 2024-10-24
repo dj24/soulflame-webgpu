@@ -1,9 +1,8 @@
-import { debugValues, device, RenderArgs, RenderPass } from "../app";
+import { device, RenderArgs, RenderPass } from "../app";
 import boxIntersection from "../shader/box-intersection.wgsl";
 import raymarchVoxels from "../shader/raymarch-voxels.wgsl";
 import depth from "../shader/depth.wgsl";
 import bvh from "../shader/bvh.wgsl";
-import bvhCoarse from "../shader/bvh-coarse.wgsl";
 import getRayDirection from "../shader/get-ray-direction.wgsl";
 import randomCommon from "../random-common.wgsl";
 import matrices from "../shader/matrices.wgsl";
@@ -266,7 +265,6 @@ ${boxIntersection}
 ${depth}
 ${raymarchVoxels}
 ${bvh}
-${bvhCoarse}
 ${shaderCode}`;
 
   const effectPipeline = device.createComputePipeline({

@@ -145,7 +145,12 @@ export class ECS {
   // API: Components
 
   public addComponent(entity: Entity, component: Component): void {
-    this.entities.get(entity).add(component);
+    const e = this.entities.get(entity);
+    if (!e) {
+      console.warn("addComponent() called on nonexistent entity.");
+      return;
+    }
+    e.add(component);
     this.checkE(entity);
   }
 
@@ -155,12 +160,17 @@ export class ECS {
     }
   }
 
-  public getComponents(entity: Entity): ComponentContainer {
+  public getComponents(entity: Entity) {
     return this.entities.get(entity);
   }
 
   public removeComponent(entity: Entity, componentClass: Function): void {
-    this.entities.get(entity).delete(componentClass);
+    const components = this.entities.get(entity);
+    if (!components) {
+      console.warn("removeComponent() called on nonexistent entity.");
+      return;
+    }
+    components.delete(componentClass);
     this.checkE(entity);
   }
 
@@ -216,7 +226,11 @@ export class ECS {
     // Remove any entities that were marked for deletion during the
     // update.
     while (this.entitiesToDestroy.length > 0) {
-      this.destroyEntity(this.entitiesToDestroy.pop());
+      const next = this.entitiesToDestroy.pop();
+      if (next === undefined) {
+        break;
+      }
+      this.destroyEntity(next);
     }
     this.lastTime = now;
   }
@@ -238,12 +252,15 @@ export class ECS {
   private checkES(entity: Entity, system: System): void {
     let have = this.entities.get(entity);
     let need = system.componentsRequired;
+    const systems = this.systems.get(system);
+    if (!systems || !have) {
+      return;
+    }
     if (have.hasAll(need)) {
-      // should be in system
-      this.systems.get(system).add(entity); // no-op if in
+      systems.add(entity); // no-op if in
     } else {
       // should not be in system
-      this.systems.get(system).delete(entity); // no-op if out
+      systems.delete(entity); // no-op if out
     }
   }
 
