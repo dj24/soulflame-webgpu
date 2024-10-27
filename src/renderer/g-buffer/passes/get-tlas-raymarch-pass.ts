@@ -7,26 +7,9 @@ import bvh from "../../shader/bvh.wgsl";
 import gBufferRaymarch from "../g-buffer-raymarch.wgsl";
 import depth from "../../shader/depth.wgsl";
 
-export const getSparseRaymarchPipeline = async () => {
-  const timeBufferEntry: GPUBindGroupLayoutEntry = {
-    binding: 1,
-    visibility: GPUShaderStage.COMPUTE,
-    buffer: {
-      type: "uniform",
-    },
-  };
-
-  const blueNoiseEntry: GPUBindGroupLayoutEntry = {
-    binding: 9,
-    visibility: GPUShaderStage.COMPUTE,
-    texture: {
-      sampleType: "float",
-      viewDimension: "2d",
-    },
-  };
-
+export const getTLASRaymarchPass = async () => {
   const normalEntry: GPUBindGroupLayoutEntry = {
-    binding: 4,
+    binding: 1,
     visibility: GPUShaderStage.COMPUTE,
     storageTexture: {
       format: "rgba16float",
@@ -35,7 +18,7 @@ export const getSparseRaymarchPipeline = async () => {
   };
 
   const albedoEntry: GPUBindGroupLayoutEntry = {
-    binding: 5,
+    binding: 2,
     visibility: GPUShaderStage.COMPUTE,
     storageTexture: {
       format: "rgba16float",
@@ -44,7 +27,7 @@ export const getSparseRaymarchPipeline = async () => {
   };
 
   const velocityEntry: GPUBindGroupLayoutEntry = {
-    binding: 7,
+    binding: 3,
     visibility: GPUShaderStage.COMPUTE,
     storageTexture: {
       format: "rgba16float",
@@ -53,7 +36,7 @@ export const getSparseRaymarchPipeline = async () => {
   };
 
   const bvhBufferEntry: GPUBindGroupLayoutEntry = {
-    binding: 10,
+    binding: 5,
     visibility: GPUShaderStage.COMPUTE,
     buffer: {
       type: "read-only-storage",
@@ -69,48 +52,30 @@ export const getSparseRaymarchPipeline = async () => {
     },
   };
 
-  const matricesBufferEntry: GPUBindGroupLayoutEntry = {
-    binding: 3,
-    visibility: GPUShaderStage.COMPUTE,
-    buffer: {
-      type: "read-only-storage",
-    },
-  };
-
-  const octreeBufferEntry: GPUBindGroupLayoutEntry = {
-    binding: 13,
-    visibility: GPUShaderStage.COMPUTE,
-    buffer: {
-      type: "read-only-storage",
-    },
-  };
-
   const bindGroupLayout = device.createBindGroupLayout({
-    label: "raymarch g-buffer",
+    label: "raymarch tlas",
     entries: [
-      timeBufferEntry,
+      // Camera position
       {
-        binding: 2,
+        binding: 0,
         visibility: GPUShaderStage.COMPUTE,
         buffer: {
           type: "uniform",
         },
       },
-      matricesBufferEntry,
       normalEntry,
       albedoEntry,
       velocityEntry,
+      // View projections
       {
-        binding: 8,
+        binding: 4,
         visibility: GPUShaderStage.COMPUTE,
         buffer: {
           type: "uniform",
         },
       },
       bvhBufferEntry,
-      octreeBufferEntry,
       worldPosEntry,
-      blueNoiseEntry,
     ],
   });
 
@@ -122,25 +87,15 @@ export const getSparseRaymarchPipeline = async () => {
     compute: {
       module: device.createShaderModule({
         code: `
-          struct Time {
-            frame: u32,
-            deltaTime: f32
-          };
-          @group(0) @binding(1) var<uniform> time : Time;
-          @group(0) @binding(2) var<uniform> cameraPosition : vec3<f32>;
-          @group(0) @binding(3) var<storage> voxelObjects : array<VoxelObject>;
-          @group(0) @binding(4) var normalTex : texture_storage_2d<rgba16float, write>;
-          @group(0) @binding(5) var albedoTex : texture_storage_2d<rgba16float, write>;
-          @group(0) @binding(6) var worldPosTex : texture_storage_2d<rgba32float, write>;
-          @group(0) @binding(7) var velocityTex : texture_storage_2d<rgba16float, write>;
-          @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;
-          @group(0) @binding(9) var blueNoiseTex : texture_2d<f32>;
-          @group(0) @binding(10) var<storage> bvhNodes: array<BVHNode>;
-          @group(0) @binding(13) var<storage> octreeBuffer : array<vec2<u32>>;
-          ${randomCommon}
+          @group(0) @binding(0) var<uniform> cameraPosition : vec3<f32>;
+          @group(0) @binding(1) var normalTex : texture_storage_2d<rgba16float, write>;
+          @group(0) @binding(2) var albedoTex : texture_storage_2d<rgba16float, write>;
+          @group(0) @binding(3) var worldPosTex : texture_storage_2d<rgba32float, write>;
+          @group(0) @binding(4) var velocityTex : texture_storage_2d<rgba16float, write>;
+          @group(0) @binding(5) var<uniform> viewProjections : ViewProjectionMatrices;
+          @group(0) @binding(6) var<storage> bvhNodes: array<BVHNode>;
           ${getRayDirection}
           ${boxIntersection}
-          ${raymarchVoxels}
           ${bvh}
           ${depth}
           ${gBufferRaymarch}`,
@@ -149,75 +104,57 @@ export const getSparseRaymarchPipeline = async () => {
     },
   });
 
+  const getBindGroup = (renderArgs: RenderArgs) => {
+    return device.createBindGroup({
+      layout: bindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: {
+            buffer: renderArgs.cameraPositionBuffer,
+          },
+        },
+        {
+          binding: 1,
+          resource: renderArgs.outputTextures.normalTexture.view,
+        },
+        {
+          binding: 2,
+          resource: renderArgs.outputTextures.albedoTexture.view,
+        },
+        {
+          binding: 3,
+          resource: renderArgs.outputTextures.worldPositionTexture.view,
+        },
+        {
+          binding: 4,
+          resource: renderArgs.outputTextures.velocityTexture.view,
+        },
+        {
+          binding: 5,
+          resource: {
+            buffer: renderArgs.viewProjectionMatricesBuffer,
+          },
+        },
+        {
+          binding: 6,
+          resource: {
+            buffer: renderArgs.bvhBuffer,
+          },
+        },
+      ],
+    });
+  };
+
   let bindGroup: GPUBindGroup;
 
   const enqueuePass = (
     computePass: GPUComputePassEncoder,
     renderArgs: RenderArgs,
   ) => {
-    // if (!bindGroup) {
-    bindGroup = device.createBindGroup({
-      layout: bindGroupLayout,
-      entries: [
-        {
-          binding: 1,
-          resource: {
-            buffer: renderArgs.timeBuffer,
-          },
-        },
-        {
-          binding: 2,
-          resource: {
-            buffer: renderArgs.cameraPositionBuffer,
-          },
-        },
-        {
-          binding: 3,
-          resource: {
-            buffer: renderArgs.transformationMatrixBuffer,
-          },
-        },
-        {
-          binding: 4,
-          resource: renderArgs.outputTextures.normalTexture.view,
-        },
-        {
-          binding: 5,
-          resource: renderArgs.outputTextures.albedoTexture.view,
-        },
-        {
-          binding: 6,
-          resource: renderArgs.outputTextures.worldPositionTexture.view,
-        },
-        {
-          binding: 7,
-          resource: renderArgs.outputTextures.velocityTexture.view,
-        },
-        {
-          binding: 8,
-          resource: {
-            buffer: renderArgs.viewProjectionMatricesBuffer,
-          },
-        },
-        {
-          binding: 9,
-          resource: renderArgs.blueNoiseTextureView,
-        },
-        {
-          binding: 10,
-          resource: {
-            buffer: renderArgs.bvhBuffer,
-          },
-        },
-        {
-          binding: 13,
-          resource: {
-            buffer: renderArgs.volumeAtlas.octreeBuffer,
-          },
-        },
-      ],
-    });
-    // }
+    if (!bindGroup) {
+      bindGroup = getBindGroup(renderArgs);
+    }
     // Raymarch the scene
     computePass.setPipeline(pipeline);
     computePass.setBindGroup(0, bindGroup);

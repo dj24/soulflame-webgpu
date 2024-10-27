@@ -1,6 +1,5 @@
 import { device, RenderPass, RenderArgs } from "../app";
 import { GBufferTexture } from "../abstractions/g-buffer-texture";
-import { getWorldPosReconstructionPipeline } from "./passes/get-world-pos-reconstruction-pass";
 import { getSparseRaymarchPipeline } from "./passes/get-sparse-raymarch-pass";
 import {
   copyGBufferTexture,
@@ -25,15 +24,6 @@ const ceilToNearestMultipleOf = (n: number, multiple: number) => {
 
 export const getGBufferPass = async (): Promise<RenderPass> => {
   const sparseRayMarch = await getSparseRaymarchPipeline();
-
-  let copyTextures: Partial<
-    Record<keyof OutputTextures, GBufferTexture | null>
-  > = {
-    albedoTexture: null,
-    velocityTexture: null,
-    depthTexture: null,
-    normalTexture: null,
-  };
 
   let counterBuffer: GPUBuffer;
   let indirectBuffer: GPUBuffer;
@@ -71,13 +61,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           GPUBufferUsage.COPY_SRC,
       });
     }
-
-    Object.keys(copyTextures).forEach((key: keyof OutputTextures) => {
-      const source = renderArgs.outputTextures[key] as GBufferTexture;
-      if (copyTextures[key] === null) {
-        copyTextures[key] = createCopyOfGBufferTexture(device, source);
-      }
-    });
 
     const { commandEncoder, timestampWrites } = renderArgs;
 
