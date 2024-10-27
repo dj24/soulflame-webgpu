@@ -1,10 +1,7 @@
 import { device, RenderPass, RenderArgs } from "../app";
 import { GBufferTexture } from "../abstractions/g-buffer-texture";
 import { getSparseRaymarchPipeline } from "./passes/get-sparse-raymarch-pass";
-import {
-  copyGBufferTexture,
-  createCopyOfGBufferTexture,
-} from "../abstractions/copy-g-buffer-texture";
+import { getTLASRaymarchPass } from "@renderer/g-buffer/passes/get-tlas-raymarch-pass";
 
 export type OutputTextures = {
   finalTexture: GBufferTexture;
@@ -24,6 +21,8 @@ const ceilToNearestMultipleOf = (n: number, multiple: number) => {
 
 export const getGBufferPass = async (): Promise<RenderPass> => {
   const sparseRayMarch = await getSparseRaymarchPipeline();
+  const { enqueuePass: renderTLAS, outputTexture: TLASTexture } =
+    await getTLASRaymarchPass();
 
   let counterBuffer: GPUBuffer;
   let indirectBuffer: GPUBuffer;
@@ -70,6 +69,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
 
     // Sparse raymarch
     let computePass = commandEncoder.beginComputePass({ timestampWrites });
+    renderTLAS(computePass, renderArgs);
     sparseRayMarch(computePass, renderArgs);
     computePass.end();
   };
