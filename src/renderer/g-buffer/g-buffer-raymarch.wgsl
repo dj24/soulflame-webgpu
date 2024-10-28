@@ -127,6 +127,7 @@ fn skyDomeIntersection(ro: vec3<f32>, rd: vec3<f32>) -> f32 {
 
 const BLUE_NOISE_SIZE = 511;
 
+
 fn tracePixel(pixel: vec2<u32>){
    let resolution = textureDimensions(albedoTex);
    var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
@@ -159,18 +160,33 @@ fn tracePixel(pixel: vec2<u32>){
     var normal = vec3(0.0);
     var albedo = vec3(0.0);
     var velocity = vec2(0.0);
-    let bvhResult = rayMarchBVH(rayOrigin, rayDirection);
-    if(bvhResult.hit){
-      let voxelObject = voxelObjects[bvhResult.voxelObjectIndex];
-      albedo = bvhResult.colour;
-      worldPos = rayOrigin + rayDirection * bvhResult.t;
-      normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(bvhResult.normal));
+
+    var TLASVolumeSize = textureDimensions(TLASTex);
+    closestIntersection.t = FAR_PLANE;
+    var iterations = 0;
+    var closestRayMarchDistance = FAR_PLANE;
+    let TLASIdx = pixel.xy / 4;
+
+
+    // Loop through TLAS volume created in previous pass
+    for(var i = 0u; i < 16; i++){
+      let voxelObjectIndex = textureLoad(TLASTex, vec3(TLASIdx, i), 0).x;
+      if(voxelObjectIndex == 0){
+        break;
+      }
+      let voxelObject = voxelObjects[voxelObjectIndex];
+      var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, rayOrigin, 9999.0);
+      if(rayMarchResult.hit && rayMarchResult.t < closestIntersection.t){
+         closestIntersection = rayMarchResult;
+      }
     }
-//    if(rayMarchBVHFirstAABB(rayOrigin, rayDirection)){
-//      albedo = vec3(1.0);
-//      worldPos = rayOrigin + rayDirection * 10.0;
-//      normal = vec3(0.0, 1.0, 0.0);
-//    }
+
+    if(closestIntersection.hit){
+      let voxelObject = voxelObjects[closestIntersection.voxelObjectIndex];
+      albedo = closestIntersection.colour;
+      worldPos = rayOrigin + rayDirection * closestIntersection.t;
+      normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(closestIntersection.normal));
+    }
     else{
       albedo = vec3(0.0);
       worldPos = rayOrigin + skyDomeIntersection(rayOrigin, rayDirection) * rayDirection;
@@ -179,8 +195,8 @@ fn tracePixel(pixel: vec2<u32>){
 
     textureStore(albedoTex, pixel, vec4(albedo, 1));
     textureStore(normalTex, pixel, vec4(normal,1));
-    textureStore(velocityTex, pixel, vec4(velocity,0,f32(bvhResult.voxelObjectIndex)));
-    textureStore(worldPosTex, pixel, vec4(worldPos,bvhResult.t));
+    textureStore(velocityTex, pixel, vec4(velocity,0,f32(closestIntersection.voxelObjectIndex)));
+    textureStore(worldPosTex, pixel, vec4(worldPos,closestIntersection.t));
 //    textureStore(worldPosTex, pixel, vec4(worldPos,10.0));
 }
 
