@@ -165,7 +165,7 @@ fn tracePixel(pixel: vec2<u32>){
     closestIntersection.t = FAR_PLANE;
     var iterations = 0;
     var closestRayMarchDistance = FAR_PLANE;
-    let TLASIdx = pixel.xy / 4;
+    let TLASIdx = pixel.xy / 6;
 
 
     // Loop through TLAS volume created in previous pass

@@ -119,8 +119,8 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       if (!TLASTexture) {
         TLASTexture = device.createTexture({
           size: {
-            width: Math.ceil(resolution[0] / 4),
-            height: Math.ceil(resolution[1] / 4),
+            width: Math.ceil(resolution[0] / 6),
+            height: Math.ceil(resolution[1] / 6),
             depthOrArrayLayers: 16,
           },
           format: "r32uint",
@@ -163,8 +163,8 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       computePass.setPipeline(pipeline);
       computePass.setBindGroup(0, bindGroup);
       const downsampledResolution = [
-        Math.ceil(resolution[0] / 4),
-        Math.ceil(resolution[1] / 4),
+        Math.ceil(resolution[0] / 6),
+        Math.ceil(resolution[1] / 6),
       ];
       computePass.dispatchWorkgroups(
         Math.ceil(downsampledResolution[0] / 8),
