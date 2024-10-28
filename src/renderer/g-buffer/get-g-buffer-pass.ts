@@ -64,7 +64,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           binding: 3,
           visibility: GPUShaderStage.COMPUTE,
           storageTexture: {
-            format: "r32uint",
+            format: "r32sint",
             access: "write-only",
             viewDimension: "3d",
           },
@@ -99,7 +99,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           @group(0) @binding(0) var<uniform> cameraPosition : vec3<f32>;
           @group(0) @binding(1) var<uniform> viewProjections : ViewProjectionMatrices;
           @group(0) @binding(2) var<storage> bvhNodes: array<BVHNode>;
-          @group(0) @binding(3) var outputTex : texture_storage_3d<r32uint, write>;
+          @group(0) @binding(3) var outputTex : texture_storage_3d<r32sint, write>;
           ${getRayDirection}
           ${boxIntersection}
           ${depth}
@@ -123,7 +123,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
             height: Math.ceil(resolution[1] / 6),
             depthOrArrayLayers: 16,
           },
-          format: "r32uint",
+          format: "r32sint",
           dimension: "3d",
           usage:
             GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
@@ -281,13 +281,20 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           binding: 11,
           visibility: GPUShaderStage.COMPUTE,
           texture: {
-            sampleType: "uint",
+            sampleType: "sint",
             viewDimension: "3d",
           },
         },
         octreeBufferEntry,
         worldPosEntry,
         blueNoiseEntry,
+        {
+          binding: 12,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: {
+            type: "uniform",
+          },
+        },
       ],
     });
 
@@ -313,8 +320,9 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;
           @group(0) @binding(9) var blueNoiseTex : texture_2d<f32>;
           @group(0) @binding(10) var<storage> bvhNodes: array<BVHNode>;
-          @group(0) @binding(11) var TLASTex : texture_3d<u32>;
+          @group(0) @binding(11) var TLASTex : texture_3d<i32>;
           @group(0) @binding(13) var<storage> octreeBuffer : array<vec2<u32>>;
+          @group(0) @binding(12) var<uniform> TLASIndex: u32;
           
           ${randomCommon}
           ${getRayDirection}
@@ -329,11 +337,21 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     });
 
     let bindGroup: GPUBindGroup;
+    let TLASIndexBuffer = device.createBuffer({
+      size: 4,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
 
     const enqueuePass = (
       computePass: GPUComputePassEncoder,
       renderArgs: RenderArgs,
+      TLASTextureZ: number,
     ) => {
+      renderArgs.device.queue.writeBuffer(
+        TLASIndexBuffer,
+        0,
+        new Uint32Array([TLASTextureZ]),
+      );
       // if (!bindGroup) {
       bindGroup = device.createBindGroup({
         layout: bindGroupLayout,
@@ -393,6 +411,12 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
             resource: TLASTextureView,
           },
           {
+            binding: 12,
+            resource: {
+              buffer: TLASIndexBuffer,
+            },
+          },
+          {
             binding: 13,
             resource: {
               buffer: renderArgs.volumeAtlas.octreeBuffer,
@@ -438,7 +462,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       device.queue.writeBuffer(indirectBuffer, 0, uint32, 0, uint32.length);
 
       const { width, height } = renderArgs.outputTextures.finalTexture;
-      const maxScreenRays = (width / 3) * (height / 3);
+      const maxScreenRays = width * height;
       const bufferSizeBytes = ceilToNearestMultipleOf(maxScreenRays * 4, 4);
       screenRayBuffer = device.createBuffer({
         size: bufferSizeBytes,
@@ -467,7 +491,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         endOfPassWriteIndex: renderArgs.timestampWrites.endOfPassWriteIndex + 2,
       },
     });
-    sparseRayMarch(computePass, renderArgs);
+    sparseRayMarch(computePass, renderArgs, 0);
     computePass.end();
   };
 

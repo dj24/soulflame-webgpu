@@ -77,7 +77,7 @@ fn main(
       }
       // valid leaf, raymarch it
       else if(node.objectCount == 1){
-        textureStore(outputTex, vec3(idx.xy, u32(hitLeafIndex)), vec4(u32(node.leftIndex)));
+        textureStore(outputTex, vec3(idx.xy, u32(hitLeafIndex)), vec4(i32(node.leftIndex)));
         hitLeafIndex += 1;
       }
       iterations += 1;
