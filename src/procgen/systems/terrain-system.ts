@@ -39,37 +39,14 @@ const foo = async (ecs: ECS) => {
   }
 
   const assignChunkToWorker = async ([x, y, z]: number[], index: number) => {
-    const newEntity = ecs.addEntity();
-    const terrainVoxels = await createTerrainChunk(
+    await createTerrainChunk(
+      ecs,
       volumeAtlas,
       chunkWidth,
       [x, y, z],
       [chunkWidth, chunkWidth, chunkWidth],
       terrainWorkerFunctions[index].createOctreeAndReturnBytes,
     );
-    // Skip empty chunks
-    if (!terrainVoxels) {
-      return index;
-    }
-    ecs.addComponent(newEntity, terrainVoxels);
-    const transform = new Transform(
-      [x, y - 128, z],
-      quat.fromEuler(0, 0, 0, "xyz"),
-      [0, 0, 0],
-    );
-    animate(
-      (progress) => {
-        transform.scale = [progress, progress, progress];
-        transform.position = [x, y - (1 - progress) * 128, z];
-      },
-      {
-        duration: 1.0,
-        easing: spring({
-          damping: 100,
-        }),
-      },
-    );
-    ecs.addComponent(newEntity, transform);
     return index;
   };
 

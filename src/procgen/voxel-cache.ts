@@ -32,6 +32,8 @@ export class VoxelCache {
   cache: Uint8Array;
   private readonly size: [number, number, number];
   private readonly getVoxel: GetVoxel;
+  boundsMin: Vec3;
+  boundsMax: Vec3;
 
   constructor(args: VoxelCacheConstructorArgs) {
     // If cache is provided, use it
@@ -45,8 +47,8 @@ export class VoxelCache {
     this.getVoxel = getVoxel;
     this.cache = new Uint8Array(size[0] * size[1] * size[2] * STRIDE);
     let isSolid = true;
-    let min: (null | number)[] = [null, null, null];
-    let max: (null | number)[] = [null, null, null];
+    this.boundsMin = [Infinity, Infinity, Infinity];
+    this.boundsMax = [-Infinity, -Infinity, -Infinity];
     for (let x = 0; x < size[0]; x++) {
       for (let y = 0; y < size[1]; y++) {
         for (let z = 0; z < size[2]; z++) {
@@ -56,33 +58,23 @@ export class VoxelCache {
             isSolid = false;
             continue;
           }
-          if (min[0] === null) {
-            min = [x, y, z];
-            max = [x, y, z];
-          } else {
-            min = [
-              Math.min(min[0], x),
-              Math.min(min[1], y),
-              Math.min(min[2], z),
-            ];
-            max = [
-              Math.max(max[0], x),
-              Math.max(max[1], y),
-              Math.max(max[2], z),
-            ];
-          }
+          this.boundsMin = [
+            Math.min(this.boundsMin[0], x),
+            Math.min(this.boundsMin[1], y),
+            Math.min(this.boundsMin[2], z),
+          ];
+          this.boundsMax = [
+            Math.max(this.boundsMax[0], x),
+            Math.max(this.boundsMax[1], y),
+            Math.max(this.boundsMax[2], z),
+          ];
+
           this.cache[index * STRIDE] = voxel.red;
           this.cache[index * STRIDE + 1] = voxel.green;
           this.cache[index * STRIDE + 2] = voxel.blue;
         }
       }
     }
-    const extents = [
-      max[0] - min[0] + 1,
-      max[1] - min[1] + 1,
-      max[2] - min[2] + 1,
-    ];
-    console.log(extents);
     if (!isSolid) {
       return;
     }

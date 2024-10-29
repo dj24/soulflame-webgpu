@@ -3,7 +3,7 @@ const MAX_RAY_STEPS = 256;
 const FAR_PLANE = 10000.0;
 const NEAR_PLANE = 0.5;
 const STACK_LEN: u32 = 32u;
-const MAX_STEPS = 256;
+const MAX_STEPS = 128;
 
 // Function to transform a normal vector from object to world space
 fn transformNormal(inverseTransform: mat4x4<f32>, normal: vec3<f32>) -> vec3<f32> {

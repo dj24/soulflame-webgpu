@@ -1,9 +1,17 @@
 import { VolumeAtlas } from "@renderer/volume-atlas";
 import { wrap } from "comlink";
 import { VoxelObject } from "@renderer/voxel-object";
-import { CHUNK_HEIGHT, TerrainWorker } from "./sine-chunk";
+import {
+  CHUNK_HEIGHT,
+  createOctreeAndReturnBytes,
+  TerrainWorker,
+} from "./sine-chunk";
 import { OCTREE_STRIDE } from "@renderer/octree/octree";
 import { DebugUI } from "@renderer/ui";
+import { ECS } from "@ecs/ecs";
+import { Transform } from "@renderer/components/transform";
+import { quat } from "wgpu-matrix";
+import { animate, spring } from "motion";
 
 let chunkCreationTimes: number[] = [];
 
@@ -26,32 +34,33 @@ export const getMaxSizeOfOctree = (size: [number, number, number]) => {
 };
 
 export const createTerrainChunk = async (
+  ecs: ECS,
   volumeAtlas: VolumeAtlas,
   width: number,
   position: [number, number, number],
   size: [number, number, number],
-  createOctreeAndReturnBytes: (
-    position: [number, number, number],
-    size: [number, number, number],
-    buffer: SharedArrayBuffer,
-  ) => Promise<number>,
+  createOctree: typeof createOctreeAndReturnBytes,
 ) => {
+  const newEntity = ecs.addEntity();
+  const [x, y, z] = position;
   const start = performance.now();
-  const name = `Terrain - ${position[0]}, ${position[1]}, ${position[2]}`;
+  const name = `Terrain - ${x}, ${y}, ${z}`;
   const uncompressedSize = getMaxSizeOfOctree(size) * OCTREE_STRIDE;
   let uncompressedArrayBuffer: SharedArrayBuffer | null = new SharedArrayBuffer(
     uncompressedSize,
   );
-  const octreeSizeBytes = await createOctreeAndReturnBytes(
-    position,
-    size,
-    uncompressedArrayBuffer,
-  );
+  const {
+    bytes: octreeSizeBytes,
+    boundsMin,
+    boundsMax,
+  } = await createOctree(position, size, uncompressedArrayBuffer);
 
   // Only one node, skip the octree
   if (octreeSizeBytes <= 16) {
     return;
   }
+
+  const extentY = 1 + boundsMax[1] - boundsMin[1];
 
   await volumeAtlas.addVolume(
     name,
@@ -61,17 +70,33 @@ export const createTerrainChunk = async (
   );
 
   uncompressedArrayBuffer = null;
-
   const { size: atlasSize, octreeOffset } = volumeAtlas.dictionary[name];
-
   const end = performance.now();
   chunkCreationTimes.push(end - start);
   averageChunkCreationTime.time =
     chunkCreationTimes.reduce((a, b) => a + b, 0) / chunkCreationTimes.length;
   averageChunkCreationTime.time = Math.round(averageChunkCreationTime.time);
-  return new VoxelObject({
+  const voxelObject = new VoxelObject({
     name,
-    size: atlasSize,
+    size: [atlasSize[0], extentY, atlasSize[2]],
     octreeBufferIndex: octreeOffset,
   });
+  ecs.addComponent(newEntity, voxelObject);
+  const transform = new Transform(
+    [x, y - (128 - extentY) / 2, z],
+    quat.fromEuler(0, 0, 0, "xyz"),
+    [0, 0, 0],
+  );
+  animate(
+    (progress) => {
+      transform.scale = [progress, progress, progress];
+    },
+    {
+      duration: 1.0,
+      easing: spring({
+        damping: 100,
+      }),
+    },
+  );
+  ecs.addComponent(newEntity, transform);
 };

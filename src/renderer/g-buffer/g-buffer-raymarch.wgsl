@@ -53,46 +53,10 @@ fn getVelocity(objectPos: vec3<f32>, modelMatrix: mat4x4<f32>, previousModelMatr
   return velocity;
 }
 
-fn getLeftChildIndex(index: i32) -> i32 {
-  return index * 2 + 1;
-}
-
-fn getRightChildIndex(index: i32) -> i32 {
-  return index * 2 + 2;
-}
-
-fn getParentIndex(index: i32) -> i32 {
-  return (index - 1) / 2;
-}
-
-
-fn dirIsNegative(dir: vec3<f32>, axis: i32) -> bool {
-  return dir[axis] < 0.0;
-}
-
-fn getDebugColour(index: i32) -> vec3<f32> {
-  let colours = array<vec3<f32>, 6>(
-    vec3<f32>(1.0, 0.0, 0.0),
-    vec3<f32>(0.0, 1.0, 0.0),
-    vec3<f32>(0.0, 0.0, 1.0),
-    vec3<f32>(1.0, 1.0, 0.0),
-    vec3<f32>(1.0, 0.0, 1.0),
-    vec3<f32>(0.0, 1.0, 1.0)
-  );
-  return colours[index % 6];
-}
-
 
 fn customNormalize(value: f32, min: f32, max: f32) -> f32 {
     return (value - min) / (max - min);
 }
-
-const IDENTITY_MATRIX = mat4x4<f32>(
-  vec4<f32>(1.0, 0.0, 0.0, 0.0),
-  vec4<f32>(0.0, 1.0, 0.0, 0.0),
-  vec4<f32>(0.0, 0.0, 1.0, 0.0),
-  vec4<f32>(0.0, 0.0, 0.0, 1.0)
-);
 
 fn intersectSphere(origin: vec3<f32>, dir: vec3<f32>, spherePos: vec3<f32>, sphereRad: f32) -> f32
 {
@@ -125,60 +89,37 @@ fn skyDomeIntersection(ro: vec3<f32>, rd: vec3<f32>) -> f32 {
     return intersectSphere(ro, rd, vec3<f32>(0.0, 0.0, 0.0), FAR_PLANE);
 }
 
-const BLUE_NOISE_SIZE = 511;
+const TLAS_INSTANCE_COUNT = 16;
+var<workgroup> voxelObjectIndices: array<i32, TLAS_INSTANCE_COUNT>;
 
 
-fn tracePixel(pixel: vec2<u32>){
-   let resolution = textureDimensions(albedoTex);
+@compute @workgroup_size(8, 8, 1)
+fn main(
+   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
+   @builtin(local_invocation_id) LocalInvocationID : vec3<u32>,
+) {
+  let pixel = GlobalInvocationID.xy;
+  let resolution = textureDimensions(albedoTex);
+  let rayOrigin = cameraPosition;
    var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
    var rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
-
-    // DOF
-    let blueNoiseOffset = vec2<u32>(0);
-    var blueNoisePixel = pixel;
-    blueNoisePixel.x += time.frame * 32;
-    blueNoisePixel.y += time.frame * 16;
-    blueNoisePixel = (blueNoisePixel + blueNoiseOffset) % BLUE_NOISE_SIZE;
-    if(time.frame % 2 == 0){
-      blueNoisePixel.y = BLUE_NOISE_SIZE - blueNoisePixel.y;
-    }
-    if(time.frame % 3 == 0){
-      blueNoisePixel.x = BLUE_NOISE_SIZE - blueNoisePixel.x;
-    }
-    var r = textureLoad(blueNoiseTex, blueNoisePixel, 0).rg;
-    let aperture = 0.0;
-    let focalDistance = 100.0;
-    let randomOffset = randomInUnitDisk(r) * aperture;
-    let cameraRight = vec3(viewProjections.viewMatrix[0].x, viewProjections.viewMatrix[1].x, viewProjections.viewMatrix[2].x);
-    let cameraUp = vec3(viewProjections.viewMatrix[0].y, viewProjections.viewMatrix[1].y, viewProjections.viewMatrix[2].y);
-    let rayOrigin = cameraPosition + randomOffset.x * cameraRight + randomOffset.y * cameraUp;
-    let focalPoint = cameraPosition + normalize(rayDirection) * focalDistance;
-    rayDirection = normalize(focalPoint - rayOrigin);
-
     var closestIntersection = RayMarchResult();
     var worldPos = vec3(0.0);
     var normal = vec3(0.0);
     var albedo = vec3(0.0);
     var velocity = vec2(0.0);
-
-    var TLASVolumeSize = textureDimensions(TLASTex);
     closestIntersection.t = FAR_PLANE;
-    var iterations = 0;
-    var closestRayMarchDistance = FAR_PLANE;
-    let TLASIdx = pixel.xy / 6;
 
+    let TLASIdx = pixel.xy / 8;
+    let voxelObjectIndex = textureLoad(TLASTex, vec3(TLASIdx, TLASIndex), 0).x;
 
-    // Loop through TLAS volume created in previous pass
-    for(var i = 0u; i < 16; i++){
-      let voxelObjectIndex = textureLoad(TLASTex, vec3(TLASIdx, i), 0).x;
-      if(voxelObjectIndex == 0){
-        break;
-      }
-      let voxelObject = voxelObjects[voxelObjectIndex];
-      var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, rayOrigin, 9999.0);
-      if(rayMarchResult.hit && rayMarchResult.t < closestIntersection.t){
-         closestIntersection = rayMarchResult;
-      }
+    if(voxelObjectIndex == -1){
+      return;
+    }
+    let voxelObject = voxelObjects[voxelObjectIndex];
+    var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, rayOrigin, 9999.0);
+    if(rayMarchResult.hit && rayMarchResult.t < closestIntersection.t){
+       closestIntersection = rayMarchResult;
     }
 
     if(closestIntersection.hit){
@@ -197,42 +138,4 @@ fn tracePixel(pixel: vec2<u32>){
     textureStore(normalTex, pixel, vec4(normal,1));
     textureStore(velocityTex, pixel, vec4(velocity,0,f32(closestIntersection.voxelObjectIndex)));
     textureStore(worldPosTex, pixel, vec4(worldPos,closestIntersection.t));
-//    textureStore(worldPosTex, pixel, vec4(worldPos,10.0));
-}
-
-@compute @workgroup_size(16, 8, 1)
-fn main(
-   @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
-) {
-  let pixel = GlobalInvocationID.xy;
-  tracePixel(pixel);
-}
-
-@group(1) @binding(0) var<storage, read> screenRayBuffer : array<vec2<u32>>;
-
-const REMAINING_RAY_OFFSETS = array<vec2<u32>, 8>(
-  vec2<u32>(0,1),
-  vec2<u32>(1,0),
-  vec2<u32>(1,1),
-  vec2<u32>(2,0),
-  vec2<u32>(2,1),
-  vec2<u32>(0,2),
-  vec2<u32>(1,2),
-  vec2<u32>(2,2)
-);
-
-@compute @workgroup_size(64, 1, 1)
-fn bufferMarch(
-  @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
-  @builtin(local_invocation_id) LocalInvocationID : vec3<u32>,
-  @builtin(workgroup_id) WorkGroupID : vec3<u32>,
-) {
-  let bufferIndex = GlobalInvocationID.x / 8;
-  let localRayIndex = GlobalInvocationID.x % 8;
-  let pixel = screenRayBuffer[bufferIndex];
-  let offsetPixel = pixel + REMAINING_RAY_OFFSETS[localRayIndex];
-
-  tracePixel(offsetPixel);
-//  textureStore(depthWrite, offsetPixel, vec4(0,0,0,0));
-//   textureStore(albedoTex, offsetPixel, vec4(1,0,0,1));
 }

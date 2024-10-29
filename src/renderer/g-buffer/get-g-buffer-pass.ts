@@ -25,12 +25,76 @@ const ceilToNearestMultipleOf = (n: number, multiple: number) => {
   return Math.ceil(n / multiple) * multiple;
 };
 
+const TLAS_RAYMARCH_DOWNSAMPLE = 8;
+
 export const getGBufferPass = async (): Promise<RenderPass> => {
   let TLASTexture: GPUTexture;
   let TLASTextureView: GPUTextureView;
   let counterBuffer: GPUBuffer;
   let indirectBuffer: GPUBuffer;
   let screenRayBuffer: GPUBuffer;
+
+  // Clears the TLAS texture to be all -1s
+  const getClearTLASPass = async () => {
+    const bindGroupLayout = device.createBindGroupLayout({
+      entries: [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.COMPUTE,
+          storageTexture: {
+            format: "r32sint",
+            viewDimension: "3d",
+          },
+        },
+      ],
+    });
+
+    const pipeline = await device.createComputePipelineAsync({
+      layout: device.createPipelineLayout({
+        bindGroupLayouts: [bindGroupLayout],
+      }),
+      compute: {
+        module: device.createShaderModule({
+          code: `
+            @group(0) @binding(0) var outputTex : texture_storage_3d<r32sint, write>;
+
+            @compute @workgroup_size(8, 8, 1)
+            fn main(
+               @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
+            ) {
+              textureStore(outputTex, GlobalInvocationID, vec4(-1));
+            }
+          `,
+        }),
+        entryPoint: "main",
+      },
+    });
+
+    let bindGroup: GPUBindGroup;
+
+    const enqueuePass = (computePass: GPUComputePassEncoder) => {
+      if (!bindGroup) {
+        bindGroup = device.createBindGroup({
+          layout: bindGroupLayout,
+          entries: [
+            {
+              binding: 0,
+              resource: TLASTextureView,
+            },
+          ],
+        });
+      }
+      computePass.setPipeline(pipeline);
+      computePass.setBindGroup(0, bindGroup);
+      computePass.dispatchWorkgroups(
+        Math.ceil(TLASTexture.width / 8),
+        Math.ceil(TLASTexture.height / 8),
+        TLASTexture.depthOrArrayLayers,
+      );
+    };
+
+    return enqueuePass;
+  };
 
   const getTLASRaymarchPass = async () => {
     const bindGroupLayout = device.createBindGroupLayout({
@@ -116,20 +180,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       computePass: GPUComputePassEncoder,
       renderArgs: RenderArgs,
     ) => {
-      if (!TLASTexture) {
-        TLASTexture = device.createTexture({
-          size: {
-            width: Math.ceil(resolution[0] / 6),
-            height: Math.ceil(resolution[1] / 6),
-            depthOrArrayLayers: 16,
-          },
-          format: "r32sint",
-          dimension: "3d",
-          usage:
-            GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
-        });
-        TLASTextureView = TLASTexture.createView();
-      }
       // if (!bindGroup) {
       bindGroup = device.createBindGroup({
         layout: bindGroupLayout,
@@ -163,8 +213,8 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       computePass.setPipeline(pipeline);
       computePass.setBindGroup(0, bindGroup);
       const downsampledResolution = [
-        Math.ceil(resolution[0] / 6),
-        Math.ceil(resolution[1] / 6),
+        Math.ceil(resolution[0] / TLAS_RAYMARCH_DOWNSAMPLE),
+        Math.ceil(resolution[1] / TLAS_RAYMARCH_DOWNSAMPLE),
       ];
       computePass.dispatchWorkgroups(
         Math.ceil(downsampledResolution[0] / 8),
@@ -429,8 +479,8 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       computePass.setPipeline(pipeline);
       computePass.setBindGroup(0, bindGroup);
       computePass.dispatchWorkgroups(
-        Math.ceil(resolution[0] / 16),
-        Math.ceil(resolution[1] / 8),
+        Math.ceil(resolution[0] / TLAS_RAYMARCH_DOWNSAMPLE),
+        Math.ceil(resolution[1] / TLAS_RAYMARCH_DOWNSAMPLE),
       );
     };
 
@@ -439,6 +489,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
 
   const renderTLAS = await getTLASRaymarchPass();
   const sparseRayMarch = await getSparseRaymarchPipeline();
+  const clearTLAS = await getClearTLASPass();
 
   const render = (renderArgs: RenderArgs) => {
     if (!indirectBuffer) {
@@ -473,6 +524,21 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       });
     }
 
+    if (!TLASTexture) {
+      TLASTexture = device.createTexture({
+        size: {
+          width: Math.ceil(resolution[0] / TLAS_RAYMARCH_DOWNSAMPLE),
+          height: Math.ceil(resolution[1] / TLAS_RAYMARCH_DOWNSAMPLE),
+          depthOrArrayLayers: 16,
+        },
+        format: "r32sint",
+        dimension: "3d",
+        usage:
+          GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+      });
+      TLASTextureView = TLASTexture.createView();
+    }
+
     const { commandEncoder, timestampWrites } = renderArgs;
 
     commandEncoder.clearBuffer(indirectBuffer, 0, 4);
@@ -481,7 +547,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
 
     // Sparse raymarch
     let computePass = commandEncoder.beginComputePass({ timestampWrites });
-    renderTLAS(computePass, renderArgs);
+    clearTLAS(computePass);
     computePass.end();
     computePass = commandEncoder.beginComputePass({
       timestampWrites: {
@@ -491,13 +557,41 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         endOfPassWriteIndex: renderArgs.timestampWrites.endOfPassWriteIndex + 2,
       },
     });
+    renderTLAS(computePass, renderArgs);
+    computePass.end();
+    computePass = commandEncoder.beginComputePass({
+      timestampWrites: {
+        querySet: renderArgs.timestampWrites.querySet,
+        beginningOfPassWriteIndex:
+          renderArgs.timestampWrites.beginningOfPassWriteIndex + 4,
+        endOfPassWriteIndex: renderArgs.timestampWrites.endOfPassWriteIndex + 4,
+      },
+    });
+    // for (let i = 0; i < 4; i++) {
     sparseRayMarch(computePass, renderArgs, 0);
+    // sparseRayMarch(computePass, renderArgs, 1);
+    // sparseRayMarch(computePass, renderArgs, 2);
+    // sparseRayMarch(computePass, renderArgs, 3);
+    // sparseRayMarch(computePass, renderArgs, 4);
+    // sparseRayMarch(computePass, renderArgs, 5);
+    // sparseRayMarch(computePass, renderArgs, 6);
+    // sparseRayMarch(computePass, renderArgs, 7);
+    // sparseRayMarch(computePass, renderArgs, 8);
+    // sparseRayMarch(computePass, renderArgs, 9);
+    // sparseRayMarch(computePass, renderArgs, 10);
+    // sparseRayMarch(computePass, renderArgs, 11);
+    // sparseRayMarch(computePass, renderArgs, 12);
+    // sparseRayMarch(computePass, renderArgs, 13);
+    // sparseRayMarch(computePass, renderArgs, 14);
+    // sparseRayMarch(computePass, renderArgs, 15);
+
+    // }
     computePass.end();
   };
 
   return {
     render,
     label: "primary rays",
-    timestampLabels: ["TLAS raymarch", "full raymarch"],
+    timestampLabels: ["clear TLAS", "TLAS raymarch", "full raymarch"],
   };
 };
