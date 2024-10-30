@@ -30,6 +30,20 @@ fn getVelocityStatic(worldPos: vec3<f32>, viewProjections:ViewProjectionMatrices
   return velocity;
 }
 
+fn getDebugColor(index: u32) -> vec4<f32> {
+  let colors = array<vec4<f32>, 8>(
+    vec4<f32>(1.0, 0.0, 0.0, 1.0),
+    vec4<f32>(0.0, 1.0, 0.0, 1.0),
+    vec4<f32>(0.0, 0.0, 1.0, 1.0),
+    vec4<f32>(1.0, 1.0, 0.0, 1.0),
+    vec4<f32>(1.0, 0.0, 1.0, 1.0),
+    vec4<f32>(0.0, 1.0, 1.0, 1.0),
+    vec4<f32>(1.0, 1.0, 1.0, 1.0),
+    vec4<f32>(0.5, 0.5, 0.5, 1.0)
+  );
+  return colors[index % 8];
+}
+
 fn getVelocity(objectPos: vec3<f32>, modelMatrix: mat4x4<f32>, previousModelMatrix: mat4x4<f32>, viewProjections: ViewProjectionMatrices) -> vec2<f32> {
   let vp = viewProjections.viewProjection;
   let previousVp = viewProjections.previousViewProjection;
@@ -114,6 +128,10 @@ fn main(
     let voxelObjectIndex = textureLoad(TLASTex, vec3(TLASIdx, TLASIndex), 0).x;
 
     if(voxelObjectIndex == -1){
+      textureStore(albedoTex, pixel, vec4(0));
+      textureStore(normalTex, pixel, vec4(0));
+      textureStore(velocityTex, pixel, vec4(0));
+      textureStore(worldPosTex, pixel, vec4(0));
       return;
     }
     let voxelObject = voxelObjects[voxelObjectIndex];
@@ -123,7 +141,6 @@ fn main(
     }
 
     if(closestIntersection.hit){
-      let voxelObject = voxelObjects[closestIntersection.voxelObjectIndex];
       albedo = closestIntersection.colour;
       worldPos = rayOrigin + rayDirection * closestIntersection.t;
       normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(closestIntersection.normal));
@@ -134,8 +151,9 @@ fn main(
     }
     velocity = getVelocityStatic(worldPos, viewProjections);
 
-    textureStore(albedoTex, pixel, vec4(albedo, 1));
+//    textureStore(albedoTex, pixel, vec4(albedo, 1));
+    textureStore(albedoTex, pixel, vec4(getDebugColor(u32(voxelObjectIndex)).xyz, 1));
     textureStore(normalTex, pixel, vec4(normal,1));
-    textureStore(velocityTex, pixel, vec4(velocity,0,f32(closestIntersection.voxelObjectIndex)));
+    textureStore(velocityTex, pixel, vec4(velocity,0,f32(voxelObjectIndex)));
     textureStore(worldPosTex, pixel, vec4(worldPos,closestIntersection.t));
 }

@@ -567,7 +567,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         endOfPassWriteIndex: renderArgs.timestampWrites.endOfPassWriteIndex + 4,
       },
     });
-    // for (let i = 0; i < 4; i++) {
     sparseRayMarch(computePass, renderArgs, 0);
     // sparseRayMarch(computePass, renderArgs, 1);
     // sparseRayMarch(computePass, renderArgs, 2);
@@ -584,8 +583,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     // sparseRayMarch(computePass, renderArgs, 13);
     // sparseRayMarch(computePass, renderArgs, 14);
     // sparseRayMarch(computePass, renderArgs, 15);
-
-    // }
     computePass.end();
   };
 

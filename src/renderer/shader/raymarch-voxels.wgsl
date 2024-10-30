@@ -29,7 +29,6 @@ struct VoxelObject {
 }
 
 struct RayMarchResult {
-  voxelObjectIndex: i32,
   colour: vec3<f32>,
   normal: vec3<f32>,
   hit: bool,
