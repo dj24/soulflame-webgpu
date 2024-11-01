@@ -82,4 +82,10 @@ fn main(
       }
       iterations += 1;
     }
+
+    // We hit a leaf, store the screen position and update the indirect buffer
+    if(hitLeafIndex > 0){
+      let currentCount = atomicAdd(&indirectBuffer[0], 1);
+      screenRayBuffer[currentCount + 1] = idx.xy;
+    }
 }

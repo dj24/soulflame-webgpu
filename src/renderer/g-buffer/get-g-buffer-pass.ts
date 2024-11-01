@@ -26,11 +26,11 @@ const ceilToNearestMultipleOf = (n: number, multiple: number) => {
 };
 
 const TLAS_RAYMARCH_DOWNSAMPLE = 8;
+let isMapPending = false;
 
 export const getGBufferPass = async (): Promise<RenderPass> => {
   let TLASTexture: GPUTexture;
   let TLASTextureView: GPUTextureView;
-  let counterBuffer: GPUBuffer;
   let indirectBuffer: GPUBuffer;
   let screenRayBuffer: GPUBuffer;
 
@@ -136,10 +136,31 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       ],
     });
 
+    const rayBufferBindGroupLayout = device.createBindGroupLayout({
+      entries: [
+        // Screen rays
+        {
+          binding: 0,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: {
+            type: "storage",
+          },
+        },
+        // Indirect buffer
+        {
+          binding: 1,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: {
+            type: "storage",
+          },
+        },
+      ],
+    });
+
     const pipeline = await device.createComputePipelineAsync({
       label: "raymarch TLAS",
       layout: device.createPipelineLayout({
-        bindGroupLayouts: [bindGroupLayout],
+        bindGroupLayouts: [bindGroupLayout, rayBufferBindGroupLayout],
       }),
       compute: {
         module: device.createShaderModule({
@@ -164,6 +185,8 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           @group(0) @binding(1) var<uniform> viewProjections : ViewProjectionMatrices;
           @group(0) @binding(2) var<storage> bvhNodes: array<BVHNode>;
           @group(0) @binding(3) var outputTex : texture_storage_3d<r32sint, write>;
+          @group(1) @binding(0) var<storage, read_write> screenRayBuffer : array<vec2<u32>>;
+          @group(1) @binding(1) var<storage, read_write> indirectBuffer : array<atomic<u32>>;
           ${getRayDirection}
           ${boxIntersection}
           ${depth}
@@ -175,6 +198,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     });
 
     let bindGroup: GPUBindGroup;
+    let rayBufferBindGroup: GPUBindGroup;
 
     const enqueuePass = (
       computePass: GPUComputePassEncoder,
@@ -208,10 +232,27 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           },
         ],
       });
+
+      if (!rayBufferBindGroup) {
+        rayBufferBindGroup = device.createBindGroup({
+          layout: rayBufferBindGroupLayout,
+          entries: [
+            {
+              binding: 0,
+              resource: { buffer: screenRayBuffer },
+            },
+            {
+              binding: 1,
+              resource: { buffer: indirectBuffer },
+            },
+          ],
+        });
+      }
       // }
       // Raymarch the scene
       computePass.setPipeline(pipeline);
       computePass.setBindGroup(0, bindGroup);
+      computePass.setBindGroup(1, rayBufferBindGroup);
       const downsampledResolution = [
         Math.ceil(resolution[0] / TLAS_RAYMARCH_DOWNSAMPLE),
         Math.ceil(resolution[1] / TLAS_RAYMARCH_DOWNSAMPLE),
@@ -490,6 +531,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
   const renderTLAS = await getTLASRaymarchPass();
   const sparseRayMarch = await getSparseRaymarchPipeline();
   const clearTLAS = await getClearTLASPass();
+  let debugBuffer: GPUBuffer;
 
   const render = (renderArgs: RenderArgs) => {
     if (!indirectBuffer) {
@@ -501,12 +543,13 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           GPUBufferUsage.COPY_SRC |
           GPUBufferUsage.COPY_DST,
       });
-      counterBuffer = device.createBuffer({
-        size: 4,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      debugBuffer = device.createBuffer({
+        size: 3 * 4,
+        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
       });
+
       const uint32 = new Uint32Array(3);
-      uint32[0] = 1; // The X value
+      uint32[0] = 0; // The X value
       uint32[1] = 1; // The Y value
       uint32[2] = 1; // The Z value
       // Write values into a GPUBuffer
@@ -542,7 +585,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     const { commandEncoder, timestampWrites } = renderArgs;
 
     commandEncoder.clearBuffer(indirectBuffer, 0, 4);
-    commandEncoder.clearBuffer(counterBuffer, 0, 4);
     commandEncoder.clearBuffer(screenRayBuffer);
 
     // Sparse raymarch
@@ -559,6 +601,34 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     });
     renderTLAS(computePass, renderArgs);
     computePass.end();
+
+    // Output Indirect buffer to debug
+    // TODO: output to UI instead
+    if (!isMapPending) {
+      isMapPending = true;
+      let debugCommandEncoder = device.createCommandEncoder();
+      debugCommandEncoder.copyBufferToBuffer(
+        indirectBuffer,
+        0,
+        debugBuffer,
+        0,
+        3 * 4,
+      );
+      device.queue.submit([debugCommandEncoder.finish()]);
+      device.queue.onSubmittedWorkDone().then(() => {
+        debugBuffer
+          .mapAsync(GPUMapMode.READ)
+          .then(() => {
+            const arr = new Uint32Array(debugBuffer.getMappedRange());
+            console.log("Indirect buffer", arr);
+          })
+          .finally(() => {
+            isMapPending = false;
+            debugBuffer.unmap();
+          });
+      });
+    }
+
     computePass = commandEncoder.beginComputePass({
       timestampWrites: {
         querySet: renderArgs.timestampWrites.querySet,

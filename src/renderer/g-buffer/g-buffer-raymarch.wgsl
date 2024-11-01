@@ -151,8 +151,8 @@ fn main(
     }
     velocity = getVelocityStatic(worldPos, viewProjections);
 
-//    textureStore(albedoTex, pixel, vec4(albedo, 1));
-    textureStore(albedoTex, pixel, vec4(getDebugColor(u32(voxelObjectIndex)).xyz, 1));
+    textureStore(albedoTex, pixel, vec4(albedo, 1));
+//    textureStore(albedoTex, pixel, vec4(getDebugColor(u32(voxelObjectIndex)).xyz, 1));
     textureStore(normalTex, pixel, vec4(normal,1));
     textureStore(velocityTex, pixel, vec4(velocity,0,f32(voxelObjectIndex)));
     textureStore(worldPosTex, pixel, vec4(worldPos,closestIntersection.t));
