@@ -78,14 +78,10 @@ fn main(
       // valid leaf, raymarch it
       else if(node.objectCount == 1){
         textureStore(outputTex, vec3(idx.xy, u32(hitLeafIndex)), vec4(i32(node.leftIndex)));
+        let currentCount = atomicAdd(&indirectBuffer[0], 1);
+        screenRayBuffer[currentCount + 1] = vec3(idx.xy * 8, u32(hitLeafIndex));
         hitLeafIndex += 1;
       }
       iterations += 1;
-    }
-
-    // We hit a leaf, store the screen position and update the indirect buffer
-    if(hitLeafIndex > 0){
-      let currentCount = atomicAdd(&indirectBuffer[0], 1);
-      screenRayBuffer[currentCount + 1] = idx.xy * 8;
     }
 }

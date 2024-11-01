@@ -1,9 +1,10 @@
 import { device, gpuContext, RenderArgs, RenderPass } from "../app";
 import { OUTPUT_TEXTURE_FORMAT } from "../constants";
+import { GBufferTexture } from "@renderer/abstractions/g-buffer-texture";
 
-const label = "clear";
-
-export const getClearPass = async (): Promise<RenderPass> => {
+export const getClearPass = async (
+  gBufferTexture: GBufferTexture,
+): Promise<RenderPass> => {
   const fullscreenQuadShaderModule = device.createShaderModule({
     code: `
     struct VertexOutput {
@@ -20,7 +21,7 @@ export const getClearPass = async (): Promise<RenderPass> => {
     }`,
   });
   const renderPipeline = device.createRenderPipeline({
-    label: label,
+    label: `clear ${gBufferTexture.label}`,
     layout: "auto",
     vertex: {
       module: fullscreenQuadShaderModule,
@@ -29,16 +30,16 @@ export const getClearPass = async (): Promise<RenderPass> => {
     fragment: {
       module: fullscreenQuadShaderModule,
       entryPoint: "fragment_main",
-      targets: [{ format: OUTPUT_TEXTURE_FORMAT }],
+      targets: [{ format: gBufferTexture.format }],
     },
   });
   const render = (args: RenderArgs) => {
     const renderPass = args.commandEncoder.beginRenderPass({
-      label: label,
+      label: `clear ${gBufferTexture.label}`,
       timestampWrites: args.timestampWrites,
       colorAttachments: [
         {
-          view: args.outputTextures.finalTexture.view,
+          view: gBufferTexture.view,
           loadOp: "clear",
           clearValue: [0, 0, 0, 0],
           storeOp: "store",
@@ -51,5 +52,5 @@ export const getClearPass = async (): Promise<RenderPass> => {
     renderPass.end();
   };
 
-  return { render, label: label };
+  return { render, label: `clear ${gBufferTexture.label}` };
 };

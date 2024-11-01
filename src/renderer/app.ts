@@ -233,7 +233,11 @@ export const init = async (
   createBlueNoiseTexture(device);
 
   computePasses = await Promise.all([
-    getClearPass(),
+    getClearPass(albedoTexture),
+    getClearPass(normalTexture),
+    getClearPass(velocityTexture),
+    getClearPass(worldPositionTexture),
+    getClearPass(outputTexture),
     getGBufferPass(),
     // getRasterTracePass(),
     (async () => {

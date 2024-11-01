@@ -1,5 +1,8 @@
 import { device, RenderPass, RenderArgs, resolution } from "../app";
-import { GBufferTexture } from "../abstractions/g-buffer-texture";
+import {
+  GBufferTexture,
+  WorldPositionTexture,
+} from "../abstractions/g-buffer-texture";
 import getRayDirection from "@renderer/shader/get-ray-direction.wgsl";
 import boxIntersection from "@renderer/shader/box-intersection.wgsl";
 import depth from "@renderer/shader/depth.wgsl";
@@ -26,13 +29,14 @@ const ceilToNearestMultipleOf = (n: number, multiple: number) => {
 };
 
 const TLAS_RAYMARCH_DOWNSAMPLE = 8;
-let isMapPending = false;
+const TLAS_HITS = 16;
 
 export const getGBufferPass = async (): Promise<RenderPass> => {
   let TLASTexture: GPUTexture;
   let TLASTextureView: GPUTextureView;
   let indirectBuffer: GPUBuffer;
   let screenRayBuffer: GPUBuffer;
+  let depthBuffer: GPUBuffer;
 
   // Clears the TLAS texture to be all -1s
   const getClearTLASPass = async () => {
@@ -185,7 +189,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           @group(0) @binding(1) var<uniform> viewProjections : ViewProjectionMatrices;
           @group(0) @binding(2) var<storage> bvhNodes: array<BVHNode>;
           @group(0) @binding(3) var outputTex : texture_storage_3d<r32sint, write>;
-          @group(1) @binding(0) var<storage, read_write> screenRayBuffer : array<vec2<u32>>;
+          @group(1) @binding(0) var<storage, read_write> screenRayBuffer : array<vec3<u32>>;
           @group(1) @binding(1) var<storage, read_write> indirectBuffer : array<atomic<u32>>;
           ${getRayDirection}
           ${boxIntersection}
@@ -232,6 +236,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           },
         ],
       });
+      // }
 
       if (!rayBufferBindGroup) {
         rayBufferBindGroup = device.createBindGroup({
@@ -248,7 +253,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           ],
         });
       }
-      // }
+
       // Raymarch the scene
       computePass.setPipeline(pipeline);
       computePass.setBindGroup(0, bindGroup);
@@ -266,7 +271,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     return enqueuePass;
   };
 
-  const getSparseRaymarchPipeline = async () => {
+  const getFullRaymarchPass = async () => {
     const timeBufferEntry: GPUBindGroupLayoutEntry = {
       binding: 1,
       visibility: GPUShaderStage.COMPUTE,
@@ -394,6 +399,14 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
             type: "read-only-storage",
           },
         },
+        // Depth buffer
+        {
+          binding: 15,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: {
+            type: "storage",
+          },
+        },
       ],
     });
 
@@ -422,7 +435,8 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           @group(0) @binding(11) var TLASTex : texture_3d<i32>;
           @group(0) @binding(13) var<storage> octreeBuffer : array<vec2<u32>>;
           @group(0) @binding(12) var<uniform> TLASIndex: u32;
-          @group(0) @binding(14) var<storage> screenRayBuffer : array<vec2<u32>>;
+          @group(0) @binding(14) var<storage> screenRayBuffer : array<vec3<u32>>;
+          @group(0) @binding(15) var<storage, read_write> depthBuffer : array<atomic<u32>>;
           
           ${randomCommon}
           ${getRayDirection}
@@ -525,6 +539,10 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
             binding: 14,
             resource: { buffer: screenRayBuffer },
           },
+          {
+            binding: 15,
+            resource: { buffer: depthBuffer },
+          },
         ],
       });
 
@@ -538,11 +556,17 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
   };
 
   const renderTLAS = await getTLASRaymarchPass();
-  const sparseRayMarch = await getSparseRaymarchPipeline();
+  const sparseRayMarch = await getFullRaymarchPass();
   const clearTLAS = await getClearTLASPass();
-  let debugBuffer: GPUBuffer;
 
   const render = (renderArgs: RenderArgs) => {
+    if (!depthBuffer) {
+      depthBuffer = device.createBuffer({
+        size: resolution[0] * resolution[1] * 4,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      });
+    }
+
     if (!indirectBuffer) {
       indirectBuffer = device.createBuffer({
         size: 3 * 4,
@@ -551,10 +575,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           GPUBufferUsage.STORAGE |
           GPUBufferUsage.COPY_SRC |
           GPUBufferUsage.COPY_DST,
-      });
-      debugBuffer = device.createBuffer({
-        size: 3 * 4,
-        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
       });
 
       const uint32 = new Uint32Array(3);
@@ -566,9 +586,8 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
 
       const { width, height } = renderArgs.outputTextures.finalTexture;
       const maxScreenRays = width * height;
-      const bufferSizeBytes = ceilToNearestMultipleOf(maxScreenRays * 4, 4);
       screenRayBuffer = device.createBuffer({
-        size: bufferSizeBytes,
+        size: maxScreenRays * 16, // vec3
         usage:
           GPUBufferUsage.STORAGE |
           GPUBufferUsage.COPY_DST |
@@ -581,7 +600,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         size: {
           width: Math.ceil(resolution[0] / TLAS_RAYMARCH_DOWNSAMPLE),
           height: Math.ceil(resolution[1] / TLAS_RAYMARCH_DOWNSAMPLE),
-          depthOrArrayLayers: 16,
+          depthOrArrayLayers: TLAS_HITS,
         },
         format: "r32sint",
         dimension: "3d",
@@ -594,6 +613,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     const { commandEncoder, timestampWrites } = renderArgs;
     commandEncoder.clearBuffer(indirectBuffer, 0, 4);
     commandEncoder.clearBuffer(screenRayBuffer);
+    commandEncoder.clearBuffer(depthBuffer);
 
     // Sparse raymarch
     let computePass = commandEncoder.beginComputePass({ timestampWrites });
@@ -619,21 +639,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       },
     });
     sparseRayMarch(computePass, renderArgs, 0);
-    // sparseRayMarch(computePass, renderArgs, 1);
-    // sparseRayMarch(computePass, renderArgs, 2);
-    // sparseRayMarch(computePass, renderArgs, 3);
-    // sparseRayMarch(computePass, renderArgs, 4);
-    // sparseRayMarch(computePass, renderArgs, 5);
-    // sparseRayMarch(computePass, renderArgs, 6);
-    // sparseRayMarch(computePass, renderArgs, 7);
-    // sparseRayMarch(computePass, renderArgs, 8);
-    // sparseRayMarch(computePass, renderArgs, 9);
-    // sparseRayMarch(computePass, renderArgs, 10);
-    // sparseRayMarch(computePass, renderArgs, 11);
-    // sparseRayMarch(computePass, renderArgs, 12);
-    // sparseRayMarch(computePass, renderArgs, 13);
-    // sparseRayMarch(computePass, renderArgs, 14);
-    // sparseRayMarch(computePass, renderArgs, 15);
     computePass.end();
   };
 

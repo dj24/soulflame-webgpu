@@ -106,56 +106,61 @@ fn skyDomeIntersection(ro: vec3<f32>, rd: vec3<f32>) -> f32 {
 const TLAS_INSTANCE_COUNT = 16;
 var<workgroup> voxelObjectIndices: array<i32, TLAS_INSTANCE_COUNT>;
 
+fn convert2DTo1D(width: u32, index2D: vec2<u32>) -> u32 {
+    return index2D.y * width + index2D.x;
+}
+
+// Store reveresed so that 0 is the far plane
+fn storeDepth(pixel: vec2<u32>, depth: f32) {
+    let texSize = textureDimensions(albedoTex);
+    let index = convert2DTo1D(texSize.x, pixel);
+    let uintDepth = bitcast<u32>(depth);
+    atomicStore(&depthBuffer[index], uintDepth);
+}
+
+fn loadDepth(pixel: vec2<u32>) -> f32 {
+    let texSize = textureDimensions(albedoTex);
+    let index = convert2DTo1D(texSize.x, pixel);
+    let uintDepth = atomicLoad(&depthBuffer[index]);
+    let depth = bitcast<f32>(uintDepth);
+    if depth < 0.000001 {
+        return FAR_PLANE;
+    }
+    return depth;
+}
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
    @builtin(local_invocation_id) LocalInvocationID : vec3<u32>,
    @builtin(workgroup_id) WorkgroupID : vec3<u32>,
-
 ) {
-  let pixel = screenRayBuffer[WorkgroupID.x] + LocalInvocationID.xy;
+  let pixel = screenRayBuffer[WorkgroupID.x].xy + LocalInvocationID.xy;
   let resolution = textureDimensions(albedoTex);
   let rayOrigin = cameraPosition;
   var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
   var rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
-  var closestIntersection = RayMarchResult();
-  var worldPos = vec3(0.0);
+  var worldPos = rayOrigin + skyDomeIntersection(rayOrigin, rayDirection) * rayDirection;
   var normal = vec3(0.0);
   var albedo = vec3(0.0);
   var velocity = vec2(0.0);
-  closestIntersection.t = FAR_PLANE;
-
   let TLASIdx = pixel.xy / 8;
-  let voxelObjectIndex = textureLoad(TLASTex, vec3(TLASIdx, TLASIndex), 0).x;
-
-  if(voxelObjectIndex == -1){
-    textureStore(albedoTex, pixel, vec4(0));
-    textureStore(normalTex, pixel, vec4(0));
-    textureStore(velocityTex, pixel, vec4(0));
-    textureStore(worldPosTex, pixel, vec4(0));
-    return;
-  }
+  let voxelObjectIndex = textureLoad(TLASTex, vec3(TLASIdx, screenRayBuffer[WorkgroupID.x].z), 0).x;
   let voxelObject = voxelObjects[voxelObjectIndex];
   var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, rayOrigin, 9999.0);
-  if(rayMarchResult.hit && rayMarchResult.t < closestIntersection.t){
-     closestIntersection = rayMarchResult;
+  if(!rayMarchResult.hit){
+    return;
   }
 
-  if(closestIntersection.hit){
-    albedo = closestIntersection.colour;
-    worldPos = rayOrigin + rayDirection * closestIntersection.t;
-    normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(closestIntersection.normal));
+  let currentDepth = loadDepth(pixel);
+  if(rayMarchResult.t < currentDepth){
+    storeDepth(pixel, rayMarchResult.t);
+    albedo = rayMarchResult.colour;
+    worldPos = rayOrigin + rayDirection * rayMarchResult.t;
+    normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(rayMarchResult.normal));
+    velocity = getVelocityStatic(worldPos, viewProjections);
+    textureStore(albedoTex, pixel, vec4(albedo, 1));
+    textureStore(normalTex, pixel, vec4(normal,1));
+    textureStore(velocityTex, pixel, vec4(velocity,0,0));
+    textureStore(worldPosTex, pixel, vec4(worldPos,rayMarchResult.t));
   }
-  else{
-    albedo = vec3(0.0);
-    worldPos = rayOrigin + skyDomeIntersection(rayOrigin, rayDirection) * rayDirection;
-  }
-  velocity = getVelocityStatic(worldPos, viewProjections);
-
-//  textureStore(albedoTex, pixel, vec4(albedo, 1));
-//    textureStore(albedoTex, pixel, vec4(getDebugColor(u32(voxelObjectIndex)).xyz, 1));
-textureStore(albedoTex, pixel, vec4(1,0,0, 1));
-  textureStore(normalTex, pixel, vec4(normal,1));
-  textureStore(velocityTex, pixel, vec4(velocity,0,f32(voxelObjectIndex)));
-  textureStore(worldPosTex, pixel, vec4(worldPos,closestIntersection.t));
 }
