@@ -150,7 +150,6 @@ fn main(
   if(!rayMarchResult.hit){
     return;
   }
-
   let currentDepth = loadDepth(pixel);
   if(rayMarchResult.t < currentDepth){
     storeDepth(pixel, rayMarchResult.t);
