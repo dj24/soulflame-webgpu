@@ -386,6 +386,14 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
             type: "uniform",
           },
         },
+        // Screen rays
+        {
+          binding: 14,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: {
+            type: "read-only-storage",
+          },
+        },
       ],
     });
 
@@ -414,6 +422,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           @group(0) @binding(11) var TLASTex : texture_3d<i32>;
           @group(0) @binding(13) var<storage> octreeBuffer : array<vec2<u32>>;
           @group(0) @binding(12) var<uniform> TLASIndex: u32;
+          @group(0) @binding(14) var<storage> screenRayBuffer : array<vec2<u32>>;
           
           ${randomCommon}
           ${getRayDirection}
@@ -443,7 +452,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         0,
         new Uint32Array([TLASTextureZ]),
       );
-      // if (!bindGroup) {
       bindGroup = device.createBindGroup({
         layout: bindGroupLayout,
         entries: [
@@ -513,16 +521,17 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
               buffer: renderArgs.volumeAtlas.octreeBuffer,
             },
           },
+          {
+            binding: 14,
+            resource: { buffer: screenRayBuffer },
+          },
         ],
       });
 
       // Raymarch the scene
       computePass.setPipeline(pipeline);
       computePass.setBindGroup(0, bindGroup);
-      computePass.dispatchWorkgroups(
-        Math.ceil(resolution[0] / TLAS_RAYMARCH_DOWNSAMPLE),
-        Math.ceil(resolution[1] / TLAS_RAYMARCH_DOWNSAMPLE),
-      );
+      computePass.dispatchWorkgroupsIndirect(indirectBuffer, 0);
     };
 
     return enqueuePass;
@@ -583,7 +592,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     }
 
     const { commandEncoder, timestampWrites } = renderArgs;
-
     commandEncoder.clearBuffer(indirectBuffer, 0, 4);
     commandEncoder.clearBuffer(screenRayBuffer);
 
@@ -601,33 +609,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     });
     renderTLAS(computePass, renderArgs);
     computePass.end();
-
-    // Output Indirect buffer to debug
-    // TODO: output to UI instead
-    if (!isMapPending) {
-      isMapPending = true;
-      let debugCommandEncoder = device.createCommandEncoder();
-      debugCommandEncoder.copyBufferToBuffer(
-        indirectBuffer,
-        0,
-        debugBuffer,
-        0,
-        3 * 4,
-      );
-      device.queue.submit([debugCommandEncoder.finish()]);
-      device.queue.onSubmittedWorkDone().then(() => {
-        debugBuffer
-          .mapAsync(GPUMapMode.READ)
-          .then(() => {
-            const arr = new Uint32Array(debugBuffer.getMappedRange());
-            console.log("Indirect buffer", arr);
-          })
-          .finally(() => {
-            isMapPending = false;
-            debugBuffer.unmap();
-          });
-      });
-    }
 
     computePass = commandEncoder.beginComputePass({
       timestampWrites: {
