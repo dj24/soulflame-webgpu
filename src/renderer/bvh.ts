@@ -67,23 +67,9 @@ const splitObjectsBySAH = (voxelObjects: LeafNode[]) => {
   return { left, right };
 };
 
-const getLongestAxis = (voxelObjects: LeafNode[]) => {
-  const AABB = getAABB(voxelObjects);
-  const size = vec3.sub(AABB.max, AABB.min);
-  const longestAxis = size.indexOf(Math.max(...size));
-  return longestAxis;
-};
-
-const splitObjectsByMedianAlongLongestAxis = (voxelObjects: LeafNode[]) => {
-  const axis = getLongestAxis(voxelObjects);
-  voxelObjects.sort((a, b) => a.AABB.min[axis] - b.AABB.min[axis]);
-  const middleIndex = Math.floor(voxelObjects.length / 2);
-  const left = voxelObjects.slice(0, middleIndex);
-  const right = voxelObjects.slice(middleIndex);
-  return { left, right };
-};
-
 const stride = ceilToNearestMultipleOf(56, 16);
+
+const workerCount = navigator.hardwareConcurrency || 4;
 
 /**
  * Bounding Volume Hierarchy. Handles construction and GPU serialisation of the BVH.

@@ -384,13 +384,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         octreeBufferEntry,
         worldPosEntry,
         blueNoiseEntry,
-        {
-          binding: 12,
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: {
-            type: "uniform",
-          },
-        },
         // Screen rays
         {
           binding: 14,
@@ -434,7 +427,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           @group(0) @binding(10) var<storage> bvhNodes: array<BVHNode>;
           @group(0) @binding(11) var TLASTex : texture_3d<i32>;
           @group(0) @binding(13) var<storage> octreeBuffer : array<vec2<u32>>;
-          @group(0) @binding(12) var<uniform> TLASIndex: u32;
           @group(0) @binding(14) var<storage> screenRayBuffer : array<vec3<u32>>;
           @group(0) @binding(15) var<storage, read_write> depthBuffer : array<atomic<u32>>;
           
@@ -451,21 +443,11 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     });
 
     let bindGroup: GPUBindGroup;
-    let TLASIndexBuffer = device.createBuffer({
-      size: 4,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
 
     const enqueuePass = (
       computePass: GPUComputePassEncoder,
       renderArgs: RenderArgs,
-      TLASTextureZ: number,
     ) => {
-      renderArgs.device.queue.writeBuffer(
-        TLASIndexBuffer,
-        0,
-        new Uint32Array([TLASTextureZ]),
-      );
       bindGroup = device.createBindGroup({
         layout: bindGroupLayout,
         entries: [
@@ -522,12 +504,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           {
             binding: 11,
             resource: TLASTextureView,
-          },
-          {
-            binding: 12,
-            resource: {
-              buffer: TLASIndexBuffer,
-            },
           },
           {
             binding: 13,
@@ -638,7 +614,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         endOfPassWriteIndex: renderArgs.timestampWrites.endOfPassWriteIndex + 4,
       },
     });
-    sparseRayMarch(computePass, renderArgs, 0);
+    sparseRayMarch(computePass, renderArgs);
     computePass.end();
   };
 

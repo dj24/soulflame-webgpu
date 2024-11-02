@@ -11,9 +11,60 @@ import { mergeOctrees } from "@renderer/octree/merge-octrees";
 import { animate, spring } from "motion";
 import { processNewVoxelImport } from "@renderer/create-tavern";
 
-const chunkWidth = 128;
+export const chunkWidth = 128;
 
 const workerCount = navigator.hardwareConcurrency || 4;
+
+// Worker pool to process one task and shut down upon completion
+class OneShotWorkerPool<T> {
+  workers: Worker[] = [];
+  workQueue: T[] = [];
+  workFunction: (workItem: T, workerIndex: number) => Promise<number>;
+
+  constructor(
+    worker: Worker,
+    workFunction: (workItem: T, workerIndex: number) => Promise<number>,
+    workQueue: T[] = [],
+  ) {
+    this.workers = Array.from(
+      { length: Math.floor(workerCount) },
+      () => worker,
+    );
+    this.workFunction = workFunction;
+    this.workQueue = workQueue;
+  }
+
+  async go() {
+    // Assign workers to initial chunks
+    let activeWorkers: Promise<number>[] = [];
+
+    // Continue assigning chunks to workers while there are chunks left
+    while (this.workQueue.length > 0) {
+      // If there are still chunks left and there are available workers, assign a chunk
+      if (activeWorkers.length < workerCount) {
+        const workItem = this.workQueue.shift();
+        const index = activeWorkers.length;
+        activeWorkers[index] = this.workFunction(workItem, index);
+        continue;
+      }
+
+      // Wait for the first available worker to finish
+      const finishedWorkerIndex = await Promise.race(activeWorkers);
+
+      // Get the next chunk position and assign it to the worker that just finished
+      activeWorkers[finishedWorkerIndex] = this.workFunction(
+        this.workQueue.shift(),
+        finishedWorkerIndex,
+      );
+    }
+
+    // Wait for all workers to finish
+    await Promise.all(activeWorkers);
+
+    // Clean up workers
+    this.workers.forEach((worker) => worker.terminate());
+  }
+}
 
 const foo = async (ecs: ECS) => {
   const volumeAtlas = getGPUDeviceSingleton(ecs).volumeAtlas;
@@ -27,17 +78,6 @@ const foo = async (ecs: ECS) => {
     return wrap<import("../sine-chunk").TerrainWorker>(worker);
   });
 
-  // Get all the chunk positions
-  let chunkPositions: [number, number, number][] = [];
-  for (let x = 0; x < 1024; x += chunkWidth) {
-    for (let z = 0; z < 1024; z += chunkWidth) {
-      // Iterate from the top of the world down, so we can skip when we hit empty chunks
-      for (let y = 0; y < CHUNK_HEIGHT; y += chunkWidth) {
-        chunkPositions.push([x, y, z]);
-      }
-    }
-  }
-
   const assignChunkToWorker = async ([x, y, z]: number[], index: number) => {
     await createTerrainChunk(
       ecs,
@@ -50,34 +90,24 @@ const foo = async (ecs: ECS) => {
     return index;
   };
 
-  // Assign workers to initial chunks
-  let activeWorkers: Promise<number>[] = [];
-
-  // Continue assigning chunks to workers while there are chunks left
-  while (chunkPositions.length > 0) {
-    // If there are still chunks left and there are available workers, assign a chunk
-    if (activeWorkers.length < workerCount) {
-      const [x, y, z] = chunkPositions.shift();
-      const index = activeWorkers.length;
-      activeWorkers[index] = assignChunkToWorker([x, y, z], index);
-      continue;
+  // Get all the chunk positions
+  let chunkPositions: [number, number, number][] = [];
+  for (let x = 0; x < 1024; x += chunkWidth) {
+    for (let z = 0; z < 1024; z += chunkWidth) {
+      // Iterate from the top of the world down, so we can skip when we hit empty chunks
+      for (let y = 0; y < CHUNK_HEIGHT; y += chunkWidth) {
+        chunkPositions.push([x, y, z]);
+      }
     }
-
-    // Wait for the first available worker to finish
-    const finishedWorkerIndex = await Promise.race(activeWorkers);
-
-    // Get the next chunk position and assign it to the worker that just finished
-    activeWorkers[finishedWorkerIndex] = assignChunkToWorker(
-      chunkPositions.shift(),
-      finishedWorkerIndex,
-    );
   }
 
-  // Wait for all workers to finish
-  await Promise.all(activeWorkers);
+  const workerPool = new OneShotWorkerPool(
+    new Worker(new URL("../sine-chunk", import.meta.url)),
+    assignChunkToWorker,
+    chunkPositions,
+  );
 
-  // Clean up workers
-  terrainWorkers.forEach((worker) => worker.terminate());
+  workerPool.go();
 };
 export class TerrainSystem extends System {
   componentsRequired = new Set([TerrainSingleton]);
