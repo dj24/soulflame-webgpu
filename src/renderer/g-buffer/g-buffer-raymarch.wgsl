@@ -147,21 +147,21 @@ fn main(
   let voxelObject = voxelObjects[voxelObjectIndex];
   var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, rayOrigin, 9999.0);
 
-//  textureStore(albedoTex, pixel, getDebugColor(u32(voxelObjectIndex)));
-
-  if(!rayMarchResult.hit){
-    return;
-  }
-  let currentDepth = loadDepth(pixel);
-  if(rayMarchResult.t <= currentDepth){
-    storeDepth(pixel, rayMarchResult.t);
-    albedo = rayMarchResult.colour;
-    worldPos = rayOrigin + rayDirection * rayMarchResult.t;
-    normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(rayMarchResult.normal));
-    velocity = getVelocityStatic(worldPos, viewProjections);
-    textureStore(albedoTex, pixel, vec4(albedo, 1));
-    textureStore(normalTex, pixel, vec4(normal,1));
-    textureStore(velocityTex, pixel, vec4(velocity,0,0));
-    textureStore(worldPosTex, pixel, vec4(worldPos,rayMarchResult.t));
-  }
+  textureStore(albedoTex, pixel, getDebugColor(u32(voxelObjectIndex)));
+//
+//  if(!rayMarchResult.hit){
+//    return;
+//  }
+//  let currentDepth = loadDepth(pixel);
+//  if(rayMarchResult.t <= currentDepth){
+//    storeDepth(pixel, rayMarchResult.t);
+//    albedo = rayMarchResult.colour;
+//    worldPos = rayOrigin + rayDirection * rayMarchResult.t;
+//    normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(rayMarchResult.normal));
+//    velocity = getVelocityStatic(worldPos, viewProjections);
+//    textureStore(albedoTex, pixel, vec4(albedo, 1));
+//    textureStore(normalTex, pixel, vec4(normal,1));
+//    textureStore(velocityTex, pixel, vec4(velocity,0,0));
+//    textureStore(worldPosTex, pixel, vec4(worldPos,rayMarchResult.t));
+//  }
 }
