@@ -263,8 +263,8 @@ export const init = async (
     // getLutPass("luts/Reeve 38.CUBE"),
     // getVignettePass(10.0),
     fullscreenQuad(device),
-    getBoxOutlinePass(device),
-    getLightDebugPass(device),
+    // getBoxOutlinePass(device),
+    // getLightDebugPass(device),
   ]);
 
   timestampLabels = computePasses.reduce((acc, val) => {
@@ -500,16 +500,19 @@ export const frame = (
   getTimeBuffer();
   getSunDirectionBuffer();
 
+  const aabbStart = performance.now();
+  const renderableBoundingBoxes = renderableEntities.map((entity) => {
+    return getVoxelObjectBoundingBox(
+      ecs.getComponents(entity).get(VoxelObject),
+      ecs.getComponents(entity).get(Transform),
+    );
+  });
+  const aabbEnd = performance.now();
+  frameTimeTracker.addSample("bvh aabb", aabbEnd - aabbStart);
+
   const bvhStart = performance.now();
   // if (lastEntityCount !== renderableEntities.length) {
-  bvh.update(
-    renderableEntities.map((entity) => {
-      return getVoxelObjectBoundingBox(
-        ecs.getComponents(entity).get(VoxelObject),
-        ecs.getComponents(entity).get(Transform),
-      );
-    }),
-  );
+  bvh.update(renderableBoundingBoxes);
   // }
   const bvhEnd = performance.now();
   frameTimeTracker.addSample("bvh update", bvhEnd - bvhStart);

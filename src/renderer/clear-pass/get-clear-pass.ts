@@ -36,7 +36,6 @@ export const getClearPass = async (
   const render = (args: RenderArgs) => {
     const renderPass = args.commandEncoder.beginRenderPass({
       label: `clear ${gBufferTexture.label}`,
-      timestampWrites: args.timestampWrites,
       colorAttachments: [
         {
           view: gBufferTexture.view,
@@ -52,5 +51,5 @@ export const getClearPass = async (
     renderPass.end();
   };
 
-  return { render, label: `clear ${gBufferTexture.label}` };
+  return { render };
 };

@@ -114,7 +114,8 @@ fn convert2DTo1D(width: u32, index2D: vec2<u32>) -> u32 {
 fn storeDepth(pixel: vec2<u32>, depth: f32) {
     let texSize = textureDimensions(albedoTex);
     let index = convert2DTo1D(texSize.x, pixel);
-    let uintDepth = bitcast<u32>(depth);
+    let reversedDepth = FAR_PLANE - depth;
+    let uintDepth = bitcast<u32>(reversedDepth);
     atomicStore(&depthBuffer[index], uintDepth);
 }
 
@@ -122,10 +123,8 @@ fn loadDepth(pixel: vec2<u32>) -> f32 {
     let texSize = textureDimensions(albedoTex);
     let index = convert2DTo1D(texSize.x, pixel);
     let uintDepth = atomicLoad(&depthBuffer[index]);
-    let depth = bitcast<f32>(uintDepth);
-    if depth < 0.000001 {
-        return FAR_PLANE;
-    }
+    let reversedDepth = bitcast<f32>(uintDepth);
+    let depth = FAR_PLANE - reversedDepth;
     return depth;
 }
 
@@ -134,7 +133,7 @@ fn main(
    @builtin(local_invocation_id) LocalInvocationID : vec3<u32>,
    @builtin(workgroup_id) WorkgroupID : vec3<u32>,
 ) {
-  let pixel = screenRayBuffer[WorkgroupID.x].xy + LocalInvocationID.xy;
+  let pixel = vec2<u32>(screenRayBuffer[WorkgroupID.x].xy) + LocalInvocationID.xy;
   let resolution = textureDimensions(albedoTex);
   let rayOrigin = cameraPosition;
   var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
@@ -143,23 +142,26 @@ fn main(
   var normal = vec3(0.0);
   var albedo = vec3(0.0);
   var velocity = vec2(0.0);
-  let TLASIdx = pixel.xy / 8;
-  let voxelObjectIndex = textureLoad(TLASTex, vec3(TLASIdx, screenRayBuffer[WorkgroupID.x].z), 0).x;
+  let voxelObjectIndex = screenRayBuffer[WorkgroupID.x].z;
+
+
   let voxelObject = voxelObjects[voxelObjectIndex];
   var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, rayOrigin, 9999.0);
-  if(!rayMarchResult.hit){
-    return;
-  }
-  let currentDepth = loadDepth(pixel);
-  if(rayMarchResult.t < currentDepth){
-    storeDepth(pixel, rayMarchResult.t);
-    albedo = rayMarchResult.colour;
-    worldPos = rayOrigin + rayDirection * rayMarchResult.t;
-    normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(rayMarchResult.normal));
-    velocity = getVelocityStatic(worldPos, viewProjections);
-    textureStore(albedoTex, pixel, vec4(albedo, 1));
-    textureStore(normalTex, pixel, vec4(normal,1));
-    textureStore(velocityTex, pixel, vec4(velocity,0,0));
-    textureStore(worldPosTex, pixel, vec4(worldPos,rayMarchResult.t));
-  }
+
+  textureStore(albedoTex, pixel, getDebugColor(u32(voxelObjectIndex)));
+//  if(!rayMarchResult.hit){
+//    return;
+//  }
+//  let currentDepth = loadDepth(pixel);
+//  if(rayMarchResult.t <= currentDepth){
+//    storeDepth(pixel, rayMarchResult.t);
+//    albedo = rayMarchResult.colour;
+//    worldPos = rayOrigin + rayDirection * rayMarchResult.t;
+//    normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(rayMarchResult.normal));
+//    velocity = getVelocityStatic(worldPos, viewProjections);
+//    textureStore(albedoTex, pixel, vec4(albedo, 1));
+//    textureStore(normalTex, pixel, vec4(normal,1));
+//    textureStore(velocityTex, pixel, vec4(velocity,0,0));
+//    textureStore(worldPosTex, pixel, vec4(worldPos,rayMarchResult.t));
+//  }
 }

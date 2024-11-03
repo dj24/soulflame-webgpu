@@ -1,8 +1,17 @@
 import { gpuContext, RenderArgs, RenderPass } from "../app";
 import fullscreenQuadShader from "./fullscreentexturedquad.wgsl";
+
+let obj = { outputTexture: "Final" };
 export const fullscreenQuad = async (
   device: GPUDevice,
 ): Promise<RenderPass> => {
+  (window as any).debugUI.gui.add(obj, "outputTexture", [
+    "Final",
+    "Normals",
+    "Albedo",
+    "Position",
+  ]);
+
   const fullscreenQuadShaderModule = device.createShaderModule({
     code: fullscreenQuadShader,
   });
@@ -31,13 +40,25 @@ export const fullscreenQuad = async (
       ],
     });
 
+    const getTexture = (name: string) => {
+      switch (name) {
+        case "Final":
+          return args.outputTextures.finalTexture.view;
+        case "Normals":
+          return args.outputTextures.normalTexture.view;
+        case "Albedo":
+          return args.outputTextures.albedoTexture.view;
+        case "Position":
+          return args.outputTextures.worldPositionTexture.view;
+      }
+    };
+
     const bindGroup = device.createBindGroup({
       layout: renderPipeline.getBindGroupLayout(0),
       entries: [
         {
           binding: 1,
-          resource: args.outputTextures.finalTexture.view,
-          // resource: args.outputTextures.worldPositionTexture.view,
+          resource: getTexture(obj.outputTexture),
         },
       ],
     });

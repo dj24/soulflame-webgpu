@@ -189,7 +189,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           @group(0) @binding(1) var<uniform> viewProjections : ViewProjectionMatrices;
           @group(0) @binding(2) var<storage> bvhNodes: array<BVHNode>;
           @group(0) @binding(3) var outputTex : texture_storage_3d<r32sint, write>;
-          @group(1) @binding(0) var<storage, read_write> screenRayBuffer : array<vec3<u32>>;
+          @group(1) @binding(0) var<storage, read_write> screenRayBuffer : array<vec3<i32>>;
           @group(1) @binding(1) var<storage, read_write> indirectBuffer : array<atomic<u32>>;
           ${getRayDirection}
           ${boxIntersection}
@@ -427,7 +427,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           @group(0) @binding(10) var<storage> bvhNodes: array<BVHNode>;
           @group(0) @binding(11) var TLASTex : texture_3d<i32>;
           @group(0) @binding(13) var<storage> octreeBuffer : array<vec2<u32>>;
-          @group(0) @binding(14) var<storage> screenRayBuffer : array<vec3<u32>>;
+          @group(0) @binding(14) var<storage> screenRayBuffer : array<vec3<i32>>;
           @group(0) @binding(15) var<storage, read_write> depthBuffer : array<atomic<u32>>;
           
           ${randomCommon}

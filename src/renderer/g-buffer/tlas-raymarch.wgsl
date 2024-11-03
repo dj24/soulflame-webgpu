@@ -1,3 +1,6 @@
+
+const STACK_LEN: u32 = 64u;
+
 struct Stack {
   arr: array<i32, STACK_LEN>,
 	head: u32,
@@ -30,8 +33,6 @@ fn nodeRayIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, node: BVHN
   return -1.0;
 }
 
-const STACK_LEN: u32 = 32u;
-
 @compute @workgroup_size(8, 8, 1)
 fn main(
   @builtin(global_invocation_id) idx : vec3<u32>,
@@ -44,9 +45,10 @@ fn main(
     var stack = stack_new();
     stack_push(&stack, 0);
     var iterations = 0;
-    var hitLeafIndex = 0;
+    var leafHitCount = 0;
+    var hitIndices = array<i32, 16>(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
 
-    while (stack.head > 0u && iterations < 256 && hitLeafIndex < i32(texSize.z)) {
+    while (stack.head > 0u && iterations < 256 && leafHitCount < 16) {
       let nodeIndex = stack_pop(&stack);
       let node = bvhNodes[nodeIndex];
       if(node.objectCount > 1){
@@ -77,11 +79,26 @@ fn main(
       }
       // valid leaf, raymarch it
       else if(node.objectCount == 1){
-        textureStore(outputTex, vec3(idx.xy, u32(hitLeafIndex)), vec4(i32(node.leftIndex)));
-        let currentCount = atomicAdd(&indirectBuffer[0], 1);
-        screenRayBuffer[currentCount + 1] = vec3(idx.xy * 8, u32(hitLeafIndex));
-        hitLeafIndex += 1;
+        hitIndices[leafHitCount] = node.leftIndex;
+        leafHitCount += 1;
       }
       iterations += 1;
+    }
+
+    workgroupBarrier();
+
+     // We hit a leaf, store the screen position and update the indirect buffer
+    if(leafHitCount > 0){
+//      let currentCount = atomicAdd(&indirectBuffer[0], 1);
+//      screenRayBuffer[currentCount + 1] = vec3(vec2<i32>(idx.xy * 8), 0);
+
+      for(var i = 0u; i < 16u; i = i + 1){
+        let nodeIndex = hitIndices[i];
+        if(nodeIndex == -1){
+          break;
+        }
+        let currentCount = atomicAdd(&indirectBuffer[0], 1);
+        screenRayBuffer[currentCount + 1] = vec3(vec2<i32>(idx.xy * 8), nodeIndex);
+      }
     }
 }

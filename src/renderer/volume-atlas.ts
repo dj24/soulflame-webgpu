@@ -26,6 +26,7 @@ export type VolumeAtlasDictionary = {
 };
 
 const folder = (window as any).debugUI.gui.addFolder("volume atlas");
+folder.close();
 const MIN_VOLUME_SIZE = Math.pow(2, VOLUME_MIP_LEVELS - 1);
 const DEFAULT_ATLAS_SIZE = MIN_VOLUME_SIZE;
 const PALETTE_WIDTH = 256;
