@@ -32,73 +32,9 @@ const TLAS_RAYMARCH_DOWNSAMPLE = 8;
 const TLAS_HITS = 16;
 
 export const getGBufferPass = async (): Promise<RenderPass> => {
-  let TLASTexture: GPUTexture;
-  let TLASTextureView: GPUTextureView;
   let indirectBuffer: GPUBuffer;
   let screenRayBuffer: GPUBuffer;
   let depthBuffer: GPUBuffer;
-
-  // Clears the TLAS texture to be all -1s
-  const getClearTLASPass = async () => {
-    const bindGroupLayout = device.createBindGroupLayout({
-      entries: [
-        {
-          binding: 0,
-          visibility: GPUShaderStage.COMPUTE,
-          storageTexture: {
-            format: "r32sint",
-            viewDimension: "3d",
-          },
-        },
-      ],
-    });
-
-    const pipeline = await device.createComputePipelineAsync({
-      layout: device.createPipelineLayout({
-        bindGroupLayouts: [bindGroupLayout],
-      }),
-      compute: {
-        module: device.createShaderModule({
-          code: `
-            @group(0) @binding(0) var outputTex : texture_storage_3d<r32sint, write>;
-
-            @compute @workgroup_size(8, 8, 1)
-            fn main(
-               @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
-            ) {
-              textureStore(outputTex, GlobalInvocationID, vec4(-1));
-            }
-          `,
-        }),
-        entryPoint: "main",
-      },
-    });
-
-    let bindGroup: GPUBindGroup;
-
-    const enqueuePass = (computePass: GPUComputePassEncoder) => {
-      if (!bindGroup) {
-        bindGroup = device.createBindGroup({
-          layout: bindGroupLayout,
-          entries: [
-            {
-              binding: 0,
-              resource: TLASTextureView,
-            },
-          ],
-        });
-      }
-      computePass.setPipeline(pipeline);
-      computePass.setBindGroup(0, bindGroup);
-      computePass.dispatchWorkgroups(
-        Math.ceil(TLASTexture.width / 8),
-        Math.ceil(TLASTexture.height / 8),
-        TLASTexture.depthOrArrayLayers,
-      );
-    };
-
-    return enqueuePass;
-  };
 
   const getTLASRaymarchPass = async () => {
     const bindGroupLayout = device.createBindGroupLayout({
@@ -125,16 +61,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           visibility: GPUShaderStage.COMPUTE,
           buffer: {
             type: "read-only-storage",
-          },
-        },
-        // output textures
-        {
-          binding: 3,
-          visibility: GPUShaderStage.COMPUTE,
-          storageTexture: {
-            format: "r32sint",
-            access: "write-only",
-            viewDimension: "3d",
           },
         },
       ],
@@ -188,7 +114,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           @group(0) @binding(0) var<uniform> cameraPosition : vec3<f32>;
           @group(0) @binding(1) var<uniform> viewProjections : ViewProjectionMatrices;
           @group(0) @binding(2) var<storage> bvhNodes: array<BVHNode>;
-          @group(0) @binding(3) var outputTex : texture_storage_3d<r32sint, write>;
           @group(1) @binding(0) var<storage, read_write> screenRayBuffer : array<vec3<i32>>;
           @group(1) @binding(1) var<storage, read_write> indirectBuffer : array<atomic<u32>>;
           ${getRayDirection}
@@ -230,10 +155,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
               buffer: renderArgs.bvhBuffer,
             },
           },
-          {
-            binding: 3,
-            resource: TLASTextureView,
-          },
         ],
       });
       // }
@@ -258,13 +179,9 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       computePass.setPipeline(pipeline);
       computePass.setBindGroup(0, bindGroup);
       computePass.setBindGroup(1, rayBufferBindGroup);
-      const downsampledResolution = [
-        Math.ceil(resolution[0] / TLAS_RAYMARCH_DOWNSAMPLE),
-        Math.ceil(resolution[1] / TLAS_RAYMARCH_DOWNSAMPLE),
-      ];
       computePass.dispatchWorkgroups(
-        Math.ceil(downsampledResolution[0] / 8),
-        Math.ceil(downsampledResolution[1] / 8),
+        Math.ceil(resolution[0] / TLAS_RAYMARCH_DOWNSAMPLE / 8),
+        Math.ceil(resolution[1] / TLAS_RAYMARCH_DOWNSAMPLE / 8),
       );
     };
 
@@ -372,18 +289,17 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           },
         },
         bvhBufferEntry,
-        // TLAS texture
-        {
-          binding: 11,
-          visibility: GPUShaderStage.COMPUTE,
-          texture: {
-            sampleType: "sint",
-            viewDimension: "3d",
-          },
-        },
         octreeBufferEntry,
         worldPosEntry,
         blueNoiseEntry,
+        // Indirect buffer
+        {
+          binding: 11,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: {
+            type: "read-only-storage",
+          },
+        },
         // Screen rays
         {
           binding: 14,
@@ -425,7 +341,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           @group(0) @binding(8) var<uniform> viewProjections : ViewProjectionMatrices;
           @group(0) @binding(9) var blueNoiseTex : texture_2d<f32>;
           @group(0) @binding(10) var<storage> bvhNodes: array<BVHNode>;
-          @group(0) @binding(11) var TLASTex : texture_3d<i32>;
+          @group(0) @binding(11) var<storage> indirectBuffer : array<u32>;
           @group(0) @binding(13) var<storage> octreeBuffer : array<vec2<u32>>;
           @group(0) @binding(14) var<storage> screenRayBuffer : array<vec3<i32>>;
           @group(0) @binding(15) var<storage, read_write> depthBuffer : array<atomic<u32>>;
@@ -503,7 +419,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           },
           {
             binding: 11,
-            resource: TLASTextureView,
+            resource: { buffer: indirectBuffer },
           },
           {
             binding: 13,
@@ -533,7 +449,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
 
   const renderTLAS = await getTLASRaymarchPass();
   const sparseRayMarch = await getFullRaymarchPass();
-  const clearTLAS = await getClearTLASPass();
 
   const render = (renderArgs: RenderArgs) => {
     if (!depthBuffer) {
@@ -571,21 +486,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       });
     }
 
-    if (!TLASTexture) {
-      TLASTexture = device.createTexture({
-        size: {
-          width: Math.ceil(resolution[0] / TLAS_RAYMARCH_DOWNSAMPLE),
-          height: Math.ceil(resolution[1] / TLAS_RAYMARCH_DOWNSAMPLE),
-          depthOrArrayLayers: TLAS_HITS,
-        },
-        format: "r32sint",
-        dimension: "3d",
-        usage:
-          GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
-      });
-      TLASTextureView = TLASTexture.createView();
-    }
-
     const { commandEncoder, timestampWrites } = renderArgs;
     commandEncoder.clearBuffer(indirectBuffer, 0, 4);
     commandEncoder.clearBuffer(screenRayBuffer);
@@ -593,7 +493,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
 
     // Sparse raymarch
     let computePass = commandEncoder.beginComputePass({ timestampWrites });
-    clearTLAS(computePass);
     computePass.end();
     computePass = commandEncoder.beginComputePass({
       timestampWrites: {

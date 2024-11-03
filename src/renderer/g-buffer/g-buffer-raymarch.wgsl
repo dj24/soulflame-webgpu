@@ -134,6 +134,7 @@ fn main(
    @builtin(workgroup_id) WorkgroupID : vec3<u32>,
 ) {
   let pixel = vec2<u32>(screenRayBuffer[WorkgroupID.x].xy) + LocalInvocationID.xy;
+  let voxelObjectIndex = screenRayBuffer[WorkgroupID.x].z;
   let resolution = textureDimensions(albedoTex);
   let rayOrigin = cameraPosition;
   var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
@@ -142,26 +143,25 @@ fn main(
   var normal = vec3(0.0);
   var albedo = vec3(0.0);
   var velocity = vec2(0.0);
-  let voxelObjectIndex = screenRayBuffer[WorkgroupID.x].z;
-
 
   let voxelObject = voxelObjects[voxelObjectIndex];
   var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, rayOrigin, 9999.0);
 
-  textureStore(albedoTex, pixel, getDebugColor(u32(voxelObjectIndex)));
-//  if(!rayMarchResult.hit){
-//    return;
-//  }
-//  let currentDepth = loadDepth(pixel);
-//  if(rayMarchResult.t <= currentDepth){
-//    storeDepth(pixel, rayMarchResult.t);
-//    albedo = rayMarchResult.colour;
-//    worldPos = rayOrigin + rayDirection * rayMarchResult.t;
-//    normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(rayMarchResult.normal));
-//    velocity = getVelocityStatic(worldPos, viewProjections);
-//    textureStore(albedoTex, pixel, vec4(albedo, 1));
-//    textureStore(normalTex, pixel, vec4(normal,1));
-//    textureStore(velocityTex, pixel, vec4(velocity,0,0));
-//    textureStore(worldPosTex, pixel, vec4(worldPos,rayMarchResult.t));
-//  }
+//  textureStore(albedoTex, pixel, getDebugColor(u32(voxelObjectIndex)));
+
+  if(!rayMarchResult.hit){
+    return;
+  }
+  let currentDepth = loadDepth(pixel);
+  if(rayMarchResult.t <= currentDepth){
+    storeDepth(pixel, rayMarchResult.t);
+    albedo = rayMarchResult.colour;
+    worldPos = rayOrigin + rayDirection * rayMarchResult.t;
+    normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(rayMarchResult.normal));
+    velocity = getVelocityStatic(worldPos, viewProjections);
+    textureStore(albedoTex, pixel, vec4(albedo, 1));
+    textureStore(normalTex, pixel, vec4(normal,1));
+    textureStore(velocityTex, pixel, vec4(velocity,0,0));
+    textureStore(worldPosTex, pixel, vec4(worldPos,rayMarchResult.t));
+  }
 }
