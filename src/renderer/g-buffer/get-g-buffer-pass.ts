@@ -28,7 +28,7 @@ const ceilToNearestMultipleOf = (n: number, multiple: number) => {
   return Math.ceil(n / multiple) * multiple;
 };
 
-const TLAS_RAYMARCH_DOWNSAMPLE = 8;
+const TLAS_RAYMARCH_DOWNSAMPLE = 1;
 const TLAS_HITS = 16;
 
 export const getGBufferPass = async (): Promise<RenderPass> => {
@@ -180,8 +180,8 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       computePass.setBindGroup(0, bindGroup);
       computePass.setBindGroup(1, rayBufferBindGroup);
       computePass.dispatchWorkgroups(
-        Math.ceil(resolution[0] / TLAS_RAYMARCH_DOWNSAMPLE / 8),
-        Math.ceil(resolution[1] / TLAS_RAYMARCH_DOWNSAMPLE / 8),
+        Math.ceil(resolution[0] / 8),
+        Math.ceil(resolution[1] / 8),
       );
     };
 
@@ -441,7 +441,8 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       // Raymarch the scene
       computePass.setPipeline(pipeline);
       computePass.setBindGroup(0, bindGroup);
-      computePass.dispatchWorkgroupsIndirect(indirectBuffer, 0);
+      // computePass.dispatchWorkgroupsIndirect(indirectBuffer, 0);
+      computePass.dispatchWorkgroups(65000, 1, 1);
     };
 
     return enqueuePass;
@@ -460,7 +461,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
 
     if (!indirectBuffer) {
       indirectBuffer = device.createBuffer({
-        size: 3 * 4,
+        size: 4 * 4,
         usage:
           GPUBufferUsage.INDIRECT |
           GPUBufferUsage.STORAGE |
@@ -469,7 +470,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       });
 
       const uint32 = new Uint32Array(3);
-      uint32[0] = 0; // The X value
+      uint32[0] = 1; // The X value
       uint32[1] = 1; // The Y value
       uint32[2] = 1; // The Z value
       // Write values into a GPUBuffer
@@ -477,8 +478,10 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
 
       const { width, height } = renderArgs.outputTextures.finalTexture;
       const maxScreenRays = width * height;
+      const maxBVHHits = 4;
+      const stride = 16; // vec3
       screenRayBuffer = device.createBuffer({
-        size: maxScreenRays * 16, // vec3
+        size: maxScreenRays * maxBVHHits * stride,
         usage:
           GPUBufferUsage.STORAGE |
           GPUBufferUsage.COPY_DST |

@@ -128,13 +128,12 @@ fn loadDepth(pixel: vec2<u32>) -> f32 {
     return depth;
 }
 
-@compute @workgroup_size(8, 8, 1)
+@compute @workgroup_size(64, 1, 1)
 fn main(
-   @builtin(local_invocation_id) LocalInvocationID : vec3<u32>,
-   @builtin(workgroup_id) WorkgroupID : vec3<u32>,
+    @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
 ) {
-  let pixel = vec2<u32>(screenRayBuffer[WorkgroupID.x].xy) + LocalInvocationID.xy;
-  let voxelObjectIndex = screenRayBuffer[WorkgroupID.x].z;
+  let pixel = vec2<u32>(screenRayBuffer[GlobalInvocationID.x].xy);
+  let voxelObjectIndex = screenRayBuffer[GlobalInvocationID.x].z;
   let resolution = textureDimensions(albedoTex);
   let rayOrigin = cameraPosition;
   var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
@@ -145,10 +144,11 @@ fn main(
   var velocity = vec2(0.0);
 
   let voxelObject = voxelObjects[voxelObjectIndex];
-  var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, rayOrigin, 9999.0);
+
 
   textureStore(albedoTex, pixel, getDebugColor(u32(voxelObjectIndex)));
-//
+
+//var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, rayOrigin, 9999.0);
 //  if(!rayMarchResult.hit){
 //    return;
 //  }
