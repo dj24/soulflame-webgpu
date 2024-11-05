@@ -1,4 +1,4 @@
-import { device, RenderPass, RenderArgs, resolution } from "../app";
+import { device, RenderPass, RenderArgs, resolution, frameCount } from "../app";
 import {
   GBufferTexture,
   WorldPositionTexture,
@@ -30,11 +30,16 @@ const ceilToNearestMultipleOf = (n: number, multiple: number) => {
 
 const TLAS_RAYMARCH_DOWNSAMPLE = 1;
 const TLAS_HITS = 16;
+let isMapPending = false;
 
 export const getGBufferPass = async (): Promise<RenderPass> => {
   let indirectBuffer: GPUBuffer;
   let screenRayBuffer: GPUBuffer;
   let depthBuffer: GPUBuffer;
+  let debugBuffer = device.createBuffer({
+    size: 16,
+    usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+  });
 
   const getTLASRaymarchPass = async () => {
     const bindGroupLayout = device.createBindGroupLayout({
@@ -84,6 +89,14 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
             type: "storage",
           },
         },
+        // Index buffer
+        {
+          binding: 2,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: {
+            type: "uniform",
+          },
+        },
       ],
     });
 
@@ -116,6 +129,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           @group(0) @binding(2) var<storage> bvhNodes: array<BVHNode>;
           @group(1) @binding(0) var<storage, read_write> screenRayBuffer : array<vec3<i32>>;
           @group(1) @binding(1) var<storage, read_write> indirectBuffer : array<atomic<u32>>;
+          @group(1) @binding(2) var<uniform> index : u32;
           ${getRayDirection}
           ${boxIntersection}
           ${depth}
@@ -128,11 +142,21 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
 
     let bindGroup: GPUBindGroup;
     let rayBufferBindGroup: GPUBindGroup;
+    const indexBuffer = device.createBuffer({
+      size: 4,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
+    });
 
     const enqueuePass = (
       computePass: GPUComputePassEncoder,
       renderArgs: RenderArgs,
+      index: number,
     ) => {
+      renderArgs.device.queue.writeBuffer(
+        indexBuffer,
+        0,
+        new Uint32Array([index]),
+      );
       // if (!bindGroup) {
       bindGroup = device.createBindGroup({
         layout: bindGroupLayout,
@@ -171,6 +195,10 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
               binding: 1,
               resource: { buffer: indirectBuffer },
             },
+            {
+              binding: 2,
+              resource: { buffer: indexBuffer },
+            },
           ],
         });
       }
@@ -180,8 +208,8 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       computePass.setBindGroup(0, bindGroup);
       computePass.setBindGroup(1, rayBufferBindGroup);
       computePass.dispatchWorkgroups(
-        Math.ceil(resolution[0] / 8),
-        Math.ceil(resolution[1] / 8),
+        Math.ceil(resolution[0] / 32),
+        Math.ceil(resolution[1] / 32),
       );
     };
 
@@ -441,8 +469,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       // Raymarch the scene
       computePass.setPipeline(pipeline);
       computePass.setBindGroup(0, bindGroup);
-      // computePass.dispatchWorkgroupsIndirect(indirectBuffer, 0);
-      computePass.dispatchWorkgroups(65000, 1, 1);
+      computePass.dispatchWorkgroupsIndirect(indirectBuffer, 0);
     };
 
     return enqueuePass;
@@ -461,7 +488,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
 
     if (!indirectBuffer) {
       indirectBuffer = device.createBuffer({
-        size: 4 * 4,
+        size: 16,
         usage:
           GPUBufferUsage.INDIRECT |
           GPUBufferUsage.STORAGE |
@@ -469,28 +496,41 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           GPUBufferUsage.COPY_DST,
       });
 
-      const uint32 = new Uint32Array(3);
+      const uint32 = new Uint32Array(4);
       uint32[0] = 1; // The X value
       uint32[1] = 1; // The Y value
       uint32[2] = 1; // The Z value
+      uint32[3] = 1; // The workgroup count
       // Write values into a GPUBuffer
       device.queue.writeBuffer(indirectBuffer, 0, uint32, 0, uint32.length);
-
-      const { width, height } = renderArgs.outputTextures.finalTexture;
-      const maxScreenRays = width * height;
-      const maxBVHHits = 4;
-      const stride = 16; // vec3
       screenRayBuffer = device.createBuffer({
-        size: maxScreenRays * maxBVHHits * stride,
+        size: 128 * 1024 * 1024, // 256 MB
         usage:
           GPUBufferUsage.STORAGE |
           GPUBufferUsage.COPY_DST |
           GPUBufferUsage.COPY_SRC,
       });
+      let foo = device.createTexture({
+        size: {
+          width: resolution[0],
+          height: resolution[1],
+          depthOrArrayLayers: 8,
+        },
+        format: "r32uint",
+        usage: GPUTextureUsage.COPY_DST,
+      });
+      console.log({ foo });
     }
 
     const { commandEncoder, timestampWrites } = renderArgs;
-    commandEncoder.clearBuffer(indirectBuffer, 0, 4);
+    const uint32 = new Uint32Array(4);
+    uint32[0] = 1; // The X value
+    uint32[1] = 1; // The Y value
+    uint32[2] = 1; // The Z value
+    uint32[3] = 1; // The workgroup count
+    // Write values into a GPUBuffer
+    device.queue.writeBuffer(indirectBuffer, 0, uint32, 0, uint32.length);
+
     commandEncoder.clearBuffer(screenRayBuffer);
     commandEncoder.clearBuffer(depthBuffer);
 
@@ -505,17 +545,10 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         endOfPassWriteIndex: renderArgs.timestampWrites.endOfPassWriteIndex + 2,
       },
     });
-    renderTLAS(computePass, renderArgs);
-    computePass.end();
-
-    computePass = commandEncoder.beginComputePass({
-      timestampWrites: {
-        querySet: renderArgs.timestampWrites.querySet,
-        beginningOfPassWriteIndex:
-          renderArgs.timestampWrites.beginningOfPassWriteIndex + 4,
-        endOfPassWriteIndex: renderArgs.timestampWrites.endOfPassWriteIndex + 4,
-      },
-    });
+    for (let i = 0; i < 16; i++) {
+      renderTLAS(computePass, renderArgs, i);
+    }
+    // TODO: use work queue to incrementally march, otherwise indirect args grow larger with each dispatch
     sparseRayMarch(computePass, renderArgs);
     computePass.end();
   };

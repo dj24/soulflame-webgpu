@@ -33,17 +33,21 @@ fn nodeRayIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, node: BVHN
 
 @compute @workgroup_size(WORKGROUP_SIZE, WORKGROUP_SIZE, 1)
 fn main(
-  @builtin(global_invocation_id) idx : vec3<u32>,
+  @builtin(global_invocation_id) globalId : vec3<u32>,
   @builtin(num_workgroups) numWorkgroups : vec3<u32>,
+  @builtin(workgroup_id) workgroupId : vec3<u32>,
+  @builtin(local_invocation_id) localId : vec3<u32>,
 ) {
-    let uv = vec2<f32>(idx.xy) / vec2<f32>(numWorkgroups.xy * WORKGROUP_SIZE);
+    let screenWidth = numWorkgroups.xy * WORKGROUP_SIZE * 4;
+    let idx = vec2<u32>(globalId.xy * 4) + vec2(index % 4, index / 4);
+    let uv = vec2<f32>(idx.xy) / vec2<f32>(screenWidth);
     let rayDirection = calculateRayDirection(uv, viewProjections.inverseViewProjection);
     let rayOrigin = cameraPosition;
     var stack = stack_new();
     stack_push(&stack, 0);
     var leafHitCount = 0;
     var iterations = 0;
-    while (stack.head > 0u && iterations < 256 && leafHitCount < 4) {
+    while (stack.head > 0u && iterations < 256 && leafHitCount < 16) {
       let node = bvhNodes[stack_pop(&stack)];
       if(node.objectCount > 1){
         let leftNode = bvhNodes[node.leftIndex];
@@ -60,13 +64,15 @@ fn main(
       }
       // valid leaf, raymarch it
       else if(node.objectCount == 1){
-        let currentCount = atomicAdd(&indirectBuffer[0], 1);
+        let currentCount = atomicAdd(&indirectBuffer[3], 1) + 1;
+        if(currentCount % 256 == 0){
+          atomicStore(&indirectBuffer[0], currentCount / 256);
+        }
         screenRayBuffer[currentCount + 1] = vec3(vec2<i32>(idx.xy), node.leftIndex);
         leafHitCount += 1;
       }
       iterations += 1;
     }
 
-
-
+//      atomicStore(&indirectBuffer[0], 65000);
 }
