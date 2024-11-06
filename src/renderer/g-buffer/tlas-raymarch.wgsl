@@ -43,7 +43,7 @@ fn main(
       atomicStore(&indirectBuffer[3], 0);
     }
     let screenWidth = numWorkgroups.xy * WORKGROUP_SIZE * 4;
-    let idx = vec2<u32>(globalId.xy * 4) + vec2(index % 4, index / 4);
+    let idx = vec2<u32>(globalId.xy * 4) + vec2(INDEX % 4, INDEX / 4);
     let uv = vec2<f32>(idx.xy) / vec2<f32>(screenWidth);
     let rayDirection = calculateRayDirection(uv, viewProjections.inverseViewProjection);
     let rayOrigin = cameraPosition;

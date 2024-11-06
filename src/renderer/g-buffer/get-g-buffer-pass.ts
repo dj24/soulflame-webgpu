@@ -33,16 +33,15 @@ const TLAS_HITS = 16;
 let isMapPending = false;
 
 export const getGBufferPass = async (): Promise<RenderPass> => {
-  let indirectBuffer: GPUBuffer;
-  let indrectCopyBuffer: GPUBuffer;
-  let screenRayBuffer: GPUBuffer;
+  let indirectBuffers: GPUBuffer[] = [];
+  let screenRayBuffers: GPUBuffer[] = [];
   let depthBuffer: GPUBuffer;
   let debugBuffer = device.createBuffer({
     size: 16,
     usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
   });
 
-  const getTLASRaymarchPass = async () => {
+  const getTLASRaymarchPass = async (index: number) => {
     const bindGroupLayout = device.createBindGroupLayout({
       label: "raymarch tlas",
       entries: [
@@ -90,14 +89,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
             type: "storage",
           },
         },
-        // Index buffer
-        {
-          binding: 2,
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: {
-            type: "uniform",
-          },
-        },
       ],
     });
 
@@ -130,7 +121,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           @group(0) @binding(2) var<storage> bvhNodes: array<BVHNode>;
           @group(1) @binding(0) var<storage, read_write> screenRayBuffer : array<vec3<i32>>;
           @group(1) @binding(1) var<storage, read_write> indirectBuffer : array<atomic<u32>>;
-          @group(1) @binding(2) var<uniform> index : u32;
+          const INDEX = ${index};
           ${getRayDirection}
           ${boxIntersection}
           ${depth}
@@ -143,21 +134,13 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
 
     let bindGroup: GPUBindGroup;
     let rayBufferBindGroup: GPUBindGroup;
-    const indexBuffer = device.createBuffer({
-      size: 4,
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
-    });
 
     const enqueuePass = (
       computePass: GPUComputePassEncoder,
       renderArgs: RenderArgs,
-      index: number,
+      indirectBuffer: GPUBuffer,
+      screenRayBuffer: GPUBuffer,
     ) => {
-      renderArgs.device.queue.writeBuffer(
-        indexBuffer,
-        0,
-        new Uint32Array([index]),
-      );
       // if (!bindGroup) {
       bindGroup = device.createBindGroup({
         layout: bindGroupLayout,
@@ -195,10 +178,6 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
             {
               binding: 1,
               resource: { buffer: indirectBuffer },
-            },
-            {
-              binding: 2,
-              resource: { buffer: indexBuffer },
             },
           ],
         });
@@ -392,7 +371,10 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     const enqueuePass = (
       computePass: GPUComputePassEncoder,
       renderArgs: RenderArgs,
+      indirectBuffer: GPUBuffer,
+      screenRayBuffer: GPUBuffer,
     ) => {
+      // TODO: figure out why this needs to be created every frame
       bindGroup = device.createBindGroup({
         layout: bindGroupLayout,
         entries: [
@@ -476,7 +458,11 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     return enqueuePass;
   };
 
-  const renderTLAS = await getTLASRaymarchPass();
+  const renderTLASPasses = await Promise.all(
+    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].map((i) =>
+      getTLASRaymarchPass(i),
+    ),
+  );
   const sparseRayMarch = await getFullRaymarchPass();
 
   const render = (renderArgs: RenderArgs) => {
@@ -487,84 +473,67 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       });
     }
 
-    if (!indirectBuffer) {
-      indirectBuffer = device.createBuffer({
-        size: 16,
-        usage:
-          GPUBufferUsage.INDIRECT |
-          GPUBufferUsage.STORAGE |
-          GPUBufferUsage.COPY_SRC |
-          GPUBufferUsage.COPY_DST,
-      });
-      indrectCopyBuffer = device.createBuffer({
-        size: 16,
-        usage:
-          GPUBufferUsage.INDIRECT |
-          GPUBufferUsage.STORAGE |
-          GPUBufferUsage.COPY_SRC |
-          GPUBufferUsage.COPY_DST,
-      });
-
+    if (indirectBuffers.length === 0) {
       const uint32 = new Uint32Array(4);
       uint32[0] = 1; // The X value
       uint32[1] = 1; // The Y value
       uint32[2] = 1; // The Z value
       uint32[3] = 1; // The workgroup count
-      // Write values into a GPUBuffer
-      // device.queue.writeBuffer(indirectBuffer, 0, uint32, 0, uint32.length);
-      screenRayBuffer = device.createBuffer({
-        size: 128 * 1024 * 1024, // 256 MB
-        usage:
-          GPUBufferUsage.STORAGE |
-          GPUBufferUsage.COPY_DST |
-          GPUBufferUsage.COPY_SRC,
-      });
-      let foo = device.createTexture({
-        size: {
-          width: resolution[0],
-          height: resolution[1],
-          depthOrArrayLayers: 8,
-        },
-        format: "r32uint",
-        usage: GPUTextureUsage.COPY_DST,
-      });
-      console.log({ foo });
+
+      for (let i = 0; i < 16; i++) {
+        indirectBuffers[i] = device.createBuffer({
+          size: 16,
+          usage:
+            GPUBufferUsage.INDIRECT |
+            GPUBufferUsage.STORAGE |
+            GPUBufferUsage.COPY_SRC |
+            GPUBufferUsage.COPY_DST,
+        });
+        device.queue.writeBuffer(
+          indirectBuffers[i],
+          0,
+          uint32,
+          0,
+          uint32.length,
+        );
+        screenRayBuffers[i] = device.createBuffer({
+          size: 128 * 1024 * 1024, // 128 MB
+          usage:
+            GPUBufferUsage.STORAGE |
+            GPUBufferUsage.COPY_DST |
+            GPUBufferUsage.COPY_SRC,
+        });
+      }
     }
 
     const { commandEncoder, timestampWrites } = renderArgs;
-    const uint32 = new Uint32Array(4);
-    uint32[0] = 1; // The X value
-    uint32[1] = 1; // The Y value
-    uint32[2] = 1; // The Z value
-    uint32[3] = 1; // The workgroup count
-    // Write values into a GPUBuffer
-    device.queue.writeBuffer(indirectBuffer, 0, uint32, 0, uint32.length);
-    device.queue.writeBuffer(indrectCopyBuffer, 0, uint32, 0, uint32.length);
-    commandEncoder.clearBuffer(screenRayBuffer);
     commandEncoder.clearBuffer(depthBuffer);
 
     // Sparse raymarch
     let computePass = commandEncoder.beginComputePass({ timestampWrites });
-    computePass.end();
-    computePass = commandEncoder.beginComputePass({
-      timestampWrites: {
-        querySet: renderArgs.timestampWrites.querySet,
-        beginningOfPassWriteIndex:
-          renderArgs.timestampWrites.beginningOfPassWriteIndex + 2,
-        endOfPassWriteIndex: renderArgs.timestampWrites.endOfPassWriteIndex + 2,
-      },
-    });
+
     for (let i = 0; i < 16; i++) {
-      renderTLAS(computePass, renderArgs, i);
-      sparseRayMarch(computePass, renderArgs);
+      renderTLASPasses[i](
+        computePass,
+        renderArgs,
+        indirectBuffers[i],
+        screenRayBuffers[i],
+      );
     }
-    // TODO: use work queue to incrementally march, otherwise indirect args grow larger with each dispatch
+    for (let i = 0; i < 16; i++) {
+      sparseRayMarch(
+        computePass,
+        renderArgs,
+        indirectBuffers[i],
+        screenRayBuffers[i],
+      );
+    }
     computePass.end();
   };
 
   return {
     render,
     label: "primary rays",
-    timestampLabels: ["clear TLAS", "TLAS raymarch", "full raymarch"],
+    timestampLabels: ["full raymarch"],
   };
 };
