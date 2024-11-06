@@ -38,6 +38,10 @@ fn main(
   @builtin(workgroup_id) workgroupId : vec3<u32>,
   @builtin(local_invocation_id) localId : vec3<u32>,
 ) {
+    if(all(globalId.xy == vec2(0u))){
+      atomicStore(&indirectBuffer[0], 0);
+      atomicStore(&indirectBuffer[3], 0);
+    }
     let screenWidth = numWorkgroups.xy * WORKGROUP_SIZE * 4;
     let idx = vec2<u32>(globalId.xy * 4) + vec2(index % 4, index / 4);
     let uv = vec2<f32>(idx.xy) / vec2<f32>(screenWidth);

@@ -34,6 +34,7 @@ let isMapPending = false;
 
 export const getGBufferPass = async (): Promise<RenderPass> => {
   let indirectBuffer: GPUBuffer;
+  let indrectCopyBuffer: GPUBuffer;
   let screenRayBuffer: GPUBuffer;
   let depthBuffer: GPUBuffer;
   let debugBuffer = device.createBuffer({
@@ -495,6 +496,14 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           GPUBufferUsage.COPY_SRC |
           GPUBufferUsage.COPY_DST,
       });
+      indrectCopyBuffer = device.createBuffer({
+        size: 16,
+        usage:
+          GPUBufferUsage.INDIRECT |
+          GPUBufferUsage.STORAGE |
+          GPUBufferUsage.COPY_SRC |
+          GPUBufferUsage.COPY_DST,
+      });
 
       const uint32 = new Uint32Array(4);
       uint32[0] = 1; // The X value
@@ -502,7 +511,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       uint32[2] = 1; // The Z value
       uint32[3] = 1; // The workgroup count
       // Write values into a GPUBuffer
-      device.queue.writeBuffer(indirectBuffer, 0, uint32, 0, uint32.length);
+      // device.queue.writeBuffer(indirectBuffer, 0, uint32, 0, uint32.length);
       screenRayBuffer = device.createBuffer({
         size: 128 * 1024 * 1024, // 256 MB
         usage:
@@ -530,7 +539,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     uint32[3] = 1; // The workgroup count
     // Write values into a GPUBuffer
     device.queue.writeBuffer(indirectBuffer, 0, uint32, 0, uint32.length);
-
+    device.queue.writeBuffer(indrectCopyBuffer, 0, uint32, 0, uint32.length);
     commandEncoder.clearBuffer(screenRayBuffer);
     commandEncoder.clearBuffer(depthBuffer);
 
@@ -547,9 +556,9 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     });
     for (let i = 0; i < 16; i++) {
       renderTLAS(computePass, renderArgs, i);
+      sparseRayMarch(computePass, renderArgs);
     }
     // TODO: use work queue to incrementally march, otherwise indirect args grow larger with each dispatch
-    sparseRayMarch(computePass, renderArgs);
     computePass.end();
   };
 
