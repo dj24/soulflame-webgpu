@@ -67,7 +67,7 @@ const splitObjectsBySAH = (voxelObjects: LeafNode[]) => {
   return { left, right };
 };
 
-const stride = ceilToNearestMultipleOf(56, 16);
+const stride = ceilToNearestMultipleOf(48, 16);
 
 const workerCount = navigator.hardwareConcurrency || 4;
 
@@ -196,10 +196,6 @@ export class BVH {
       bufferView.setFloat32(32, node.AABBMax[0], true); // 16 byte alignment
       bufferView.setFloat32(36, node.AABBMax[1], true);
       bufferView.setFloat32(40, node.AABBMax[2], true);
-
-      // Parent and sibling indices
-      bufferView.setInt32(48, node.parentIndex, true);
-      bufferView.setInt32(52, node.siblingIndex, true);
 
       // Write the entire ArrayBuffer to the GPU buffer
       this.#device.queue.writeBuffer(

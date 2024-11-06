@@ -7,9 +7,7 @@ struct BVHNode {
   rightIndex: i32,
   objectCount: u32,
   AABBMin: vec3<f32>,
-  AABBMax: vec3<f32>,
-  parentIndex: i32,
-  siblingIndex: i32,
+  AABBMax: vec3<f32>
 }
 
 fn nodeRayIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, node: BVHNode) -> f32 {

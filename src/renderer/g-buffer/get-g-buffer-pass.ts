@@ -112,9 +112,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
             rightIndex: i32,
             objectCount: u32,
             AABBMin: vec3<f32>,
-            AABBMax: vec3<f32>,
-            parentIndex: i32,
-            siblingIndex: i32,
+            AABBMax: vec3<f32>
           };
           @group(0) @binding(0) var<uniform> cameraPosition : vec3<f32>;
           @group(0) @binding(1) var<uniform> viewProjections : ViewProjectionMatrices;
@@ -497,7 +495,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           uint32.length,
         );
         screenRayBuffers[i] = device.createBuffer({
-          size: 32 * 1024 * 1024, // 128 MB
+          size: 128 * 1024 * 1024, // 128 MB
           usage:
             GPUBufferUsage.STORAGE |
             GPUBufferUsage.COPY_DST |
@@ -512,28 +510,34 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     // Sparse raymarch
     let computePass = commandEncoder.beginComputePass({ timestampWrites });
 
-    for (let i = 0; i < 1; i++) {
-      renderTLASPasses[i](
-        computePass,
-        renderArgs,
-        indirectBuffers[i],
-        screenRayBuffers[i],
-      );
-    }
-    for (let i = 0; i < 1; i++) {
-      sparseRayMarch(
-        computePass,
-        renderArgs,
-        indirectBuffers[i],
-        screenRayBuffers[i],
-      );
-    }
+    renderTLASPasses[0](
+      computePass,
+      renderArgs,
+      indirectBuffers[0],
+      screenRayBuffers[0],
+    );
+
+    computePass.end();
+    computePass = commandEncoder.beginComputePass({
+      timestampWrites: {
+        querySet: renderArgs.timestampWrites.querySet,
+        beginningOfPassWriteIndex:
+          renderArgs.timestampWrites.beginningOfPassWriteIndex + 2,
+        endOfPassWriteIndex: renderArgs.timestampWrites.endOfPassWriteIndex + 2,
+      },
+    });
+    sparseRayMarch(
+      computePass,
+      renderArgs,
+      indirectBuffers[0],
+      screenRayBuffers[0],
+    );
     computePass.end();
   };
 
   return {
     render,
     label: "primary rays",
-    timestampLabels: ["full raymarch"],
+    timestampLabels: ["tlas raymarch", "full raymarch"],
   };
 };
