@@ -188,8 +188,8 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       computePass.setBindGroup(0, bindGroup);
       computePass.setBindGroup(1, rayBufferBindGroup);
       computePass.dispatchWorkgroups(
-        Math.ceil(resolution[0] / 32),
-        Math.ceil(resolution[1] / 32),
+        Math.ceil(resolution[0] / 8),
+        Math.ceil(resolution[1] / 8),
       );
     };
 
@@ -497,7 +497,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           uint32.length,
         );
         screenRayBuffers[i] = device.createBuffer({
-          size: 128 * 1024 * 1024, // 128 MB
+          size: 32 * 1024 * 1024, // 128 MB
           usage:
             GPUBufferUsage.STORAGE |
             GPUBufferUsage.COPY_DST |
@@ -512,7 +512,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     // Sparse raymarch
     let computePass = commandEncoder.beginComputePass({ timestampWrites });
 
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 1; i++) {
       renderTLASPasses[i](
         computePass,
         renderArgs,
@@ -520,7 +520,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
         screenRayBuffers[i],
       );
     }
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 1; i++) {
       sparseRayMarch(
         computePass,
         renderArgs,
