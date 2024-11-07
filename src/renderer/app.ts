@@ -495,7 +495,11 @@ export const frame = (
   }
 
   getMatricesBuffer(camera, cameraTransform);
+
+  let timeStart = performance.now();
   getVoxelObjectsBuffer(device, ecs, renderableEntities);
+  let timeEnd = performance.now();
+  frameTimeTracker.addSample("voxel objects buffer", timeEnd - timeStart);
 
   getTimeBuffer();
   getSunDirectionBuffer();
@@ -511,9 +515,7 @@ export const frame = (
   frameTimeTracker.addSample("bvh aabb", aabbEnd - aabbStart);
 
   const bvhStart = performance.now();
-  // if (lastEntityCount !== renderableEntities.length) {
   bvh.update(renderableBoundingBoxes);
-  // }
   const bvhEnd = performance.now();
   frameTimeTracker.addSample("bvh update", bvhEnd - bvhStart);
 

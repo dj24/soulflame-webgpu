@@ -518,26 +518,29 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     );
 
     computePass.end();
+
     computePass = commandEncoder.beginComputePass({
       timestampWrites: {
-        querySet: renderArgs.timestampWrites.querySet,
+        querySet: timestampWrites.querySet,
         beginningOfPassWriteIndex:
-          renderArgs.timestampWrites.beginningOfPassWriteIndex + 2,
-        endOfPassWriteIndex: renderArgs.timestampWrites.endOfPassWriteIndex + 2,
+          timestampWrites.beginningOfPassWriteIndex + 2,
+        endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 2,
       },
     });
+
     sparseRayMarch(
       computePass,
       renderArgs,
       indirectBuffers[0],
       screenRayBuffers[0],
     );
+
     computePass.end();
   };
 
   return {
     render,
     label: "primary rays",
-    timestampLabels: ["tlas raymarch", "full raymarch"],
+    timestampLabels: ["tlas raymarch", "blas raymarch"],
   };
 };

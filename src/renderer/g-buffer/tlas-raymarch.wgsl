@@ -23,20 +23,12 @@ fn stack_pop(stack: ptr<function, Stack>) -> i32 {
 
 const WORKGROUP_SIZE: u32 = 8u;
 
-fn nodeRayIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, node: BVHNode) -> vec2<f32> {
+fn nodeRayIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, node: BVHNode) -> bool {
   if(all(rayOrigin >= node.AABBMin) && all(rayOrigin <= node.AABBMax)){
-    return vec2(0.0, 0.0);
+    return true;
   }
   let boxSize = (node.AABBMax - node.AABBMin) / 2;
-  let offsetRayOrigin = rayOrigin - boxSize - node.AABBMin;
-  let m: vec3<f32> = 1.0 / rayDirection;
-  let n: vec3<f32> = m * offsetRayOrigin;
-  let k: vec3<f32> = abs(m) * boxSize;
-  let t1: vec3<f32> = -n - k;
-  let t2: vec3<f32> = -n + k;
-  let tN: f32 = max(max(t1.x, t1.y), t1.z);
-  let tF: f32 = min(min(t2.x, t2.y), t2.z);
-  return vec2(tN, tF);
+  return boxIntersection(rayOrigin - node.AABBMin, rayDirection, boxSize).isHit;
 }
 
 @compute @workgroup_size(WORKGROUP_SIZE, WORKGROUP_SIZE, 1)
@@ -61,39 +53,25 @@ fn main(
     var iterations = 0;
     while (stack.head > 0u && iterations < 256 && leafHitCount < 16) {
       let node = bvhNodes[stack_pop(&stack)];
-      if(node.objectCount > 1){
-        let leftNode = bvhNodes[node.leftIndex];
-        let rightNode = bvhNodes[node.rightIndex];
-        let leftIntersect = nodeRayIntersection(rayOrigin, rayDirection, leftNode);
-        let rightIntersect = nodeRayIntersection(rayOrigin, rayDirection, rightNode);
-        let hitLeft = leftIntersect.x <= leftIntersect.y;
-        let hitRight = rightIntersect.x <= rightIntersect.y;
-        if(hitLeft && hitRight){
-          if(leftIntersect.x < rightIntersect.x){
-            stack_push(&stack, node.leftIndex);
-            stack_push(&stack, node.rightIndex);
-          }
-          else{
-            stack_push(&stack, node.rightIndex);
-            stack_push(&stack, node.leftIndex);
-          }
-        }
-        else{
-          if(hitRight){
-            stack_push(&stack, node.rightIndex);
-          }
-          if(hitLeft){
-            stack_push(&stack, node.leftIndex);
-          }
-        }
-      }
-      else if(node.objectCount == 1){
+      if(node.objectCount == 1){
         let currentCount = atomicAdd(&indirectBuffer[3], 1) + 1;
         if(currentCount % 256 == 0){
           atomicAdd(&indirectBuffer[0], 1);
         }
         screenRayBuffer[currentCount + 1] = vec3(vec2<i32>(idx.xy), node.leftIndex);
         leafHitCount += 1;
+      }
+      if(node.objectCount > 1){
+        let leftNode = bvhNodes[node.leftIndex];
+        let rightNode = bvhNodes[node.rightIndex];
+        let hitLeft = nodeRayIntersection(rayOrigin, rayDirection, leftNode);
+        let hitRight = nodeRayIntersection(rayOrigin, rayDirection, rightNode);
+        if(hitRight){
+          stack_push(&stack, node.rightIndex);
+        }
+        if(hitLeft){
+          stack_push(&stack, node.leftIndex);
+        }
       }
       iterations += 1;
     }

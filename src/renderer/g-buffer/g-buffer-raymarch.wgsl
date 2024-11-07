@@ -131,8 +131,10 @@ fn storeDepth(pixel: vec2<u32>, depth: f32) -> u32 {
 fn main(
     @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
 ) {
-//TODO:
-//  let workIndex = atomicSub(&indirectBuffer[3], 1);
+  // Out of bounds of the buffer
+  if(GlobalInvocationID.x >= indirectBuffer[3]){
+    return;
+  }
   let pixel = vec2<u32>(screenRayBuffer[GlobalInvocationID.x].xy);
   let voxelObjectIndex = screenRayBuffer[GlobalInvocationID.x].z;
   let resolution = textureDimensions(albedoTex);

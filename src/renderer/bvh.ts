@@ -80,6 +80,7 @@ export class BVH {
   #allLeafNodes: LeafNode[];
   #childIndex: number;
   #gpuBuffer: GPUBuffer;
+  #depth: number;
 
   constructor(device: GPUDevice, boundingBoxes: BoundingBox[]) {
     this.#device = device;
@@ -90,6 +91,7 @@ export class BVH {
       };
     });
     this.#childIndex = 0;
+    this.#depth = 0;
     this.#nodes = [];
     this.#build(this.#allLeafNodes, 0, -1, -1);
     this.#writeToGpuBuffer();
@@ -111,6 +113,7 @@ export class BVH {
       };
     });
     this.#childIndex = 0;
+    this.#depth = 0;
     this.#nodes = [];
     this.#build(this.#allLeafNodes, 0, -1, -1);
     this.#writeToGpuBuffer();
