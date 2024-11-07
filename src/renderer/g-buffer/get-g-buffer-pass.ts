@@ -497,7 +497,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           uint32.length,
         );
         screenRayBuffers[i] = device.createBuffer({
-          size: 32 * 1024 * 1024, // 128 MB
+          size: 64 * 1024 * 1024, // 64 MB
           usage:
             GPUBufferUsage.STORAGE |
             GPUBufferUsage.COPY_DST |
@@ -512,28 +512,37 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     // Sparse raymarch
     let computePass = commandEncoder.beginComputePass({ timestampWrites });
 
-    for (let i = 0; i < 1; i++) {
-      renderTLASPasses[i](
-        computePass,
-        renderArgs,
-        indirectBuffers[i],
-        screenRayBuffers[i],
-      );
-    }
-    for (let i = 0; i < 1; i++) {
-      sparseRayMarch(
-        computePass,
-        renderArgs,
-        indirectBuffers[i],
-        screenRayBuffers[i],
-      );
-    }
+    renderTLASPasses[0](
+      computePass,
+      renderArgs,
+      indirectBuffers[0],
+      screenRayBuffers[0],
+    );
+
+    computePass.end();
+
+    computePass = commandEncoder.beginComputePass({
+      timestampWrites: {
+        querySet: timestampWrites.querySet,
+        beginningOfPassWriteIndex:
+          timestampWrites.beginningOfPassWriteIndex + 2,
+        endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 2,
+      },
+    });
+
+    sparseRayMarch(
+      computePass,
+      renderArgs,
+      indirectBuffers[0],
+      screenRayBuffers[0],
+    );
+
     computePass.end();
   };
 
   return {
     render,
     label: "primary rays",
-    timestampLabels: ["full raymarch"],
+    timestampLabels: ["tlas raymarch", "blas raymarch"],
   };
 };
