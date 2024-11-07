@@ -33,8 +33,6 @@ const PALETTE_WIDTH = 256;
 
 /** A class representing a volume atlas for storing multiple 3D textures.
  *
- * Each texture is packed along the x-axis of the atlas texture.
- * //TODO: Add support for packing along other axes
  *
  * @example
  * const device = navigator.gpu.requestAdapter();
@@ -90,37 +88,37 @@ export class VolumeAtlas {
       label: "Octree buffer",
     });
     folder.add(this, "octreeBufferSizeMB").listen().name("octree buffer size");
-    folder.add(
-      {
-        deleteVolume: () => {
-          const keys = Object.keys(this.#dictionary);
-          if (keys.length === 0) {
-            return;
-          }
-          const lastKey = keys[keys.length - 1];
-          this.removeVolume(lastKey);
-        },
-      },
-      "deleteVolume",
-    );
+    folder.add(this, "clear").name("clear atlas");
   }
 
   get dictionary() {
     return this.#dictionary;
   }
 
-  addVolume = async (
+  clear = async () => {
+    await this.#mutex.runExclusive(async () => {
+      this.#dictionary = {};
+      const commandEncoder = this.#device.createCommandEncoder();
+      commandEncoder.clearBuffer(this.#octreeBuffer);
+      this.#device.queue.submit([commandEncoder.finish()]);
+      await this.#device.queue.onSubmittedWorkDone();
+      this.#octreeBuffer = this.#device.createBuffer({
+        size: 8,
+        usage:
+          GPUBufferUsage.STORAGE |
+          GPUBufferUsage.COPY_DST |
+          GPUBufferUsage.COPY_SRC,
+        label: "Octree buffer",
+      });
+    });
+  };
+
+  addOrReplaceVolume = async (
     label: string,
     size: Vec3,
     octreeArrayBuffer: ArrayBuffer,
     sizeBytes?: number,
   ) => {
-    if (this.#dictionary[label]) {
-      throw new Error(
-        `Error adding volume to atlas: volume with label ${label} already exists`,
-      );
-    }
-
     await this.#mutex.runExclusive(async () => {
       const commandEncoder = this.#device.createCommandEncoder();
       const [width, height, depth] = size;
@@ -172,60 +170,6 @@ export class VolumeAtlas {
       await this.#device.queue.onSubmittedWorkDone();
       this.#octreeBuffer = newOctreeBuffer;
       this.#octreeBuffer.unmap();
-    });
-  };
-
-  removeVolume = async (label: string) => {
-    if (!this.#dictionary[label]) {
-      throw new Error(
-        `Error removing volume from atlas: volume with label ${label} does not exist`,
-      );
-    }
-    const controller = folder.controllers.find(
-      (controller: Controller) => controller._name === label,
-    );
-    console.log(controller, label, folder.controllers[2]);
-    if (controller) {
-      controller.destroy();
-    }
-
-    await this.#mutex.runExclusive(async () => {
-      const commandEncoder = this.#device.createCommandEncoder();
-      const volume = this.#dictionary[label];
-      const octreeSizeBytes = volume.octreeSizeBytes;
-      const bufferIndexForVolume = volume.octreeOffset;
-      const bufferIndexForNextVolume = bufferIndexForVolume + octreeSizeBytes;
-
-      const newOctreeBuffer = this.#device.createBuffer({
-        label: "Octree buffer",
-        size: this.#octreeBuffer.size - octreeSizeBytes,
-        usage: this.#octreeBuffer.usage,
-      });
-
-      // write data before the volume to the new buffer
-      commandEncoder.copyBufferToBuffer(
-        this.#octreeBuffer,
-        0,
-        newOctreeBuffer,
-        0,
-        bufferIndexForVolume,
-      );
-
-      // write data after the volume to the new buffer
-      commandEncoder.copyBufferToBuffer(
-        this.#octreeBuffer,
-        bufferIndexForNextVolume,
-        newOctreeBuffer,
-        bufferIndexForVolume,
-        this.#octreeBuffer.size - bufferIndexForNextVolume,
-      );
-
-      this.#device.queue.submit([commandEncoder.finish()]);
-
-      await this.#device.queue.onSubmittedWorkDone();
-      this.#octreeBuffer = newOctreeBuffer;
-      this.#octreeBuffer.unmap();
-      delete this.#dictionary[label];
     });
   };
 

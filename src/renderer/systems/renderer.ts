@@ -30,6 +30,30 @@ export class Renderer extends System {
     const cameraComponents = this.ecs.getComponents(camera);
     const cameraComponent = cameraComponents.get(Camera);
     const transformComponent = cameraComponents.get(Transform);
+    const volumeAtlas = getGPUDeviceSingleton(this.ecs).volumeAtlas;
+
+    // TODO: create add function that takes array
+    const refreshAtlas = async () => {
+      await volumeAtlas.clear();
+      for (let entity of entities) {
+        const components = this.ecs.getComponents(entity);
+        const voxelObject = components.get(VoxelObject);
+        await volumeAtlas.addOrReplaceVolume(
+          voxelObject.name,
+          voxelObject.size,
+          voxelObject.uncompressedArrayBuffer,
+          voxelObject.sizeInBytes,
+        );
+        const dictionaryElement = volumeAtlas.dictionary[voxelObject.name];
+        if (dictionaryElement) {
+          voxelObject.octreeBufferIndex = dictionaryElement.octreeOffset;
+        }
+      }
+    };
+
+    if (volumeAtlas) {
+      refreshAtlas();
+    }
 
     frame(
       now,

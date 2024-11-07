@@ -43,7 +43,7 @@ export const createTerrainChunk = async (
 ) => {
   const newEntity = ecs.addEntity();
   const [x, y, z] = position;
-  const start = performance.now();
+
   const name = `Terrain - ${x}, ${y}, ${z}`;
   const uncompressedSize = getMaxSizeOfOctree(size) * OCTREE_STRIDE;
   let uncompressedArrayBuffer: SharedArrayBuffer | null = new SharedArrayBuffer(
@@ -62,25 +62,23 @@ export const createTerrainChunk = async (
 
   const extentY = 1 + boundsMax[1] - boundsMin[1];
 
-  await volumeAtlas.addVolume(
-    name,
-    size,
-    uncompressedArrayBuffer,
-    octreeSizeBytes,
-  );
+  // await volumeAtlas.addVolume(
+  //   name,
+  //   size,
+  //   uncompressedArrayBuffer,
+  //   octreeSizeBytes,
+  // );
 
-  uncompressedArrayBuffer = null;
-  const { size: atlasSize, octreeOffset } = volumeAtlas.dictionary[name];
-  const end = performance.now();
-  chunkCreationTimes.push(end - start);
-  averageChunkCreationTime.time =
-    chunkCreationTimes.reduce((a, b) => a + b, 0) / chunkCreationTimes.length;
-  averageChunkCreationTime.time = Math.round(averageChunkCreationTime.time);
+  // const { octreeOffset } = volumeAtlas.dictionary[name];
+
   const voxelObject = new VoxelObject({
     name,
-    size: [atlasSize[0], extentY, atlasSize[2]],
-    octreeBufferIndex: octreeOffset,
+    size: [size[0], extentY, size[2]],
+    octreeBufferIndex: 0,
+    uncompressedArrayBuffer,
+    sizeInBytes: octreeSizeBytes,
   });
+
   ecs.addComponent(newEntity, voxelObject);
   const transform = new Transform(
     [x, y - (128 - extentY) / 2, z],

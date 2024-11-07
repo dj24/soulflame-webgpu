@@ -96,65 +96,66 @@ export const processNewVoxelImport = async (
   );
   console.timeEnd(`Create octree for ${path}`);
   const octreeSizeBytes = octree.totalSizeBytes + OCTREE_STRIDE;
-  await volumeAtlas.addVolume(
+  await volumeAtlas.addOrReplaceVolume(
     path,
     voxels.SIZE,
     uncompressedArrayBuffer,
     octreeSizeBytes,
   );
-  uncompressedArrayBuffer = null;
   const { size: atlasSize, octreeOffset } = volumeAtlas.dictionary[path];
   return new VoxelObject({
     name: path,
     size: atlasSize,
     octreeBufferIndex: octreeOffset,
+    uncompressedArrayBuffer,
+    sizeInBytes: octreeSizeBytes,
   });
 };
 
-export const createVoxelObject = async (
-  device: GPUDevice,
-  volumeAtlas: VolumeAtlas,
-  name: string,
-  path: string,
-) => {
-  // If the volume isn't in the atlas, add it
-  if (!volumeAtlas.dictionary[path]) {
-    await processNewVoxelImport(path, device, volumeAtlas);
-  }
-
-  const { size, octreeOffset } = volumeAtlas.dictionary[path];
-
-  return new VoxelObject({
-    name,
-    size,
-    octreeBufferIndex: octreeOffset,
-  });
-};
-
-export const createTavern = async (
-  device: GPUDevice,
-  volumeAtlas: VolumeAtlas,
-  ecs: ECS,
-) => {
-  const tavernResponse = await fetch("./Tavern.json");
-  const tavernDefinition = (await tavernResponse.json()) as TSceneDefinition;
-  const childObjects = tavernDefinition.children.filter((child) =>
-    NAME_ALLOWLIST.includes(child.name),
-  );
-  for (const child of childObjects) {
-    const voxelObject = await createVoxelObject(
-      device,
-      volumeAtlas,
-      child.name,
-      `./Tavern/${child.name}.vxm`,
-    );
-
-    const entity = ecs.addEntity();
-    ecs.addComponents(
-      entity,
-      new Transform(child.position, quat.identity(), child.scale),
-      voxelObject,
-      new KeyboardControllable(),
-    );
-  }
-};
+// export const createVoxelObject = async (
+//   device: GPUDevice,
+//   volumeAtlas: VolumeAtlas,
+//   name: string,
+//   path: string,
+// ) => {
+//   // If the volume isn't in the atlas, add it
+//   if (!volumeAtlas.dictionary[path]) {
+//     await processNewVoxelImport(path, device, volumeAtlas);
+//   }
+//
+//   const { size, octreeOffset } = volumeAtlas.dictionary[path];
+//
+//   return new VoxelObject({
+//     name,
+//     size,
+//     octreeBufferIndex: octreeOffset,
+//   });
+// };
+//
+// export const createTavern = async (
+//   device: GPUDevice,
+//   volumeAtlas: VolumeAtlas,
+//   ecs: ECS,
+// ) => {
+//   const tavernResponse = await fetch("./Tavern.json");
+//   const tavernDefinition = (await tavernResponse.json()) as TSceneDefinition;
+//   const childObjects = tavernDefinition.children.filter((child) =>
+//     NAME_ALLOWLIST.includes(child.name),
+//   );
+//   for (const child of childObjects) {
+//     const voxelObject = await createVoxelObject(
+//       device,
+//       volumeAtlas,
+//       child.name,
+//       `./Tavern/${child.name}.vxm`,
+//     );
+//
+//     const entity = ecs.addEntity();
+//     ecs.addComponents(
+//       entity,
+//       new Transform(child.position, quat.identity(), child.scale),
+//       voxelObject,
+//       new KeyboardControllable(),
+//     );
+//   }
+// };

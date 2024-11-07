@@ -25,20 +25,30 @@ export class VoxelObject extends Component {
   octreeBufferIndex: number;
   /** Name of the object */
   name: string;
+  /** Uncompressed array buffer containing octree */
+  uncompressedArrayBuffer: SharedArrayBuffer | null;
+  /** Size in bytes of the compressed array buffer */
+  sizeInBytes: number;
 
   constructor({
     size,
     octreeBufferIndex,
     name,
+    uncompressedArrayBuffer,
+    sizeInBytes,
   }: {
     size: Vec3;
     octreeBufferIndex: number;
     name: string;
+    uncompressedArrayBuffer: SharedArrayBuffer | null;
+    sizeInBytes: number;
   }) {
     super();
     this.size = size;
     this.octreeBufferIndex = octreeBufferIndex;
     this.name = name;
+    this.uncompressedArrayBuffer = uncompressedArrayBuffer;
+    this.sizeInBytes = sizeInBytes;
   }
 }
 
@@ -66,10 +76,6 @@ export const getVoxelObjectBoundingBox = (
   });
 
   return getBoundingBox(worldSpaceCorners);
-};
-
-const ceilToNearest16 = (value: number) => {
-  return Math.ceil(value / 16) * 16;
 };
 
 export const voxelObjectToDataView = (

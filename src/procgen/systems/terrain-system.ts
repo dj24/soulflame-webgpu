@@ -2,14 +2,8 @@ import { ECS, Entity, System } from "@ecs/ecs";
 import { TerrainSingleton } from "../components/terrain-singleton";
 import { getGPUDeviceSingleton } from "../../abstractions/get-gpu-device-singleton";
 import { createTerrainChunk } from "../create-terrain-chunk";
-import { VoxelObject } from "@renderer/voxel-object";
-import { Transform } from "@renderer/components/transform";
-import { quat } from "wgpu-matrix";
 import { wrap } from "comlink";
 import { CHUNK_HEIGHT } from "../sine-chunk";
-import { mergeOctrees } from "@renderer/octree/merge-octrees";
-import { animate, spring } from "motion";
-import { processNewVoxelImport } from "@renderer/create-tavern";
 
 export const chunkWidth = 128;
 
