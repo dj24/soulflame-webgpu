@@ -465,7 +465,7 @@ setInterval(() => {
 
 let lastEntityCount = 0;
 
-export const frame = (
+export const frame = async (
   now: number,
   ecs: ECS,
   camera: Camera,
@@ -614,4 +614,5 @@ export const frame = (
     );
   }
   device.queue.submit([commandEncoder.finish()]);
+  await device.queue.onSubmittedWorkDone();
 };

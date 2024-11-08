@@ -2,6 +2,8 @@ import { Vec3 } from "wgpu-matrix";
 import { VOLUME_ATLAS_FORMAT, VOLUME_MIP_LEVELS } from "./constants";
 import { Mutex } from "async-mutex";
 import { Controller } from "lil-gui";
+import { VoxelObject } from "@renderer/voxel-object";
+import { OCTREE_STRIDE } from "@renderer/octree/octree";
 
 const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
   format: VOLUME_ATLAS_FORMAT,
@@ -88,29 +90,44 @@ export class VolumeAtlas {
       label: "Octree buffer",
     });
     folder.add(this, "octreeBufferSizeMB").listen().name("octree buffer size");
-    folder.add(this, "clear").name("clear atlas");
   }
 
   get dictionary() {
     return this.#dictionary;
   }
 
-  clear = async () => {
-    await this.#mutex.runExclusive(async () => {
-      this.#dictionary = {};
-      const commandEncoder = this.#device.createCommandEncoder();
-      commandEncoder.clearBuffer(this.#octreeBuffer);
-      this.#device.queue.submit([commandEncoder.finish()]);
-      await this.#device.queue.onSubmittedWorkDone();
-      this.#octreeBuffer = this.#device.createBuffer({
-        size: 8,
-        usage:
-          GPUBufferUsage.STORAGE |
-          GPUBufferUsage.COPY_DST |
-          GPUBufferUsage.COPY_SRC,
-        label: "Octree buffer",
-      });
+  addVolumes = async (voxelObjects: VoxelObject[]) => {
+    console.time("Add volumes to atlas");
+    const totalSize = voxelObjects.reduce(
+      (acc, { sizeInBytes }) => acc + sizeInBytes,
+      0,
+    );
+    this.#octreeBuffer.destroy();
+    this.#octreeBuffer = this.#device.createBuffer({
+      label: "Octree buffer",
+      size: 8 + totalSize,
+      usage: this.#octreeBuffer.usage,
     });
+    let offset = 0;
+    for (const voxelObject of voxelObjects) {
+      const { name, size, uncompressedArrayBuffer, sizeInBytes } = voxelObject;
+      const bufferIndexForNewVolume = offset / OCTREE_STRIDE;
+      this.#dictionary[name] = {
+        size,
+        octreeOffset: bufferIndexForNewVolume,
+        octreeSizeBytes: sizeInBytes,
+      };
+      voxelObject.octreeBufferIndex = bufferIndexForNewVolume;
+      this.#device.queue.writeBuffer(
+        this.#octreeBuffer,
+        offset,
+        uncompressedArrayBuffer,
+        0,
+        sizeInBytes,
+      );
+      offset += sizeInBytes;
+    }
+    console.timeEnd("Add volumes to atlas");
   };
 
   addOrReplaceVolume = async (
