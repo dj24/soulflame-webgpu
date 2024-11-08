@@ -456,11 +456,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     return enqueuePass;
   };
 
-  const renderTLASPasses = await Promise.all(
-    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].map((i) =>
-      getTLASRaymarchPass(i),
-    ),
-  );
+  const renderTLASPass = await getTLASRaymarchPass(0);
   const sparseRayMarch = await getFullRaymarchPass();
 
   const render = (renderArgs: RenderArgs) => {
@@ -510,7 +506,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     // Sparse raymarch
     let computePass = commandEncoder.beginComputePass({ timestampWrites });
 
-    renderTLASPasses[0](
+    renderTLASPass(
       computePass,
       renderArgs,
       indirectBuffers[0],

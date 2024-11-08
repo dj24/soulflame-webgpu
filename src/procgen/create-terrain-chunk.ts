@@ -12,6 +12,7 @@ import { ECS } from "@ecs/ecs";
 import { Transform } from "@renderer/components/transform";
 import { quat } from "wgpu-matrix";
 import { animate, spring } from "motion";
+import { getGPUDeviceSingleton } from "../abstractions/get-gpu-device-singleton";
 
 let chunkCreationTimes: number[] = [];
 
@@ -61,22 +62,24 @@ export const createTerrainChunk = async (
   }
 
   const extentY = 1 + boundsMax[1] - boundsMin[1];
-
-  // await volumeAtlas.addVolume(
-  //   name,
-  //   size,
-  //   uncompressedArrayBuffer,
-  //   octreeSizeBytes,
-  // );
-
-  // const { octreeOffset } = volumeAtlas.dictionary[name];
-
+  const device = getGPUDeviceSingleton(ecs).device;
+  const gpuBuffer = device.createBuffer({
+    size: octreeSizeBytes,
+    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+  });
+  device.queue.writeBuffer(
+    gpuBuffer,
+    0,
+    uncompressedArrayBuffer,
+    0,
+    octreeSizeBytes,
+  );
+  await device.queue.onSubmittedWorkDone();
   const voxelObject = new VoxelObject({
     name,
     size: [size[0], extentY, size[2]],
     octreeBufferIndex: 0,
-    uncompressedArrayBuffer,
-    sizeInBytes: octreeSizeBytes,
+    gpuBuffer,
   });
 
   ecs.addComponent(newEntity, voxelObject);

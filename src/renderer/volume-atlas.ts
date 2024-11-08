@@ -4,6 +4,7 @@ import { Mutex } from "async-mutex";
 import { Controller } from "lil-gui";
 import { VoxelObject } from "@renderer/voxel-object";
 import { OCTREE_STRIDE } from "@renderer/octree/octree";
+import { device } from "@renderer/app";
 
 const descriptorPartial: Omit<GPUTextureDescriptor, "size"> = {
   format: VOLUME_ATLAS_FORMAT,
@@ -97,11 +98,11 @@ export class VolumeAtlas {
   }
 
   addVolumes = async (voxelObjects: VoxelObject[]) => {
-    console.time("Add volumes to atlas");
     const totalSize = voxelObjects.reduce(
-      (acc, { sizeInBytes }) => acc + sizeInBytes,
+      (acc, obj) => acc + obj.gpuBuffer.size,
       0,
     );
+    const commandEncoder = this.#device.createCommandEncoder();
     this.#octreeBuffer.destroy();
     this.#octreeBuffer = this.#device.createBuffer({
       label: "Octree buffer",
@@ -110,24 +111,24 @@ export class VolumeAtlas {
     });
     let offset = 0;
     for (const voxelObject of voxelObjects) {
-      const { name, size, uncompressedArrayBuffer, sizeInBytes } = voxelObject;
+      const { name, size, gpuBuffer } = voxelObject;
       const bufferIndexForNewVolume = offset / OCTREE_STRIDE;
       this.#dictionary[name] = {
         size,
         octreeOffset: bufferIndexForNewVolume,
-        octreeSizeBytes: sizeInBytes,
+        octreeSizeBytes: gpuBuffer.size,
       };
       voxelObject.octreeBufferIndex = bufferIndexForNewVolume;
-      this.#device.queue.writeBuffer(
+      commandEncoder.copyBufferToBuffer(
+        gpuBuffer,
+        0,
         this.#octreeBuffer,
         offset,
-        uncompressedArrayBuffer,
-        0,
-        sizeInBytes,
+        gpuBuffer.size,
       );
-      offset += sizeInBytes;
+      offset += gpuBuffer.size;
     }
-    console.timeEnd("Add volumes to atlas");
+    device.queue.submit([commandEncoder.finish()]);
   };
 
   addOrReplaceVolume = async (
