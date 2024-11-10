@@ -137,9 +137,9 @@ fn main(
   let localPixel = vec2<u32>(LocalInvocationID.xy);
   let bufferIndex = GlobalInvocationID.z;
   // Out of bounds of the buffer
-//  if(bufferIndex >= indirectBuffer[3]){
-//    return;
-//  }
+  if(bufferIndex >= indirectBuffer[3]){
+    return;
+  }
   let pixel = vec2<u32>(screenRayBuffer[bufferIndex].xy) + localPixel;
   let voxelObjectIndex = screenRayBuffer[bufferIndex].z;
   let resolution = textureDimensions(albedoTex);

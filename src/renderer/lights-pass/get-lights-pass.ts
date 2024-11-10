@@ -17,7 +17,7 @@ import { Transform } from "@renderer/components/transform";
 import { Vec3 } from "wgpu-matrix";
 
 const LIGHT_BUFFER_STRIDE = 32;
-const DOWNSCALE_FACTOR = 3;
+const DOWNSCALE_FACTOR = 4;
 const RESERVOIR_DECAY = 0.5;
 const MAX_SAMPLES = 50000;
 const RESERVOIR_TEXTURE_FORMAT: GPUTextureFormat = "rgba32float";
@@ -41,7 +41,7 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
         binding: 1,
         visibility: GPUShaderStage.COMPUTE,
         texture: {
-          sampleType: "unfilterable-float",
+          sampleType: "float",
           viewDimension: "2d",
         },
       },
@@ -164,7 +164,7 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
         binding: 0,
         visibility: GPUShaderStage.COMPUTE,
         texture: {
-          sampleType: "unfilterable-float",
+          sampleType: "float",
           viewDimension: "2d",
         },
       },
@@ -246,7 +246,7 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
         binding: 3,
         visibility: GPUShaderStage.COMPUTE,
         texture: {
-          sampleType: "unfilterable-float",
+          sampleType: "float",
           viewDimension: "2d",
         },
       },
@@ -609,9 +609,9 @@ ${lightsCompute}`;
     spatialSigma: 0.75,
   };
   let passConfig = {
-    spatialEnabled: true,
-    temporalEnabled: true,
-    denoiseEnabled: true,
+    spatialEnabled: false,
+    temporalEnabled: false,
+    denoiseEnabled: false,
     maxDenoiseRate: 4,
   };
   const folder = (window as any).debugUI.gui.addFolder("lighting");
@@ -663,8 +663,8 @@ ${lightsCompute}`;
     if (!reservoirTexture) {
       reservoirTexture = device.createTexture({
         size: {
-          width: outputTextures.finalTexture.width,
-          height: outputTextures.finalTexture.height,
+          width: Math.ceil(outputTextures.finalTexture.width / 2),
+          height: Math.ceil(outputTextures.finalTexture.height / 2),
         },
         format: RESERVOIR_TEXTURE_FORMAT,
         usage:
@@ -1081,13 +1081,6 @@ ${lightsCompute}`;
     }
     device.queue.writeBuffer(lightBuffer, 0, arrayBuffer);
 
-    const downscaledWidth = Math.ceil(
-      outputTextures.finalTexture.width / DOWNSCALE_FACTOR,
-    );
-    const downscaledHeight = Math.ceil(
-      outputTextures.finalTexture.height / DOWNSCALE_FACTOR,
-    );
-
     let passWriteOffset = 0;
 
     let passEncoder: GPUComputePassEncoder;
@@ -1160,8 +1153,8 @@ ${lightsCompute}`;
       passEncoder.setBindGroup(2, copyReservoirBindGroup);
       passEncoder.setBindGroup(3, viewProjectionsBindGroup);
       passEncoder.dispatchWorkgroups(
-        Math.ceil(downscaledWidth / 8),
-        Math.ceil(downscaledHeight / 8),
+        Math.ceil(reservoirTexture.width / 16),
+        Math.ceil(reservoirTexture.height / 16),
         1,
       );
       passEncoder.end();
@@ -1310,13 +1303,13 @@ ${lightsCompute}`;
       copyPass();
     }
 
+    sampleLightsPass();
+    copyPass();
+
     if (passConfig.spatialEnabled) {
       spatialPass();
       copyPass();
     }
-
-    sampleLightsPass();
-    copyPass();
 
     compositePass();
     if (passConfig.denoiseEnabled) {
@@ -1347,6 +1340,7 @@ ${lightsCompute}`;
       taaSubpass.render(args);
     }
 
+    // TODO: composite denoised light texture with albedo
     commandEncoder.copyTextureToTexture(
       {
         texture: lightTexture.texture,

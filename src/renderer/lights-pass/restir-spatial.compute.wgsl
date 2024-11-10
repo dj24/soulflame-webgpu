@@ -84,24 +84,17 @@ fn packReservoir(reservoir: Reservoir) -> vec4<f32> {
     );
 }
 
-
-// Fill in holes in the light buffer created by subsampling
 @compute @workgroup_size(8,8,1)
 fn spatial(
 @builtin(global_invocation_id) id : vec3<u32>
 ){
-  let resolution = textureDimensions(worldPosTex).xy;
+  let resolution = textureDimensions(inputReservoirTex).xy;
   let uv = (vec2<f32>(id.xy) + vec2(0.5)) / vec2<f32>(resolution);
   let normalRef = textureSampleLevel(normalTex, nearestSampler, uv, 0).xyz;
-  let worldPos = textureLoad(worldPosTex, id.xy, 0);
+  let worldPos = textureSampleLevel(worldPosTex, nearestSampler, uv, 0).xyzw;
   let reservoir = unpackReservoir(textureSampleLevel(inputReservoirTex, nearestSampler, uv, 0));
   var weightSum = reservoir.weightSum;
   var currentWeight = reservoir.lightWeight;
-
-  // If the current pixel is already filled, return
-  if(currentWeight >= 0.0000001){
-    return;
-  }
 
   var currentSampleCount = reservoir.sampleCount;
   var lightIndex = reservoir.lightIndex;
@@ -110,24 +103,28 @@ fn spatial(
   let frameOffsetY = (i32(time.frame) * 13761 + 511) % 512;    // Different prime numbers
   let r = textureLoad(blueNoiseTex, vec2<i32>(id.xy) + vec2(frameOffsetX, frameOffsetY) % 512, 0).xy;
 
-  var smallestDepthError = 999999.0;
-
-  for(var x = 0; x < DOWN_SAMPLE_FACTOR; x+= 1 ){
-    for(var y = 0; y <= DOWN_SAMPLE_FACTOR; y+= 1){
+  // TODO: gaussian kernel to weight less the further away samples
+  for(var x = -1; x <= 1; x+= 1 ){
+    for(var y = -1; y <= 1; y+= 1){
       let neighbor = vec2<i32>(id.xy) + vec2<i32>(x, y);
       let neighborUv = vec2<f32>(neighbor) / vec2<f32>(resolution);
       let neighborReservoir = unpackReservoir(textureLoad(inputReservoirTex, neighbor, 0));
       let neighborWeight = neighborReservoir.lightWeight;
-      let neighborDepth = textureLoad(worldPosTex, neighbor, 0).w;
+      let neighborDepth = textureSampleLevel(worldPosTex, nearestSampler, neighborUv, 0).w;
       let neighborNormal = textureSampleLevel(normalTex, nearestSampler, neighborUv, 0).xyz;
-      let depthError = abs(neighborDepth - worldPos.w);
+      let depthError = abs(neighborDepth / worldPos.w);
 
       weightSum += neighborWeight;
       currentSampleCount += neighborReservoir.sampleCount;
 
       let normalSimilarity = dot(normalRef, neighborNormal);
-
-      if(depthError < smallestDepthError && neighborWeight > currentWeight && normalSimilarity > 0.9){
+      if(normalSimilarity < 0.99){
+        continue;
+      }
+      if(depthError > 1.05){
+        continue;
+      }
+      if(r.y < neighborReservoir.lightWeight / weightSum){
           lightIndex = neighborReservoir.lightIndex;
           currentWeight = neighborWeight;
       }

@@ -134,17 +134,30 @@ export class Octree {
       size <= this.#getMinVoxelSize(offset[0], offset[1], offset[2]);
 
     if (isLeaf) {
-      const { red, green, blue } = voxel;
-      const node = {
-        red,
-        green,
-        blue,
-        x: scaledOffset[0] * size,
-        y: scaledOffset[1] * size,
-        z: scaledOffset[2] * size,
-        size,
-      };
-      setLeafNode(this.#dataView, startIndex, node);
+      if (voxel && "red" in voxel) {
+        const { red, green, blue } = voxel;
+        const node = {
+          red,
+          green,
+          blue,
+          x: scaledOffset[0] * size,
+          y: scaledOffset[1] * size,
+          z: scaledOffset[2] * size,
+          size,
+        };
+        setLeafNode(this.#dataView, startIndex, node);
+      } else {
+        const node = {
+          red: 255,
+          green: 255,
+          blue: 255,
+          x: scaledOffset[0] * size,
+          y: scaledOffset[1] * size,
+          z: scaledOffset[2] * size,
+          size,
+        };
+        setLeafNode(this.#dataView, startIndex, node);
+      }
       return;
     }
 

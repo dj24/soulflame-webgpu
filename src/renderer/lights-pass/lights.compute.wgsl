@@ -118,20 +118,33 @@ fn calculateNDC(worldPos: vec3<f32>, viewProjection: mat4x4<f32>) -> vec3<f32> {
 
 const WEIGHT_THRESHOLD = 0.1;
 
-@compute @workgroup_size(8, 8, 1)
+/**
+  * Checkerboard pattern for % frame index 0, 1
+  * Frame 0, idx 0: 0, 0
+  * Frame 0, idx 1: 1, 1
+  * Frame 1, idx 0: 1, 0
+  * Frame 1, idx 1: 0, 1
+  */
+@compute @workgroup_size(8, 8, 2)
 fn main(
     @builtin(global_invocation_id) id : vec3<u32>,
+    @builtin(local_invocation_id) localId : vec3<u32>,
 ) {
-  let frameCycle =u32(DOWN_SAMPLE_FACTOR * DOWN_SAMPLE_FACTOR);
-  let frameIndex = time.frame % frameCycle;
-  let kernelX = frameIndex % DOWN_SAMPLE_FACTOR;
-  let kernelY = (frameIndex / DOWN_SAMPLE_FACTOR) % DOWN_SAMPLE_FACTOR;
-  let offsetPixel = id.xy * DOWN_SAMPLE_FACTOR  + vec2<u32>(kernelX, kernelY);
-  let worldPosSample = textureLoad(worldPosTex, offsetPixel, 0);
-  let depth = worldPosSample.w;
-  let worldPos = worldPosSample.xyz;
+  let isEvenFrame = time.frame % 2 == 0;
+  var kernelX = localId.z % 2;
+  var kernelY = localId.z % 2;
+  if(!isEvenFrame){
+    kernelX = 1 - localId.z % 2;
+  }
 
-  let normal = textureLoad(normalTex, offsetPixel, 0).xyz;
+//  let originPixel = id.xy * 2 + vec2(time.frame % 2, (time.frame % 4) / 2);
+  let originPixel = id.xy * 2;
+  let offsetPixel = originPixel + vec2<u32>(kernelX, kernelY);
+
+  let gBufferPixel = offsetPixel * 2;
+  let worldPos = textureLoad(worldPosTex, gBufferPixel, 0).xyz;
+  let normal = textureLoad(normalTex, gBufferPixel, 0).xyz;
+
   var blueNoisePixel = vec2<i32>(offsetPixel);
   let frameOffsetX = (i32(time.frame) * 92821 + 71413);  // Large prime numbers for frame variation
   let frameOffsetY = (i32(time.frame) * 13761 + 512);    // Different prime numbers
@@ -198,15 +211,14 @@ fn main(
       bestWeight = 0.0;
   }
 
-
-  sampleCount += currentReservoir.sampleCount;
-  weightSum += currentReservoir.weightSum;
+//  sampleCount += currentReservoir.sampleCount;
+//  weightSum += currentReservoir.weightSum;
 
   // Resample last frames pixel afterwards to better account for occlusion from raycast hit
-  if(r.y < currentReservoir.lightWeight / weightSum){
-    lightIndex = currentReservoir.lightIndex;
-    bestWeight = currentReservoir.lightWeight;
-  }
+//  if(r.y < currentReservoir.lightWeight / weightSum){
+//    lightIndex = currentReservoir.lightIndex;
+//    bestWeight = currentReservoir.lightWeight;
+//  }
 
   var reservoir = vec4(
     bitcast<f32>(SAMPLES_PER_FRAME),
@@ -216,18 +228,4 @@ fn main(
   );
 
   textureStore(reservoirTex, offsetPixel, reservoir);
-
-  // if any blank pixels are found, fill them with this pixel's value
-//  for(var x = 0u; x < DOWN_SAMPLE_FACTOR; x++){
-//    for(var y = 0u; y < DOWN_SAMPLE_FACTOR; y++){
-//      let neighbourPixel = id.xy * DOWN_SAMPLE_FACTOR + vec2(x, y);
-//      if(all(neighbourPixel == offsetPixel)){
-//        continue;
-//      }
-//      let neighbourReservoir = unpackReservoir(textureLoad(inputReservoirTex, neighbourPixel, 0));
-//      if(neighbourReservoir.lightWeight < 0.00001){
-////        textureStore(reservoirTex, neighbourPixel, reservoir);
-//      }
-//    }
-//  }
 }
