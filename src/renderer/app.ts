@@ -52,6 +52,7 @@ import { copyGBufferTexture } from "@renderer/abstractions/copy-g-buffer-texture
 import { getBloomPass } from "@renderer/bloom-pass/get-bloom-pass";
 import { getRasterTracePass } from "@renderer/raster-trace/get-raster-trace-pass";
 import { getLightDebugPass } from "@renderer/box-outline/get-light-debug-pass";
+import { OUTPUT_TEXTURE_FORMAT } from "@renderer/constants";
 
 export const debugValues = new DebugValuesStore();
 export let gpuContext: GPUCanvasContext;
@@ -226,8 +227,9 @@ export const init = async (
   gpuContext = canvas.getContext("webgpu");
   gpuContext.configure({
     device,
-    format: navigator.gpu.getPreferredCanvasFormat(),
-    usage: GPUTextureUsage.RENDER_ATTACHMENT,
+    // format: navigator.gpu.getPreferredCanvasFormat(),
+    format: OUTPUT_TEXTURE_FORMAT,
+    toneMapping: { mode: "extended" },
   });
 
   createBlueNoiseTexture(device);
@@ -252,19 +254,18 @@ export const init = async (
         },
       };
     })(),
-    // getTaaPass(normalTexture),
     // getShadowsPass(),
-    // getLightsPass(device),
+    getLightsPass(device),
     // getBloomPass(),
     // getSimpleFogPass(),
-    // getTaaPass(outputTexture),
+    getTaaPass(outputTexture),
     // getTonemapPass(),
     // getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
     // getVignettePass(10.0),
     fullscreenQuad(device),
-    getBoxOutlinePass(device),
-    // getLightDebugPass(device),
+    // getBoxOutlinePass(device),
+    getLightDebugPass(device),
   ]);
 
   timestampLabels = computePasses.reduce((acc, val) => {

@@ -17,7 +17,7 @@ import { Transform } from "@renderer/components/transform";
 import { Vec3 } from "wgpu-matrix";
 
 const LIGHT_BUFFER_STRIDE = 32;
-const DOWNSCALE_FACTOR = 2;
+const DOWNSCALE_FACTOR = 3;
 const RESERVOIR_DECAY = 0.5;
 const MAX_SAMPLES = 50000;
 const RESERVOIR_TEXTURE_FORMAT: GPUTextureFormat = "rgba32float";
@@ -597,10 +597,10 @@ ${lightsCompute}`;
 
   // Debug Controls
   let lightConfig = {
-    constantAttenuation: 0.1,
-    linearAttenuation: 0.2,
-    quadraticAttenuation: 0.1,
-    lightWeightCutOff: 300,
+    constantAttenuation: 0.8,
+    linearAttenuation: 0.8,
+    quadraticAttenuation: 0.05,
+    lightWeightCutOff: 1000,
   };
   let svgfConfig = {
     normalSigma: 0.2,
@@ -609,7 +609,7 @@ ${lightsCompute}`;
     spatialSigma: 0.75,
   };
   let passConfig = {
-    spatialEnabled: false,
+    spatialEnabled: true,
     temporalEnabled: true,
     denoiseEnabled: true,
     maxDenoiseRate: 4,
@@ -618,7 +618,7 @@ ${lightsCompute}`;
   folder.add(lightConfig, "constantAttenuation", 0, 1.0, 0.1);
   folder.add(lightConfig, "linearAttenuation", 0.01, 1, 0.01);
   folder.add(lightConfig, "quadraticAttenuation", 0.005, 0.3, 0.001);
-  folder.add(lightConfig, "lightWeightCutOff", 0, 500, 1);
+  folder.add(lightConfig, "lightWeightCutOff", 0, 1000, 1);
   folder.add(svgfConfig, "normalSigma", 0.1, 2, 0.05);
   folder.add(svgfConfig, "varianceSigma", 0.1, 8, 0.05);
   folder.add(svgfConfig, "spatialSigma", 0.2, 4, 0.05);
@@ -1367,8 +1367,8 @@ ${lightsCompute}`;
     label: "lights",
     timestampLabels: [
       "restir temporal",
+      "restir spatial",
       "restir lights",
-      // "restir spatial",
       "restir composite",
       "svgf variance",
       // "denoise 1",

@@ -127,16 +127,21 @@ fn storeDepth(pixel: vec2<u32>, depth: f32) -> u32 {
     return atomicMax(&depthBuffer[index], encodeDepth(depth));
 }
 
-@compute @workgroup_size(256, 1, 1)
+// x,y = local pixel position
+@compute @workgroup_size(3, 3, 8)
 fn main(
     @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
+    @builtin(local_invocation_id) LocalInvocationID : vec3<u32>,
+    @builtin(workgroup_id) WorkgroupID : vec3<u32>,
 ) {
+  let localPixel = vec2<u32>(LocalInvocationID.xy);
+  let bufferIndex = GlobalInvocationID.z;
   // Out of bounds of the buffer
-  if(GlobalInvocationID.x >= indirectBuffer[3]){
-    return;
-  }
-  let pixel = vec2<u32>(screenRayBuffer[GlobalInvocationID.x].xy);
-  let voxelObjectIndex = screenRayBuffer[GlobalInvocationID.x].z;
+//  if(bufferIndex >= indirectBuffer[3]){
+//    return;
+//  }
+  let pixel = vec2<u32>(screenRayBuffer[bufferIndex].xy) + localPixel;
+  let voxelObjectIndex = screenRayBuffer[bufferIndex].z;
   let resolution = textureDimensions(albedoTex);
   let rayOrigin = cameraPosition;
   var uv = vec2<f32>(pixel) / vec2<f32>(resolution);

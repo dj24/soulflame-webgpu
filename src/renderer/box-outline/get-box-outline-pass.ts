@@ -3,6 +3,7 @@ import { getCuboidVertices } from "../primitive-meshes/cuboid";
 import { mat4 } from "wgpu-matrix";
 import { VoxelObject } from "@renderer/voxel-object";
 import { Transform } from "@renderer/components/transform";
+import { OUTPUT_TEXTURE_FORMAT } from "@renderer/constants";
 
 const vertexStride = 16;
 
@@ -76,7 +77,7 @@ export const getBoxOutlinePass = async (
       entryPoint: "main",
       targets: [
         {
-          format: "bgra8unorm",
+          format: OUTPUT_TEXTURE_FORMAT,
         },
       ],
     },

@@ -15,20 +15,20 @@ import { Velocity } from "./components/velocity";
 import { MouseScrollZoomSystem } from "@input/systems/mouse-scroll-zoom-system";
 import { Light } from "@renderer/components/light";
 
-const LIGHT_INTENSITY = 50;
+const LIGHT_INTENSITY = 30;
 
 const ecs = new ECS();
 
 // Lights
-for (let x = 0; x < 512; x += 128) {
-  for (let z = 0; z < 512; z += 128) {
+for (let x = 64; x < 1024; x += 256) {
+  for (let z = 64; z < 1024; z += 256) {
     const newEntity = ecs.addEntity();
     ecs.addComponents(
       newEntity,
       new Transform(
-        vec3.create(x, 84, z),
+        vec3.create(x, 48, z),
         quat.fromEuler(0, 0, 0, "xyz"),
-        vec3.create(128, 128, 128),
+        vec3.create(1, 1, 1),
       ),
       new Light(
         vec3.mulScalar(

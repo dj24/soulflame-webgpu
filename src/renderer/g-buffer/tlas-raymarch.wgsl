@@ -39,11 +39,11 @@ fn main(
   @builtin(local_invocation_id) localId : vec3<u32>,
 ) {
     if(all(globalId.xy == vec2(0u))){
-      atomicStore(&indirectBuffer[0], 0);
+      atomicStore(&indirectBuffer[2], 0);
       atomicStore(&indirectBuffer[3], 0);
     }
-    let screenWidth = numWorkgroups.xy * WORKGROUP_SIZE;
-    let idx = vec2<u32>(globalId.xy);
+    let screenWidth = numWorkgroups.xy * WORKGROUP_SIZE * 3;
+    let idx = vec2<u32>(globalId.xy * 3);
     let uv = vec2<f32>(idx.xy) / vec2<f32>(screenWidth);
     let rayDirection = calculateRayDirection(uv, viewProjections.inverseViewProjection);
     let rayOrigin = cameraPosition;
@@ -54,11 +54,11 @@ fn main(
     while (stack.head > 0u && iterations < 256 && leafHitCount < 16) {
       let node = bvhNodes[stack_pop(&stack)];
       if(node.objectCount == 1){
-        let currentCount = atomicAdd(&indirectBuffer[3], 1) + 1;
-        if(currentCount % 256 == 0){
-          atomicAdd(&indirectBuffer[0], 1);
+        let newCount = atomicAdd(&indirectBuffer[3], 1) + 1;
+        if(newCount % 8 == 0){
+          atomicAdd(&indirectBuffer[2], 1);
         }
-        screenRayBuffer[currentCount + 1] = vec3(vec2<i32>(idx.xy), node.leftIndex);
+        screenRayBuffer[newCount] = vec3(vec2<i32>(idx.xy), node.leftIndex);
         leafHitCount += 1;
       }
       if(node.objectCount > 1){

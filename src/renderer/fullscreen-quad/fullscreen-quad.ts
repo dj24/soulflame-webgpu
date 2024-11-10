@@ -1,5 +1,6 @@
 import { gpuContext, RenderArgs, RenderPass } from "../app";
 import fullscreenQuadShader from "./fullscreentexturedquad.wgsl";
+import { OUTPUT_TEXTURE_FORMAT } from "@renderer/constants";
 
 let obj = { outputTexture: "Final" };
 export const fullscreenQuad = async (
@@ -24,7 +25,7 @@ export const fullscreenQuad = async (
     fragment: {
       module: fullscreenQuadShaderModule,
       entryPoint: "fragment_main",
-      targets: [{ format: navigator.gpu.getPreferredCanvasFormat() }],
+      targets: [{ format: OUTPUT_TEXTURE_FORMAT }],
     },
   });
   const render = (args: RenderArgs) => {

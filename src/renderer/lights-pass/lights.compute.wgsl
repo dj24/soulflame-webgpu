@@ -116,7 +116,7 @@ fn calculateNDC(worldPos: vec3<f32>, viewProjection: mat4x4<f32>) -> vec3<f32> {
   return ndc;
 }
 
-const WEIGHT_THRESHOLD = 0.02;
+const WEIGHT_THRESHOLD = 0.1;
 
 @compute @workgroup_size(8, 8, 1)
 fn main(
@@ -186,22 +186,24 @@ fn main(
   let lightPos = light.position + randomInUnitSphere(r);
   let lightDir = lightPos - worldPos;
 
+  var currentReservoir = unpackReservoir(textureLoad(inputReservoirTex, offsetPixel, 0));
+  var weightDifference = abs(bestWeight - currentReservoir.lightWeight);
+
+  if(weightDifference > WEIGHT_THRESHOLD){
+    currentReservoir = Reservoir(0, 0.0, 0.0, 0);
+  }
+
   let raymarchResult = rayMarchBVHFirstHit(worldPos + normal * 0.001, normalize(lightDir));
   if(raymarchResult.hit){
       bestWeight = 0.0;
   }
 
 
-
-
-  var currentReservoir = unpackReservoir(textureLoad(inputReservoirTex, offsetPixel, 0));
-  var weightDifference = abs(bestWeight - currentReservoir.lightWeight);
-
   sampleCount += currentReservoir.sampleCount;
   weightSum += currentReservoir.weightSum;
 
   // Resample last frames pixel afterwards to better account for occlusion from raycast hit
-  if(r.y < currentReservoir.lightWeight / weightSum && weightDifference < WEIGHT_THRESHOLD){
+  if(r.y < currentReservoir.lightWeight / weightSum){
     lightIndex = currentReservoir.lightIndex;
     bestWeight = currentReservoir.lightWeight;
   }
@@ -212,6 +214,7 @@ fn main(
      bestWeight,
      bitcast<f32>(lightIndex),
   );
+
   textureStore(reservoirTex, offsetPixel, reservoir);
 
   // if any blank pixels are found, fill them with this pixel's value
