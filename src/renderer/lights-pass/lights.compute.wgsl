@@ -150,7 +150,9 @@ fn main(
   let frameOffsetY = (i32(time.frame) * 13761 + 512);    // Different prime numbers
   blueNoisePixel.x += frameOffsetX;
   blueNoisePixel.y += frameOffsetY;
-  let r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy;
+  // TODO: Causes lockup on macOS
+//  let r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy;
+  let r = vec2(0.0);
 
   var importance = array<f32, LIGHT_COUNT>();
   var CDF = array<f32, LIGHT_COUNT>();

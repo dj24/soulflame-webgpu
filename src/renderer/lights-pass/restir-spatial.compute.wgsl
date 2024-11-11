@@ -109,10 +109,12 @@ fn spatial(
       let neighbor = vec2<i32>(id.xy) + vec2<i32>(x, y);
       let neighborUv = vec2<f32>(neighbor) / vec2<f32>(resolution);
       let neighborReservoir = unpackReservoir(textureLoad(inputReservoirTex, neighbor, 0));
-      let neighborWeight = neighborReservoir.lightWeight;
+
       let neighborDepth = textureSampleLevel(worldPosTex, nearestSampler, neighborUv, 0).w;
       let neighborNormal = textureSampleLevel(normalTex, nearestSampler, neighborUv, 0).xyz;
       let depthError = abs(neighborDepth / worldPos.w);
+      let gaussianWeight = exp(-dot(vec2(f32(x), f32(y)), vec2<f32>(f32(x), f32(y))) / 2.0);
+      let neighborWeight = neighborReservoir.lightWeight * gaussianWeight;
 
       weightSum += neighborWeight;
       currentSampleCount += neighborReservoir.sampleCount;
