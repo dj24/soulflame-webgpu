@@ -530,7 +530,7 @@ ${lightsCompute}`;
         fn main(
         @builtin(global_invocation_id) id : vec3<u32>
         ){
-            textureStore(reservoirTex, id.xy, vec4(0.0));
+            textureStore(reservoirTex, id.xy / 2, vec4(0.0));
             textureStore(lightTex, id.xy, vec4(0.0));
         }
           `,
@@ -609,7 +609,7 @@ ${lightsCompute}`;
     spatialSigma: 0.75,
   };
   let passConfig = {
-    spatialEnabled: false,
+    spatialEnabled: true,
     temporalEnabled: false,
     denoiseEnabled: false,
     maxDenoiseRate: 4,
@@ -1216,8 +1216,8 @@ ${lightsCompute}`;
       passEncoder.setPipeline(clearReservoirPipeline);
       passEncoder.setBindGroup(0, clearReservoirBindGroup);
       passEncoder.dispatchWorkgroups(
-        Math.ceil(reservoirTexture.width / 8),
-        Math.ceil(reservoirTexture.height / 8),
+        Math.ceil(outputTextures.finalTexture.width / 8),
+        Math.ceil(outputTextures.finalTexture.height / 8),
       );
       passEncoder.end();
       passWriteOffset += 2;

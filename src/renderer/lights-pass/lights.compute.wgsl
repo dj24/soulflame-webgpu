@@ -141,19 +141,30 @@ fn main(
   let originPixel = id.xy * 2;
   let offsetPixel = originPixel + vec2<u32>(kernelX, kernelY);
 
-  let gBufferPixel = offsetPixel * 2;
-  let worldPos = textureLoad(worldPosTex, gBufferPixel, 0).xyz;
-  let normal = textureLoad(normalTex, gBufferPixel, 0).xyz;
+  var worldPos = vec3(0.0);
+  var normal = vec3(0.0);
+
+  for(var i = 0; i < 2; i++){
+    for(var j = 0; j < 2; j++){
+      let pixel = offsetPixel * 2 + vec2(u32(i), u32(j));
+      worldPos += textureLoad(worldPosTex, pixel, 0).xyz;
+      normal += textureLoad(normalTex, pixel, 0).xyz;
+    }
+  }
+
+  worldPos /= 4.0;
+  normal /= 4.0;
+
+  let resolution = textureDimensions(inputReservoirTex).xy;
 
   var blueNoisePixel = vec2<i32>(offsetPixel);
-  let frameOffsetX = (i32(time.frame) * 92821 + 71413);  // Large prime numbers for frame variation
-  let frameOffsetY = (i32(time.frame) * 13761 + 512);    // Different prime numbers
+  let frameOffsetX = (i32(time.frame) * 92821 + 71413) % 512;  // Large prime numbers for frame variation
+  let frameOffsetY = (i32(time.frame) * 13761 + 512) % 512;    // Different prime numbers
   blueNoisePixel.x += frameOffsetX;
   blueNoisePixel.y += frameOffsetY;
   // TODO: Causes lockup on macOS
-//  let r = textureLoad(blueNoiseTex, blueNoisePixel % 512, 0).xy;
-  let r = vec2(0.0);
-
+//  let r = textureLoad(blueNoiseTex,id.xy, 0).xy;
+  let r = vec2(0.2);
   var importance = array<f32, LIGHT_COUNT>();
   var CDF = array<f32, LIGHT_COUNT>();
 
@@ -191,7 +202,7 @@ fn main(
     weightSum += weight;
     sampleCount++;
 
-    if(r.y < weight / weightSum){
+    if(sampleR.x < weight / weightSum){
       lightIndex = sampleLightIndex;
       bestWeight = weight;
     }
@@ -213,14 +224,14 @@ fn main(
       bestWeight = 0.0;
   }
 
-//  sampleCount += currentReservoir.sampleCount;
-//  weightSum += currentReservoir.weightSum;
+  sampleCount += currentReservoir.sampleCount;
+  weightSum += currentReservoir.weightSum;
 
-  // Resample last frames pixel afterwards to better account for occlusion from raycast hit
-//  if(r.y < currentReservoir.lightWeight / weightSum){
-//    lightIndex = currentReservoir.lightIndex;
-//    bestWeight = currentReservoir.lightWeight;
-//  }
+//   Resample last frames pixel afterwards to better account for occlusion from raycast hit
+  if(r.y < currentReservoir.lightWeight / weightSum){
+    lightIndex = currentReservoir.lightIndex;
+    bestWeight = currentReservoir.lightWeight;
+  }
 
   var reservoir = vec4(
     bitcast<f32>(SAMPLES_PER_FRAME),

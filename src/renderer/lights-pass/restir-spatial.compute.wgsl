@@ -120,13 +120,13 @@ fn spatial(
       currentSampleCount += neighborReservoir.sampleCount;
 
       let normalSimilarity = dot(normalRef, neighborNormal);
-      if(normalSimilarity < 0.99){
+      if(normalSimilarity < 0.95){
         continue;
       }
-      if(depthError > 1.05){
+      if(depthError > 1.05 || depthError < 0.95){
         continue;
       }
-      if(r.y < neighborReservoir.lightWeight / weightSum){
+      if(neighborWeight > currentWeight){
           lightIndex = neighborReservoir.lightIndex;
           currentWeight = neighborWeight;
       }
