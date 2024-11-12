@@ -23,19 +23,11 @@ export type OutputTextures = {
   previousWorldPositionTexture?: GBufferTexture;
   previousNormalTexture?: GBufferTexture;
 };
-
-const ceilToNearestMultipleOf = (n: number, multiple: number) => {
-  return Math.ceil(n / multiple) * multiple;
-};
-
-const TLAS_RAYMARCH_DOWNSAMPLE = 1;
-const TLAS_HITS = 16;
-let isMapPending = false;
-
 export const getGBufferPass = async (): Promise<RenderPass> => {
   let indirectBuffers: GPUBuffer[] = [];
   let screenRayBuffers: GPUBuffer[] = [];
   let depthBuffer: GPUBuffer;
+  let objectIndexBuffer: GPUBuffer;
   let debugBuffer = device.createBuffer({
     size: 16,
     usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
@@ -322,6 +314,14 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
             type: "storage",
           },
         },
+        // Object index buffer
+        {
+          binding: 16,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: {
+            type: "storage",
+          },
+        },
       ],
     });
 
@@ -351,6 +351,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           @group(0) @binding(13) var<storage> octreeBuffer : array<vec2<u32>>;
           @group(0) @binding(14) var<storage> screenRayBuffer : array<vec3<i32>>;
           @group(0) @binding(15) var<storage, read_write> depthBuffer : array<atomic<u32>>;
+          @group(0) @binding(16) var<storage, read_write> objectIndexBuffer : array<atomic<u32>>;
           
           ${randomCommon}
           ${getRayDirection}
@@ -444,6 +445,12 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
             binding: 15,
             resource: { buffer: depthBuffer },
           },
+          {
+            binding: 16,
+            resource: {
+              buffer: objectIndexBuffer,
+            },
+          },
         ],
       });
 
@@ -456,12 +463,188 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     return enqueuePass;
   };
 
+  const getOutputToGBufferPass = async () => {
+    const bindGroupLayout = device.createBindGroupLayout({
+      entries: [
+        // Atomic depth buffer
+        {
+          binding: 0,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: {
+            type: "read-only-storage",
+          },
+        },
+        // Object index buffer
+        {
+          binding: 1,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: {
+            type: "read-only-storage",
+          },
+        },
+        // World position + depth texture
+        {
+          binding: 2,
+          visibility: GPUShaderStage.COMPUTE,
+          storageTexture: {
+            format: "rgba32float",
+            viewDimension: "2d",
+          },
+        },
+        // Albedo texture
+        {
+          binding: 3,
+          visibility: GPUShaderStage.COMPUTE,
+          storageTexture: {
+            format: "rgba16float",
+            viewDimension: "2d",
+          },
+        },
+        // Normal texture
+        {
+          binding: 4,
+          visibility: GPUShaderStage.COMPUTE,
+          storageTexture: {
+            format: "rgba16float",
+            viewDimension: "2d",
+          },
+        },
+        // Velocity texture
+        {
+          binding: 5,
+          visibility: GPUShaderStage.COMPUTE,
+          storageTexture: {
+            format: "rgba16float",
+            viewDimension: "2d",
+          },
+        },
+      ],
+    });
+
+    const pipeline = await device.createComputePipelineAsync({
+      layout: device.createPipelineLayout({
+        bindGroupLayouts: [bindGroupLayout],
+      }),
+      compute: {
+        module: device.createShaderModule({
+          code: `
+            @group(0) @binding(0) var<storage> depthBuffer : array<u32>;
+            @group(0) @binding(1) var<storage> objectIndexBuffer : array<u32>;
+            @group(0) @binding(2) var worldPosTex : texture_storage_2d<rgba32float, write>;
+            @group(0) @binding(3) var albedoTex : texture_storage_2d<rgba16float, write>;
+            @group(0) @binding(4) var normalTex : texture_storage_2d<rgba16float, write>;
+            @group(0) @binding(5) var velocityTex : texture_storage_2d<rgba16float, write>;
+                      
+            const FAR_PLANE = 10000.0;       
+               
+            fn convert2DTo1D(width: u32, index2D: vec2<u32>) -> u32 {
+              return index2D.y * width + index2D.x;
+            }
+            
+            fn getDebugColor(index: u32) -> vec4<f32> {
+              let colors = array<vec4<f32>, 8>(
+                vec4<f32>(1.0, 0.0, 0.0, 1.0),
+                vec4<f32>(0.0, 1.0, 0.0, 1.0),
+                vec4<f32>(0.0, 0.0, 1.0, 1.0),
+                vec4<f32>(1.0, 1.0, 0.0, 1.0),
+                vec4<f32>(1.0, 0.0, 1.0, 1.0),
+                vec4<f32>(0.0, 1.0, 1.0, 1.0),
+                vec4<f32>(1.0, 1.0, 1.0, 1.0),
+                vec4<f32>(0.5, 0.5, 0.5, 1.0)
+              );
+              return colors[index % 8];
+            }
+                      
+            fn decodeDepth(depth: u32) -> f32 {
+              let reversedDepth = f32(depth) / 200000.0;
+              return FAR_PLANE - reversedDepth;   
+            }
+                      
+            @compute @workgroup_size(8,8,1)
+            fn main(
+            @builtin(global_invocation_id) id : vec3<u32>
+            ){
+                let texSize = textureDimensions(albedoTex);
+                if(any(id.xy >= texSize.xy)) {
+                  return;
+                }
+                let index = convert2DTo1D(texSize.x, id.xy);
+                let depth = decodeDepth(depthBuffer[index]);
+                let objectIndex = objectIndexBuffer[index];
+                let depthColor = vec4<f32>(1.0 - depth * 0.001, 0.0, 0.0, 1.0);
+                let albedoColor = getDebugColor(objectIndex);
+                textureStore(albedoTex, id.xy, albedoColor);
+            }
+          `,
+        }),
+        entryPoint: "main",
+      },
+    });
+
+    let bindGroup: GPUBindGroup;
+
+    const render = (
+      computePass: GPUComputePassEncoder,
+      renderArgs: RenderArgs,
+    ) => {
+      if (!bindGroup) {
+        bindGroup = device.createBindGroup({
+          layout: bindGroupLayout,
+          entries: [
+            {
+              binding: 0,
+              resource: { buffer: depthBuffer },
+            },
+            {
+              binding: 1,
+              resource: { buffer: objectIndexBuffer },
+            },
+            {
+              binding: 2,
+              resource: renderArgs.outputTextures.worldPositionTexture.view,
+            },
+            {
+              binding: 3,
+              resource: renderArgs.outputTextures.albedoTexture.view,
+            },
+            {
+              binding: 4,
+              resource: renderArgs.outputTextures.normalTexture.view,
+            },
+            {
+              binding: 5,
+              resource: renderArgs.outputTextures.velocityTexture.view,
+            },
+          ],
+        });
+      }
+
+      computePass.setPipeline(pipeline);
+      computePass.setBindGroup(0, bindGroup);
+      computePass.dispatchWorkgroups(
+        Math.ceil(renderArgs.outputTextures.albedoTexture.width / 8),
+        Math.ceil(renderArgs.outputTextures.albedoTexture.height / 8),
+        1,
+      );
+    };
+
+    return render;
+  };
+
   const renderTLASPass = await getTLASRaymarchPass(0);
   const sparseRayMarch = await getFullRaymarchPass();
+  const outputToGBuffer = await getOutputToGBufferPass();
 
   const render = (renderArgs: RenderArgs) => {
     if (!depthBuffer) {
       depthBuffer = device.createBuffer({
+        size: resolution[0] * resolution[1] * 4,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      });
+    }
+
+    if (!objectIndexBuffer) {
+      objectIndexBuffer = device.createBuffer({
         size: resolution[0] * resolution[1] * 4,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       });
@@ -532,11 +715,24 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
     );
 
     computePass.end();
+
+    computePass = commandEncoder.beginComputePass({
+      timestampWrites: {
+        querySet: timestampWrites.querySet,
+        beginningOfPassWriteIndex:
+          timestampWrites.beginningOfPassWriteIndex + 4,
+        endOfPassWriteIndex: timestampWrites.endOfPassWriteIndex + 4,
+      },
+    });
+
+    outputToGBuffer(computePass, renderArgs);
+
+    computePass.end();
   };
 
   return {
     render,
     label: "primary rays",
-    timestampLabels: ["tlas raymarch", "blas raymarch"],
+    timestampLabels: ["tlas raymarch", "blas raymarch", "output to g-buffer"],
   };
 };

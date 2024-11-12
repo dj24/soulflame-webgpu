@@ -136,13 +136,13 @@ fn main(
 ) {
   let localPixel = vec2<u32>(LocalInvocationID.xy);
   let bufferIndex = GlobalInvocationID.z;
-  // Out of bounds of the buffer
-  if(bufferIndex >= indirectBuffer[3]){
-    return;
-  }
-  let pixel = vec2<u32>(screenRayBuffer[bufferIndex].xy) + localPixel;
-  let voxelObjectIndex = screenRayBuffer[bufferIndex].z;
+
   let resolution = textureDimensions(albedoTex);
+  let pixel = vec2<u32>(screenRayBuffer[bufferIndex].xy) + localPixel;
+  let isOutOfScreenBounds = any(pixel >= resolution);
+  let isOutOfBufferBounds = bufferIndex >= indirectBuffer[3];
+  let voxelObjectIndex = screenRayBuffer[bufferIndex].z;
+
   let rayOrigin = cameraPosition;
   var uv = vec2<f32>(pixel) / vec2<f32>(resolution);
   var rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
@@ -153,19 +153,11 @@ fn main(
   let voxelObject = voxelObjects[voxelObjectIndex];
 
   var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, rayOrigin, 9999.0);
-  if(!rayMarchResult.hit){
-    return;
-  }
+
   let previousDepth = decodeDepth(storeDepth(pixel, rayMarchResult.t));
 
   if(rayMarchResult.t < previousDepth){
-    albedo = length(rayMarchResult.colour) * getDebugColor(u32(voxelObjectIndex)).xyz;
-    worldPos = rayOrigin + rayDirection * rayMarchResult.t;
-    normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(rayMarchResult.normal));
-    velocity = getVelocityStatic(worldPos, viewProjections);
-    textureStore(albedoTex, pixel, vec4(albedo, 1));
-    textureStore(normalTex, pixel, vec4(normal,1));
-    textureStore(velocityTex, pixel, vec4(velocity,0,0));
-    textureStore(worldPosTex, pixel, vec4(worldPos,rayMarchResult.t));
+    let objectIndexPtr = &objectIndexBuffer[convert2DTo1D(resolution.x, pixel)];
+    atomicStore(objectIndexPtr, u32(voxelObjectIndex));
   }
 }
