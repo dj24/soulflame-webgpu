@@ -45,7 +45,7 @@ export const createTerrainChunk = async (
   const newEntity = ecs.addEntity();
   const [x, y, z] = position;
 
-  const name = `Terrain - ${x}, ${y}, ${z}`;
+  const name = `Terrain (${x},${y},${z})`;
   const uncompressedSize = getMaxSizeOfOctree(size) * OCTREE_STRIDE;
   let uncompressedArrayBuffer: SharedArrayBuffer | null = new SharedArrayBuffer(
     uncompressedSize,

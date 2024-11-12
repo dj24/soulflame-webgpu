@@ -610,8 +610,8 @@ ${lightsCompute}`;
   };
   let passConfig = {
     spatialEnabled: true,
-    temporalEnabled: false,
-    denoiseEnabled: false,
+    temporalEnabled: true,
+    denoiseEnabled: true,
     maxDenoiseRate: 4,
   };
   const folder = (window as any).debugUI.gui.addFolder("lighting");

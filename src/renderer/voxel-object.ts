@@ -1,6 +1,5 @@
 import { mat4, vec3, Vec3 } from "wgpu-matrix";
 import { BoundingBox } from "./bvh";
-import { MovableObject } from "./movable-object";
 import { Component } from "@ecs/ecs";
 import { Transform } from "@renderer/components/transform";
 
