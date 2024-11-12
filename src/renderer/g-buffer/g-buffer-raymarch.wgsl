@@ -128,11 +128,24 @@ fn storeDepth(pixel: vec2<u32>, depth: f32) -> u32 {
 }
 
 // x,y = local pixel position
+@compute @workgroup_size(8, 8, 1)
+fn clear(
+    @builtin(global_invocation_id) id : vec3<u32>,
+) {
+  let resolution = textureDimensions(albedoTex);
+  let objectIndexBufferIndex = convert2DTo1D(resolution.x, id.xy);
+  let objectIndexPtr = &objectIndexBuffer[objectIndexBufferIndex];
+  let normalPtr = &normalBuffer[objectIndexBufferIndex];
+  atomicStore(objectIndexPtr, bitcast<u32>(-1));
+  atomicStore(normalPtr, pack4x8snorm(vec4(0.0)));
+}
+
+
+// x,y = local pixel position
 @compute @workgroup_size(3, 3, 8)
 fn main(
     @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
     @builtin(local_invocation_id) LocalInvocationID : vec3<u32>,
-    @builtin(workgroup_id) WorkgroupID : vec3<u32>,
 ) {
   let localPixel = vec2<u32>(LocalInvocationID.xy);
   let bufferIndex = GlobalInvocationID.z;
@@ -141,6 +154,11 @@ fn main(
   let pixel = vec2<u32>(screenRayBuffer[bufferIndex].xy) + localPixel;
   let isOutOfScreenBounds = any(pixel >= resolution);
   let isOutOfBufferBounds = bufferIndex >= indirectBuffer[3];
+
+  if(isOutOfScreenBounds || isOutOfBufferBounds){
+    return;
+  }
+
   let voxelObjectIndex = screenRayBuffer[bufferIndex].z;
 
   let rayOrigin = cameraPosition;
@@ -151,13 +169,15 @@ fn main(
   var albedo = vec3(0.0);
   var velocity = vec2(0.0);
   let voxelObject = voxelObjects[voxelObjectIndex];
-
   var rayMarchResult = rayMarchOctree(voxelObject, rayDirection, rayOrigin, 9999.0);
 
   let previousDepth = decodeDepth(storeDepth(pixel, rayMarchResult.t));
 
   if(rayMarchResult.t < previousDepth){
     let objectIndexPtr = &objectIndexBuffer[convert2DTo1D(resolution.x, pixel)];
-    atomicStore(objectIndexPtr, u32(voxelObjectIndex));
+    let normalPtr = &normalBuffer[convert2DTo1D(resolution.x, pixel)];
+    let normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(rayMarchResult.normal));
+    atomicStore(objectIndexPtr, bitcast<u32>(voxelObjectIndex));
+    atomicStore(normalPtr, pack4x8snorm(vec4(normal, 0.0)));
   }
 }

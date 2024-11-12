@@ -28,10 +28,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
   let screenRayBuffers: GPUBuffer[] = [];
   let depthBuffer: GPUBuffer;
   let objectIndexBuffer: GPUBuffer;
-  let debugBuffer = device.createBuffer({
-    size: 16,
-    usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
-  });
+  let normalBuffer: GPUBuffer;
 
   const getTLASRaymarchPass = async (index: number) => {
     const bindGroupLayout = device.createBindGroupLayout({
@@ -322,17 +319,18 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
             type: "storage",
           },
         },
+        // Normal buffer
+        {
+          binding: 17,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: {
+            type: "storage",
+          },
+        },
       ],
     });
 
-    const pipeline = await device.createComputePipelineAsync({
-      label: "raymarch g-buffer",
-      layout: device.createPipelineLayout({
-        bindGroupLayouts: [bindGroupLayout],
-      }),
-      compute: {
-        module: device.createShaderModule({
-          code: `
+    const code = `
           struct Time {
             frame: u32,
             deltaTime: f32
@@ -352,6 +350,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           @group(0) @binding(14) var<storage> screenRayBuffer : array<vec3<i32>>;
           @group(0) @binding(15) var<storage, read_write> depthBuffer : array<atomic<u32>>;
           @group(0) @binding(16) var<storage, read_write> objectIndexBuffer : array<atomic<u32>>;
+          @group(0) @binding(17) var<storage, read_write> normalBuffer : array<atomic<u32>>;
           
           ${randomCommon}
           ${getRayDirection}
@@ -359,9 +358,31 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           ${raymarchVoxels}
           ${bvh}
           ${depth}
-          ${gBufferRaymarch}`,
+          ${gBufferRaymarch}`;
+
+    const pipeline = await device.createComputePipelineAsync({
+      label: "raymarch g-buffer",
+      layout: device.createPipelineLayout({
+        bindGroupLayouts: [bindGroupLayout],
+      }),
+      compute: {
+        module: device.createShaderModule({
+          code,
         }),
         entryPoint: "main",
+      },
+    });
+
+    const clearPipeline = await device.createComputePipelineAsync({
+      label: "clear object index buffer",
+      layout: device.createPipelineLayout({
+        bindGroupLayouts: [bindGroupLayout],
+      }),
+      compute: {
+        module: device.createShaderModule({
+          code,
+        }),
+        entryPoint: "clear",
       },
     });
 
@@ -451,12 +472,25 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
               buffer: objectIndexBuffer,
             },
           },
+          {
+            binding: 17,
+            resource: {
+              buffer: normalBuffer,
+            },
+          },
         ],
       });
 
+      // Clear the object index buffer
+      computePass.setBindGroup(0, bindGroup);
+      computePass.setPipeline(clearPipeline);
+      computePass.dispatchWorkgroups(
+        Math.ceil(renderArgs.outputTextures.finalTexture.width / 8),
+        Math.ceil(renderArgs.outputTextures.finalTexture.height / 8),
+      );
+
       // Raymarch the scene
       computePass.setPipeline(pipeline);
-      computePass.setBindGroup(0, bindGroup);
       computePass.dispatchWorkgroupsIndirect(indirectBuffer, 0);
     };
 
@@ -518,6 +552,30 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
             viewDimension: "2d",
           },
         },
+        // View projections
+        {
+          binding: 6,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: {
+            type: "uniform",
+          },
+        },
+        // Normal buffer
+        {
+          binding: 7,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: {
+            type: "read-only-storage",
+          },
+        },
+        // Camera position
+        {
+          binding: 8,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: {
+            type: "uniform",
+          },
+        },
       ],
     });
 
@@ -528,12 +586,25 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       compute: {
         module: device.createShaderModule({
           code: `
+            ${getRayDirection}
+            
+            struct ViewProjectionMatrices {
+              viewProjection : mat4x4<f32>,
+              previousViewProjection : mat4x4<f32>,
+              inverseViewProjection : mat4x4<f32>,
+              projection : mat4x4<f32>,
+              inverseProjection: mat4x4<f32>
+            };
+
             @group(0) @binding(0) var<storage> depthBuffer : array<u32>;
             @group(0) @binding(1) var<storage> objectIndexBuffer : array<u32>;
             @group(0) @binding(2) var worldPosTex : texture_storage_2d<rgba32float, write>;
             @group(0) @binding(3) var albedoTex : texture_storage_2d<rgba16float, write>;
             @group(0) @binding(4) var normalTex : texture_storage_2d<rgba16float, write>;
             @group(0) @binding(5) var velocityTex : texture_storage_2d<rgba16float, write>;
+            @group(0) @binding(6) var<uniform> viewProjections : ViewProjectionMatrices;
+            @group(0) @binding(7) var<storage> normalBuffer : array<u32>;
+            @group(0) @binding(8) var<uniform> cameraPosition : vec3<f32>;
                       
             const FAR_PLANE = 10000.0;       
                
@@ -570,10 +641,19 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
                 }
                 let index = convert2DTo1D(texSize.x, id.xy);
                 let depth = decodeDepth(depthBuffer[index]);
-                let objectIndex = objectIndexBuffer[index];
+                let objectIndex = bitcast<i32>(objectIndexBuffer[index]);
+                if(objectIndex == -1) {
+                    return;
+                }
                 let depthColor = vec4<f32>(1.0 - depth * 0.001, 0.0, 0.0, 1.0);
-                let albedoColor = getDebugColor(objectIndex);
+                let albedoColor = getDebugColor(u32(objectIndex));
+                let normal = unpack4x8snorm(normalBuffer[index]).xyz;
                 textureStore(albedoTex, id.xy, albedoColor);
+                textureStore(normalTex, id.xy, vec4<f32>(normal, 0.0));
+                let uv = vec2<f32>(f32(id.x) / f32(texSize.x), f32(id.y) / f32(texSize.y));
+                let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
+                let worldPos = depth * rayDirection + cameraPosition;
+                textureStore(worldPosTex, id.xy, vec4<f32>(worldPos, depth));
             }
           `,
         }),
@@ -615,6 +695,22 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
               binding: 5,
               resource: renderArgs.outputTextures.velocityTexture.view,
             },
+            {
+              binding: 6,
+              resource: {
+                buffer: renderArgs.viewProjectionMatricesBuffer,
+              },
+            },
+            {
+              binding: 7,
+              resource: { buffer: normalBuffer },
+            },
+            {
+              binding: 8,
+              resource: {
+                buffer: renderArgs.cameraPositionBuffer,
+              },
+            },
           ],
         });
       }
@@ -645,6 +741,13 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
 
     if (!objectIndexBuffer) {
       objectIndexBuffer = device.createBuffer({
+        size: resolution[0] * resolution[1] * 4,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      });
+    }
+
+    if (!normalBuffer) {
+      normalBuffer = device.createBuffer({
         size: resolution[0] * resolution[1] * 4,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
       });

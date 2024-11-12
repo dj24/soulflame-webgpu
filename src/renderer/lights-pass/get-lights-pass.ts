@@ -1361,8 +1361,8 @@ ${lightsCompute}`;
     label: "lights",
     timestampLabels: [
       "restir temporal",
-      "restir spatial",
       "restir lights",
+      "restir spatial",
       "restir composite",
       "svgf variance",
       // "denoise 1",

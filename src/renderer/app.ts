@@ -69,7 +69,7 @@ const debugUI = new DebugUI();
 (window as any).debugUI = debugUI;
 
 let timeDebug = {
-  isPaused: true,
+  isPaused: false,
 };
 
 (window as any).debugUI.gui.add(timeDebug, "isPaused");
@@ -255,10 +255,10 @@ export const init = async (
       };
     })(),
     // getShadowsPass(),
-    // getLightsPass(device),
+    getLightsPass(device),
     // getBloomPass(),
     // getSimpleFogPass(),
-    // getTaaPass(outputTexture),
+    getTaaPass(outputTexture),
     // getTonemapPass(),
     // getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),

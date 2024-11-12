@@ -141,19 +141,9 @@ fn main(
   let originPixel = id.xy * 2;
   let offsetPixel = originPixel + vec2<u32>(kernelX, kernelY);
 
-  var worldPos = vec3(0.0);
-  var normal = vec3(0.0);
 
-  for(var i = 0; i < 2; i++){
-    for(var j = 0; j < 2; j++){
-      let pixel = offsetPixel * 2 + vec2(u32(i), u32(j));
-      worldPos += textureLoad(worldPosTex, pixel, 0).xyz;
-      normal += textureLoad(normalTex, pixel, 0).xyz;
-    }
-  }
-
-  worldPos /= 4.0;
-  normal /= 4.0;
+let normal = textureLoad(normalTex, offsetPixel * 2, 0).xyz;
+let worldPos = textureLoad(worldPosTex, offsetPixel * 2, 0).xyz;
 
   let resolution = textureDimensions(inputReservoirTex).xy;
 
