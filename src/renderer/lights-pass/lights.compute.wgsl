@@ -137,13 +137,12 @@ fn main(
     kernelX = 1 - localId.z % 2;
   }
 
-//  let originPixel = id.xy * 2 + vec2(time.frame % 2, (time.frame % 4) / 2);
   let originPixel = id.xy * 2;
   let offsetPixel = originPixel + vec2<u32>(kernelX, kernelY);
 
 
-let normal = textureLoad(normalTex, offsetPixel * 2, 0).xyz;
-let worldPos = textureLoad(worldPosTex, offsetPixel * 2, 0).xyz;
+let normal = textureLoad(normalTex, offsetPixel, 0).xyz;
+let worldPos = textureLoad(worldPosTex, offsetPixel, 0).xyz;
 
   let resolution = textureDimensions(inputReservoirTex).xy;
 
@@ -153,8 +152,8 @@ let worldPos = textureLoad(worldPosTex, offsetPixel * 2, 0).xyz;
   blueNoisePixel.x += frameOffsetX;
   blueNoisePixel.y += frameOffsetY;
   // TODO: Causes lockup on macOS
-//  let r = textureLoad(blueNoiseTex,id.xy, 0).xy;
-  let r = vec2(0.2);
+  let r = textureLoad(blueNoiseTex,blueNoisePixel, 0).xy;
+//  let r = vec2(0.2);
   var importance = array<f32, LIGHT_COUNT>();
   var CDF = array<f32, LIGHT_COUNT>();
 
@@ -192,7 +191,7 @@ let worldPos = textureLoad(worldPosTex, offsetPixel * 2, 0).xyz;
     weightSum += weight;
     sampleCount++;
 
-    if(sampleR.x < weight / weightSum){
+    if(r.y < weight / weightSum){
       lightIndex = sampleLightIndex;
       bestWeight = weight;
     }

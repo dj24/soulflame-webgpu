@@ -87,7 +87,10 @@ fn packReservoir(reservoir: Reservoir) -> vec4<f32> {
 fn main(
 @builtin(global_invocation_id) id : vec3<u32>
 ){
-  let resolution = textureDimensions(inputReservoirTex);
+  let emptyReservoir = Reservoir(0, 0.0, 0.0, 0);
+  textureStore(reservoirTex, id.xy, packReservoir(emptyReservoir));
+
+  let resolution = textureDimensions(worldPosTex);
 
   let uv = (vec2<f32>(id.xy) + vec2(0.5)) / vec2<f32>(resolution);
   let velocity = textureSampleLevel(velocityTex, nearestSampler, uv, 0).xy;
@@ -111,6 +114,8 @@ fn main(
   let normalSimilarity = dot(previousNormal, normalSample);
 
   if(normalSimilarity < 0.9){
+    let emptyReservoir = Reservoir(0, 0.0, 0.0, 0);
+    textureStore(reservoirTex, id.xy, packReservoir(emptyReservoir));
     return;
   }
 

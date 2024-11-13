@@ -530,7 +530,7 @@ ${lightsCompute}`;
         fn main(
         @builtin(global_invocation_id) id : vec3<u32>
         ){
-            textureStore(reservoirTex, id.xy / 2, vec4(0.0));
+            textureStore(reservoirTex, id.xy, vec4(0.0));
             textureStore(lightTex, id.xy, vec4(0.0));
         }
           `,
@@ -609,9 +609,9 @@ ${lightsCompute}`;
     spatialSigma: 0.75,
   };
   let passConfig = {
-    spatialEnabled: true,
-    temporalEnabled: true,
-    denoiseEnabled: true,
+    spatialEnabled: false,
+    temporalEnabled: false,
+    denoiseEnabled: false,
     maxDenoiseRate: 4,
   };
   const folder = (window as any).debugUI.gui.addFolder("lighting");
@@ -663,8 +663,8 @@ ${lightsCompute}`;
     if (!reservoirTexture) {
       reservoirTexture = device.createTexture({
         size: {
-          width: Math.ceil(outputTextures.finalTexture.width / 2),
-          height: Math.ceil(outputTextures.finalTexture.height / 2),
+          width: Math.ceil(outputTextures.finalTexture.width),
+          height: Math.ceil(outputTextures.finalTexture.height),
         },
         format: RESERVOIR_TEXTURE_FORMAT,
         usage:
