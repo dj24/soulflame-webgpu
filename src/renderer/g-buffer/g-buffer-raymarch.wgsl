@@ -138,6 +138,7 @@ fn clear(
   let normalPtr = &normalBuffer[objectIndexBufferIndex];
   atomicStore(objectIndexPtr, bitcast<u32>(-1));
   atomicStore(normalPtr, pack4x8snorm(vec4(0.0)));
+
 }
 
 

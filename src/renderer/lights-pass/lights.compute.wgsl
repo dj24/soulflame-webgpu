@@ -147,12 +147,12 @@ let worldPos = textureLoad(worldPosTex, offsetPixel, 0).xyz;
   let resolution = textureDimensions(inputReservoirTex).xy;
 
   var blueNoisePixel = vec2<i32>(offsetPixel);
-  let frameOffsetX = (i32(time.frame) * 92821 + 71413) % 512;  // Large prime numbers for frame variation
+  let frameOffsetX = (i32(time.frame) * 92821 + 71413) % 511;  // Large prime numbers for frame variation
   let frameOffsetY = (i32(time.frame) * 13761 + 512) % 512;    // Different prime numbers
   blueNoisePixel.x += frameOffsetX;
   blueNoisePixel.y += frameOffsetY;
   // TODO: Causes lockup on macOS
-  let r = textureLoad(blueNoiseTex,blueNoisePixel, 0).xy;
+  let r = textureLoad(blueNoiseTex,blueNoisePixel % 512, 0).xy;
 //  let r = vec2(0.2);
   var importance = array<f32, LIGHT_COUNT>();
   var CDF = array<f32, LIGHT_COUNT>();

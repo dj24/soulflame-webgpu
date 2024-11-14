@@ -101,7 +101,7 @@ fn spatial(
 
   let frameOffsetX = (i32(time.frame) * 92821 + 71413) % 512;  // Large prime numbers for frame variation
   let frameOffsetY = (i32(time.frame) * 13761 + 511) % 512;    // Different prime numbers
-  let r = textureLoad(blueNoiseTex, vec2<i32>(id.xy) + vec2(frameOffsetX, frameOffsetY) % 512, 0).xy;
+  let r = textureLoad(blueNoiseTex, (vec2<i32>(id.xy) + vec2(frameOffsetX, frameOffsetY)) % 512, 0).xy;
 
   // TODO: gaussian kernel to weight less the further away samples
   for(var x = -1; x <= 1; x+= 1 ){
@@ -123,7 +123,7 @@ fn spatial(
       if(normalSimilarity < 0.95){
         continue;
       }
-      if(depthError > 1.05 || depthError < 0.95){
+      if(depthError > 1.01 || depthError < 0.99){
         continue;
       }
       if(neighborWeight > currentWeight){

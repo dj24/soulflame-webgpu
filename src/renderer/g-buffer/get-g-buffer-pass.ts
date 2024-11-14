@@ -630,7 +630,24 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
               let reversedDepth = f32(depth) / 200000.0;
               return FAR_PLANE - reversedDepth;   
             }
-                      
+            
+            fn getVelocityStatic(worldPos: vec3<f32>, viewProjections:ViewProjectionMatrices) -> vec2<f32>{
+              let vp = viewProjections.viewProjection;
+              let previousVp = viewProjections.previousViewProjection;
+            
+              let clipSpace = vp * vec4(worldPos.xyz, 1.0);
+              let previousClipSpace = previousVp * vec4(worldPos.xyz, 1.0);
+            
+              let ndc = clipSpace.xyz / clipSpace.w;
+              let previousNdc = previousClipSpace.xyz / previousClipSpace.w;
+            
+              var uv = ndc.xy * 0.5 + 0.5;
+              var previousUv = previousNdc.xy * 0.5 + 0.5;
+            
+              var velocity = previousUv - uv;
+              return velocity;
+            }
+                                  
             @compute @workgroup_size(8,8,1)
             fn main(
             @builtin(global_invocation_id) id : vec3<u32>
@@ -653,6 +670,8 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
                 let uv = vec2<f32>(f32(id.x) / f32(texSize.x), f32(id.y) / f32(texSize.y));
                 let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);
                 let worldPos = depth * rayDirection + cameraPosition;
+                let velocity = getVelocityStatic(worldPos, viewProjections);
+                textureStore(velocityTex, id.xy, vec4<f32>(velocity, 0.0, 1.0));
                 textureStore(worldPosTex, id.xy, vec4<f32>(worldPos, depth));
             }
           `,
