@@ -55,6 +55,9 @@ fn main(
       let node = bvhNodes[stack_pop(&stack)];
       if(node.objectCount == 1){
         let newCount = atomicAdd(&indirectBuffer[3], 1) + 1;
+        if(newCount >= 1000000){
+          return;
+        }
         if(newCount % 8 == 0){
           atomicAdd(&indirectBuffer[2], 1);
         }
