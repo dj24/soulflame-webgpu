@@ -2,6 +2,7 @@ import { mat4, vec3, Vec3 } from "wgpu-matrix";
 import { BoundingBox } from "./bvh";
 import { Component } from "@ecs/ecs";
 import { Transform } from "@renderer/components/transform";
+import { Octree } from "utils/Octree";
 
 /**
  * Get the bounding box of a set of corners
@@ -26,23 +27,28 @@ export class VoxelObject extends Component {
   name: string;
   /** GPU Buffer containing octree */
   gpuBuffer: GPUBuffer;
+  /** Octree Buffer */
+  octreeBuffer: ArrayBuffer;
 
   constructor({
     size,
     octreeBufferIndex,
     name,
     gpuBuffer,
+    octreeBuffer,
   }: {
     size: Vec3;
     octreeBufferIndex: number;
     name: string;
     gpuBuffer: GPUBuffer;
+    octreeBuffer: ArrayBuffer;
   }) {
     super();
     this.size = size;
     this.octreeBufferIndex = octreeBufferIndex;
     this.name = name;
     this.gpuBuffer = gpuBuffer;
+    this.octreeBuffer = octreeBuffer;
   }
 }
 

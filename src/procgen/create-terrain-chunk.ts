@@ -4,6 +4,7 @@ import { VoxelObject } from "@renderer/voxel-object";
 import {
   CHUNK_HEIGHT,
   createOctreeAndReturnBytes,
+  encodeTerrainName,
   TerrainWorker,
 } from "./sine-chunk";
 import { OCTREE_STRIDE } from "@renderer/octree/octree";
@@ -45,7 +46,7 @@ export const createTerrainChunk = async (
   const newEntity = ecs.addEntity();
   const [x, y, z] = position;
 
-  const name = `Terrain (${x},${y},${z})`;
+  const name = encodeTerrainName(position, size);
   const uncompressedSize = getMaxSizeOfOctree(size) * OCTREE_STRIDE;
   let uncompressedArrayBuffer: SharedArrayBuffer | null = new SharedArrayBuffer(
     uncompressedSize,
@@ -63,23 +64,24 @@ export const createTerrainChunk = async (
 
   const extentY = 1 + boundsMax[1] - boundsMin[1];
   const device = getGPUDeviceSingleton(ecs).device;
+
+  // Resize the buffer to the correct size
+  const oldArray = new Uint8Array(uncompressedArrayBuffer);
+  const octreeBuffer = new Uint8Array(octreeSizeBytes);
+  octreeBuffer.set(oldArray.subarray(0, octreeSizeBytes));
+
   const gpuBuffer = device.createBuffer({
     size: octreeSizeBytes,
     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
   });
-  device.queue.writeBuffer(
-    gpuBuffer,
-    0,
-    uncompressedArrayBuffer,
-    0,
-    octreeSizeBytes,
-  );
+  device.queue.writeBuffer(gpuBuffer, 0, octreeBuffer);
   await device.queue.onSubmittedWorkDone();
   const voxelObject = new VoxelObject({
     name,
     size: [size[0], extentY, size[2]],
     octreeBufferIndex: 0,
     gpuBuffer,
+    octreeBuffer,
   });
 
   ecs.addComponent(newEntity, voxelObject);

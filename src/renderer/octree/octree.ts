@@ -28,6 +28,10 @@ export const octantIndexToOffset = (index: number) => {
   return [index & 1 ? 1 : 0, index & 2 ? 1 : 0, index & 4 ? 1 : 0];
 };
 
+export const octantOffsetToIndex = (offset: [number, number, number]) => {
+  return offset[0] + offset[1] * 2 + offset[2] * 4;
+};
+
 const ceilToNextPowerOfTwo = (n: number) => {
   return Math.pow(2, Math.ceil(Math.log2(n)));
 };
@@ -310,4 +314,48 @@ export const setInternalNode = (
   dataView.setUint8(index * OCTREE_STRIDE + 3, node.z);
   dataView.setUint32(index * OCTREE_STRIDE + 4, node.firstChildIndex, true);
   dataView.setUint8(index * OCTREE_STRIDE + 7, Math.log2(node.size));
+};
+
+export const deserialiseInternalNode = (
+  dataView: DataView,
+  index: number,
+): InternalNode => {
+  const childMask = dataView.getUint8(index * OCTREE_STRIDE);
+  const x = dataView.getUint8(index * OCTREE_STRIDE + 1);
+  const y = dataView.getUint8(index * OCTREE_STRIDE + 2);
+  const z = dataView.getUint8(index * OCTREE_STRIDE + 3);
+  const firstChildIndex = dataView.getUint32(index * OCTREE_STRIDE + 4, true);
+  const size = 2 ** dataView.getUint8(index * OCTREE_STRIDE + 7);
+  return { childMask, x, y, z, firstChildIndex, size };
+};
+
+export const deserialiseLeafNode = (
+  dataView: DataView,
+  index: number,
+): LeafNode => {
+  const x = dataView.getUint8(index * OCTREE_STRIDE + 1);
+  const y = dataView.getUint8(index * OCTREE_STRIDE + 2);
+  const z = dataView.getUint8(index * OCTREE_STRIDE + 3);
+  const red = dataView.getUint8(index * OCTREE_STRIDE + 4);
+  const green = dataView.getUint8(index * OCTREE_STRIDE + 5);
+  const blue = dataView.getUint8(index * OCTREE_STRIDE + 6);
+  const size = 2 ** dataView.getUint8(index * OCTREE_STRIDE + 7);
+  return { red, green, blue, x, y, z, size };
+};
+
+export const deserialiseOctree = (
+  buffer: ArrayBuffer,
+  size: number,
+): OctreeNode[] => {
+  const dataView = new DataView(buffer);
+  const nodes: OctreeNode[] = [];
+  for (let i = 0; i < size; i++) {
+    const childMask = dataView.getUint8(i * OCTREE_STRIDE);
+    if (childMask) {
+      nodes.push(deserialiseInternalNode(dataView, i));
+    } else {
+      nodes.push(deserialiseLeafNode(dataView, i));
+    }
+  }
+  return nodes;
 };

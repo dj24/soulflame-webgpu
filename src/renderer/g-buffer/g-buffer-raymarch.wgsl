@@ -156,9 +156,9 @@ fn main(
   let isOutOfScreenBounds = any(pixel >= resolution);
   let isOutOfBufferBounds = bufferIndex >= indirectBuffer[3];
 
-//  if(isOutOfScreenBounds || isOutOfBufferBounds){
-//    return;
-//  }
+  if(isOutOfScreenBounds){
+    return;
+  }
 
   let voxelObjectIndex = screenRayBuffer[bufferIndex].z;
 
@@ -174,13 +174,13 @@ fn main(
 
   let previousDepth = decodeDepth(storeDepth(pixel, rayMarchResult.t));
 
-  atomicStore(&objectIndexBuffer[convert2DTo1D(resolution.x, pixel)], bitcast<u32>(voxelObjectIndex));
-  atomicStore(&normalBuffer[convert2DTo1D(resolution.x, pixel)], pack4x8snorm(vec4(normal, 0.0)));
-//  if(rayMarchResult.t < previousDepth){
-//    let objectIndexPtr = &objectIndexBuffer[convert2DTo1D(resolution.x, pixel)];
-//    let normalPtr = &normalBuffer[convert2DTo1D(resolution.x, pixel)];
-//    let normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(rayMarchResult.normal));
-//    atomicStore(objectIndexPtr, bitcast<u32>(voxelObjectIndex));
-//    atomicStore(normalPtr, pack4x8snorm(vec4(normal, 0.0)));
-//  }
+//  atomicStore(&objectIndexBuffer[convert2DTo1D(resolution.x, pixel)], bitcast<u32>(voxelObjectIndex));
+//  atomicStore(&normalBuffer[convert2DTo1D(resolution.x, pixel)], pack4x8snorm(vec4(normal, 0.0)));
+  if(rayMarchResult.t < previousDepth){
+    let objectIndexPtr = &objectIndexBuffer[convert2DTo1D(resolution.x, pixel)];
+    let normalPtr = &normalBuffer[convert2DTo1D(resolution.x, pixel)];
+    let normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(rayMarchResult.normal));
+    atomicStore(objectIndexPtr, bitcast<u32>(voxelObjectIndex));
+    atomicStore(normalPtr, pack4x8snorm(vec4(normal, 0.0)));
+  }
 }

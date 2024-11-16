@@ -14,6 +14,7 @@ import { VelocitySystem } from "./systems/velocity-system";
 import { Velocity } from "./components/velocity";
 import { MouseScrollZoomSystem } from "@input/systems/mouse-scroll-zoom-system";
 import { Light } from "@renderer/components/light";
+import { ChunkCombinerSystem } from "./procgen/systems/chunk-combiner-system";
 
 const LIGHT_INTENSITY = 30;
 
@@ -48,6 +49,7 @@ ecs.addSystem(new Renderer());
 ecs.addSystem(new GamepadKinematicBoxControl());
 ecs.addSystem(new TerrainSystem());
 ecs.addSystem(new VelocitySystem());
+ecs.addSystem(new ChunkCombinerSystem());
 
 const singleton = ecs.addEntity();
 ecs.addComponent(singleton, new GPUDeviceSingleton());

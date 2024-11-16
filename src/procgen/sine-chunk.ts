@@ -14,6 +14,35 @@ let voxelCaches: VoxelCache[];
 const NOISE_FREQUENCY = 0.001;
 const CAVE_FREQUENCY = 0.008;
 
+export const decodeTerrainName = (
+  name: string,
+): { position: [number, number, number]; size: [number, number, number] } => {
+  const match =
+    /Terrain\(([^,]+),([^,]+),([^)]+)\)\(([^,]+),([^,]+),([^)]+)\)/.exec(name);
+  if (!match) {
+    throw new Error(`Invalid terrain name: ${name}`);
+  }
+  return {
+    position: [
+      parseInt(match[1], 10),
+      parseInt(match[2], 10),
+      parseInt(match[3], 10),
+    ],
+    size: [
+      parseInt(match[4], 10),
+      parseInt(match[5], 10),
+      parseInt(match[6], 10),
+    ],
+  };
+};
+
+export const encodeTerrainName = (
+  position: [number, number, number],
+  size: [number, number, number],
+) => {
+  return `Terrain(${position[0]},${position[1]},${position[2]})(${size[0]},${size[1]},${size[2]})`;
+};
+
 export const getCachedVoxel = (
   x: number,
   y: number,
