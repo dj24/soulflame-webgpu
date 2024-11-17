@@ -1,12 +1,15 @@
 import { getViewMatrix, gpuContext, RenderArgs, RenderPass } from "../app";
-import { getCuboidVertices } from "../primitive-meshes/cuboid";
+import {
+  getCuboidVertices,
+  getCuboidVerticesColours,
+} from "../primitive-meshes/cuboid";
 import { mat4, Vec3 } from "wgpu-matrix";
 import { VoxelObject } from "@renderer/voxel-object";
 import { Transform } from "@renderer/components/transform";
 import { Light } from "@renderer/components/light";
 import { OUTPUT_TEXTURE_FORMAT } from "@renderer/constants";
 
-const vertexStride = 16;
+const vertexStride = 32;
 
 export const getLightDebugPass = async (
   device: GPUDevice,
@@ -38,14 +41,17 @@ export const getLightDebugPass = async (
         
         struct VertexOutput {
           @builtin(position) position : vec4f,
+          @location(0) color : vec4f,
         }
         
         @vertex
         fn main(
           @location(0) objectPos : vec4f,
+          @location(1) color : vec4f
         ) -> VertexOutput {
           var output : VertexOutput;
           output.position = modelViewProjectionMatrix * objectPos;
+          output.color = color * 0.05;
           return output;
         }
 
@@ -56,10 +62,16 @@ export const getLightDebugPass = async (
         {
           arrayStride: vertexStride,
           attributes: [
+            // position
             {
-              // position
               shaderLocation: 0,
               offset: 0,
+              format: "float32x4",
+            },
+            //color
+            {
+              shaderLocation: 1,
+              offset: 16,
               format: "float32x4",
             },
           ],
@@ -70,8 +82,10 @@ export const getLightDebugPass = async (
       module: device.createShaderModule({
         code: `
         @fragment
-        fn main() -> @location(0) vec4f {
-          return vec4(10.0);
+        fn main(
+          @location(0) color : vec4f
+        ) -> @location(0) vec4f {
+          return color;
         }
         `,
       }),
@@ -99,6 +113,7 @@ export const getLightDebugPass = async (
     timestampWrites,
     cameraTransform,
     ecs,
+    outputTextures,
   }: RenderArgs) => {
     let bindGroups: GPUBindGroup[] = [];
     const renderableEntities = ecs.getEntitiesithComponent(Light);
@@ -121,8 +136,7 @@ export const getLightDebugPass = async (
     renderableEntities.forEach((entity, i) => {
       const transform = ecs.getComponents(entity).get(Transform);
       const light = ecs.getComponents(entity).get(Light);
-      const color = light.color;
-      const vertices = getCuboidVertices([0.01, 0.01, 0.01]);
+      const vertices = getCuboidVerticesColours([2, 2, 2], light.color);
       const bufferOffset = i * 256;
       device.queue.writeBuffer(
         verticesBuffer,
@@ -162,7 +176,7 @@ export const getLightDebugPass = async (
     const passEncoder = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
-          view: gpuContext.getCurrentTexture().createView(),
+          view: outputTextures.finalTexture.view,
           clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
           loadOp: "load",
           storeOp: "store",

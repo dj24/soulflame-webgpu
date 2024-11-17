@@ -263,9 +263,9 @@ export const init = async (
     // getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
     // getVignettePass(10.0),
+    getLightDebugPass(device),
     fullscreenQuad(device),
     // getBoxOutlinePass(device),
-    getLightDebugPass(device),
   ]);
 
   timestampLabels = computePasses.reduce((acc, val) => {

@@ -67,21 +67,21 @@ export const createTerrainChunk = async (
 
   // Resize the buffer to the correct size
   const oldArray = new Uint8Array(uncompressedArrayBuffer);
-  const octreeBuffer = new Uint8Array(octreeSizeBytes);
-  octreeBuffer.set(oldArray.subarray(0, octreeSizeBytes));
+  const resizedArray = new Uint8Array(octreeSizeBytes);
+  resizedArray.set(oldArray.subarray(0, octreeSizeBytes));
 
   const gpuBuffer = device.createBuffer({
     size: octreeSizeBytes,
     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
   });
-  device.queue.writeBuffer(gpuBuffer, 0, octreeBuffer);
+  device.queue.writeBuffer(gpuBuffer, 0, resizedArray);
   await device.queue.onSubmittedWorkDone();
   const voxelObject = new VoxelObject({
     name,
     size: [size[0], extentY, size[2]],
     octreeBufferIndex: 0,
     gpuBuffer,
-    octreeBuffer,
+    octreeBuffer: resizedArray.buffer,
   });
 
   ecs.addComponent(newEntity, voxelObject);

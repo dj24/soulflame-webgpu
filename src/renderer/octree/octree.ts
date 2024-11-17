@@ -68,7 +68,7 @@ export type LeafNode = {
   size: number;
 };
 
-type OctreeNode = InternalNode | LeafNode;
+export type OctreeNode = InternalNode | LeafNode;
 
 export type GetOctreeVoxel = (
   x: number,
@@ -317,45 +317,33 @@ export const setInternalNode = (
 };
 
 export const deserialiseInternalNode = (
-  dataView: DataView,
+  arrayBuffer: ArrayBuffer,
   index: number,
 ): InternalNode => {
+  const dataView = new DataView(arrayBuffer);
   const childMask = dataView.getUint8(index * OCTREE_STRIDE);
   const x = dataView.getUint8(index * OCTREE_STRIDE + 1);
   const y = dataView.getUint8(index * OCTREE_STRIDE + 2);
   const z = dataView.getUint8(index * OCTREE_STRIDE + 3);
-  const firstChildIndex = dataView.getUint32(index * OCTREE_STRIDE + 4, true);
+  // Mask out the last 8 bits (24 bits total)
+  let firstChildIndex =
+    dataView.getUint32(index * OCTREE_STRIDE + 4, true) & 0x00ffffff;
   const size = 2 ** dataView.getUint8(index * OCTREE_STRIDE + 7);
   return { childMask, x, y, z, firstChildIndex, size };
 };
 
-export const deserialiseLeafNode = (
-  dataView: DataView,
-  index: number,
-): LeafNode => {
-  const x = dataView.getUint8(index * OCTREE_STRIDE + 1);
-  const y = dataView.getUint8(index * OCTREE_STRIDE + 2);
-  const z = dataView.getUint8(index * OCTREE_STRIDE + 3);
-  const red = dataView.getUint8(index * OCTREE_STRIDE + 4);
-  const green = dataView.getUint8(index * OCTREE_STRIDE + 5);
-  const blue = dataView.getUint8(index * OCTREE_STRIDE + 6);
-  const size = 2 ** dataView.getUint8(index * OCTREE_STRIDE + 7);
-  return { red, green, blue, x, y, z, size };
-};
-
-export const deserialiseOctree = (
-  buffer: ArrayBuffer,
-  size: number,
-): OctreeNode[] => {
-  const dataView = new DataView(buffer);
-  const nodes: OctreeNode[] = [];
-  for (let i = 0; i < size; i++) {
-    const childMask = dataView.getUint8(i * OCTREE_STRIDE);
-    if (childMask) {
-      nodes.push(deserialiseInternalNode(dataView, i));
-    } else {
-      nodes.push(deserialiseLeafNode(dataView, i));
-    }
+// Updates the root offset of the octree across all nodes, useful for combining octrees
+export const updateRootOffset = (
+  arrayBuffer: ArrayBuffer,
+  offset: [number, number, number],
+) => {
+  const dataView = new DataView(arrayBuffer);
+  for (let i = 0; i < dataView.byteLength; i += OCTREE_STRIDE) {
+    const x = dataView.getUint8(i + 1);
+    const y = dataView.getUint8(i + 2);
+    const z = dataView.getUint8(i + 3);
+    dataView.setUint8(i + 1, x + offset[0]);
+    dataView.setUint8(i + 2, y + offset[1]);
+    dataView.setUint8(i + 3, z + offset[2]);
   }
-  return nodes;
 };
