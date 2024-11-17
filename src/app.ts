@@ -49,9 +49,12 @@ ecs.addSystem(new Renderer());
 ecs.addSystem(new GamepadKinematicBoxControl());
 ecs.addSystem(new TerrainSystem());
 ecs.addSystem(new VelocitySystem());
-ecs.addSystem(new ChunkCombinerSystem(128));
-// ecs.addSystem(new ChunkCombinerSystem(256));
-
+setTimeout(() => {
+  ecs.addSystem(new ChunkCombinerSystem(128));
+}, 5000);
+// setTimeout(() => {
+//   ecs.addSystem(new ChunkCombinerSystem(256));
+// }, 8000);
 const singleton = ecs.addEntity();
 ecs.addComponent(singleton, new GPUDeviceSingleton());
 ecs.addComponent(singleton, new PhysicsWorldSingleton());

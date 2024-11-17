@@ -1,6 +1,6 @@
 import { ECS, Entity, System } from "@ecs/ecs";
 import { VoxelObject } from "@renderer/voxel-object";
-import { decodeTerrainName, encodeTerrainName } from "../sine-chunk";
+import { encodeTerrainName } from "../sine-chunk";
 import {
   deserialiseInternalNode,
   InternalNode,
@@ -8,23 +8,29 @@ import {
   OCTREE_STRIDE,
   OctreeNode,
   setInternalNode,
+  setLeafNode,
   updateRootOffset,
 } from "@renderer/octree/octree";
 import { getGPUDeviceSingleton } from "../../abstractions/get-gpu-device-singleton";
 import { setBit } from "@renderer/octree/bitmask";
 import { Transform } from "@renderer/components/transform";
 import { quat } from "wgpu-matrix";
-import { animate, spring } from "motion";
+import { TerrainChunk } from "../components/terrain-chunk";
 
-const findEntityByVoxelObjectName = (
+const findEntityByTerrainDetails = (
   ecs: ECS,
   entities: Set<Entity>,
-  name: string,
+  size: number,
+  position: [number, number, number],
 ) => {
   for (const entity of entities) {
     const components = ecs.getComponents(entity);
-    const voxelObject = components.get(VoxelObject);
-    if (voxelObject.name === name) {
+    const terrainChunk = components.get(TerrainChunk);
+    if (
+      terrainChunk.size === size &&
+      terrainChunk.position[0] === position[0] &&
+      terrainChunk.position[2] === position[2]
+    ) {
       return entity;
     }
   }
@@ -43,7 +49,8 @@ const combineChunks = (
   const voxelObject01 = ecs.getComponents(chunk01).get(VoxelObject);
   const voxelObject11 = ecs.getComponents(chunk11).get(VoxelObject);
 
-  const combinedWidth = voxelObject00.size[0] * 2;
+  const terrainChunk00 = ecs.getComponents(chunk00).get(TerrainChunk);
+  const combinedWidth = terrainChunk00.size * 2;
 
   const index00 = octantOffsetToIndex([0, 0, 0]);
   const index10 = octantOffsetToIndex([1, 0, 0]);
@@ -74,19 +81,20 @@ const combineChunks = (
   let bitMask = 0;
   bitMask = setBit(bitMask, index00);
   bitMask = setBit(bitMask, index10);
-  // bitMask = setBit(bitMask, index01);
+  bitMask = setBit(bitMask, index01);
   bitMask = setBit(bitMask, index11);
 
   // Get the position of each chunk
-  const chunk00Position = decodeTerrainName(voxelObject00.name).position;
-  const chunk10Position = decodeTerrainName(voxelObject10.name).position;
-  const chunk01Position = decodeTerrainName(voxelObject01.name).position;
-  const chunk11Position = decodeTerrainName(voxelObject11.name).position;
+  const chunk00Position = terrainChunk00.position;
 
   // Translate the octrees to the correct position in the combined buffer
-  updateRootOffset(voxelObject10.octreeBuffer, chunk10Position);
-  updateRootOffset(voxelObject01.octreeBuffer, chunk01Position);
-  updateRootOffset(voxelObject11.octreeBuffer, chunk11Position);
+  updateRootOffset(voxelObject10.octreeBuffer, [terrainChunk00.size, 0, 0]);
+  updateRootOffset(voxelObject01.octreeBuffer, [0, 0, terrainChunk00.size]);
+  updateRootOffset(voxelObject11.octreeBuffer, [
+    terrainChunk00.size,
+    0,
+    terrainChunk00.size,
+  ]);
 
   // Get root node of each chunk before slicing the buffers
   let root00: InternalNode = deserialiseInternalNode(
@@ -132,8 +140,7 @@ const combineChunks = (
   // Copy the octree buffers into the combined buffer
   let firstChildIndex = 9;
   const root00NewIndex = 1 + index00;
-  const relativeFirstChildIndexFor00 = firstChildIndex - root00NewIndex;
-  root00.firstChildIndex = relativeFirstChildIndexFor00;
+  root00.firstChildIndex = firstChildIndex - root00NewIndex;
   setInternalNode(dataView, root00NewIndex, root00);
   uint8Array.set(
     new Uint8Array(voxelObject00.octreeBuffer),
@@ -142,8 +149,7 @@ const combineChunks = (
 
   firstChildIndex += voxelObject00.octreeBuffer.byteLength / OCTREE_STRIDE;
   const root10NewIndex = 1 + index10;
-  const relativeFirstChildIndexFor10 = firstChildIndex - root10NewIndex;
-  root10.firstChildIndex = relativeFirstChildIndexFor10;
+  root10.firstChildIndex = firstChildIndex - root10NewIndex;
   setInternalNode(dataView, root10NewIndex, root10);
   uint8Array.set(
     new Uint8Array(voxelObject10.octreeBuffer),
@@ -152,8 +158,16 @@ const combineChunks = (
 
   firstChildIndex += voxelObject10.octreeBuffer.byteLength / OCTREE_STRIDE;
   const rootNode01NewIndex = 1 + index01;
-  const relativeFirstChildIndexFor01 = firstChildIndex - root00NewIndex;
-  root01.firstChildIndex = relativeFirstChildIndexFor01;
+  root01.firstChildIndex = firstChildIndex - root00NewIndex;
+  setLeafNode(dataView, rootNode01NewIndex, {
+    x: root01.x,
+    y: root01.y,
+    z: root01.z,
+    red: 255,
+    green: 0,
+    blue: 0,
+    size: root01.size,
+  });
   // setInternalNode(dataView, rootNode01NewIndex, root01);
   // uint8Array.set(
   //   new Uint8Array(voxelObject01.octreeBuffer),
@@ -162,8 +176,7 @@ const combineChunks = (
 
   firstChildIndex += voxelObject01.octreeBuffer.byteLength / OCTREE_STRIDE;
   const rootNode11NewIndex = 1 + index11;
-  const relativeFirstChildIndexFor11 = firstChildIndex - rootNode11NewIndex;
-  root11.firstChildIndex = relativeFirstChildIndexFor11;
+  root11.firstChildIndex = firstChildIndex - rootNode11NewIndex;
   setInternalNode(dataView, rootNode11NewIndex, root11);
   uint8Array.set(
     new Uint8Array(voxelObject11.octreeBuffer),
@@ -171,9 +184,10 @@ const combineChunks = (
   );
 
   let debugArr: OctreeNode[] = [];
-  for (let i = 0; i < 1; i++) {
+  for (let i = 0; i < 9; i++) {
     debugArr.push(deserialiseInternalNode(dataView.buffer, i * OCTREE_STRIDE));
   }
+  console.log("debugArr", debugArr);
 
   // Copy the buffer to the GPU
   const gpuBuffer = getGPUDeviceSingleton(ecs).device.createBuffer({
@@ -217,6 +231,7 @@ const combineChunks = (
     [1, 1, 1],
   );
   ecs.addComponent(newEntity, transform);
+  ecs.addComponent(newEntity, new TerrainChunk(combinedWidth, chunk00Position));
 
   // Remove the old entities
   ecs.removeEntity(chunk00);
@@ -227,7 +242,7 @@ const combineChunks = (
 
 export class ChunkCombinerSystem extends System {
   targetSize: number;
-  componentsRequired = new Set([VoxelObject]);
+  componentsRequired = new Set([VoxelObject, TerrainChunk]);
 
   constructor(size: number) {
     super();
@@ -237,41 +252,34 @@ export class ChunkCombinerSystem extends System {
   update(entities: Set<Entity>) {
     for (const entity of entities) {
       const components = this.ecs.getComponents(entity);
-      const voxelObject = components.get(VoxelObject);
-      const { position, size } = decodeTerrainName(voxelObject.name);
+      const { position, size } = components.get(TerrainChunk);
       if (
-        (position[0] % this.targetSize) * 2 === 0 &&
-        (position[2] % this.targetSize) * 2 === 0 &&
-        size[0] === this.targetSize &&
-        size[2] === this.targetSize
+        position[0] % (this.targetSize * 2) === 0 &&
+        position[2] % (this.targetSize * 2) === 0 &&
+        size === this.targetSize &&
+        size === this.targetSize
       ) {
-        const chunk10 = findEntityByVoxelObjectName(
+        const chunk10 = findEntityByTerrainDetails(
           this.ecs,
           entities,
-          encodeTerrainName(
-            [position[0] + this.targetSize, position[1], position[2]],
-            [size[0], size[1], size[2]],
-          ),
+          this.targetSize,
+          [position[0] + this.targetSize, position[1], position[2]],
         );
-        const chunk01 = findEntityByVoxelObjectName(
+        const chunk01 = findEntityByTerrainDetails(
           this.ecs,
           entities,
-          encodeTerrainName(
-            [position[0], position[1], position[2] + this.targetSize],
-            [size[0], size[1], size[2]],
-          ),
+          this.targetSize,
+          [position[0], position[1], position[2] + this.targetSize],
         );
-        const chunk11 = findEntityByVoxelObjectName(
+        const chunk11 = findEntityByTerrainDetails(
           this.ecs,
           entities,
-          encodeTerrainName(
-            [
-              position[0] + this.targetSize,
-              position[1],
-              position[2] + this.targetSize,
-            ],
-            [size[0], size[1], size[2]],
-          ),
+          this.targetSize,
+          [
+            position[0] + this.targetSize,
+            position[1],
+            position[2] + this.targetSize,
+          ],
         );
         if (chunk01 && chunk10 && chunk11) {
           combineChunks(this.ecs, entity, chunk10, chunk01, chunk11);
