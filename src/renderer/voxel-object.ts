@@ -61,6 +61,7 @@ export const getVoxelObjectBoundingBox = (
     voxelObject.size[1] / 2,
     voxelObject.size[2] / 2,
   );
+
   const objectSpaceCorners = [
     vec3.create(-halfExtents[0], -halfExtents[1], -halfExtents[2]),
     vec3.create(-halfExtents[0], -halfExtents[1], halfExtents[2]),

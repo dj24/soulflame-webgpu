@@ -2,7 +2,7 @@ import { gpuContext, RenderArgs, RenderPass } from "../app";
 import fullscreenQuadShader from "./fullscreentexturedquad.wgsl";
 import { OUTPUT_TEXTURE_FORMAT } from "@renderer/constants";
 
-let obj = { outputTexture: "Final" };
+let obj = { outputTexture: "Normals" };
 export const fullscreenQuad = async (
   device: GPUDevice,
 ): Promise<RenderPass> => {

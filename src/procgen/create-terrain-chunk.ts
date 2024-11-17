@@ -14,6 +14,7 @@ import { Transform } from "@renderer/components/transform";
 import { quat } from "wgpu-matrix";
 import { animate, spring } from "motion";
 import { getGPUDeviceSingleton } from "../abstractions/get-gpu-device-singleton";
+import { chunkWidth } from "./systems/terrain-system";
 
 let chunkCreationTimes: number[] = [];
 
@@ -86,20 +87,20 @@ export const createTerrainChunk = async (
 
   ecs.addComponent(newEntity, voxelObject);
   const transform = new Transform(
-    [x, y - (128 - extentY) / 2, z],
+    [x + chunkWidth / 2, y - (128 - extentY) / 2, z + chunkWidth / 2],
     quat.fromEuler(0, 0, 0, "xyz"),
-    [0, 0, 0],
+    [1, 1, 1],
   );
-  animate(
-    (progress) => {
-      transform.scale = [progress, progress, progress];
-    },
-    {
-      duration: 1.0,
-      easing: spring({
-        damping: 100,
-      }),
-    },
-  );
+  // animate(
+  //   (progress) => {
+  //     transform.scale = [progress, progress, progress];
+  //   },
+  //   {
+  //     duration: 1.0,
+  //     easing: spring({
+  //       damping: 100,
+  //     }),
+  //   },
+  // );
   ecs.addComponent(newEntity, transform);
 };
