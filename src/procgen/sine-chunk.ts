@@ -6,7 +6,7 @@ import { NoiseCache } from "./noise-cache";
 import { VoxelCache } from "./voxel-cache";
 import { vec3 } from "wgpu-matrix";
 
-export const CHUNK_HEIGHT = 128;
+export const CHUNK_HEIGHT = 64;
 
 let octree: Octree;
 let noiseCaches: NoiseCache[];

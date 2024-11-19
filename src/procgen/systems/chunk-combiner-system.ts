@@ -141,6 +141,10 @@ const combineChunks = (
   let firstChildIndex = 9;
   const root00NewIndex = 1 + index00;
   root00.firstChildIndex = firstChildIndex - root00NewIndex;
+  console.assert(
+    root00.firstChildIndex < 2 ** 24 - 1,
+    `First child index of ${root00.firstChildIndex} is too large to fit in 3 bytes`,
+  );
   setInternalNode(dataView, root00NewIndex, root00);
   uint8Array.set(
     new Uint8Array(voxelObject00.octreeBuffer),
@@ -150,6 +154,10 @@ const combineChunks = (
   firstChildIndex += voxelObject00.octreeBuffer.byteLength / OCTREE_STRIDE;
   const root10NewIndex = 1 + index10;
   root10.firstChildIndex = firstChildIndex - root10NewIndex;
+  console.assert(
+    root10.firstChildIndex < 2 ** 24 - 1,
+    `First child index of ${root10.firstChildIndex} is too large to fit in 3 bytes`,
+  );
   setInternalNode(dataView, root10NewIndex, root10);
   uint8Array.set(
     new Uint8Array(voxelObject10.octreeBuffer),
@@ -158,36 +166,29 @@ const combineChunks = (
 
   firstChildIndex += voxelObject10.octreeBuffer.byteLength / OCTREE_STRIDE;
   const rootNode01NewIndex = 1 + index01;
-  root01.firstChildIndex = firstChildIndex - root00NewIndex;
-  setLeafNode(dataView, rootNode01NewIndex, {
-    x: root01.x,
-    y: root01.y,
-    z: root01.z,
-    red: 255,
-    green: 0,
-    blue: 0,
-    size: root01.size,
-  });
-  // setInternalNode(dataView, rootNode01NewIndex, root01);
-  // uint8Array.set(
-  //   new Uint8Array(voxelObject01.octreeBuffer),
-  //   firstChildIndex * OCTREE_STRIDE,
-  // );
+  root01.firstChildIndex = firstChildIndex - rootNode01NewIndex;
+  console.assert(
+    root01.firstChildIndex < 2 ** 24 - 1,
+    `First child index of ${root01.firstChildIndex} is too large to fit in 3 bytes`,
+  );
+  setInternalNode(dataView, rootNode01NewIndex, root01);
+  uint8Array.set(
+    new Uint8Array(voxelObject01.octreeBuffer),
+    firstChildIndex * OCTREE_STRIDE,
+  );
 
   firstChildIndex += voxelObject01.octreeBuffer.byteLength / OCTREE_STRIDE;
   const rootNode11NewIndex = 1 + index11;
   root11.firstChildIndex = firstChildIndex - rootNode11NewIndex;
+  console.assert(
+    root11.firstChildIndex < 2 ** 24 - 1,
+    `First child index of ${root11.firstChildIndex} is too large to fit in 3 bytes`,
+  );
   setInternalNode(dataView, rootNode11NewIndex, root11);
   uint8Array.set(
     new Uint8Array(voxelObject11.octreeBuffer),
     firstChildIndex * OCTREE_STRIDE,
   );
-
-  let debugArr: OctreeNode[] = [];
-  for (let i = 0; i < 9; i++) {
-    debugArr.push(deserialiseInternalNode(dataView.buffer, i * OCTREE_STRIDE));
-  }
-  console.log("debugArr", debugArr);
 
   // Copy the buffer to the GPU
   const gpuBuffer = getGPUDeviceSingleton(ecs).device.createBuffer({
@@ -213,12 +214,6 @@ const combineChunks = (
     gpuBuffer,
     octreeBuffer: dataView.buffer,
   });
-  console.log(
-    "combined ",
-    combinedVoxelObject.name,
-    " 00 ",
-    voxelObject00.name,
-  );
   ecs.addComponent(newEntity, combinedVoxelObject);
   const [x, y, z] = chunk00Position;
   const transform = new Transform(
