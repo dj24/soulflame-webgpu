@@ -338,6 +338,9 @@ export const updateRootOffset = (
   offset: [number, number, number],
 ) => {
   const dataView = new DataView(arrayBuffer);
+  console.assert(offset[0] < 2 ** 8, `X offset of ${offset[0]} is too large`);
+  console.assert(offset[1] < 2 ** 8, `Y offset of ${offset[1]} is too large`);
+  console.assert(offset[2] < 2 ** 8, `Z offset of ${offset[2]} is too large`);
   for (let i = 0; i < dataView.byteLength; i += OCTREE_STRIDE) {
     const x = dataView.getUint8(i + 1);
     const y = dataView.getUint8(i + 2);

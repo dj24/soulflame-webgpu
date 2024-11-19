@@ -4,6 +4,9 @@ import { getGPUDeviceSingleton } from "../../abstractions/get-gpu-device-singlet
 import { createTerrainChunk } from "../create-terrain-chunk";
 import { wrap } from "comlink";
 import { CHUNK_HEIGHT } from "../sine-chunk";
+import { processNewVoxelImport } from "@renderer/create-tavern";
+import { Transform } from "@renderer/components/transform";
+import { quat } from "wgpu-matrix";
 
 export const chunkWidth = 64;
 
@@ -86,8 +89,8 @@ const foo = async (ecs: ECS) => {
 
   // Get all the chunk positions
   let chunkPositions: [number, number, number][] = [];
-  for (let x = 0; x < 1024; x += chunkWidth) {
-    for (let z = 0; z < 1024; z += chunkWidth) {
+  for (let x = 0; x < 2048; x += chunkWidth) {
+    for (let z = 0; z < 2048; z += chunkWidth) {
       // Iterate from the top of the world down, so we can skip when we hit empty chunks
       // for (let y = 0; y < CHUNK_HEIGHT; y += chunkWidth) {
       chunkPositions.push([x, 0, z]);
@@ -132,20 +135,18 @@ export class TerrainSystem extends System {
       //   );
       //   this.ecs.addComponent(newEntity, transform);
       // });
-      // processNewVoxelImport(
-      //   "./Tavern/dragon.vxm",
-      //   gpuSingleton.device,
-      //   gpuSingleton.volumeAtlas,
-      // ).then((voxels) => {
-      //   const newEntity = this.ecs.addEntity();
-      //   this.ecs.addComponent(newEntity, voxels);
-      //   const transform = new Transform(
-      //     [0, 32, 64],
-      //     quat.fromEuler(0, 0, 0, "xyz"),
-      //     [0.5, 0.5, 0.5],
-      //   );
-      //   this.ecs.addComponent(newEntity, transform);
-      // });
+      processNewVoxelImport("./Tavern/dragon.vxm", gpuSingleton.device).then(
+        (voxels) => {
+          const newEntity = this.ecs.addEntity();
+          this.ecs.addComponent(newEntity, voxels);
+          const transform = new Transform(
+            [0, 32, 64],
+            quat.fromEuler(0, 0, 0, "xyz"),
+            [0.5, 0.5, 0.5],
+          );
+          this.ecs.addComponent(newEntity, transform);
+        },
+      );
       this.isInitialized = true;
     }
   }

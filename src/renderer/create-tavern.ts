@@ -56,7 +56,6 @@ const NAME_ALLOWLIST = [
 export const processNewVoxelImport = async (
   path: string,
   device: GPUDevice,
-  volumeAtlas: VolumeAtlas,
 ) => {
   const response = await fetch(path);
   const arrayBuffer = await response.arrayBuffer();
@@ -94,21 +93,28 @@ export const processNewVoxelImport = async (
     Math.max(voxels.SIZE[0], voxels.SIZE[1], voxels.SIZE[2]),
     uncompressedArrayBuffer,
   );
+
+  // Resize the buffer to the correct size
+  const oldArray = new Uint8Array(uncompressedArrayBuffer);
+  const resizedArray = new Uint8Array(octree.totalSizeBytes);
+  resizedArray.set(oldArray.subarray(0, octree.totalSizeBytes));
+
   console.timeEnd(`Create octree for ${path}`);
   const octreeSizeBytes = octree.totalSizeBytes + OCTREE_STRIDE;
-  await volumeAtlas.addOrReplaceVolume(
-    path,
-    voxels.SIZE,
-    uncompressedArrayBuffer,
-    octreeSizeBytes,
-  );
-  const { size: atlasSize, octreeOffset } = volumeAtlas.dictionary[path];
+
+  const gpuBuffer = device.createBuffer({
+    size: octreeSizeBytes,
+    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+  });
+  device.queue.writeBuffer(gpuBuffer, 0, resizedArray);
+  await device.queue.onSubmittedWorkDone();
+
   return new VoxelObject({
     name: path,
-    size: atlasSize,
-    octreeBufferIndex: octreeOffset,
-    uncompressedArrayBuffer,
-    sizeInBytes: octreeSizeBytes,
+    size: voxels.SIZE,
+    octreeBufferIndex: 0,
+    gpuBuffer,
+    octreeBuffer: resizedArray.buffer,
   });
 };
 
