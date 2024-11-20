@@ -308,7 +308,6 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
         }
       }
 
-
       // Check if the ray intersects the node, if not, skip it
       let nodeT = cubeIntersection(nodeRayOrigin, objectRayDirection, nodeSize * 0.5);
       if(nodeT > maxDistance || nodeT < 0.0){

@@ -89,8 +89,8 @@ const foo = async (ecs: ECS) => {
 
   // Get all the chunk positions
   let chunkPositions: [number, number, number][] = [];
-  for (let x = 0; x < 2048; x += chunkWidth) {
-    for (let z = 0; z < 2048; z += chunkWidth) {
+  for (let x = 0; x < 1536; x += chunkWidth) {
+    for (let z = 0; z < 1536; z += chunkWidth) {
       // Iterate from the top of the world down, so we can skip when we hit empty chunks
       // for (let y = 0; y < CHUNK_HEIGHT; y += chunkWidth) {
       chunkPositions.push([x, 0, z]);
@@ -115,32 +115,28 @@ export class TerrainSystem extends System {
     if (!gpuSingleton.device || entities.size === 0) {
       return;
     }
-    const components = this.ecs.getComponents(entities.values().next().value);
-    const terrainSingleton = components.get(TerrainSingleton);
 
     if (!this.isInitialized) {
       foo(this.ecs);
       // DEBUG
-      // processNewVoxelImport(
-      //   "./Tavern/teapot.vxm",
-      //   gpuSingleton.device,
-      //   gpuSingleton.volumeAtlas,
-      // ).then((voxels) => {
-      //   const newEntity = this.ecs.addEntity();
-      //   this.ecs.addComponent(newEntity, voxels);
-      //   const transform = new Transform(
-      //     [0, 32, 160],
-      //     quat.fromEuler(0, 0, 0, "xyz"),
-      //     [0.5, 0.5, 0.5],
-      //   );
-      //   this.ecs.addComponent(newEntity, transform);
-      // });
+      processNewVoxelImport("./Tavern/teapot.vxm", gpuSingleton.device).then(
+        (voxels) => {
+          const newEntity = this.ecs.addEntity();
+          this.ecs.addComponent(newEntity, voxels);
+          const transform = new Transform(
+            [0, 32, 160],
+            quat.fromEuler(0, 0, 0, "xyz"),
+            [0.5, 0.5, 0.5],
+          );
+          this.ecs.addComponent(newEntity, transform);
+        },
+      );
       processNewVoxelImport("./Tavern/dragon.vxm", gpuSingleton.device).then(
         (voxels) => {
           const newEntity = this.ecs.addEntity();
           this.ecs.addComponent(newEntity, voxels);
           const transform = new Transform(
-            [256, 32, 256],
+            [256, 48, 256],
             quat.fromEuler(0, 0, 0, "xyz"),
             [0.5, 0.5, 0.5],
           );

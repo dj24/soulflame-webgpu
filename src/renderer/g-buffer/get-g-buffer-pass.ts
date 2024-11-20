@@ -665,7 +665,10 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
                 let depthColor = vec4<f32>(1.0 - depth * 0.001, 0.0, 0.0, 1.0);
                 let albedoColor = getDebugColor(u32(objectIndex));
                 let normal = unpack4x8snorm(normalBuffer[index]).xyz;
-                textureStore(albedoTex, id.xy, albedoColor);
+                
+                let nDotL = dot(normal, vec3<f32>(0.0, 1.0, 0.0));
+                // TODO: remove nDotL here and just output albedo
+                textureStore(albedoTex, id.xy, albedoColor * mix(nDotL, 1.0, 0.2));
                 textureStore(normalTex, id.xy, vec4<f32>(normal, 0.0));
                 let uv = vec2<f32>(f32(id.x) / f32(texSize.x), f32(id.y) / f32(texSize.y));
                 let rayDirection = calculateRayDirection(uv,viewProjections.inverseViewProjection);

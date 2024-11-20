@@ -64,6 +64,7 @@ export const processNewVoxelImport = async (
   const cache = new Uint8Array(
     voxels.SIZE[0] * voxels.SIZE[1] * voxels.SIZE[2] * 3,
   );
+  console.log({ voxels });
   voxels.XYZI.forEach((voxel) => {
     const index = convert3DTo1D(voxels.SIZE, [voxel.x, voxel.y, voxel.z]);
     cache[index * 3] = voxels.RGBA[voxel.c].r;
@@ -76,6 +77,9 @@ export const processNewVoxelImport = async (
     const green = cache[index * 3 + 1];
     const blue = cache[index * 3 + 2];
     if (red === 0 && green === 0 && blue === 0) {
+      return null;
+    }
+    if (x >= voxels.SIZE[0] || y >= voxels.SIZE[1] || z >= voxels.SIZE[2]) {
       return null;
     }
     return {
@@ -100,10 +104,9 @@ export const processNewVoxelImport = async (
   resizedArray.set(oldArray.subarray(0, octree.totalSizeBytes));
 
   console.timeEnd(`Create octree for ${path}`);
-  const octreeSizeBytes = octree.totalSizeBytes + OCTREE_STRIDE;
 
   const gpuBuffer = device.createBuffer({
-    size: octreeSizeBytes,
+    size: octree.totalSizeBytes,
     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
   });
   device.queue.writeBuffer(gpuBuffer, 0, resizedArray);
@@ -111,7 +114,7 @@ export const processNewVoxelImport = async (
 
   return new VoxelObject({
     name: path,
-    size: voxels.SIZE,
+    size: [voxels.SIZE[0] * 2, voxels.SIZE[1] * 2, voxels.SIZE[2] * 2],
     octreeBufferIndex: 0,
     gpuBuffer,
     octreeBuffer: resizedArray.buffer,
