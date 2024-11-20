@@ -88,7 +88,7 @@ export const createTerrainChunk = async (
 
   ecs.addComponent(newEntity, voxelObject);
   const transform = new Transform(
-    [x + chunkWidth / 2, y - (chunkWidth - extentY) / 2, z + chunkWidth / 2],
+    [x + chunkWidth / 2, y - (CHUNK_HEIGHT - extentY) / 2, z + chunkWidth / 2],
     quat.fromEuler(0, 0, 0, "xyz"),
     [1, 1, 1],
   );

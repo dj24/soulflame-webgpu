@@ -1,6 +1,6 @@
 import { ECS, Entity, System } from "@ecs/ecs";
 import { VoxelObject } from "@renderer/voxel-object";
-import { encodeTerrainName } from "../sine-chunk";
+import { CHUNK_HEIGHT, encodeTerrainName } from "../sine-chunk";
 import {
   deserialiseInternalNode,
   InternalNode,
@@ -219,7 +219,7 @@ const combineChunks = (
   const transform = new Transform(
     [
       x + combinedWidth / 2,
-      y - (combinedWidth / 2 - maxSizeY) / 2,
+      y - (CHUNK_HEIGHT - maxSizeY) / 2,
       z + combinedWidth / 2,
     ],
     quat.fromEuler(0, 0, 0, "xyz"),

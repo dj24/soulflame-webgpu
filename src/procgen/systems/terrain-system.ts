@@ -140,7 +140,7 @@ export class TerrainSystem extends System {
           const newEntity = this.ecs.addEntity();
           this.ecs.addComponent(newEntity, voxels);
           const transform = new Transform(
-            [0, 32, 64],
+            [256, 32, 256],
             quat.fromEuler(0, 0, 0, "xyz"),
             [0.5, 0.5, 0.5],
           );
