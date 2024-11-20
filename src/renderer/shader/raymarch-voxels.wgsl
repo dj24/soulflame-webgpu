@@ -189,6 +189,10 @@ fn planeIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, planeNormal:
   return -(dot(rayOrigin,planeNormal)+planeDistance)/dot(rayDirection,planeNormal);
 }
 
+fn getDistanceToEachAxis(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, boxExtents: f32) -> vec3<f32> {
+  return (boxExtents - rayOrigin) / rayDirection;
+}
+
 struct PlaneIntersection {
   tNear: f32,
   side: vec3<i32>
@@ -214,9 +218,10 @@ fn sort3Desc(a: f32, b: f32, c: f32) -> vec3<f32> {
 fn getPlaneIntersections(rayOrigin: vec3<f32>, rayDirection:vec3<f32>, nodeSize: f32) -> vec3<f32> {
     let boxExtents = nodeSize * 0.5;
 
-    var yPlaneIntersectionTNear = planeIntersection(rayOrigin, rayDirection, vec3(0.0, -1, 0.0), boxExtents);
-    var xPlaneIntersectionTNear  = planeIntersection(rayOrigin, rayDirection, vec3(-1, 0.0, 0.0), boxExtents);
-    var zPlaneIntersectionTNear  = planeIntersection(rayOrigin, rayDirection, vec3(0.0, 0.0, -1), boxExtents);
+    var planeIntersections = getDistanceToEachAxis(rayOrigin, rayDirection, boxExtents);
+    var yPlaneIntersectionTNear = planeIntersections.y;
+    var xPlaneIntersectionTNear = planeIntersections.x;
+    var zPlaneIntersectionTNear = planeIntersections.z;
 
     // If the intersection is outside the bounds of the node, set it to a large value to ignore it
     let yPlaneHitPosition = rayOrigin + rayDirection * yPlaneIntersectionTNear  - EPSILON;
@@ -234,14 +239,6 @@ fn getPlaneIntersections(rayOrigin: vec3<f32>, rayDirection:vec3<f32>, nodeSize:
 
     return vec3(xPlaneIntersectionTNear, yPlaneIntersectionTNear, zPlaneIntersectionTNear);
 }
-
-const DISTANCE_THRESHOLDS =
-  array<vec2<f32>, 4>(
-    vec2<f32>(2.0, 500),
-    vec2<f32>(4.0, 1000),
-    vec2<f32>(8.0, 1500),
-    vec2<f32>(16.0, 2000)
-  );
 
 fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>, maxDistance: f32) -> RayMarchResult {
     let halfExtents = voxelObject.size * 0.5;
