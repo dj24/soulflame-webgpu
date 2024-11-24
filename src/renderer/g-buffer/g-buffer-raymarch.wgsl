@@ -143,7 +143,7 @@ fn clear(
 
 
 // x,y = local pixel position
-@compute @workgroup_size(3, 3, 16)
+@compute @workgroup_size(4, 4, 16)
 fn main(
     @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
     @builtin(local_invocation_id) LocalInvocationID : vec3<u32>,

@@ -114,7 +114,7 @@ export const processNewVoxelImport = async (
 
   return new VoxelObject({
     name: path,
-    size: [voxels.SIZE[0] * 2, voxels.SIZE[1] * 2, voxels.SIZE[2] * 2],
+    size: [voxels.SIZE[0], voxels.SIZE[1], voxels.SIZE[2]],
     octreeBufferIndex: 0,
     gpuBuffer,
     octreeBuffer: resizedArray.buffer,

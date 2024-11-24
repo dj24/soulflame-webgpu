@@ -12,6 +12,7 @@ export const gBufferTextureFactory = (
   label: string,
   format: GPUTextureFormat,
   usage = defaultUsage,
+  mipLevelCount = 1,
 ) => {
   @Singleton
   class GBufferTexture {
@@ -28,9 +29,12 @@ export const gBufferTextureFactory = (
         size: [width, height, 1],
         format,
         usage,
+        mipLevelCount,
       });
       this.#view = this.#texture.createView({
         label,
+        mipLevelCount: 1,
+        baseMipLevel: 0,
       });
       this.#width = width;
       this.#height = height;
@@ -66,7 +70,12 @@ export type GBufferTexture = InstanceType<
 >;
 
 export const AlbedoTexture = gBufferTextureFactory("albedo", "rgba16float");
-export const NormalTexture = gBufferTextureFactory("normal", "rgba16float");
+export const NormalTexture = gBufferTextureFactory(
+  "normal",
+  "rgba16float",
+  defaultUsage,
+  3,
+);
 export const DepthTexture = gBufferTextureFactory(
   "depth",
   DEPTH_FORMAT,

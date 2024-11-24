@@ -7,6 +7,7 @@ import { CHUNK_HEIGHT } from "../sine-chunk";
 import { processNewVoxelImport } from "@renderer/create-tavern";
 import { Transform } from "@renderer/components/transform";
 import { quat } from "wgpu-matrix";
+import { DebugRotate } from "../../components/debug-rotate";
 
 export const chunkWidth = 64;
 
@@ -123,6 +124,7 @@ export class TerrainSystem extends System {
         (voxels) => {
           const newEntity = this.ecs.addEntity();
           this.ecs.addComponent(newEntity, voxels);
+          this.ecs.addComponent(newEntity, new DebugRotate());
           const transform = new Transform(
             [0, 32, 160],
             quat.fromEuler(0, 0, 0, "xyz"),
@@ -135,6 +137,7 @@ export class TerrainSystem extends System {
         (voxels) => {
           const newEntity = this.ecs.addEntity();
           this.ecs.addComponent(newEntity, voxels);
+          this.ecs.addComponent(newEntity, new DebugRotate());
           const transform = new Transform(
             [256, 48, 256],
             quat.fromEuler(0, 0, 0, "xyz"),

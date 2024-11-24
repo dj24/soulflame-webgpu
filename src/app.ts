@@ -15,6 +15,7 @@ import { Velocity } from "./components/velocity";
 import { MouseScrollZoomSystem } from "@input/systems/mouse-scroll-zoom-system";
 import { Light } from "@renderer/components/light";
 import { ChunkCombinerSystem } from "./procgen/systems/chunk-combiner-system";
+import { DebugRotaterSystem } from "./systems/debug-rotater-system";
 
 const LIGHT_INTENSITY = 30;
 
@@ -49,16 +50,9 @@ ecs.addSystem(new Renderer());
 ecs.addSystem(new GamepadKinematicBoxControl());
 ecs.addSystem(new TerrainSystem());
 ecs.addSystem(new VelocitySystem());
-setTimeout(() => {
-  ecs.addSystem(new ChunkCombinerSystem(64));
-}, 4000);
-setTimeout(() => {
-  ecs.addSystem(new ChunkCombinerSystem(128));
-}, 8000);
-
-// setTimeout(() => {
-//   ecs.addSystem(new ChunkCombinerSystem(256));
-// }, 15000);
+ecs.addSystem(new DebugRotaterSystem());
+ecs.addSystem(new ChunkCombinerSystem(64));
+ecs.addSystem(new ChunkCombinerSystem(128)); // Current max size due to 8 bit coordinates
 
 const singleton = ecs.addEntity();
 ecs.addComponent(singleton, new GPUDeviceSingleton());

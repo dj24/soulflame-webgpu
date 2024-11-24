@@ -175,8 +175,8 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       computePass.setBindGroup(0, bindGroup);
       computePass.setBindGroup(1, rayBufferBindGroup);
       computePass.dispatchWorkgroups(
-        Math.ceil(resolution[0] / 3 / 8),
-        Math.ceil(resolution[1] / 3 / 8),
+        Math.ceil(resolution[0] / 4 / 8),
+        Math.ceil(resolution[1] / 4 / 8),
       );
     };
 

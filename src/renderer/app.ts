@@ -53,6 +53,7 @@ import { getBloomPass } from "@renderer/bloom-pass/get-bloom-pass";
 import { getRasterTracePass } from "@renderer/raster-trace/get-raster-trace-pass";
 import { getLightDebugPass } from "@renderer/box-outline/get-light-debug-pass";
 import { OUTPUT_TEXTURE_FORMAT } from "@renderer/constants";
+import { getSmoothNormalsPass } from "@renderer/smooth-normals-pass/smooth-normals-pass";
 
 export const debugValues = new DebugValuesStore();
 export let gpuContext: GPUCanvasContext;
@@ -241,6 +242,7 @@ export const init = async (
     getClearPass(worldPositionTexture),
     getClearPass(outputTexture),
     getGBufferPass(),
+    getSmoothNormalsPass(device),
     // getRasterTracePass(),
     (async () => {
       return {
@@ -255,7 +257,7 @@ export const init = async (
       };
     })(),
     // getShadowsPass(),
-    getLightsPass(device),
+    // getLightsPass(device),
     // getBloomPass(),
     // getSimpleFogPass(),
     // getTaaPass(outputTexture),
