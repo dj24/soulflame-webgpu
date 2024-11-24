@@ -69,7 +69,7 @@ ecs.addComponent(singleton, new TerrainSingleton());
 const camera = ecs.addEntity();
 ecs.addComponents(
   camera,
-  new Camera({ fieldOfView: 70 * (Math.PI / 180), near: 0.5, far: 10000 }),
+  new Camera({ fieldOfView: 70 * (Math.PI / 180), near: 2.0, far: 1000000 }),
   new Transform(
     vec3.create(64, 32, 64),
     quat.fromEuler(0, 45 * (Math.PI / 180), 0, "xyz"),

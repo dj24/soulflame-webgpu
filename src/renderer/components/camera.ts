@@ -20,6 +20,10 @@ export class Camera extends Component {
   constructor(config: CameraConfig) {
     super();
     this.config = config;
+    const uiFolder = (window as any).debugUI.gui.addFolder("Camera");
+    uiFolder.add(this.config, "fieldOfView", 0.1, 2.0);
+    uiFolder.add(this.config, "near", 0.1, 2.0);
+    uiFolder.add(this.config, "far", 100, 100000);
   }
 
   get projectionMatrix() {

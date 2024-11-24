@@ -255,10 +255,10 @@ export const init = async (
       };
     })(),
     // getShadowsPass(),
-    // getLightsPass(device),
+    getLightsPass(device),
     // getBloomPass(),
     // getSimpleFogPass(),
-    getTaaPass(outputTexture),
+    // getTaaPass(outputTexture),
     // getTonemapPass(),
     // getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
@@ -341,14 +341,15 @@ const getInverseProjectionMatrix = (projectionMatrix: Mat4) => {
 };
 
 const getMatricesBuffer = (camera: Camera, cameraTransform: Transform) => {
-  const jitter = generateJitter(
-    frameCount,
-    resolution[0],
-    resolution[1],
-    "fieldOfView" in camera.config ? camera.config.fieldOfView : 90,
-    resolution[0] / resolution[1],
-    "near" in camera.config ? camera.config.near : 0.1,
-  );
+  // const jitter = generateJitter(
+  //   frameCount,
+  //   resolution[0],
+  //   resolution[1],
+  //   "fieldOfView" in camera.config ? camera.config.fieldOfView : 90,
+  //   resolution[0] / resolution[1],
+  //   "near" in camera.config ? camera.config.near : 0.1,
+  // );
+  const jitter: [number, number] = [0, 0];
   const jitteredProjectionMatrix = jitterProjectionMatrix(
     camera.projectionMatrix,
     jitter,

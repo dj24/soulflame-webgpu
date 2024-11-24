@@ -143,7 +143,7 @@ fn clear(
 
 
 // x,y = local pixel position
-@compute @workgroup_size(3, 3, 8)
+@compute @workgroup_size(3, 3, 16)
 fn main(
     @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>,
     @builtin(local_invocation_id) LocalInvocationID : vec3<u32>,
@@ -176,7 +176,7 @@ fn main(
 
 //  atomicStore(&objectIndexBuffer[convert2DTo1D(resolution.x, pixel)], bitcast<u32>(voxelObjectIndex));
 //  atomicStore(&normalBuffer[convert2DTo1D(resolution.x, pixel)], pack4x8snorm(vec4(normal, 0.0)));
-  if(rayMarchResult.t < previousDepth){
+  if(rayMarchResult.hit && rayMarchResult.t < previousDepth){
     let objectIndexPtr = &objectIndexBuffer[convert2DTo1D(resolution.x, pixel)];
     let normalPtr = &normalBuffer[convert2DTo1D(resolution.x, pixel)];
     let normal = transformNormal(voxelObject.inverseTransform,vec3<f32>(rayMarchResult.normal));

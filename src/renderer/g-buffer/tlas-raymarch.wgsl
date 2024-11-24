@@ -58,7 +58,7 @@ fn main(
         if(newCount >= 1000000){
           return;
         }
-        if(newCount % 8 == 0){
+        if(newCount % 16 == 0){
           atomicAdd(&indirectBuffer[2], 1);
         }
         screenRayBuffer[newCount] = vec3(vec2<i32>(idx.xy), node.leftIndex);
