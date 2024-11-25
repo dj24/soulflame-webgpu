@@ -267,7 +267,7 @@ export const init = async (
     // getVignettePass(10.0),
     getLightDebugPass(device),
     fullscreenQuad(device),
-    // getBoxOutlinePass(device),
+    getBoxOutlinePass(device),
   ]);
 
   timestampLabels = computePasses.reduce((acc, val) => {

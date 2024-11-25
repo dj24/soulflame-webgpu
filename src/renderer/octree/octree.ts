@@ -332,6 +332,18 @@ export const deserialiseInternalNode = (
   return { childMask, x, y, z, firstChildIndex, size };
 };
 
+const deserializeLeafNode = (arrayBuffer: ArrayBuffer, index: number) => {
+  const dataView = new DataView(arrayBuffer);
+  const x = dataView.getUint8(index * OCTREE_STRIDE + 1);
+  const y = dataView.getUint8(index * OCTREE_STRIDE + 2);
+  const z = dataView.getUint8(index * OCTREE_STRIDE + 3);
+  const red = dataView.getUint8(index * OCTREE_STRIDE + 4);
+  const green = dataView.getUint8(index * OCTREE_STRIDE + 5);
+  const blue = dataView.getUint8(index * OCTREE_STRIDE + 6);
+  const size = 2 ** dataView.getUint8(index * OCTREE_STRIDE + 7);
+  return { x, y, z, red, green, blue, size };
+};
+
 // Updates the root offset of the octree across all nodes, useful for combining octrees
 export const updateRootOffset = (
   arrayBuffer: ArrayBuffer,
@@ -348,5 +360,80 @@ export const updateRootOffset = (
     dataView.setUint8(i + 1, x + offset[0]);
     dataView.setUint8(i + 2, y + offset[1]);
     dataView.setUint8(i + 3, z + offset[2]);
+  }
+};
+
+// Lowers the LOD of an octree by merging leaf nodes
+export const lowerOctreeLOD = (
+  arrayBuffer: ArrayBuffer,
+  outputArrayBuffer: ArrayBuffer,
+  leafVoxelSize: number,
+  byteOffset: number,
+) => {
+  const dataView = new DataView(arrayBuffer);
+
+  // Recursive traversal of the octree
+  try {
+    const node = deserialiseInternalNode(
+      arrayBuffer,
+      byteOffset / OCTREE_STRIDE,
+    );
+    if (node.size > leafVoxelSize) {
+      for (let i = 0; i < 8; i++) {
+        if (node.childMask & (1 << i)) {
+          let relativeByteOffset = (node.firstChildIndex + i) * OCTREE_STRIDE;
+          // Add to the new buffer and move on to the next node
+          lowerOctreeLOD(
+            arrayBuffer,
+            outputArrayBuffer,
+            leafVoxelSize,
+            relativeByteOffset + byteOffset,
+          );
+        }
+      }
+      return;
+    }
+    // If the node is at the leaf voxel size, we can merge it
+    if (node.size === leafVoxelSize) {
+      let totalLeafColour = [0, 0, 0];
+      let leafCount = 0;
+      for (let i = 0; i < 8; i++) {
+        if (node.childMask & (1 << i)) {
+          let relativeByteOffset =
+            byteOffset + (node.firstChildIndex + i) * OCTREE_STRIDE;
+          const leaf = deserializeLeafNode(
+            arrayBuffer,
+            relativeByteOffset / OCTREE_STRIDE,
+          );
+          totalLeafColour[0] += leaf.red;
+          totalLeafColour[1] += leaf.green;
+          totalLeafColour[2] += leaf.blue;
+          leafCount++;
+        }
+      }
+      if (leafCount === 0) {
+        return;
+      }
+      const colour = totalLeafColour.map((c) => c / leafCount);
+      console.log(colour, leafCount);
+      const leafNode: LeafNode = {
+        x: node.x,
+        y: node.y,
+        z: node.z,
+        size: node.size,
+        red: colour[0],
+        green: colour[1],
+        blue: colour[2],
+      };
+      setLeafNode(dataView, byteOffset / OCTREE_STRIDE, leafNode);
+      return;
+    }
+    return;
+  } catch (e) {
+    console.log(e, {
+      byteOffset,
+      bufferSizeItems: arrayBuffer.byteLength / OCTREE_STRIDE,
+      bufferSizeBytes: arrayBuffer.byteLength,
+    });
   }
 };

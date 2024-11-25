@@ -4,6 +4,7 @@ import { CHUNK_HEIGHT, encodeTerrainName } from "../sine-chunk";
 import {
   deserialiseInternalNode,
   InternalNode,
+  lowerOctreeLOD,
   octantOffsetToIndex,
   OCTREE_STRIDE,
   OctreeNode,
@@ -113,6 +114,13 @@ const combineChunks = (
     voxelObject11.octreeBuffer,
     0,
   );
+
+  //DEBUG
+  const outputArrayBuffer = new ArrayBuffer(4);
+  lowerOctreeLOD(voxelObject00.octreeBuffer, outputArrayBuffer, 4, 0);
+  lowerOctreeLOD(voxelObject10.octreeBuffer, outputArrayBuffer, 4, 0);
+  lowerOctreeLOD(voxelObject01.octreeBuffer, outputArrayBuffer, 4, 0);
+  lowerOctreeLOD(voxelObject11.octreeBuffer, outputArrayBuffer, 4, 0);
 
   // Trim the root node from the octree buffers
   voxelObject00.octreeBuffer = voxelObject00.octreeBuffer.slice(OCTREE_STRIDE);

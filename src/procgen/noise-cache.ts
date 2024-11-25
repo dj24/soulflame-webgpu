@@ -53,3 +53,33 @@ export class NoiseCache {
     return convertInt16ToFloat32(this.cache[index]);
   }
 }
+
+export class NoiseCache2D {
+  private readonly cache: Int16Array;
+  private readonly size: [number, number];
+  private readonly noiseFunction: (x: number, y: number) => number;
+
+  constructor(
+    noiseFn: (x: number, y: number) => number,
+    size: [number, number],
+  ) {
+    this.size = size;
+    this.noiseFunction = noiseFn;
+    this.cache = new Int16Array(size[0] * size[1]);
+    for (let x = 0; x < size[0]; x++) {
+      for (let y = 0; y < size[1]; y++) {
+        const index = x + y * size[0];
+        this.cache[index] = convertFloat32ToInt16(noiseFn(x, y));
+      }
+    }
+  }
+
+  get buffer() {
+    return this.cache.buffer;
+  }
+
+  get([x, y]: [number, number]): number {
+    const index = x + y * this.size[0];
+    return convertInt16ToFloat32(this.cache[index]);
+  }
+}

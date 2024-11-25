@@ -112,11 +112,11 @@ fn convert2DTo1D(width: u32, index2D: vec2<u32>) -> u32 {
 
 fn encodeDepth(depth: f32) -> u32 {
     let reversedDepth = FAR_PLANE - depth;
-    return u32(reversedDepth * 200000.0);
+    return u32(reversedDepth * f32(FAR_PLANE));
 }
 
 fn decodeDepth(depth: u32) -> f32 {
-    let reversedDepth = f32(depth) / 200000.0;
+    let reversedDepth = f32(depth) /  f32(FAR_PLANE);
     return FAR_PLANE - reversedDepth;
 }
 

@@ -1,4 +1,4 @@
-const EPSILON = 0.001;
+const EPSILON = 0.0002;
 const MAX_RAY_STEPS = 256;
 const FAR_PLANE = 10000.0;
 const NEAR_PLANE = 0.5;
@@ -247,7 +247,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     var output = RayMarchResult();
 
     // Set the initial t value to the far plane - essentially an out of bounds value
-    output.t = FAR_PLANE;
+    output.t = maxDistance;
 
     // Create a stack to hold the indices of the nodes we need to check
     var stack = stacku32_new();
