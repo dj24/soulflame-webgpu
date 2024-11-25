@@ -146,7 +146,7 @@ export const getSmoothNormalsPass = async (
           },
           {
             binding: 1,
-            resource: normalViews[0],
+            resource: renderArgs.outputTextures.finalTexture.view,
           },
         ],
       });
@@ -159,15 +159,16 @@ export const getSmoothNormalsPass = async (
     const computePass = commandEncoder.beginComputePass({ timestampWrites });
 
     // Downscale into mip chain
-    computePass.setPipeline(mipChainPipeline);
-    for (let i = 0; i < createMipBindGroups.length; i++) {
-      computePass.setBindGroup(0, createMipBindGroups[i]);
-      const downscale = 2 ** (i + 1);
-      computePass.dispatchWorkgroups(
-        Math.ceil(resolutionX / downscale / 8),
-        Math.ceil(resolutionY / downscale / 8),
-      );
-    }
+    // computePass.setPipeline(mipChainPipeline);
+    // for (let i = 0; i < createMipBindGroups.length; i++) {
+    //   computePass.setBindGroup(0, createMipBindGroups[i]);
+    //   const downscale = 2 ** (i + 1);
+    //   console.log(i, downscale);
+    //   computePass.dispatchWorkgroups(
+    //     Math.ceil(resolutionX / downscale / 8),
+    //     Math.ceil(resolutionY / downscale / 8),
+    //   );
+    // }
 
     // Use mip chain to smooth normals based on distance
     computePass.setPipeline(smoothPipeline);

@@ -23,12 +23,32 @@ fn stack_pop(stack: ptr<function, Stack>) -> i32 {
 
 const WORKGROUP_SIZE: u32 = 8u;
 
-fn nodeRayIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, node: BVHNode) -> bool {
+fn nodeFrustumCornersIntersection(rayOrigin: vec3<f32>, idx: vec2<i32>, screenWidth:vec2<u32>, node: BVHNode) -> bool {
   if(all(rayOrigin >= node.AABBMin) && all(rayOrigin <= node.AABBMax)){
     return true;
   }
+  let idx00 = vec2<u32>(idx * 4);
+  let idx10 = vec2<u32>(idx * 4 + vec2(4, 0));
+  let idx01 = vec2<u32>(idx * 4 + vec2(0, 4));
+  let idx11 = vec2<u32>(idx * 4 + vec2(4, 4));
+
+  let uv00 = vec2<f32>(idx.xy) / vec2<f32>(screenWidth);
+  let uv10 = vec2<f32>(idx10) / vec2<f32>(screenWidth);
+  let uv01 = vec2<f32>(idx01) / vec2<f32>(screenWidth);
+  let uv11 = vec2<f32>(idx11) / vec2<f32>(screenWidth);
+
+  let rayDirection00 = calculateRayDirection(uv00, viewProjections.inverseViewProjection);
+  let rayDirection10 = calculateRayDirection(uv10, viewProjections.inverseViewProjection);
+  let rayDirection01 = calculateRayDirection(uv01, viewProjections.inverseViewProjection);
+  let rayDirection11 = calculateRayDirection(uv11, viewProjections.inverseViewProjection);
+
   let boxSize = (node.AABBMax - node.AABBMin) / 2;
-  return boxIntersection(rayOrigin - node.AABBMin, rayDirection, boxSize).isHit;
+  let hit00 = boxIntersection(rayOrigin - node.AABBMin, rayDirection00, boxSize).isHit;
+  let hit10 = boxIntersection(rayOrigin - node.AABBMin, rayDirection10, boxSize).isHit;
+  let hit01 = boxIntersection(rayOrigin - node.AABBMin, rayDirection01, boxSize).isHit;
+  let hit11 = boxIntersection(rayOrigin - node.AABBMin, rayDirection11, boxSize).isHit;
+
+  return hit00 || hit10 || hit01 || hit11;
 }
 
 @compute @workgroup_size(WORKGROUP_SIZE, WORKGROUP_SIZE, 1)
@@ -42,10 +62,8 @@ fn main(
       atomicStore(&indirectBuffer[2], 0);
       atomicStore(&indirectBuffer[3], 0);
     }
-    let screenWidth = numWorkgroups.xy * WORKGROUP_SIZE * 4;
-    let idx = vec2<u32>(globalId.xy * 4);
-    let uv = vec2<f32>(idx.xy) / vec2<f32>(screenWidth);
-    let rayDirection = calculateRayDirection(uv, viewProjections.inverseViewProjection);
+    let resolution = textureDimensions(outputTex);
+    let idx = vec2<i32>(globalId.xy * 4);
     let rayOrigin = cameraPosition;
     var stack = stack_new();
     stack_push(&stack, 0);
@@ -67,8 +85,8 @@ fn main(
       if(node.objectCount > 1){
         let leftNode = bvhNodes[node.leftIndex];
         let rightNode = bvhNodes[node.rightIndex];
-        let hitLeft = nodeRayIntersection(rayOrigin, rayDirection, leftNode);
-        let hitRight = nodeRayIntersection(rayOrigin, rayDirection, rightNode);
+        let hitLeft = nodeFrustumCornersIntersection(rayOrigin, idx.xy,resolution, leftNode);
+        let hitRight = nodeFrustumCornersIntersection(rayOrigin, idx.xy,resolution, rightNode);
         if(hitRight){
           stack_push(&stack, node.rightIndex);
         }

@@ -57,6 +57,14 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
             type: "read-only-storage",
           },
         },
+        // output texture (for resolution)
+        {
+          binding: 3,
+          visibility: GPUShaderStage.COMPUTE,
+          texture: {
+            sampleType: "float",
+          },
+        },
       ],
     });
 
@@ -106,6 +114,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           @group(0) @binding(0) var<uniform> cameraPosition : vec3<f32>;
           @group(0) @binding(1) var<uniform> viewProjections : ViewProjectionMatrices;
           @group(0) @binding(2) var<storage> bvhNodes: array<BVHNode>;
+          @group(0) @binding(3) var outputTex : texture_2d<f32>;
           @group(1) @binding(0) var<storage, read_write> screenRayBuffer : array<vec3<i32>>;
           @group(1) @binding(1) var<storage, read_write> indirectBuffer : array<atomic<u32>>;
           const INDEX = ${index};
@@ -149,6 +158,10 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
             resource: {
               buffer: renderArgs.bvhBuffer,
             },
+          },
+          {
+            binding: 3,
+            resource: renderArgs.outputTextures.finalTexture.view,
           },
         ],
       });
