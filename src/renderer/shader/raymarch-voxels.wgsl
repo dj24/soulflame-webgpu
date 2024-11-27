@@ -102,13 +102,28 @@ struct LeafNode {
   size: u32,
 }
 
+const mask4 = 0xFu;
 const mask8 = 0xFFu;
+const mask12 = 0xFFFu;
 const mask16 = 0xFFFFu;
 const mask24 = 0xFFFFFFu;
 
-// if first child offset is 0, then it is a leaf
+// if childMask is 0, then it is a leaf
 fn isLeaf(node:vec4<u32>) -> bool {
-  return (node[0] & mask8) == 0;
+  return (node[2] & mask8) == 0;
+}
+
+/**
+  Unpack
+  12 bit x,y,z values
+  4 bit size
+*/
+fn unpackPositionAndSize(packed: vec2<u32>) -> vec4<u32> {
+  let x = packed[0] & mask16;
+  let y = (packed[0] >> 16u) & mask16;
+  let z = packed[1] & mask16;
+  let size = (packed[1] >> 16u) & mask16;
+  return vec4<u32>(x, y, z, size);
 }
 
 /**
@@ -127,13 +142,15 @@ fn unpackLeaf(node: vec4<u32>) -> LeafNode {
   var output = LeafNode();
   let first4Bytes = node.x;
   let second4Bytes = node.y;
-  let x = (first4Bytes >> 8u) & mask8;
-  let y = (first4Bytes >> 16u) & mask8;
-  let z = (first4Bytes >> 24u) & mask8;
-  output.size = 1u << (second4Bytes & mask8);
-  let r = (second4Bytes >> 8u) & mask8;
-  let g = (second4Bytes >> 16u) & mask8;
-  let b = (second4Bytes >> 24u) & mask8;
+  let third4Bytes = node.z;
+  let unpackedPositionAndSize = unpackPositionAndSize(vec2<u32>(first4Bytes, second4Bytes));
+  let x = unpackedPositionAndSize.x;
+  let y = unpackedPositionAndSize.y;
+  let z = unpackedPositionAndSize.z;
+  output.size = 1u << unpackedPositionAndSize.w; // 2 raised to the power of the size
+  let r = (second4Bytes >> 16u) & mask8;
+  let g = (second4Bytes >> 24u) & mask8;
+  let b = third4Bytes & mask8;
   output.colour = vec3<u32>(r, g, b);
   output.position = vec3<u32>(x, y, z);
 
@@ -153,12 +170,14 @@ fn unpackInternal(node: vec4<u32>) -> InternalNode {
   var output = InternalNode();
   let first4Bytes = node.x;
   let second4Bytes = node.y;
-  output.childMask = first4Bytes & mask8;
-  let x = (first4Bytes >> 8u) & mask8;
-  let y = (first4Bytes >> 16u) & mask8;
-  let z = (first4Bytes >> 24u) & mask8;
-  output.size = 1u << (second4Bytes & mask8); // 2 raised to the power of the size
-  output.firstChildOffset = (second4Bytes >> 8u) & mask24;
+  let third4Bytes = node.z;
+  let unpackedPositionAndSize = unpackPositionAndSize(vec2<u32>(first4Bytes, second4Bytes));
+  let x = unpackedPositionAndSize.x;
+  let y = unpackedPositionAndSize.y;
+  let z = unpackedPositionAndSize.z;
+  output.size = 1u << unpackedPositionAndSize.w; // 2 raised to the power of the size
+  output.childMask = third4Bytes & mask8;
+  output.firstChildOffset = third4Bytes >> 8u;
   output.position = vec3<u32>(x, y, z);
   return output;
 }

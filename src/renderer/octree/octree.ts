@@ -273,32 +273,42 @@ export class Octree {
 }
 
 /**
- * 12 bits for the x, y, z position
- * 4 bits for the size
+ * 16 bits for the x, y, z position
+ * 16 bits for the size
  */
-const packPositionAndSizeInto40Bits = (
+const packPositionAndSizeInto64Bits = (
   x: number,
   y: number,
   z: number,
   size: number,
 ) => {
   console.assert(
-    x < 2 ** 12,
-    `X position of ${x} is too large to fit in 12 bits`,
+    x < 2 ** 16,
+    `X position of ${x} is too large to fit in 16 bits`,
   );
   console.assert(
-    y < 2 ** 12,
-    `Y position of ${y} is too large to fit in 12 bits`,
+    y < 2 ** 16,
+    `Y position of ${y} is too large to fit in 16 bits`,
   );
   console.assert(
-    z < 2 ** 12,
-    `Z position of ${z} is too large to fit in 12 bits`,
+    z < 2 ** 16,
+    `Z position of ${z} is too large to fit in 16 bits`,
   );
+  const sizeLog2 = Math.log2(size);
   console.assert(
-    size < 2 ** 4,
-    `Size of ${size} is too large to fit in 4 bits`,
+    sizeLog2 < 2 ** 16,
+    `Size of ${size} is too large to fit in 16 bits`,
   );
-  return (x << 28) | (y << 16) | (z << 4) | size;
+
+  const mask16 = 0xffff;
+  const xMasked = BigInt(x & mask16);
+  const yMasked = BigInt(y & mask16);
+  const zMasked = BigInt(z & mask16);
+  const sizeLog2Masked = BigInt(sizeLog2 & mask16);
+
+  return (
+    xMasked | (yMasked << 16n) | (zMasked << 32n) | (sizeLog2Masked << 48n)
+  );
 };
 
 export const setLeafNode = (
@@ -306,14 +316,19 @@ export const setLeafNode = (
   index: number,
   node: LeafNode,
 ) => {
-  dataView.setUint8(index * OCTREE_STRIDE, 0);
-  dataView.setUint8(index * OCTREE_STRIDE + 1, node.x);
-  dataView.setUint8(index * OCTREE_STRIDE + 2, node.y);
-  dataView.setUint8(index * OCTREE_STRIDE + 3, node.z);
-  dataView.setUint8(index * OCTREE_STRIDE + 4, Math.log2(node.size));
-  dataView.setUint8(index * OCTREE_STRIDE + 5, node.red);
-  dataView.setUint8(index * OCTREE_STRIDE + 6, node.green);
-  dataView.setUint8(index * OCTREE_STRIDE + 7, node.blue);
+  dataView.setUint16(index * OCTREE_STRIDE + 0, node.x, true);
+  dataView.setUint16(index * OCTREE_STRIDE + 2, node.y, true);
+  dataView.setUint16(index * OCTREE_STRIDE + 4, node.z, true);
+  dataView.setUint16(index * OCTREE_STRIDE + 6, Math.log2(node.size), true);
+  dataView.setUint8(index * OCTREE_STRIDE + 8, 0);
+  // dataView.setBigUint64(
+  //   index * OCTREE_STRIDE + 1,
+  //   packPositionAndSizeInto64Bits(node.x, node.y, node.z, node.size),
+  //   true,
+  // );
+  dataView.setUint8(index * OCTREE_STRIDE + 9, node.red);
+  dataView.setUint8(index * OCTREE_STRIDE + 10, node.green);
+  dataView.setUint8(index * OCTREE_STRIDE + 11, node.blue);
 };
 
 export const setInternalNode = (
@@ -326,23 +341,28 @@ export const setInternalNode = (
     `First child index of ${node.firstChildIndex} is too large to fit in 3 bytes`,
   );
   console.assert(
-    node.x < 2 ** 8,
-    `X position of ${node.x} is too large to fit in 1 byte`,
+    node.x < 2 ** 16,
+    `X position of ${node.x} is too large to fit in 2 bytes`,
   );
   console.assert(
-    node.y < 2 ** 8,
-    `Y position of ${node.y} is too large to fit in 1 byte`,
+    node.y < 2 ** 16,
+    `Y position of ${node.y} is too large to fit in 2 bytes`,
   );
   console.assert(
-    node.z < 2 ** 8,
-    `Z position of ${node.z} is too large to fit in 1 byte`,
+    node.z < 2 ** 16,
+    `Z position of ${node.z} is too large to fit in 2 bytes`,
   );
-  dataView.setUint8(index * OCTREE_STRIDE, node.childMask);
-  dataView.setUint8(index * OCTREE_STRIDE + 1, node.x);
-  dataView.setUint8(index * OCTREE_STRIDE + 2, node.y);
-  dataView.setUint8(index * OCTREE_STRIDE + 3, node.z);
-  dataView.setUint8(index * OCTREE_STRIDE + 4, Math.log2(node.size));
-  dataView.setUint32(index * OCTREE_STRIDE + 5, node.firstChildIndex, true);
+  dataView.setUint16(index * OCTREE_STRIDE + 0, node.x, true);
+  dataView.setUint16(index * OCTREE_STRIDE + 2, node.y, true);
+  dataView.setUint16(index * OCTREE_STRIDE + 4, node.z, true);
+  dataView.setUint16(index * OCTREE_STRIDE + 6, Math.log2(node.size), true);
+  dataView.setUint8(index * OCTREE_STRIDE + 8, node.childMask);
+  // dataView.setBigUint64(
+  //   index * OCTREE_STRIDE + 1,
+  //   BigInt(packPositionAndSizeInto64Bits(node.x, node.y, node.z, node.size)),
+  //   true,
+  // );
+  dataView.setUint32(index * OCTREE_STRIDE + 9, node.firstChildIndex, true);
 };
 
 export const deserialiseInternalNode = (
@@ -351,26 +371,26 @@ export const deserialiseInternalNode = (
 ): InternalNode => {
   const dataView = new DataView(arrayBuffer);
   const childMask = dataView.getUint8(index * OCTREE_STRIDE);
-  const x = dataView.getUint8(index * OCTREE_STRIDE + 1);
-  const y = dataView.getUint8(index * OCTREE_STRIDE + 2);
-  const z = dataView.getUint8(index * OCTREE_STRIDE + 3);
-  const size = 2 ** dataView.getUint8(index * OCTREE_STRIDE + 4);
+  const x = dataView.getUint16(index * OCTREE_STRIDE + 0);
+  const y = dataView.getUint16(index * OCTREE_STRIDE + 2);
+  const z = dataView.getUint16(index * OCTREE_STRIDE + 4);
+  const size = 2 ** dataView.getUint16(index * OCTREE_STRIDE + 6);
   // Mask out the last 8 bits (24 bits total)
   let firstChildIndex =
-    dataView.getUint32(index * OCTREE_STRIDE + 5, true) & 0x00ffffff;
+    dataView.getUint32(index * OCTREE_STRIDE + 9, true) & 0x00ffffff;
 
   return { childMask, x, y, z, firstChildIndex, size, leafMask: 0 };
 };
 
 const deserializeLeafNode = (arrayBuffer: ArrayBuffer, index: number) => {
   const dataView = new DataView(arrayBuffer);
-  const x = dataView.getUint8(index * OCTREE_STRIDE + 1);
-  const y = dataView.getUint8(index * OCTREE_STRIDE + 2);
-  const z = dataView.getUint8(index * OCTREE_STRIDE + 3);
-  const size = 2 ** dataView.getUint8(index * OCTREE_STRIDE + 4);
-  const red = dataView.getUint8(index * OCTREE_STRIDE + 5);
-  const green = dataView.getUint8(index * OCTREE_STRIDE + 6);
-  const blue = dataView.getUint8(index * OCTREE_STRIDE + 7);
+  const x = dataView.getUint16(index * OCTREE_STRIDE + 0);
+  const y = dataView.getUint16(index * OCTREE_STRIDE + 2);
+  const z = dataView.getUint16(index * OCTREE_STRIDE + 4);
+  const size = 2 ** dataView.getUint16(index * OCTREE_STRIDE + 6);
+  const red = dataView.getUint8(index * OCTREE_STRIDE + 9);
+  const green = dataView.getUint8(index * OCTREE_STRIDE + 10);
+  const blue = dataView.getUint8(index * OCTREE_STRIDE + 11);
 
   return { x, y, z, red, green, blue, size };
 };
@@ -381,16 +401,16 @@ export const updateRootOffset = (
   offset: [number, number, number],
 ) => {
   const dataView = new DataView(arrayBuffer);
-  console.assert(offset[0] < 2 ** 8, `X offset of ${offset[0]} is too large`);
-  console.assert(offset[1] < 2 ** 8, `Y offset of ${offset[1]} is too large`);
-  console.assert(offset[2] < 2 ** 8, `Z offset of ${offset[2]} is too large`);
+  console.assert(offset[0] < 2 ** 16, `X offset of ${offset[0]} is too large`);
+  console.assert(offset[1] < 2 ** 16, `Y offset of ${offset[1]} is too large`);
+  console.assert(offset[2] < 2 ** 16, `Z offset of ${offset[2]} is too large`);
   for (let i = 0; i < dataView.byteLength; i += OCTREE_STRIDE) {
-    const x = dataView.getUint8(i + 1);
-    const y = dataView.getUint8(i + 2);
-    const z = dataView.getUint8(i + 3);
-    dataView.setUint8(i + 1, x + offset[0]);
-    dataView.setUint8(i + 2, y + offset[1]);
-    dataView.setUint8(i + 3, z + offset[2]);
+    const x = dataView.getUint16(i + 0);
+    const y = dataView.getUint16(i + 2);
+    const z = dataView.getUint16(i + 4);
+    dataView.setUint16(i + 0, x + offset[0]);
+    dataView.setUint16(i + 2, y + offset[1]);
+    dataView.setUint16(i + 4, z + offset[2]);
   }
 };
 
