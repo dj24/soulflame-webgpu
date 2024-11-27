@@ -116,11 +116,11 @@ const combineChunks = (
   );
 
   //DEBUG
-  const outputArrayBuffer = new ArrayBuffer(4);
-  lowerOctreeLOD(voxelObject00.octreeBuffer, outputArrayBuffer, 4, 0);
-  lowerOctreeLOD(voxelObject10.octreeBuffer, outputArrayBuffer, 4, 0);
-  lowerOctreeLOD(voxelObject01.octreeBuffer, outputArrayBuffer, 4, 0);
-  lowerOctreeLOD(voxelObject11.octreeBuffer, outputArrayBuffer, 4, 0);
+  // const outputArrayBuffer = new ArrayBuffer(4);
+  // lowerOctreeLOD(voxelObject00.octreeBuffer, outputArrayBuffer, 4, 0);
+  // lowerOctreeLOD(voxelObject10.octreeBuffer, outputArrayBuffer, 4, 0);
+  // lowerOctreeLOD(voxelObject01.octreeBuffer, outputArrayBuffer, 4, 0);
+  // lowerOctreeLOD(voxelObject11.octreeBuffer, outputArrayBuffer, 4, 0);
 
   // Trim the root node from the octree buffers
   voxelObject00.octreeBuffer = voxelObject00.octreeBuffer.slice(OCTREE_STRIDE);
@@ -142,6 +142,7 @@ const combineChunks = (
     y: 0,
     z: 0,
     size: combinedWidth,
+    leafMask: 0,
   };
   setInternalNode(dataView, 0, rootNode);
 

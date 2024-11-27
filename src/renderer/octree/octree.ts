@@ -1,5 +1,5 @@
 import { setBit } from "./bitmask";
-export const OCTREE_STRIDE = 8;
+export const OCTREE_STRIDE = 16;
 
 export const bitmaskToString = (bitmask: number, bits = 8) => {
   return bitmask.toString(2).padStart(bits, "0");
@@ -49,6 +49,8 @@ export type InternalNode = {
   z: number;
   /** size of the node */
   size: number;
+  /** bitmask of which children are leaves */
+  leafMask: number;
 };
 
 export type LeafNode = {
@@ -200,13 +202,10 @@ export class Octree {
       octantFlags[i] = this.#getVoxel(x, y, z, depth + 1) !== null;
     }
 
-    let foo = Array.from({ length: 8 }, () => false);
-
     // Once we have the valid child octants, create a node for the current octant
     const childMask = childOctantsVoxelCount.reduce((mask, octantVoxels, i) => {
       if (octantVoxels > 0) {
         requiredChildNodes = i + 1;
-        foo[i] = true;
         return setBit(mask, i);
       }
       return mask;
@@ -263,6 +262,7 @@ export class Octree {
       y: scaledOffset[1] * size,
       z: scaledOffset[2] * size,
       size: size,
+      leafMask: 0,
     };
     setInternalNode(this.#dataView, startIndex, node);
   }
@@ -271,6 +271,35 @@ export class Octree {
     return this.#pointer * OCTREE_STRIDE;
   }
 }
+
+/**
+ * 12 bits for the x, y, z position
+ * 4 bits for the size
+ */
+const packPositionAndSizeInto40Bits = (
+  x: number,
+  y: number,
+  z: number,
+  size: number,
+) => {
+  console.assert(
+    x < 2 ** 12,
+    `X position of ${x} is too large to fit in 12 bits`,
+  );
+  console.assert(
+    y < 2 ** 12,
+    `Y position of ${y} is too large to fit in 12 bits`,
+  );
+  console.assert(
+    z < 2 ** 12,
+    `Z position of ${z} is too large to fit in 12 bits`,
+  );
+  console.assert(
+    size < 2 ** 4,
+    `Size of ${size} is too large to fit in 4 bits`,
+  );
+  return (x << 28) | (y << 16) | (z << 4) | size;
+};
 
 export const setLeafNode = (
   dataView: DataView,
@@ -281,10 +310,10 @@ export const setLeafNode = (
   dataView.setUint8(index * OCTREE_STRIDE + 1, node.x);
   dataView.setUint8(index * OCTREE_STRIDE + 2, node.y);
   dataView.setUint8(index * OCTREE_STRIDE + 3, node.z);
-  dataView.setUint8(index * OCTREE_STRIDE + 4, node.red);
-  dataView.setUint8(index * OCTREE_STRIDE + 5, node.green);
-  dataView.setUint8(index * OCTREE_STRIDE + 6, node.blue);
-  dataView.setUint8(index * OCTREE_STRIDE + 7, Math.log2(node.size));
+  dataView.setUint8(index * OCTREE_STRIDE + 4, Math.log2(node.size));
+  dataView.setUint8(index * OCTREE_STRIDE + 5, node.red);
+  dataView.setUint8(index * OCTREE_STRIDE + 6, node.green);
+  dataView.setUint8(index * OCTREE_STRIDE + 7, node.blue);
 };
 
 export const setInternalNode = (
@@ -312,8 +341,8 @@ export const setInternalNode = (
   dataView.setUint8(index * OCTREE_STRIDE + 1, node.x);
   dataView.setUint8(index * OCTREE_STRIDE + 2, node.y);
   dataView.setUint8(index * OCTREE_STRIDE + 3, node.z);
-  dataView.setUint32(index * OCTREE_STRIDE + 4, node.firstChildIndex, true);
-  dataView.setUint8(index * OCTREE_STRIDE + 7, Math.log2(node.size));
+  dataView.setUint8(index * OCTREE_STRIDE + 4, Math.log2(node.size));
+  dataView.setUint32(index * OCTREE_STRIDE + 5, node.firstChildIndex, true);
 };
 
 export const deserialiseInternalNode = (
@@ -325,11 +354,12 @@ export const deserialiseInternalNode = (
   const x = dataView.getUint8(index * OCTREE_STRIDE + 1);
   const y = dataView.getUint8(index * OCTREE_STRIDE + 2);
   const z = dataView.getUint8(index * OCTREE_STRIDE + 3);
+  const size = 2 ** dataView.getUint8(index * OCTREE_STRIDE + 4);
   // Mask out the last 8 bits (24 bits total)
   let firstChildIndex =
-    dataView.getUint32(index * OCTREE_STRIDE + 4, true) & 0x00ffffff;
-  const size = 2 ** dataView.getUint8(index * OCTREE_STRIDE + 7);
-  return { childMask, x, y, z, firstChildIndex, size };
+    dataView.getUint32(index * OCTREE_STRIDE + 5, true) & 0x00ffffff;
+
+  return { childMask, x, y, z, firstChildIndex, size, leafMask: 0 };
 };
 
 const deserializeLeafNode = (arrayBuffer: ArrayBuffer, index: number) => {
@@ -337,10 +367,11 @@ const deserializeLeafNode = (arrayBuffer: ArrayBuffer, index: number) => {
   const x = dataView.getUint8(index * OCTREE_STRIDE + 1);
   const y = dataView.getUint8(index * OCTREE_STRIDE + 2);
   const z = dataView.getUint8(index * OCTREE_STRIDE + 3);
-  const red = dataView.getUint8(index * OCTREE_STRIDE + 4);
-  const green = dataView.getUint8(index * OCTREE_STRIDE + 5);
-  const blue = dataView.getUint8(index * OCTREE_STRIDE + 6);
-  const size = 2 ** dataView.getUint8(index * OCTREE_STRIDE + 7);
+  const size = 2 ** dataView.getUint8(index * OCTREE_STRIDE + 4);
+  const red = dataView.getUint8(index * OCTREE_STRIDE + 5);
+  const green = dataView.getUint8(index * OCTREE_STRIDE + 6);
+  const blue = dataView.getUint8(index * OCTREE_STRIDE + 7);
+
   return { x, y, z, red, green, blue, size };
 };
 
@@ -415,7 +446,6 @@ export const lowerOctreeLOD = (
         return;
       }
       const colour = totalLeafColour.map((c) => c / leafCount);
-      console.log(colour, leafCount);
       const leafNode: LeafNode = {
         x: node.x,
         y: node.y,
@@ -437,3 +467,8 @@ export const lowerOctreeLOD = (
     });
   }
 };
+
+// Serialises the octree to a buffer for rasterisation
+export const getLeafNodeBufferWithoutPointers = (
+  arrayBuffer: ArrayBuffer,
+) => {};

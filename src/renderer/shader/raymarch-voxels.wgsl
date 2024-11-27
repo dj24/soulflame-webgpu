@@ -107,7 +107,7 @@ const mask16 = 0xFFFFu;
 const mask24 = 0xFFFFFFu;
 
 // if first child offset is 0, then it is a leaf
-fn isLeaf(node:vec2<u32>) -> bool {
+fn isLeaf(node:vec4<u32>) -> bool {
   return (node[0] & mask8) == 0;
 }
 
@@ -117,24 +117,26 @@ fn isLeaf(node:vec2<u32>) -> bool {
   * The next 8 bits are the x position
   * The next 8 bits are the y position
   * The next 8 bits are the z position
+  * the next 8 bits are the size
   * The next 8 bits are the red component
   * The next 8 bits are the green component
   * The next 8 bits are the blue component
 
   */
-fn unpackLeaf(node: vec2<u32>) -> LeafNode {
+fn unpackLeaf(node: vec4<u32>) -> LeafNode {
   var output = LeafNode();
   let first4Bytes = node.x;
   let second4Bytes = node.y;
   let x = (first4Bytes >> 8u) & mask8;
   let y = (first4Bytes >> 16u) & mask8;
   let z = (first4Bytes >> 24u) & mask8;
-  let r = second4Bytes & mask8;
-  let g = (second4Bytes >> 8u) & mask8;
-  let b = (second4Bytes >> 16u) & mask8;
+  output.size = 1u << (second4Bytes & mask8);
+  let r = (second4Bytes >> 8u) & mask8;
+  let g = (second4Bytes >> 16u) & mask8;
+  let b = (second4Bytes >> 24u) & mask8;
   output.colour = vec3<u32>(r, g, b);
   output.position = vec3<u32>(x, y, z);
-  output.size = 1u << ((second4Bytes >> 24u) & mask8);
+
   return output;
 }
 
@@ -144,10 +146,10 @@ fn unpackLeaf(node: vec2<u32>) -> LeafNode {
   * The next 8 bits are the x position
   * The next 8 bits are the y position
   * The next 8 bits are the z position
-  * The next 24 bits are the firstChildOffset
   * The next 8 bits are the size
+  * The next 24 bits are the firstChildOffset
   */
-fn unpackInternal(node: vec2<u32>) -> InternalNode {
+fn unpackInternal(node: vec4<u32>) -> InternalNode {
   var output = InternalNode();
   let first4Bytes = node.x;
   let second4Bytes = node.y;
@@ -155,9 +157,9 @@ fn unpackInternal(node: vec2<u32>) -> InternalNode {
   let x = (first4Bytes >> 8u) & mask8;
   let y = (first4Bytes >> 16u) & mask8;
   let z = (first4Bytes >> 24u) & mask8;
-  output.firstChildOffset = second4Bytes & mask24;
+  output.size = 1u << (second4Bytes & mask8); // 2 raised to the power of the size
+  output.firstChildOffset = (second4Bytes >> 8u) & mask24;
   output.position = vec3<u32>(x, y, z);
-  output.size = 1u << ((second4Bytes >> 24u) & mask8); // 2 raised to the power of the size
   return output;
 }
 

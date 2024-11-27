@@ -9,7 +9,7 @@ struct ViewProjectionMatrices {
 };
 
 @group(0) @binding(1) var<uniform> viewProjections : ViewProjectionMatrices;
-@group(0) @binding(2) var<storage, read> octreeBuffer : array<vec2<u32>>;
+@group(0) @binding(2) var<storage, read> octreeBuffer : array<vec4<u32>>;
 @group(0) @binding(3) var<storage> voxelObjects : array<VoxelObject>;
 @group(0) @binding(4) var<uniform> cameraPosition : vec3<f32>;
 

@@ -437,7 +437,7 @@ export const getLightsPass = async (device: GPUDevice): Promise<RenderPass> => {
 const DOWN_SAMPLE_FACTOR = ${DOWNSCALE_FACTOR};
 const MAX_SAMPLES = ${MAX_SAMPLES};
 const RESERVOIR_DECAY = ${RESERVOIR_DECAY};
-@group(0) @binding(7) var<storage, read> octreeBuffer : array<vec2<u32>>;
+@group(0) @binding(7) var<storage, read> octreeBuffer : array<vec4<u32>>;
 @group(0) @binding(8) var<storage> voxelObjects : array<VoxelObject>;
 @group(0) @binding(9) var<storage> bvhNodes: array<BVHNode>;
 
@@ -496,7 +496,7 @@ ${lightsCompute}`;
             const DOWN_SAMPLE_FACTOR = ${DOWNSCALE_FACTOR};
             const MAX_SAMPLES = ${MAX_SAMPLES};
             const RESERVOIR_DECAY = ${RESERVOIR_DECAY};
-            @group(0) @binding(7) var<storage, read> octreeBuffer : array<vec2<u32>>;
+            @group(0) @binding(7) var<storage, read> octreeBuffer : array<vec4<u32>>;
             @group(0) @binding(8) var<storage> voxelObjects : array<VoxelObject>;
             @group(0) @binding(9) var<storage> bvhNodes: array<BVHNode>;
             

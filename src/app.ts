@@ -53,6 +53,7 @@ ecs.addSystem(new VelocitySystem());
 ecs.addSystem(new DebugRotaterSystem());
 ecs.addSystem(new ChunkCombinerSystem(64));
 ecs.addSystem(new ChunkCombinerSystem(128)); // Current max size due to 8 bit coordinates
+ecs.addSystem(new ChunkCombinerSystem(256));
 
 const singleton = ecs.addEntity();
 ecs.addComponent(singleton, new GPUDeviceSingleton());

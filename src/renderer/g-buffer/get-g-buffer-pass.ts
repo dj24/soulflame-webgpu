@@ -360,7 +360,7 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
           @group(0) @binding(9) var blueNoiseTex : texture_2d<f32>;
           @group(0) @binding(10) var<storage> bvhNodes: array<BVHNode>;
           @group(0) @binding(11) var<storage> indirectBuffer : array<u32>;
-          @group(0) @binding(13) var<storage> octreeBuffer : array<vec2<u32>>;
+          @group(0) @binding(13) var<storage> octreeBuffer : array<vec4<u32>>;
           @group(0) @binding(14) var<storage> screenRayBuffer : array<vec3<i32>>;
           @group(0) @binding(15) var<storage, read_write> depthBuffer : array<atomic<u32>>;
           @group(0) @binding(16) var<storage, read_write> objectIndexBuffer : array<atomic<u32>>;

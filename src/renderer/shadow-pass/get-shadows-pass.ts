@@ -217,7 +217,7 @@ struct Time {
 @group(0) @binding(16) var worldPosTex : texture_2d<f32>;
 @group(0) @binding(17) var albedoTex : texture_2d<f32>;
 @group(0) @binding(18) var skyCube : texture_cube<f32>;
-@group(0) @binding(19) var<storage, read> octreeBuffer : array<vec2<u32>>;
+@group(0) @binding(19) var<storage, read> octreeBuffer : array<vec4<u32>>;
 
 
 const DOWNSCALE = 1;

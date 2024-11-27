@@ -308,7 +308,7 @@ export const getGlobalIlluminationPass = async (): Promise<RenderPass> => {
             @group(0) @binding(1) var<uniform> cameraPosition : vec3<f32>;
             @group(0) @binding(2) var<uniform> sunDirection : vec3<f32>;
             @group(0) @binding(3) var<storage, read> bvhNodes : array<BVHNode>;
-            @group(0) @binding(4) var<storage, read> octreeBuffer : array<vec2<u32>>;
+            @group(0) @binding(4) var<storage, read> octreeBuffer : array<vec4<u32>>;
             @group(0) @binding(5) var<storage> voxelObjects : array<VoxelObject>;
             @group(0) @binding(6) var<uniform> time : Time;
             @group(0) @binding(7) var previousLpvTex : texture_3d<f32>;
