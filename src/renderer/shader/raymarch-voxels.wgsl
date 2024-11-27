@@ -110,74 +110,51 @@ const mask24 = 0xFFFFFFu;
 
 // if childMask is 0, then it is a leaf
 fn isLeaf(node:vec4<u32>) -> bool {
-  return (node[2] & mask8) == 0;
+  return ((node[1] >> 16u) & mask8) == 0;
 }
 
-/**
-  Unpack
-  12 bit x,y,z values
-  4 bit size
-*/
-fn unpackPositionAndSize(packed: vec2<u32>) -> vec4<u32> {
-  let x = packed[0] & mask16;
-  let y = (packed[0] >> 16u) & mask16;
-  let z = packed[1] & mask16;
-  let size = (packed[1] >> 16u) & mask16;
-  return vec4<u32>(x, y, z, size);
-}
 
-/**
-  * Unpacks a leaf node from a 32 bit integer
-  * First 8 bits are the leaf flag (0)
-  * The next 8 bits are the x position
-  * The next 8 bits are the y position
-  * The next 8 bits are the z position
-  * the next 8 bits are the size
-  * The next 8 bits are the red component
-  * The next 8 bits are the green component
-  * The next 8 bits are the blue component
-
-  */
 fn unpackLeaf(node: vec4<u32>) -> LeafNode {
   var output = LeafNode();
   let first4Bytes = node.x;
   let second4Bytes = node.y;
   let third4Bytes = node.z;
-  let unpackedPositionAndSize = unpackPositionAndSize(vec2<u32>(first4Bytes, second4Bytes));
-  let x = unpackedPositionAndSize.x;
-  let y = unpackedPositionAndSize.y;
-  let z = unpackedPositionAndSize.z;
-  output.size = 1u << unpackedPositionAndSize.w; // 2 raised to the power of the size
-  let r = (second4Bytes >> 16u) & mask8;
-  let g = (second4Bytes >> 24u) & mask8;
-  let b = third4Bytes & mask8;
+
+  let x = first4Bytes & mask12;
+  let y = (first4Bytes >> 12u) & mask12;
+  let PADDING = (first4Bytes >> 24u) & mask8;
+
+  let z = second4Bytes & mask12;
+  output.size = 1u << ((second4Bytes >> 12u) & mask4); // 2 raised to the power of the size
+
+  let r = (second4Bytes >> 24u) & mask8;
+  let g = third4Bytes & mask8;
+  let b = (third4Bytes >> 8u) & mask8;
+
   output.colour = vec3<u32>(r, g, b);
   output.position = vec3<u32>(x, y, z);
 
   return output;
 }
 
-/**
-  * Unpacks an internal node from a 32 bit integer
-  * First 8 bits are the child mask
-  * The next 8 bits are the x position
-  * The next 8 bits are the y position
-  * The next 8 bits are the z position
-  * The next 8 bits are the size
-  * The next 24 bits are the firstChildOffset
-  */
 fn unpackInternal(node: vec4<u32>) -> InternalNode {
   var output = InternalNode();
   let first4Bytes = node.x;
   let second4Bytes = node.y;
   let third4Bytes = node.z;
-  let unpackedPositionAndSize = unpackPositionAndSize(vec2<u32>(first4Bytes, second4Bytes));
-  let x = unpackedPositionAndSize.x;
-  let y = unpackedPositionAndSize.y;
-  let z = unpackedPositionAndSize.z;
-  output.size = 1u << unpackedPositionAndSize.w; // 2 raised to the power of the size
-  output.childMask = third4Bytes & mask8;
-  output.firstChildOffset = third4Bytes >> 8u;
+
+  let x = first4Bytes & mask12;
+  let y = (first4Bytes >> 12u) & mask12;
+  let PADDING1 = (first4Bytes >> 24u) & mask8;
+
+  let z = second4Bytes & mask12;
+  output.size = 1u << ((second4Bytes >> 12u) & mask4); // 2 raised to the power of the size
+
+  output.childMask = (second4Bytes >> 16u) & mask8;
+  let PADDING2 = (second4Bytes >> 24u) & mask8;
+
+  output.firstChildOffset = third4Bytes & mask24;
+
   output.position = vec3<u32>(x, y, z);
   return output;
 }
