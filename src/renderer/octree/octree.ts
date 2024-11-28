@@ -211,6 +211,9 @@ export class Octree {
       return mask;
     }, 0);
 
+    //TODO: correctly set leaf mask
+    let leafMask = 0;
+
     const totalVoxels = childOctantsVoxelCount.reduce(
       (total, octantVoxels) => total + octantVoxels,
       0,
@@ -262,7 +265,7 @@ export class Octree {
       y: scaledOffset[1] * size,
       z: scaledOffset[2] * size,
       size: size,
-      leafMask: 0,
+      leafMask,
     };
     setInternalNode(this.#dataView, startIndex, node);
   }
@@ -336,7 +339,7 @@ export const setInternalNode = (
     true,
   );
   dataView.setUint8(index * OCTREE_STRIDE + 6, node.childMask);
-  dataView.setUint8(index * OCTREE_STRIDE + 7, 0); // Filler value
+  dataView.setUint8(index * OCTREE_STRIDE + 7, node.leafMask); // Filler value
   dataView.setUint32(index * OCTREE_STRIDE + 8, node.firstChildIndex, true);
 };
 

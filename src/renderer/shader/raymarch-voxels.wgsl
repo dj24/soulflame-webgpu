@@ -92,6 +92,7 @@ fn stacku32_pop(stack: ptr<function, StackU32>) -> u32 {
 struct InternalNode {
   firstChildOffset: u32,
   childMask: u32,
+  leafMask: u32,
   position: vec3<u32>,
   size: u32,
 }
@@ -151,7 +152,7 @@ fn unpackInternal(node: vec4<u32>) -> InternalNode {
   output.size = 1u << ((second4Bytes >> 12u) & mask4); // 2 raised to the power of the size
 
   output.childMask = (second4Bytes >> 16u) & mask8;
-  let PADDING2 = (second4Bytes >> 24u) & mask8;
+  output.leafMask = (second4Bytes >> 24u) & mask8;
 
   output.firstChildOffset = third4Bytes & mask24;
 
