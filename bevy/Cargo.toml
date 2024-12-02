@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = { version = "0.14.2", default-features = false, features = ['bevy_scene', 'bevy_winit', "bevy_audio", 'bevy_asset'] }
+bevy = { version = "0.15.0" }
 
 [profile.dev]
 opt-level = 1
