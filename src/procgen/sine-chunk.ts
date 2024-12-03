@@ -11,12 +11,12 @@ import { NoiseCache, NoiseCache2D } from "./noise-cache";
 import { VoxelCache } from "./voxel-cache";
 import { vec3 } from "wgpu-matrix";
 
-export const CHUNK_HEIGHT = 64;
+export const CHUNK_HEIGHT = 128 * 5;
 
 let octree: Octree;
 let noiseCaches: NoiseCache[];
 let voxelCaches: VoxelCache[];
-const NOISE_FREQUENCY = 0.001;
+const NOISE_FREQUENCY = 0.0003;
 const CAVE_FREQUENCY = 0.008;
 
 export const encodeTerrainName = (
@@ -57,19 +57,20 @@ export const createOctreeAndReturnBytes = async (
         x + position[0],
         y + position[2],
         NOISE_FREQUENCY,
-        5,
+        7,
       ),
     [size[0], size[2]],
   );
 
   const leafCache = new VoxelCache({
-    getVoxel: (x, y, z) => getCachedVoxel(x, y, z, 0, noiseCache),
+    getVoxel: (x, y, z) => getCachedVoxel(x, y, z, position[1], noiseCache),
     size,
   });
 
   const octreeDepth = Math.log2(Math.max(...size));
 
   voxelCaches = [leafCache];
+
   for (let i = octreeDepth - 1; i >= 0; i--) {
     const sizeAtDepth = Math.ceil(size[0] / Math.pow(2, octreeDepth - i));
     const cache = new VoxelCache({

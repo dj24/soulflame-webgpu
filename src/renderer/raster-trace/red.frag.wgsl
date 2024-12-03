@@ -50,34 +50,37 @@ fn getVelocity(objectPos: vec3<f32>, modelMatrix: mat4x4<f32>, previousModelMatr
 @fragment
 fn main(
   @location(0) objectPos : vec3f,
+  @location(1) worldPos : vec3f,
   @location(2) @interpolate(linear) ndc : vec3f,
   @location(3) @interpolate(flat) instanceIdx : u32
 ) -> GBufferOutput
  {
     let voxelObject = voxelObjects[instanceIdx];
     var output : GBufferOutput;
-    var screenUV = ndc.xy * 0.5 + 0.5;
-    let rayDirection = calculateRayDirection(screenUV, viewProjections.inverseViewProjection);
-    var worldPos = transformPosition(voxelObject.transform, objectPos);
-
-    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-    var result = rayMarchOctree(voxelObject, rayDirection, cameraPosition, 9999.0);
+//    var screenUV = ndc.xy * 0.5 + 0.5;
+//    let rayDirection = calculateRayDirection(screenUV, viewProjections.inverseViewProjection);
+//    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+//    var result = rayMarchOctree(voxelObject, rayDirection, cameraPosition, 9999.0);
 //
-    if(!result.hit){
-      discard;
-      return output;
-    }
+//    if(!result.hit){
+//      discard;
+//      return output;
+//    }
+
+//    output.albedo = vec4(result.colour, 1.0);
+//    output.normal = vec4(transformNormal(voxelObject.inverseTransform,vec3<f32>(result.normal)), 0.0);
+//    let raymarchedDistance = length(output.worldPosition.xyz  - cameraPosition);
+//    output.worldPosition = vec4(cameraPosition + rayDirection * result.t, raymarchedDistance);
+
+    let raymarchedDistance = length(worldPos - cameraPosition);
+    output.worldPosition = vec4(worldPos, raymarchedDistance);
+    output.normal = vec4(0.0, 1.0, 0.0, 0.0);
+    output.albedo = vec4(1.0, 0.0, 0.0, 1.0);
 
 
-    output.albedo = vec4(result.colour, 1.0);
-    output.normal = vec4(transformNormal(voxelObject.inverseTransform,vec3<f32>(result.normal)), 0.0);
-    output.worldPosition = vec4(cameraPosition + rayDirection * result.t, 0.0);
-    let raymarchedDistance = length(output.worldPosition.xyz  - cameraPosition);
-
-
-
-    let near = 0.5;
-    let far = 10000.0;
+    // TODO: get from buffer
+    let near = 2.0;
+    let far = 1000000.0;
     let linearDepth = normaliseValue(near, far, raymarchedDistance);
     output.depth = linearDepth;
     return output;

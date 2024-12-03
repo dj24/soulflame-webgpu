@@ -1,18 +1,14 @@
 import { VolumeAtlas } from "@renderer/volume-atlas";
-import { wrap } from "comlink";
 import { VoxelObject } from "@renderer/voxel-object";
 import {
   CHUNK_HEIGHT,
   createOctreeAndReturnBytes,
   encodeTerrainName,
-  TerrainWorker,
 } from "./sine-chunk";
 import { OCTREE_STRIDE } from "@renderer/octree/octree";
-import { DebugUI } from "@renderer/ui";
 import { ECS } from "@ecs/ecs";
 import { Transform } from "@renderer/components/transform";
 import { quat } from "wgpu-matrix";
-import { animate, spring } from "motion";
 import { getGPUDeviceSingleton } from "../abstractions/get-gpu-device-singleton";
 import { chunkWidth } from "./systems/terrain-system";
 import { TerrainChunk } from "./components/terrain-chunk";
@@ -45,6 +41,7 @@ export const createTerrainChunk = async (
   size: [number, number, number],
   createOctree: typeof createOctreeAndReturnBytes,
 ) => {
+  const startTime = performance.now();
   const newEntity = ecs.addEntity();
   const [x, y, z] = position;
 
@@ -85,6 +82,10 @@ export const createTerrainChunk = async (
     gpuBuffer,
     octreeBuffer: resizedArray.buffer,
   });
+  const endTime = performance.now();
+  chunkCreationTimes.push(endTime - startTime);
+  averageChunkCreationTime.time =
+    chunkCreationTimes.reduce((a, b) => a + b, 0) / chunkCreationTimes.length;
 
   ecs.addComponent(newEntity, voxelObject);
   const transform = new Transform(
@@ -93,16 +94,5 @@ export const createTerrainChunk = async (
     [1, 1, 1],
   );
   ecs.addComponent(newEntity, new TerrainChunk(size[0], position));
-  // animate(
-  //   (progress) => {
-  //     transform.scale = [progress, progress, progress];
-  //   },
-  //   {
-  //     duration: 1.0,
-  //     easing: spring({
-  //       damping: 100,
-  //     }),
-  //   },
-  // );
   ecs.addComponent(newEntity, transform);
 };

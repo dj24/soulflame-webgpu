@@ -9,7 +9,7 @@ import { Transform } from "@renderer/components/transform";
 import { quat } from "wgpu-matrix";
 import { DebugRotate } from "../../components/debug-rotate";
 
-export const chunkWidth = 64;
+export const chunkWidth = 128;
 
 const workerCount = navigator.hardwareConcurrency || 4;
 
@@ -90,12 +90,12 @@ const foo = async (ecs: ECS) => {
 
   // Get all the chunk positions
   let chunkPositions: [number, number, number][] = [];
-  for (let x = 0; x < 1024; x += chunkWidth) {
-    for (let z = 0; z < 1024; z += chunkWidth) {
+  for (let x = 0; x < 256 * 6; x += chunkWidth) {
+    for (let z = 0; z < 256 * 6; z += chunkWidth) {
       // Iterate from the top of the world down, so we can skip when we hit empty chunks
-      // for (let y = 0; y < CHUNK_HEIGHT; y += chunkWidth) {
-      chunkPositions.push([x, 0, z]);
-      // }
+      for (let y = 0; y < CHUNK_HEIGHT; y += chunkWidth) {
+        chunkPositions.push([x, y, z]);
+      }
     }
   }
 

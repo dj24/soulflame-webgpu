@@ -30,6 +30,7 @@ const findEntityByTerrainDetails = (
     if (
       terrainChunk.size === size &&
       terrainChunk.position[0] === position[0] &&
+      terrainChunk.position[1] === position[1] &&
       terrainChunk.position[2] === position[2]
     ) {
       return entity;

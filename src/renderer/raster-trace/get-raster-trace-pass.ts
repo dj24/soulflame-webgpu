@@ -14,10 +14,13 @@ import getRayDirection from "../shader/get-ray-direction.wgsl";
 import { getCuboidVertices } from "../primitive-meshes/cuboid";
 import { VoxelObject } from "@renderer/voxel-object";
 import { Transform } from "@renderer/components/transform";
+import { OUTPUT_TEXTURE_FORMAT } from "@renderer/constants";
 
 const MVP_BUFFER_STRIDE = 64;
+const vertexStride = 16;
 
 export const getRasterTracePass = async (): Promise<RenderPass> => {
+  const verticesPerMesh = getCuboidVertices([1, 1, 1]).length;
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
       // Model view projection matrix
@@ -101,7 +104,7 @@ export const getRasterTracePass = async (): Promise<RenderPass> => {
       entryPoint: "main",
       targets: [
         // albedo
-        { format: "rgba16float" },
+        { format: OUTPUT_TEXTURE_FORMAT },
         // normal
         { format: "rgba16float" },
         // world position
@@ -111,7 +114,7 @@ export const getRasterTracePass = async (): Promise<RenderPass> => {
       ],
     },
     primitive: {
-      topology: "triangle-list",
+      topology: "line-list",
       cullMode: "front",
     },
     depthStencil: {
@@ -169,7 +172,7 @@ export const getRasterTracePass = async (): Promise<RenderPass> => {
     };
 
     const verticesBuffer = device.createBuffer({
-      size: 576 * renderableEntities.length,
+      size: verticesPerMesh * vertexStride * renderableEntities.length,
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
       label: "vertices buffer",
     });
@@ -219,27 +222,24 @@ export const getRasterTracePass = async (): Promise<RenderPass> => {
       const voxelObject = ecs
         .getComponents(renderableEntities[i])
         .get(VoxelObject);
-
+      // TODO: scale the MVP buffer matrices as the mesh is instanced (i.e the vertices are the same)
+      const vertices = getCuboidVertices(voxelObject.size);
+      device.queue.writeBuffer(
+        verticesBuffer,
+        i * vertexStride * verticesPerMesh,
+        vertices,
+      );
       const m = transform.transform;
       const vp = mat4.mul(
         mat4.scale(camera.projectionMatrix, [-1, 1, 1]),
         getViewMatrix(cameraTransform),
       );
       const mvp = new Float32Array(mat4.mul(vp, m));
+      const bufferOffset = i * MVP_BUFFER_STRIDE;
       device.queue.writeBuffer(
         modelViewProjectionMatrixBuffer,
-        MVP_BUFFER_STRIDE * i,
-        mvp.buffer,
-        mvp.byteOffset,
-        mvp.byteLength,
-      );
-      const vertices = new Float32Array(getCuboidVertices(voxelObject.size));
-      device.queue.writeBuffer(
-        verticesBuffer,
-        576 * i,
-        vertices.buffer,
-        vertices.byteOffset,
-        vertices.byteLength,
+        bufferOffset,
+        mvp,
       );
     }
 
@@ -251,7 +251,7 @@ export const getRasterTracePass = async (): Promise<RenderPass> => {
     passEncoder.setPipeline(pipeline);
     passEncoder.setVertexBuffer(0, verticesBuffer);
     passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.draw(36, renderableEntities.length, 0, 0);
+    passEncoder.draw(verticesPerMesh, renderableEntities.length, 0, 0);
     passEncoder.end();
   };
 

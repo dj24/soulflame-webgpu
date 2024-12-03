@@ -158,18 +158,6 @@ let linearSampler: GPUSampler;
 let nearestSampler: GPUSampler;
 let timestampLabels: string[];
 
-let foo = {
-  lightY: 64,
-};
-
-const debugColours = [
-  [1, 0, 0],
-  [0, 1, 0],
-  [0, 0, 1],
-];
-
-const folder = (window as any).debugUI.gui.add(foo, "lightY", 0, 128, 1);
-
 const setupCanvasAndTextures = () => {
   canvas = document.getElementById("webgpu-canvas") as HTMLCanvasElement;
   canvas.style.imageRendering = "pixelated";
@@ -241,9 +229,8 @@ export const init = async (
     getClearPass(velocityTexture),
     getClearPass(worldPositionTexture),
     getClearPass(outputTexture),
-    getGBufferPass(),
-    getSmoothNormalsPass(device),
-    // getRasterTracePass(),
+    // getGBufferPass(),
+    getRasterTracePass(),
     (async () => {
       return {
         label: "copy albedo",
@@ -467,8 +454,6 @@ setInterval(() => {
   debugUI.log(frameTimeTracker.getAverages());
 }, 250);
 
-let lastEntityCount = 0;
-
 export const frame = async (
   now: number,
   ecs: ECS,
@@ -485,6 +470,18 @@ export const frame = async (
     return;
   }
 
+  getMatricesBuffer(camera, cameraTransform);
+  getVoxelObjectsBuffer(device, ecs, renderableEntities);
+  getTimeBuffer();
+  getSunDirectionBuffer();
+  const renderableBoundingBoxes = renderableEntities.map((entity) => {
+    return getVoxelObjectBoundingBox(
+      ecs.getComponents(entity).get(VoxelObject),
+      ecs.getComponents(entity).get(Transform),
+    );
+  });
+  bvh.update(renderableBoundingBoxes);
+
   const commandEncoder = device.createCommandEncoder();
   if (startTime === 0) {
     startTime = now;
@@ -497,33 +494,6 @@ export const frame = async (
     elapsedTime = newElapsedTime;
     frameCount = (frameCount + 1) % 2048;
   }
-
-  getMatricesBuffer(camera, cameraTransform);
-
-  let timeStart = performance.now();
-  getVoxelObjectsBuffer(device, ecs, renderableEntities);
-  let timeEnd = performance.now();
-  frameTimeTracker.addSample("voxel objects buffer", timeEnd - timeStart);
-
-  getTimeBuffer();
-  getSunDirectionBuffer();
-
-  const aabbStart = performance.now();
-  const renderableBoundingBoxes = renderableEntities.map((entity) => {
-    return getVoxelObjectBoundingBox(
-      ecs.getComponents(entity).get(VoxelObject),
-      ecs.getComponents(entity).get(Transform),
-    );
-  });
-  const aabbEnd = performance.now();
-  frameTimeTracker.addSample("bvh aabb", aabbEnd - aabbStart);
-
-  const bvhStart = performance.now();
-  bvh.update(renderableBoundingBoxes);
-  const bvhEnd = performance.now();
-  frameTimeTracker.addSample("bvh update", bvhEnd - bvhStart);
-
-  lastEntityCount = renderableEntities.length;
 
   let beginningOfPassWriteIndex = 0;
 
@@ -618,5 +588,4 @@ export const frame = async (
     );
   }
   device.queue.submit([commandEncoder.finish()]);
-  await device.queue.onSubmittedWorkDone();
 };

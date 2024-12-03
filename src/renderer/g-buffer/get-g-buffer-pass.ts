@@ -138,6 +138,13 @@ export const getGBufferPass = async (): Promise<RenderPass> => {
       indirectBuffer: GPUBuffer,
       screenRayBuffer: GPUBuffer,
     ) => {
+      if (
+        !renderArgs.bvhBuffer ||
+        !renderArgs.cameraPositionBuffer ||
+        !renderArgs.viewProjectionMatricesBuffer
+      ) {
+        return;
+      }
       // if (!bindGroup) {
       bindGroup = device.createBindGroup({
         layout: bindGroupLayout,
