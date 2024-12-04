@@ -35,11 +35,12 @@ export const getCachedVoxel = (
 ) => {
   const terrainNoise = noiseCache.get([x, z]);
 
-  if (y + yStart < terrainNoise * CHUNK_HEIGHT) {
+  let offsetY = y + yStart;
+  if (offsetY < terrainNoise * CHUNK_HEIGHT) {
     const colour = vec3.lerp(
       [0, 255 - myrng() * 128, 0],
       [72 - myrng() * 16, 48, 42],
-      1 - y / (terrainNoise * CHUNK_HEIGHT),
+      1 - offsetY / (terrainNoise * CHUNK_HEIGHT),
     );
     return { red: colour[0], green: colour[1], blue: colour[2], solid: true };
   }
@@ -62,16 +63,19 @@ export const createOctreeAndReturnBytes = async (
     [size[0], size[2]],
   );
 
+  console.time("LEAF_CACHE");
   const leafCache = new VoxelCache({
     getVoxel: (x, y, z) => getCachedVoxel(x, y, z, position[1], noiseCache),
     size,
   });
+  console.timeEnd("LEAF_CACHE");
 
   const octreeDepth = Math.log2(Math.max(...size));
 
   voxelCaches = [leafCache];
 
   for (let i = octreeDepth - 1; i >= 0; i--) {
+    console.time("createOctreeAndReturnBytes " + i);
     const sizeAtDepth = Math.ceil(size[0] / Math.pow(2, octreeDepth - i));
     const cache = new VoxelCache({
       getVoxel: (x, y, z) => {
@@ -116,6 +120,7 @@ export const createOctreeAndReturnBytes = async (
       size: [sizeAtDepth, sizeAtDepth, sizeAtDepth],
     });
     voxelCaches.unshift(cache);
+    console.timeEnd("createOctreeAndReturnBytes " + i);
   }
 
   const getVoxel = (x: number, y: number, z: number, depth: number) => {

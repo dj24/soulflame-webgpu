@@ -13,13 +13,11 @@ struct ViewProjectionMatrices {
 @group(0) @binding(3) var<storage> voxelObjects : array<VoxelObject>;
 @group(0) @binding(4) var<uniform> cameraPosition : vec3<f32>;
 
-
-const IDENTITY_MATRIX = mat4x4<f32>(
-  vec4<f32>(1.0, 0.0, 0.0, 0.0),
-  vec4<f32>(0.0, 1.0, 0.0, 0.0),
-  vec4<f32>(0.0, 0.0, 1.0, 0.0),
-  vec4<f32>(0.0, 0.0, 0.0, 1.0)
-);
+fn extractNearFar(projection: mat4x4<f32>) -> vec2<f32> {
+  let near = projection[3][2] / (projection[2][2] - 1.0);
+  let far = projection[3][2] / (projection[2][2] + 1.0);
+  return vec2<f32>(near, far);
+}
 
 struct GBufferOutput {
   @location(0) albedo : vec4f,
@@ -57,31 +55,25 @@ fn main(
  {
     let voxelObject = voxelObjects[instanceIdx];
     var output : GBufferOutput;
-//    var screenUV = ndc.xy * 0.5 + 0.5;
-//    let rayDirection = calculateRayDirection(screenUV, viewProjections.inverseViewProjection);
-//    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
-//    var result = rayMarchOctree(voxelObject, rayDirection, cameraPosition, 9999.0);
-//
-//    if(!result.hit){
-//      discard;
-//      return output;
-//    }
+    var screenUV = ndc.xy * 0.5 + 0.5;
+    let rayDirection = calculateRayDirection(screenUV, viewProjections.inverseViewProjection);
+    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
+    var result = rayMarchOctree(voxelObject, rayDirection, cameraPosition, 9999.0);
 
-//    output.albedo = vec4(result.colour, 1.0);
-//    output.normal = vec4(transformNormal(voxelObject.inverseTransform,vec3<f32>(result.normal)), 0.0);
-//    let raymarchedDistance = length(output.worldPosition.xyz  - cameraPosition);
-//    output.worldPosition = vec4(cameraPosition + rayDirection * result.t, raymarchedDistance);
+    if(!result.hit){
+      discard;
+      return output;
+    }
 
-    let raymarchedDistance = length(worldPos - cameraPosition);
-    output.worldPosition = vec4(worldPos, raymarchedDistance);
-    output.normal = vec4(0.0, 1.0, 0.0, 0.0);
-    output.albedo = vec4(1.0, 0.0, 0.0, 1.0);
-
+    output.albedo = vec4(result.colour, 1.0);
+    output.normal = vec4(transformNormal(voxelObject.inverseTransform,vec3<f32>(result.normal)), 0.0);
+    let raymarchedDistance = length(output.worldPosition.xyz  - cameraPosition);
+    output.worldPosition = vec4(cameraPosition + rayDirection * result.t, raymarchedDistance);
 
     // TODO: get from buffer
-    let near = 2.0;
-    let far = 1000000.0;
-    let linearDepth = normaliseValue(near, far, raymarchedDistance);
+    let nearFar = extractNearFar(viewProjections.projection);
+    let viewSpacePosition = (viewProjections.viewMatrix * vec4(output.worldPosition.xyz, 1.0)).xyz;
+    let linearDepth = normaliseValue(nearFar[0], nearFar[1], -viewSpacePosition.z);
     output.depth = linearDepth;
     return output;
 }

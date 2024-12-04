@@ -114,7 +114,7 @@ export const getRasterTracePass = async (): Promise<RenderPass> => {
       ],
     },
     primitive: {
-      topology: "line-list",
+      topology: "triangle-list",
       cullMode: "front",
     },
     depthStencil: {
@@ -172,10 +172,13 @@ export const getRasterTracePass = async (): Promise<RenderPass> => {
     };
 
     const verticesBuffer = device.createBuffer({
-      size: verticesPerMesh * vertexStride * renderableEntities.length,
+      size: verticesPerMesh * vertexStride,
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
       label: "vertices buffer",
     });
+    const vertices = getCuboidVertices([1, 1, 1]);
+    device.queue.writeBuffer(verticesBuffer, 0, vertices);
+
     const modelViewProjectionMatrixBuffer = device.createBuffer({
       size: MVP_BUFFER_STRIDE * renderableEntities.length,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
@@ -222,14 +225,9 @@ export const getRasterTracePass = async (): Promise<RenderPass> => {
       const voxelObject = ecs
         .getComponents(renderableEntities[i])
         .get(VoxelObject);
-      // TODO: scale the MVP buffer matrices as the mesh is instanced (i.e the vertices are the same)
-      const vertices = getCuboidVertices(voxelObject.size);
-      device.queue.writeBuffer(
-        verticesBuffer,
-        i * vertexStride * verticesPerMesh,
-        vertices,
-      );
-      const m = transform.transform;
+
+      const size = voxelObject.size;
+      const m = mat4.scale(transform.transform, size);
       const vp = mat4.mul(
         mat4.scale(camera.projectionMatrix, [-1, 1, 1]),
         getViewMatrix(cameraTransform),

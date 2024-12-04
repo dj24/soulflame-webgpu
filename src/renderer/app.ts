@@ -229,7 +229,6 @@ export const init = async (
     getClearPass(velocityTexture),
     getClearPass(worldPositionTexture),
     getClearPass(outputTexture),
-    // getGBufferPass(),
     getRasterTracePass(),
     (async () => {
       return {
@@ -254,7 +253,7 @@ export const init = async (
     // getVignettePass(10.0),
     getLightDebugPass(device),
     fullscreenQuad(device),
-    getBoxOutlinePass(device),
+    // getBoxOutlinePass(device),
   ]);
 
   timestampLabels = computePasses.reduce((acc, val) => {
