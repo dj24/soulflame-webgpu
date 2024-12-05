@@ -54,14 +54,6 @@ export const getRasterTracePass = async (): Promise<RenderPass> => {
           type: "read-only-storage",
         },
       },
-      // Camera position
-      {
-        binding: 4,
-        visibility: GPUShaderStage.FRAGMENT,
-        buffer: {
-          type: "uniform",
-        },
-      },
     ],
   });
 
@@ -210,12 +202,6 @@ export const getRasterTracePass = async (): Promise<RenderPass> => {
           binding: 3,
           resource: {
             buffer: transformationMatrixBuffer,
-          },
-        },
-        {
-          binding: 4,
-          resource: {
-            buffer: cameraPositionBuffer,
           },
         },
       ],

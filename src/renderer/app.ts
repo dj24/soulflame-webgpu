@@ -355,7 +355,7 @@ const getMatricesBuffer = (camera: Camera, cameraTransform: Transform) => {
     ...jitteredViewProjectionMatrix,
     ...previousJitteredViewProjectionMatrix,
     ...mat4.invert(jitteredViewProjectionMatrix),
-    ...mat4.invert(previousJitteredViewProjectionMatrix),
+    ...mat4.invert(viewMatrix),
     ...jitteredProjectionMatrix,
     ...mat4.invert(jitteredProjectionMatrix),
     ...viewMatrix,
