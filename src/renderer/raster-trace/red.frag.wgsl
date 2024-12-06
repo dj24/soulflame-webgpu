@@ -84,22 +84,17 @@ fn main(
     var output : GBufferOutput;
     let ray = calculate_ray(ndc.xy, viewProjections.inverseViewProjection, viewProjections.inverseViewMatrix);
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(ray.direction, 0.0)).xyz;
-    let world_coordsNear = viewProjections.inverseViewProjection * vec4<f32>(ndc.xy, -1.0, 1.0);
-    let rayDirection = normalize(worldPos - world_coordsNear.xyz / world_coordsNear.w);
-    var result = rayMarchOctree(voxelObject, rayDirection, ray.origin, 9999.0);
+    var result = rayMarchOctree(voxelObject, ray.direction, ray.origin, 9999.0);
 
+    if(!result.hit){
+      discard;
+      return output;
+    }
 
-
-//    if(!result.hit){
-//      discard;
-//      return output;
-//    }
-
-//    output.albedo = vec4(result.colour, 1.0);
-    output.albedo = vec4(worldPos % 1.0, 1.0);
+    output.albedo = vec4(result.colour, 1.0);
     output.normal = vec4(transformNormal(voxelObject.inverseTransform,vec3<f32>(result.normal)), 0.0);
     let raymarchedDistance = length(output.worldPosition.xyz  - ray.origin);
-    output.worldPosition = vec4(ray.origin + rayDirection * result.t, raymarchedDistance);
+    output.worldPosition = vec4(ray.origin + ray.direction * result.t, raymarchedDistance);
 
     // TODO: get from buffer
     let nearFar = extractNearFar(viewProjections.projection);

@@ -38,10 +38,10 @@ ecs.addComponent(singleton, new Spawner());
 const camera = ecs.addEntity();
 ecs.addComponents(
   camera,
-  new Camera({ size: 16 }),
+  new Camera({ fieldOfView: 30 * (Math.PI / 180), near: 2.0, far: 1000000 }),
   new Transform(
-    vec3.create(0, 64, 72),
-    quat.fromEuler(0, 0, -40 * (Math.PI / 180), "xyz"),
+    vec3.create(64, 256, -64),
+    quat.fromEuler(60 * (Math.PI / 180), 0, 0, "xyz"),
     vec3.create(1, 1, 1),
   ),
   new KeyboardControllable(),
