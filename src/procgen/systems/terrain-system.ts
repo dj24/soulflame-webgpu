@@ -90,8 +90,8 @@ const foo = async (ecs: ECS) => {
 
   // Get all the chunk positions
   let chunkPositions: [number, number, number][] = [];
-  for (let x = 0; x < 256 * 6; x += chunkWidth) {
-    for (let z = 0; z < 256 * 6; z += chunkWidth) {
+  for (let x = 0; x < 256 * 4; x += chunkWidth) {
+    for (let z = 0; z < 256 * 4; z += chunkWidth) {
       // Iterate from the top of the world down, so we can skip when we hit empty chunks
       for (let y = 0; y < CHUNK_HEIGHT; y += chunkWidth) {
         chunkPositions.push([x, y, z]);
@@ -120,32 +120,19 @@ export class TerrainSystem extends System {
     if (!this.isInitialized) {
       foo(this.ecs);
       // DEBUG
-      processNewVoxelImport("./Tavern/teapot.vxm", gpuSingleton.device).then(
-        (voxels) => {
-          const newEntity = this.ecs.addEntity();
-          this.ecs.addComponent(newEntity, voxels);
-          this.ecs.addComponent(newEntity, new DebugRotate());
-          const transform = new Transform(
-            [0, 32, 160],
-            quat.fromEuler(0, 0, 0, "xyz"),
-            [0.5, 0.5, 0.5],
-          );
-          this.ecs.addComponent(newEntity, transform);
-        },
-      );
-      processNewVoxelImport("./Tavern/dragon.vxm", gpuSingleton.device).then(
-        (voxels) => {
-          const newEntity = this.ecs.addEntity();
-          this.ecs.addComponent(newEntity, voxels);
-          this.ecs.addComponent(newEntity, new DebugRotate());
-          const transform = new Transform(
-            [256, 48, 256],
-            quat.fromEuler(0, 0, 0, "xyz"),
-            [0.5, 0.5, 0.5],
-          );
-          this.ecs.addComponent(newEntity, transform);
-        },
-      );
+      processNewVoxelImport(
+        "./xmas-game-jam-2024/tree1.vxm",
+        gpuSingleton.device,
+      ).then((voxels) => {
+        const newEntity = this.ecs.addEntity();
+        this.ecs.addComponent(newEntity, voxels);
+        const transform = new Transform(
+          [voxels.size[0] / 2, 16, voxels.size[0] / 2],
+          quat.fromEuler(0, 0, 0, "xyz"),
+          [1, 1, 1],
+        );
+        this.ecs.addComponent(newEntity, transform);
+      });
       this.isInitialized = true;
     }
   }

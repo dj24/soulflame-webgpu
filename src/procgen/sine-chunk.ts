@@ -7,11 +7,12 @@ import {
   ridgedFractalNoise2D,
 } from "./fractal-noise-3d";
 import { easeInOutCubic } from "./easing";
-import { NoiseCache, NoiseCache2D } from "./noise-cache";
+import { convert3DTo1D, NoiseCache, NoiseCache2D } from "./noise-cache";
 import { VoxelCache } from "./voxel-cache";
 import { vec3 } from "wgpu-matrix";
+import { convertVxm } from "@renderer/convert-vxm";
 
-export const CHUNK_HEIGHT = 128 * 5;
+export const CHUNK_HEIGHT = 128;
 
 let octree: Octree;
 let noiseCaches: NoiseCache[];
@@ -26,7 +27,41 @@ export const encodeTerrainName = (
   return `Terrain(${position[0]},${position[1]},${position[2]})(${size[0]},${size[1]},${size[2]})`;
 };
 
-export const getCachedVoxel = (
+const getTreeCache = async () => {
+  const path = "./xmas-game-jam-2024/tree1.vxm";
+  const response = await fetch(path);
+  const arrayBuffer = await response.arrayBuffer();
+  const voxels = convertVxm(arrayBuffer);
+  const cache = new Uint8Array(
+    voxels.SIZE[0] * voxels.SIZE[1] * voxels.SIZE[2] * 3,
+  );
+  voxels.XYZI.forEach((voxel) => {
+    const index = convert3DTo1D(voxels.SIZE, [voxel.x, voxel.y, voxel.z]);
+    cache[index * 3] = voxels.RGBA[voxel.c].r;
+    cache[index * 3 + 1] = voxels.RGBA[voxel.c].g;
+    cache[index * 3 + 2] = voxels.RGBA[voxel.c].b;
+  });
+  return (x: number, y: number, z: number) => {
+    const index = convert3DTo1D(voxels.SIZE, [x, y, z]);
+    const red = cache[index * 3];
+    const green = cache[index * 3 + 1];
+    const blue = cache[index * 3 + 2];
+    if (red === 0 && green === 0 && blue === 0) {
+      return null;
+    }
+    if (x >= voxels.SIZE[0] || y >= voxels.SIZE[1] || z >= voxels.SIZE[2]) {
+      return null;
+    }
+    return {
+      red: cache[index * 3],
+      green: cache[index * 3 + 1],
+      blue: cache[index * 3 + 2],
+      solid: true,
+    };
+  };
+};
+
+export const getTerrainVoxel = (
   x: number,
   y: number,
   z: number,
@@ -34,13 +69,12 @@ export const getCachedVoxel = (
   noiseCache: NoiseCache2D,
 ) => {
   const terrainNoise = noiseCache.get([x, z]);
-
   let offsetY = y + yStart;
   if (offsetY < terrainNoise * CHUNK_HEIGHT) {
     const colour = vec3.lerp(
-      [0, 255 - myrng() * 128, 0],
-      [72 - myrng() * 16, 48, 42],
-      1 - offsetY / (terrainNoise * CHUNK_HEIGHT),
+      [0, 128 - myrng() * 32, 0],
+      [72 - myrng() * 8, 48, 42],
+      0,
     );
     return { red: colour[0], green: colour[1], blue: colour[2], solid: true };
   }
@@ -63,12 +97,23 @@ export const createOctreeAndReturnBytes = async (
     [size[0], size[2]],
   );
 
-  console.time("LEAF_CACHE");
+  const getTreeVoxel = await getTreeCache();
+
+  const treeRepeatX = 32;
+  const treeRepeatZ = 32;
+
   const leafCache = new VoxelCache({
-    getVoxel: (x, y, z) => getCachedVoxel(x, y, z, position[1], noiseCache),
+    getVoxel: (x, y, z) => {
+      const terrainVoxel = getTerrainVoxel(x, y, z, position[1], noiseCache);
+      if (!terrainVoxel) {
+        const terrainNoise = noiseCache.get([x, z]);
+        const terrainHeight = terrainNoise * CHUNK_HEIGHT;
+        return getTreeVoxel(x % treeRepeatX, y - 64, z % treeRepeatZ);
+      }
+      return terrainVoxel;
+    },
     size,
   });
-  console.timeEnd("LEAF_CACHE");
 
   const octreeDepth = Math.log2(Math.max(...size));
 

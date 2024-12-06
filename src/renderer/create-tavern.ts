@@ -64,7 +64,6 @@ export const processNewVoxelImport = async (
   const cache = new Uint8Array(
     voxels.SIZE[0] * voxels.SIZE[1] * voxels.SIZE[2] * 3,
   );
-  console.log({ voxels });
   voxels.XYZI.forEach((voxel) => {
     const index = convert3DTo1D(voxels.SIZE, [voxel.x, voxel.y, voxel.z]);
     cache[index * 3] = voxels.RGBA[voxel.c].r;
