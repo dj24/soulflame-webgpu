@@ -9,7 +9,7 @@ import {
 import { easeInOutCubic } from "./easing";
 import { convert3DTo1D, NoiseCache, NoiseCache2D } from "./noise-cache";
 import { VoxelCache } from "./voxel-cache";
-import { vec3 } from "wgpu-matrix";
+import { vec2, Vec2, Vec3, vec3 } from "wgpu-matrix";
 import { convertVxm } from "@renderer/convert-vxm";
 
 export const CHUNK_HEIGHT = 128;
@@ -61,6 +61,32 @@ const getTreeCache = async () => {
   };
 };
 
+const sdCone = (p: Vec3, sinCosAngle: Vec2, height: number) => {
+  const q = vec2.length(vec2.create(p[0], p[2]));
+  const dot = vec2.dot(sinCosAngle, vec2.create(q, p[1]));
+  return Math.max(dot, -height - p[1]);
+};
+
+const getSdfTreeCache = async () => {
+  return (x: number, y: number, z: number) => {
+    const p = [x, y, z];
+    const angleRadians = 2 * 3.1423 * 270;
+    const sinCosAngle = vec2.create(
+      Math.sin(angleRadians),
+      Math.cos(angleRadians),
+    );
+    if (sdCone(p, sinCosAngle, 32) <= 0) {
+      return {
+        red: 0,
+        green: 255,
+        blue: 0,
+        solid: true,
+      };
+    }
+    return null;
+  };
+};
+
 export const getTerrainVoxel = (
   x: number,
   y: number,
@@ -97,10 +123,10 @@ export const createOctreeAndReturnBytes = async (
     [size[0], size[2]],
   );
 
-  const getTreeVoxel = await getTreeCache();
+  const getTreeVoxel = await getSdfTreeCache();
 
-  const treeRepeatX = 32;
-  const treeRepeatZ = 32;
+  const treeRepeatX = 128;
+  const treeRepeatZ = 128;
 
   const leafCache = new VoxelCache({
     getVoxel: (x, y, z) => {
@@ -108,7 +134,7 @@ export const createOctreeAndReturnBytes = async (
       if (!terrainVoxel) {
         const terrainNoise = noiseCache.get([x, z]);
         const terrainHeight = terrainNoise * CHUNK_HEIGHT;
-        return getTreeVoxel(x % treeRepeatX, y - 64, z % treeRepeatZ);
+        return getTreeVoxel(x % treeRepeatX, y - 128, z % treeRepeatZ);
       }
       return terrainVoxel;
     },
