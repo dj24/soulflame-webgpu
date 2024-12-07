@@ -5,6 +5,7 @@ import {
   fractalNoise3D,
   myrng,
   ridgedFractalNoise2D,
+  ridgedFractalNoise3D,
 } from "./fractal-noise-3d";
 import { easeInOutCubic } from "./easing";
 import { convert3DTo1D, NoiseCache, NoiseCache2D } from "./noise-cache";
@@ -12,13 +13,11 @@ import { VoxelCache } from "./voxel-cache";
 import { vec2, Vec2, Vec3, vec3 } from "wgpu-matrix";
 import { convertVxm } from "@renderer/convert-vxm";
 
-export const CHUNK_HEIGHT = 128;
+export const CHUNK_HEIGHT = 64;
 
 let octree: Octree;
-let noiseCaches: NoiseCache[];
 let voxelCaches: VoxelCache[];
 const NOISE_FREQUENCY = 0.0003;
-const CAVE_FREQUENCY = 0.008;
 
 export const encodeTerrainName = (
   position: [number, number, number],
@@ -67,23 +66,95 @@ const sdCone = (p: Vec3, sinCosAngle: Vec2, height: number) => {
   return Math.max(dot, -height - p[1]);
 };
 
+// Infinite cylinder pointing up
+const sdCylinder = (p: Vec3, radius: number) => {
+  return vec2.length(vec2.create(p[0], p[2])) - radius;
+};
+
 const getSdfTreeCache = async () => {
-  return (x: number, y: number, z: number) => {
-    const p = [x, y, z];
-    const angleRadians = 2 * 3.1423 * 270;
-    const sinCosAngle = vec2.create(
-      Math.sin(angleRadians),
-      Math.cos(angleRadians),
-    );
-    if (sdCone(p, sinCosAngle, 32) <= 0) {
-      return {
-        red: 0,
-        green: 255,
-        blue: 0,
-        solid: true,
-      };
+  const circumference = 64;
+  const maxConeSize = 10;
+  const height = 64;
+  const width = circumference;
+  const depth = circumference;
+
+  const cache = new Uint8Array(width * width * depth * 3);
+  const coneCenter = [width / 2, 0, depth / 2];
+
+  for (let x = 0; x < width; x++) {
+    for (let y = 0; y < width; y++) {
+      for (let z = 0; z < depth; z++) {
+        const p = vec3.sub([x, y, z], coneCenter);
+        const index = convert3DTo1D([width, height, depth], [x, y, z]);
+
+        // Trunk
+        const trunkAngle = 88 * (3.1423 / 180);
+        const sinCosTrunkAngle = vec2.create(
+          Math.sin(trunkAngle),
+          Math.cos(trunkAngle),
+        );
+        const trunkP = [p[0], p[1] - height, p[2]];
+        if (sdCone(trunkP, sinCosTrunkAngle, height) <= 0) {
+          const red = 32;
+          const green = 32;
+          const blue = 0;
+          cache[index * 3] = red;
+          cache[index * 3 + 1] = green;
+          cache[index * 3 + 2] = blue;
+          continue;
+        }
+
+        // Leaves
+        const angle = 25 * (3.1423 / 180);
+        const sinCosAngle = vec2.create(Math.sin(angle), Math.cos(angle));
+        const cones = Array.from({ length: 12 }, (_, i) => {
+          const coneHeight = (1.0 - i / 12) * maxConeSize;
+          const coneY = (i / 12) * height + coneHeight;
+          let coneP = [p[0], p[1] - coneY, p[2]];
+          const noise = fractalNoise3D(p[0], p[1], p[2], 0.2, 1);
+          coneP[1] += noise * 0.8;
+          return Math.max(
+            -sdCone(coneP, sinCosAngle, coneHeight),
+            sdCone(vec3.sub(coneP, [0, 1, 0]), sinCosAngle, coneHeight),
+          );
+        });
+        if (cones.some((v) => v <= 0)) {
+          const red = 0;
+          const green = 64 - myrng() * 16;
+          const blue = 0;
+          cache[index * 3] = red;
+          cache[index * 3 + 1] = green;
+          cache[index * 3 + 2] = blue;
+        }
+      }
     }
-    return null;
+  }
+
+  return (x: number, y: number, z: number, yStart: number) => {
+    const offsetY = y + yStart;
+    const index = convert3DTo1D([width, height, depth], [x, offsetY, z]);
+    const red = cache[index * 3];
+    const green = cache[index * 3 + 1];
+    const blue = cache[index * 3 + 2];
+    if (red === 0 && green === 0 && blue === 0) {
+      return null;
+    }
+    if (
+      x < 0 ||
+      offsetY < 0 ||
+      z < 0 ||
+      x >= width ||
+      offsetY >= height ||
+      z >= depth
+    ) {
+      return null;
+    }
+    return {
+      red: cache[index * 3],
+      green: cache[index * 3 + 1],
+      blue: cache[index * 3 + 2],
+      solid: true,
+    };
   };
 };
 
@@ -102,10 +173,15 @@ export const getTerrainVoxel = (
       [72 - myrng() * 8, 48, 42],
       0,
     );
+    // return null;
     return { red: colour[0], green: colour[1], blue: colour[2], solid: true };
   }
   return null;
 };
+
+const nearestN = (v: number, n: number) => Math.floor(v / n) * n;
+
+const getTreeVoxel = await getSdfTreeCache();
 
 export const createOctreeAndReturnBytes = async (
   position: [number, number, number],
@@ -123,20 +199,25 @@ export const createOctreeAndReturnBytes = async (
     [size[0], size[2]],
   );
 
-  const getTreeVoxel = await getSdfTreeCache();
-
-  const treeRepeatX = 128;
-  const treeRepeatZ = 128;
+  const treeRepeatX = 64;
+  const treeRepeatZ = 64;
 
   const leafCache = new VoxelCache({
     getVoxel: (x, y, z) => {
       const terrainVoxel = getTerrainVoxel(x, y, z, position[1], noiseCache);
-      if (!terrainVoxel) {
-        const terrainNoise = noiseCache.get([x, z]);
-        const terrainHeight = terrainNoise * CHUNK_HEIGHT;
-        return getTreeVoxel(x % treeRepeatX, y - 128, z % treeRepeatZ);
-      }
-      return terrainVoxel;
+      const terrainNoise = noiseCache.get([
+        nearestN(x, treeRepeatX),
+        nearestN(z, treeRepeatX),
+      ]);
+      const terrainHeight = terrainNoise * CHUNK_HEIGHT;
+      const treeVoxel = getTreeVoxel(
+        x % treeRepeatX,
+        y - Math.floor(terrainHeight),
+        z % treeRepeatZ,
+        position[1],
+      );
+
+      return treeVoxel ?? terrainVoxel;
     },
     size,
   });
@@ -146,7 +227,6 @@ export const createOctreeAndReturnBytes = async (
   voxelCaches = [leafCache];
 
   for (let i = octreeDepth - 1; i >= 0; i--) {
-    console.time("createOctreeAndReturnBytes " + i);
     const sizeAtDepth = Math.ceil(size[0] / Math.pow(2, octreeDepth - i));
     const cache = new VoxelCache({
       getVoxel: (x, y, z) => {
@@ -191,7 +271,6 @@ export const createOctreeAndReturnBytes = async (
       size: [sizeAtDepth, sizeAtDepth, sizeAtDepth],
     });
     voxelCaches.unshift(cache);
-    console.timeEnd("createOctreeAndReturnBytes " + i);
   }
 
   const getVoxel = (x: number, y: number, z: number, depth: number) => {

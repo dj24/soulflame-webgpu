@@ -36,6 +36,7 @@ export const ridgedFractalNoise3D = (
   x: number,
   y: number,
   z: number,
+  frequency: number = 1,
   octaves: number = 3,
   persistence: number = 0.5,
 ) => {
@@ -45,7 +46,14 @@ export const ridgedFractalNoise3D = (
 
   for (let i = 0; i < octaves; i++) {
     const scale = 1 << i;
-    value += Math.abs(noise3D(x * scale, y * scale, z * scale)) * amplitude;
+    value +=
+      Math.abs(
+        noise3D(
+          x * scale * frequency,
+          y * scale * frequency,
+          z * scale * frequency,
+        ),
+      ) * amplitude;
     totalWeight += amplitude;
     amplitude *= persistence;
   }

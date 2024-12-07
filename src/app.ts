@@ -16,35 +16,43 @@ import { MouseScrollZoomSystem } from "@input/systems/mouse-scroll-zoom-system";
 import { Light } from "@renderer/components/light";
 import { ChunkCombinerSystem } from "./procgen/systems/chunk-combiner-system";
 import { DebugRotaterSystem } from "./systems/debug-rotater-system";
+import { processNewVoxelImport } from "@renderer/create-tavern";
+import { getGPUDeviceSingleton } from "./abstractions/get-gpu-device-singleton";
+import { FpsHandSystem } from "./xmas-game-jam-2024/systems/fps-hand-system";
+import { HingeSystem } from "./systems/hinge-system";
+import { GravitySystem } from "@physics/systems/gravity-system";
+import { KinematicSystem } from "@physics/systems/kinematic-system";
 
 const LIGHT_INTENSITY = 30;
 
 const ecs = new ECS();
 
 // Lights
-for (let x = 64; x < 1024; x += 256) {
-  for (let z = 64; z < 1024; z += 256) {
-    const newEntity = ecs.addEntity();
-    ecs.addComponents(
-      newEntity,
-      new Transform(
-        vec3.create(x, 48, z),
-        quat.fromEuler(0, 0, 0, "xyz"),
-        vec3.create(1, 1, 1),
-      ),
-      new Light(
-        vec3.mulScalar(
-          vec3.normalize(
-            vec3.create(Math.random(), Math.random(), Math.random()),
-          ),
-          LIGHT_INTENSITY,
-        ),
-      ),
-    );
-  }
-}
+// for (let x = 64; x < 1024; x += 256) {
+//   for (let z = 64; z < 1024; z += 256) {
+//     const newEntity = ecs.addEntity();
+//     ecs.addComponents(
+//       newEntity,
+//       new Transform(
+//         vec3.create(x, 48, z),
+//         quat.fromEuler(0, 0, 0, "xyz"),
+//         vec3.create(1, 1, 1),
+//       ),
+//       new Light(
+//         vec3.mulScalar(
+//           vec3.normalize(
+//             vec3.create(Math.random(), Math.random(), Math.random()),
+//           ),
+//           LIGHT_INTENSITY,
+//         ),
+//       ),
+//     );
+//   }
+// }
 
 // Systems
+ecs.addSystem(new KinematicSystem());
+ecs.addSystem(new GravitySystem());
 ecs.addSystem(new KeyboardControl());
 ecs.addSystem(new Renderer());
 ecs.addSystem(new GamepadKinematicBoxControl());
@@ -56,6 +64,8 @@ ecs.addSystem(new ChunkCombinerSystem(128));
 ecs.addSystem(new ChunkCombinerSystem(256));
 ecs.addSystem(new ChunkCombinerSystem(512));
 ecs.addSystem(new ChunkCombinerSystem(1024));
+ecs.addSystem(new FpsHandSystem());
+ecs.addSystem(new HingeSystem());
 
 const singleton = ecs.addEntity();
 ecs.addComponent(singleton, new GPUDeviceSingleton());

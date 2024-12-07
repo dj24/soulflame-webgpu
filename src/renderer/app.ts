@@ -243,7 +243,7 @@ export const init = async (
       };
     })(),
     // getShadowsPass(),
-    // getLightsPass(device),
+    getLightsPass(device),
     // getBloomPass(),
     // getSimpleFogPass(),
     // getTaaPass(outputTexture),
@@ -253,7 +253,7 @@ export const init = async (
     // getVignettePass(10.0),
     // getLightDebugPass(device),
     fullscreenQuad(device),
-    // getBoxOutlinePass(device),
+    getBoxOutlinePass(device),
   ]);
 
   timestampLabels = computePasses.reduce((acc, val) => {

@@ -19,6 +19,7 @@ export class GravitySystem extends System {
         const position = components.get(Transform).position;
         const rotation = components.get(Transform).rotation;
         const scale = components.get(Transform).scale;
+        const options = gravityBox.options;
         const body = new CANNON.Body({
           angularFactor: gravityBox.angularFactor,
           mass: gravityBox.mass,
@@ -36,6 +37,7 @@ export class GravitySystem extends System {
             rotation[2],
             rotation[3],
           ),
+          ...options,
         });
         this.addedEntities.set(entity, body);
         world.addBody(body);

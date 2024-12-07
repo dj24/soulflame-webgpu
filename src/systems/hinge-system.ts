@@ -3,6 +3,7 @@ import { GravityBox } from "@physics/components/gravity-box";
 import * as CANNON from "cannon-es";
 import { getPhysicsWorld } from "../abstractions/get-physics-world";
 import { Hinge } from "../components/hinge";
+import { ImmovableBox } from "@physics/components/immovable-box";
 
 export class HingeSystem extends System {
   componentsRequired = new Set([Hinge]);
@@ -14,22 +15,23 @@ export class HingeSystem extends System {
       const components = this.ecs.getComponents(entity);
       const hingeComponent = components.get(Hinge);
 
-      const gravityBox1 = this.ecs
+      const anchor = this.ecs
         .getComponents(hingeComponent.entity1)
-        .get(GravityBox);
-      const gravityBox2 = this.ecs
+        .get(ImmovableBox);
+
+      const gravityBox = this.ecs
         .getComponents(hingeComponent.entity2)
         .get(GravityBox);
 
-      if (!gravityBox1 || !gravityBox2) {
+      if (!anchor || !gravityBox) {
         continue;
       }
 
       // Add the spring to the physics world if it hasn't been added yet
       if (!this.addedHinges.has(entity)) {
         const hinge = new CANNON.HingeConstraint(
-          world.getBodyById(gravityBox1.bodyId),
-          world.getBodyById(gravityBox2.bodyId),
+          world.getBodyById(anchor.bodyId),
+          world.getBodyById(gravityBox.bodyId),
           hingeComponent.config,
         );
         this.addedHinges.set(entity, hinge);

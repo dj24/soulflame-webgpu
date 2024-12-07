@@ -8,9 +8,16 @@ struct ViewProjectionMatrices {
   viewMatrix : mat4x4<f32>,
 };
 
+struct Time {
+  frame: u32,
+  deltaTime: f32,
+  elapsed: f32
+};
+
 @group(0) @binding(1) var<uniform> viewProjections : ViewProjectionMatrices;
 @group(0) @binding(2) var<storage, read> octreeBuffer : array<vec4<u32>>;
 @group(0) @binding(3) var<storage> voxelObjects : array<VoxelObject>;
+@group(0) @binding(4) var<uniform> time : Time;
 
 fn extractNearFar(projection: mat4x4<f32>) -> vec2<f32> {
   let near = projection[3][2] / (projection[2][2] - 1.0);
@@ -24,6 +31,44 @@ struct GBufferOutput {
   @location(2) worldPosition : vec4f,
   @location(3) velocity : vec4f,
   @builtin(frag_depth) depth : f32,
+}
+
+fn hash( p:vec2<i32> ) -> f32
+{
+  // 2D -> 1D
+  var n = p.x*3 + p.y*113;
+
+  // 1D hash by Hugo Elias
+  n = (n << 13) ^ n;
+  n = n * (n * n * 15731 + 789221) + 1376312589;
+  return -1.0+2.0*f32( n & 0x0fffffff)/f32(0x0fffffff);
+}
+
+
+fn noise( p:vec2<f32> ) -> f32
+{
+    let i = vec2<i32>(floor( p ));
+    let f = fract( p );
+    // cubic interpolant
+    let u = f*f*(3.0 - 2.0*f);
+    return mix( mix( hash( i + vec2<i32>(0,0) ),
+                     hash( i + vec2<i32>(1,0) ), u.x),
+                mix( hash( i + vec2<i32>(0,1) ),
+                     hash( i + vec2<i32>(1,1) ), u.x), u.y);
+}
+
+
+fn fractal(uv:vec2<f32>) -> f32
+{
+  var f = 0.0;
+  var scaledUv = uv * 8.0;
+  let m = mat2x2<f32>( 1.6,  1.2, -1.2,  1.6 );
+  f  = 0.5000*noise( scaledUv );
+  scaledUv = m*scaledUv;
+  f += 0.2500*noise( scaledUv );
+  scaledUv = m*scaledUv;
+  f = 0.5 + 0.5*f;
+  return f;
 }
 
 fn getVelocity(objectPos: vec3<f32>, modelMatrix: mat4x4<f32>, previousModelMatrix: mat4x4<f32>, viewProjections: ViewProjectionMatrices) -> vec3<f32> {
@@ -83,18 +128,22 @@ fn main(
     let voxelObject = voxelObjects[instanceIdx];
     var output : GBufferOutput;
     let ray = calculate_ray(ndc.xy, viewProjections.inverseViewProjection, viewProjections.inverseViewMatrix);
-    let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(ray.direction, 0.0)).xyz;
-    var result = rayMarchOctree(voxelObject, ray.direction, ray.origin, 9999.0);
+//    let r = fractal(ndc.xy + vec2(f32(time.frame) * 0.002, 0));
+    let rayDirection = ray.direction;
+    let rayOrigin = ray.origin;
+    var result = rayMarchOctree(voxelObject, rayDirection, rayOrigin, 9999.0);
 
     if(!result.hit){
       discard;
       return output;
     }
 
-    output.albedo = vec4(result.colour, 1.0);
+    let nDotL = dot(result.normal, normalize(vec3<f32>(0.0, 1.0, 0.0)));
+    output.albedo = vec4(result.colour * mix(nDotL, 1.0, 1.0), 1.0);
     output.normal = vec4(transformNormal(voxelObject.inverseTransform,vec3<f32>(result.normal)), 0.0);
-    let raymarchedDistance = length(output.worldPosition.xyz  - ray.origin);
-    output.worldPosition = vec4(ray.origin + ray.direction * result.t, raymarchedDistance);
+    output.velocity = vec4(0.0);
+    let raymarchedDistance = length(output.worldPosition.xyz  - rayOrigin);
+    output.worldPosition = vec4(rayOrigin + rayDirection * result.t, raymarchedDistance);
 
     // TODO: get from buffer
     let nearFar = extractNearFar(viewProjections.projection);

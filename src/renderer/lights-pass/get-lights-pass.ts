@@ -620,7 +620,7 @@ ${lightsCompute}`;
   };
   let passConfig = {
     spatialEnabled: false,
-    temporalEnabled: true,
+    temporalEnabled: false,
     denoiseEnabled: false,
     maxDenoiseRate: 2,
   };

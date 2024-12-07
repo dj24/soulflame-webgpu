@@ -49,6 +49,18 @@ export class KeyboardControl extends System {
           controllableComponent.rotationSpeed * deltaTime,
         );
       }
+      if (this.keyboardControls.pressed.z) {
+        rotationDelta = quat.rotateX(
+          rotationDelta,
+          -controllableComponent.rotationSpeed * deltaTime,
+        );
+      }
+      if (this.keyboardControls.pressed.x) {
+        rotationDelta = quat.rotateX(
+          rotationDelta,
+          controllableComponent.rotationSpeed * deltaTime,
+        );
+      }
       if (this.keyboardControls.pressed[" "]) {
         positionDelta = vec3.add(positionDelta, transformComponent.up);
       }

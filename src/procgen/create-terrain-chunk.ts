@@ -61,7 +61,8 @@ export const createTerrainChunk = async (
     return;
   }
 
-  const extentY = 1 + boundsMax[1] - boundsMin[1];
+  // const extentY = 1 + boundsMax[1] - boundsMin[1]; // TODO: re-enable this when objects update bounds
+  const extentY = size[1];
   const device = getGPUDeviceSingleton(ecs).device;
 
   // Resize the buffer to the correct size

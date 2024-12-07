@@ -6,6 +6,8 @@ export class KeyboardControls {
     d: false,
     q: false,
     e: false,
+    z: false,
+    x: false,
     " ": false,
     shift: false,
   };

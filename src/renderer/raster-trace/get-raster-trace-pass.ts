@@ -54,6 +54,12 @@ export const getRasterTracePass = async (): Promise<RenderPass> => {
           type: "read-only-storage",
         },
       },
+      // Time
+      {
+        binding: 4,
+        visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX,
+        buffer: {},
+      },
     ],
   });
 
@@ -128,6 +134,7 @@ export const getRasterTracePass = async (): Promise<RenderPass> => {
     camera,
     cameraTransform,
     transformationMatrixBuffer,
+    timeBuffer,
   }: RenderArgs) => {
     const colorAttachments: GPURenderPassColorAttachment[] = [
       {
@@ -202,6 +209,12 @@ export const getRasterTracePass = async (): Promise<RenderPass> => {
           binding: 3,
           resource: {
             buffer: transformationMatrixBuffer,
+          },
+        },
+        {
+          binding: 4,
+          resource: {
+            buffer: timeBuffer,
           },
         },
       ],
