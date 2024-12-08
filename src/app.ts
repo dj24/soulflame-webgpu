@@ -25,33 +25,12 @@ import { KinematicSystem } from "@physics/systems/kinematic-system";
 import { GlobalAudioSystem } from "./xmas-game-jam-2024/systems/global-audio-system";
 import { GlobalAudioSource } from "./xmas-game-jam-2024/components/global-audio-source";
 import { MouseLookSystem } from "@input/systems/mouse-look-system";
+import { AudioSource } from "./xmas-game-jam-2024/components/audio-source";
+import { FootstepAudioSystem } from "./xmas-game-jam-2024/systems/footstep-audio-system";
 
 const LIGHT_INTENSITY = 10;
 
 const ecs = new ECS();
-
-// Lights
-for (let x = 64; x < 1024; x += 128) {
-  for (let z = 64; z < 1024; z += 128) {
-    const newEntity = ecs.addEntity();
-    ecs.addComponents(
-      newEntity,
-      new Transform(
-        vec3.create(x, 48, z),
-        quat.fromEuler(0, 0, 0, "xyz"),
-        vec3.create(1, 1, 1),
-      ),
-      new Light(
-        vec3.mulScalar(
-          vec3.normalize(
-            vec3.create(Math.random(), Math.random(), Math.random()),
-          ),
-          LIGHT_INTENSITY,
-        ),
-      ),
-    );
-  }
-}
 
 // Systems
 ecs.addSystem(new GravitySystem());
@@ -71,6 +50,30 @@ ecs.addSystem(new HingeSystem());
 ecs.addSystem(new FpsHandSystem());
 ecs.addSystem(new GlobalAudioSystem());
 ecs.addSystem(new MouseLookSystem());
+ecs.addSystem(new FootstepAudioSystem());
+
+// Lights
+// for (let x = 64; x < 1024; x += 128) {
+//   for (let z = 64; z < 1024; z += 128) {
+//     const newEntity = ecs.addEntity();
+//     ecs.addComponents(
+//       newEntity,
+//       new Transform(
+//         vec3.create(x, 48, z),
+//         quat.fromEuler(0, 0, 0, "xyz"),
+//         vec3.create(1, 1, 1),
+//       ),
+//       new Light(
+//         vec3.mulScalar(
+//           vec3.normalize(
+//             vec3.create(Math.random(), Math.random(), Math.random()),
+//           ),
+//           LIGHT_INTENSITY,
+//         ),
+//       ),
+//     );
+//   }
+// }
 
 // Globals
 const singleton = ecs.addEntity();
@@ -82,7 +85,7 @@ ecs.addComponent(
   new GlobalAudioSource("./xmas-game-jam-2024/blizzard.wav", 0.01),
 );
 
-// Camera
+// Camera / Player
 const camera = ecs.addEntity();
 ecs.addComponents(
   camera,
@@ -93,8 +96,8 @@ ecs.addComponents(
     vec3.create(1, 1, 1),
   ),
   new KeyboardControllable(),
-  new GamepadKinematicBoxControl(),
   new Velocity(),
+  new AudioSource("./xmas-game-jam-2024/footsteps.wav", 0.2),
 );
 
 // Game loop

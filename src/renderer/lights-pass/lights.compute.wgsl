@@ -71,10 +71,11 @@ fn unpackReservoir(reservoir: vec4<f32>) -> Reservoir {
 
 const QUADRATIC_ATTENUATION = 0.1;
 const LIGHT_COUNT = 32;
+const LIGHT_COUNT_WITH_SUN = LIGHT_COUNT + 1;
 const SAMPLES_PER_FRAME = 8;
 const MAX_BINARY_SEARCH_ITERATIONS = 32;
 
-fn binarySearchCDF(CDF: array<f32, LIGHT_COUNT>, randomValue: f32)-> u32 {
+fn binarySearchCDF(CDF: array<f32, LIGHT_COUNT_WITH_SUN>, randomValue: f32)-> u32 {
   var low = 0u;
   var high = LIGHT_COUNT - 1u;
   var iterations = 0;
@@ -98,15 +99,20 @@ fn binarySearchCDF(CDF: array<f32, LIGHT_COUNT>, randomValue: f32)-> u32 {
 fn getLightWeight(lightPos: vec3<f32>, lightColour: vec3<f32>, worldPos: vec3<f32>, normal: vec3<f32>) -> f32 {
   let lightDir = lightPos - worldPos;
   let d = length(lightDir);
-  if(d > lightConfig.lightCutoff){
-    return 0.0;
-  }
+//  if(d > lightConfig.lightCutoff){
+//    return 0.0;
+//  }
   let attenuation = lightConfig.constantAttenuation + lightConfig.linearAttenuation * d + lightConfig.quadraticAttenuation * d * d;
   let ndotl = dot(normalize(lightDir), normal);
   var weight = (1.0 / attenuation) * length(lightColour) * ndotl;
   return weight;
 }
 
+fn getDirectionalLightWeight(lightDir: vec3<f32>, lightColour: vec3<f32>, normal: vec3<f32>) -> f32 {
+  let ndotl = dot(normalize(lightDir), normal);
+  var weight = length(lightColour) * ndotl;
+  return weight;
+}
 
 fn calculateNDC(worldPos: vec3<f32>, viewProjection: mat4x4<f32>) -> vec3<f32> {
   let clipPos = viewProjection * vec4(worldPos, 1.0);
@@ -117,6 +123,7 @@ fn calculateNDC(worldPos: vec3<f32>, viewProjection: mat4x4<f32>) -> vec3<f32> {
 }
 
 const WEIGHT_THRESHOLD = 0.1;
+const SUNLIGHT_INDEX = 0;
 
 /**
   * Checkerboard pattern for % frame index 0, 1
@@ -152,24 +159,39 @@ let worldPos = textureLoad(worldPosTex, offsetPixel, 0).xyz;
   blueNoisePixel.x += frameOffsetX;
   blueNoisePixel.y += frameOffsetY;
   // TODO: Causes lockup on macOS
-//  let r = textureLoad(blueNoiseTex,blueNoisePixel % 512, 0).xy;
-  let r = vec2(0.2);
-  var importance = array<f32, LIGHT_COUNT>();
-  var CDF = array<f32, LIGHT_COUNT>();
+  let r = textureLoad(blueNoiseTex,blueNoisePixel % 512, 0).xy;
+//  let r = vec2(0.2);
+
+  var importance = array<f32, LIGHT_COUNT_WITH_SUN>();
+  var CDF = array<f32, LIGHT_COUNT_WITH_SUN>();
 
   // Calculate importance values based on intensity and distance
-  for (var i = 0; i < LIGHT_COUNT; i++) {
-      let light = lightsBuffer[i];
+  for (var i = 1; i < LIGHT_COUNT_WITH_SUN; i++) {
+      let lightBufferIndex = i - 1;
+      let light = lightsBuffer[lightBufferIndex];
       let lightPos = light.position + randomInUnitSphere(r);
       importance[i] = getLightWeight(lightPos, light.color, worldPos, normal);
   }
 
+  // Sunlight
+//  let azimuth = time.elapsed * 0.1;
+//  let altitude = 45.0 * (3.141592653589793 / 180.0);
+//  var sunDir = vec3(
+//    cos(azimuth) * cos(altitude),
+//    sin(altitude),
+//    sin(azimuth) * cos(altitude)
+//  );
+  let sunDir = vec3(0,1.,0);
+  let sunColor = vec3(1.,1.,0.8);
+
+//  importance[SUNLIGHT_INDEX] = getDirectionalLightWeight(sunDir, sunColor, normal);
+
   // Normalize and create CDF
   var totalImportance = 0.0;
-  for (var i = 0; i < LIGHT_COUNT; i++) {
+  for (var i = 0; i < LIGHT_COUNT_WITH_SUN; i++) {
       totalImportance += importance[i];
   }
-  for (var i = 0; i < LIGHT_COUNT; i++) {
+  for (var i = 0; i < LIGHT_COUNT_WITH_SUN; i++) {
     if(i == 0){
       CDF[i] = importance[i] / totalImportance;
     } else {
@@ -186,20 +208,37 @@ let worldPos = textureLoad(worldPosTex, offsetPixel, 0).xyz;
     let iterOffsetY = (i * 257); // Different prime numbers
     let sampleR = textureLoad(blueNoiseTex, (blueNoisePixel + vec2(iterOffsetX, iterOffsetY)) % 512, 0).xy;
     let sampleLightIndex = binarySearchCDF(CDF, sampleR.y);
-    let light = lightsBuffer[sampleLightIndex];
-    let weight = getLightWeight(light.position + randomInUnitSphere(r), light.color, worldPos, normal);
-    weightSum += weight;
-    sampleCount++;
 
-    if(r.y < weight / weightSum){
-      lightIndex = sampleLightIndex;
-      bestWeight = weight;
+    // Sunlight
+    if(sampleLightIndex == SUNLIGHT_INDEX){
+      let sunWeight = getDirectionalLightWeight(sunDir, sunColor, normal);
+      weightSum += sunWeight;
+      sampleCount++;
+      let sunBias = 0.0;
+      if(sampleR.y < (sunWeight + sunBias) / (weightSum + sunBias)){
+        lightIndex = SUNLIGHT_INDEX;
+        bestWeight = sunWeight;
+      }
+    }
+    // Other lights
+    else{
+      let lightBufferIndex = sampleLightIndex - 1;
+      let light = lightsBuffer[lightBufferIndex];
+      let weight = getLightWeight(light.position + randomInUnitSphere(r), light.color, worldPos, normal);
+      weightSum += weight;
+      sampleCount++;
+
+      if(r.y < weight / weightSum){
+        lightIndex = sampleLightIndex;
+        bestWeight = weight;
+      }
     }
   }
 
   let light = lightsBuffer[lightIndex];
-  let lightPos = light.position + randomInUnitSphere(r);
-  let lightDir = lightPos - worldPos;
+//  let lightPos = light.position + randomInUnitSphere(r);
+  let lightPos = light.position;
+  let lightDir = normalize(lightPos - worldPos);
 
   var currentReservoir = unpackReservoir(textureLoad(inputReservoirTex, offsetPixel, 0));
   var weightDifference = abs(bestWeight - currentReservoir.lightWeight);
@@ -208,7 +247,8 @@ let worldPos = textureLoad(worldPosTex, offsetPixel, 0).xyz;
     currentReservoir = Reservoir(0, 0.0, 0.0, 0);
   }
 
-  let raymarchResult = rayMarchBVHFirstHit(worldPos + normal * 0.001, normalize(lightDir));
+  let raymarchResult = rayMarchBVHFirstHit(worldPos + normal * 0.1, lightDir);
+//  let raymarchResult = rayMarchBVH(worldPos + normal * 0.1, lightDir);
   if(raymarchResult.hit){
       bestWeight = 0.0;
   }

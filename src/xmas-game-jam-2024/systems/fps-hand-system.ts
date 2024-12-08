@@ -36,6 +36,7 @@ export class FpsHandSystem extends System {
     const components = this.ecs.getComponents(entity);
     if (!this.isInitialized) {
       this.isInitialized = true;
+
       const promises = [
         processNewVoxelImport(
           "./xmas-game-jam-2024/hand.vxm",
@@ -119,6 +120,14 @@ export class FpsHandSystem extends System {
           },
         );
         this.localPhysicsWorld.addConstraint(hinge);
+
+        // Light
+        // this.lightEntity = this.ecs.addEntity();
+        // this.ecs.addComponents(
+        //   this.lightEntity,
+        //   new Transform([0, 0, 0], quat.identity(), [1, 1, 1]),
+        //   new Light([4, 3, 1]),
+        // );
       });
     }
     // Follow every frame
@@ -203,6 +212,20 @@ export class FpsHandSystem extends System {
       lanternTransform.position = vec3.add(
         lanternTransform.position,
         cameraTransform.position,
+      );
+
+      // Light
+      const lightComponents = this.ecs.getComponents(this.lightEntity);
+      if (!lightComponents) {
+        return;
+      }
+      const lightTransform = lightComponents.get(Transform);
+      if (!lightTransform) {
+        return;
+      }
+      lightTransform.position = vec3.add(
+        lanternTransform.position,
+        vec3.transformQuat([0, -2, 0], lanternTransform.rotation),
       );
     }
   }

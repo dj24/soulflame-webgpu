@@ -129,15 +129,16 @@ export const getLightDebugPass = async (
       modelViewProjectionMatrixBuffer = device.createBuffer({
         size: 256 * renderableEntities.size,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-        label: "mvp buffer",
+        label: "light pos mvp buffer",
       });
     }
 
-    renderableEntities.forEach((entity, i) => {
+    [...renderableEntities].forEach((entity, i) => {
       const transform = ecs.getComponents(entity).get(Transform);
       const light = ecs.getComponents(entity).get(Light);
       const vertices = getCuboidVerticesColours([2, 2, 2], light.color);
       const bufferOffset = i * 256;
+
       device.queue.writeBuffer(
         verticesBuffer,
         i * vertexStride * verticesPerMesh,

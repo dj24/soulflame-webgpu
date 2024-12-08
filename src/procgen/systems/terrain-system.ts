@@ -6,8 +6,9 @@ import { wrap } from "comlink";
 import { CHUNK_HEIGHT } from "../sine-chunk";
 import { processNewVoxelImport } from "@renderer/create-tavern";
 import { Transform } from "@renderer/components/transform";
-import { quat } from "wgpu-matrix";
+import { quat, vec3 } from "wgpu-matrix";
 import { DebugRotate } from "../../components/debug-rotate";
+import { Light } from "@renderer/components/light";
 
 export const chunkWidth = 64;
 
@@ -121,17 +122,39 @@ export class TerrainSystem extends System {
       foo(this.ecs);
       // DEBUG
       processNewVoxelImport(
-        "./xmas-game-jam-2024/tree1.vxm",
+        "./xmas-game-jam-2024/cabin.vxm",
         gpuSingleton.device,
       ).then((voxels) => {
+        const cabinPos = [64, 16, 64];
+
         const newEntity = this.ecs.addEntity();
         this.ecs.addComponent(newEntity, voxels);
         const transform = new Transform(
-          [voxels.size[0] / 2, 16, voxels.size[0] / 2],
+          [voxels.size[0] / 2, voxels.size[1] / 2, voxels.size[2] / 2],
           quat.fromEuler(0, 0, 0, "xyz"),
           [1, 1, 1],
         );
+        transform.position = vec3.add(transform.position, cabinPos);
         this.ecs.addComponent(newEntity, transform);
+
+        // Lights
+        const light1 = this.ecs.addEntity();
+        const light1Transform = new Transform(
+          [8, 8, 24],
+          quat.fromEuler(0, 0, 0, "xyz"),
+          [1, 1, 1],
+        );
+        light1Transform.position = vec3.add(light1Transform.position, cabinPos);
+        this.ecs.addComponents(light1, light1Transform, new Light([5, 0, 0]));
+
+        const light2 = this.ecs.addEntity();
+        const light2Transform = new Transform(
+          [voxels.size[0] - 8, 8, 24],
+          quat.fromEuler(0, 0, 0, "xyz"),
+          [1, 1, 1],
+        );
+        light2Transform.position = vec3.add(light2Transform.position, cabinPos);
+        this.ecs.addComponents(light2, light2Transform, new Light([0, 5, 0]));
       });
       this.isInitialized = true;
     }

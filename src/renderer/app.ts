@@ -54,6 +54,7 @@ import { getRasterTracePass } from "@renderer/raster-trace/get-raster-trace-pass
 import { getLightDebugPass } from "@renderer/box-outline/get-light-debug-pass";
 import { OUTPUT_TEXTURE_FORMAT } from "@renderer/constants";
 import { getSmoothNormalsPass } from "@renderer/smooth-normals-pass/smooth-normals-pass";
+import { getSimpleLightsPass } from "@renderer/simple-lights/get-simple-lights-pass";
 
 export const debugValues = new DebugValuesStore();
 export let gpuContext: GPUCanvasContext;
@@ -221,7 +222,7 @@ export const init = async (
     toneMapping: { mode: "extended" },
   });
 
-  createBlueNoiseTexture(device);
+  await createBlueNoiseTexture(device);
 
   computePasses = await Promise.all([
     getClearPass(albedoTexture),
@@ -244,6 +245,7 @@ export const init = async (
     })(),
     // getShadowsPass(),
     // getLightsPass(device),
+    getSimpleLightsPass(),
     // getBloomPass(),
     // getSimpleFogPass(),
     // getTaaPass(outputTexture),
@@ -253,7 +255,7 @@ export const init = async (
     // getVignettePass(10.0),
     getLightDebugPass(device),
     fullscreenQuad(device),
-    getBoxOutlinePass(device),
+    // getBoxOutlinePass(device),
   ]);
 
   timestampLabels = computePasses.reduce((acc, val) => {
