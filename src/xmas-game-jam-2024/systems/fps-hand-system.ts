@@ -13,15 +13,18 @@ import { getPhysicsWorld } from "../../abstractions/get-physics-world";
 import { HingeSystem } from "../../systems/hinge-system";
 import { Light } from "@renderer/components/light";
 
-const HAND_VOXELS_SIZE = [12, 38, 10];
-const LANTERN_VOXELS_SIZE = [19, 39, 15];
-
 export class FpsHandSystem extends System {
   componentsRequired = new Set([Camera, Transform]);
   isInitialized = false;
   handEntity: number;
   lanternEntity: number;
+  lightEntity: number;
   targetHandRotation = quat.create();
+  localPhysicsWorld = new CANNON.World({
+    gravity: new CANNON.Vec3(0, -150, 0),
+  });
+  localLanternBody: CANNON.Body;
+  localHandBody: CANNON.Body;
 
   update(entities: Set<Entity>, now: number, deltaTime: number) {
     const gpuSingleton = getGPUDeviceSingleton(this.ecs);
@@ -46,42 +49,72 @@ export class FpsHandSystem extends System {
 
       Promise.all(promises).then(([handVoxels, lanternVoxels]) => {
         // Hand
+        const handScale = 0.1;
         this.handEntity = this.ecs.addEntity();
-
         this.ecs.addComponents(
           this.handEntity,
           handVoxels,
-          new Transform([0, 0, 0], quat.identity(), [0.1, 0.1, 0.1]),
-          new ImmovableBox(handVoxels.size),
+          new Transform([0, 0, 0], quat.identity(), [
+            handScale,
+            handScale,
+            handScale,
+          ]),
         );
+        this.localHandBody = new CANNON.Body({
+          position: new CANNON.Vec3(0, 0, 0),
+          shape: new CANNON.Box(
+            new CANNON.Vec3(
+              (handVoxels.size[0] / 2) * handScale,
+              (handVoxels.size[1] / 2) * handScale,
+              (handVoxels.size[2] / 2) * handScale,
+            ),
+          ),
+        });
+        this.localPhysicsWorld.addBody(this.localHandBody);
 
         // Lantern
         this.lanternEntity = this.ecs.addEntity();
         this.ecs.addComponents(
           this.lanternEntity,
           lanternVoxels,
-          new Transform([0, 0, 0], quat.identity(), [0.1, 0.1, 0.1]),
-          new Hinge(this.handEntity, this.lanternEntity, {
+          new Transform([0, 0, 0], quat.identity(), [
+            handScale,
+            handScale,
+            handScale,
+          ]),
+        );
+        this.localLanternBody = new CANNON.Body({
+          position: new CANNON.Vec3(0, 0, 0),
+          shape: new CANNON.Box(
+            new CANNON.Vec3(
+              (lanternVoxels.size[0] / 2) * handScale,
+              (lanternVoxels.size[1] / 2) * handScale,
+              (lanternVoxels.size[2] / 2) * handScale,
+            ),
+          ),
+        });
+        this.localPhysicsWorld.addBody(this.localLanternBody);
+
+        // Hinge
+        const hinge = new CANNON.HingeConstraint(
+          this.localHandBody,
+          this.localLanternBody,
+          {
             pivotA: new CANNON.Vec3(
               0,
-              (handVoxels.size[1] / 2 - 5) * 0.1,
-              1 * 0.1,
+              (handVoxels.size[1] / 2 - 5) * handScale,
+              handScale,
             ),
             pivotB: new CANNON.Vec3(
               0,
-              (lanternVoxels.size[1] / 2 - 1.5) * 0.1,
+              (lanternVoxels.size[1] / 2 - 1.5) * handScale,
               0,
             ),
+            // axisA: new CANNON.Vec3(0, 0, 1),
             collideConnected: false,
-          }),
-          new GravityBox(lanternVoxels.size, 1, {
-            angularDamping: 0.999,
-            // linearDamping: 1.0,
-          }),
-          new Light(vec3.create(10, 10, 0)),
+          },
         );
-
-        console.log({ handVoxels, lanternVoxels });
+        this.localPhysicsWorld.addConstraint(hinge);
       });
     }
     // Follow every frame
@@ -91,8 +124,6 @@ export class FpsHandSystem extends System {
         return;
       }
       const handTransform = handComponents.get(Transform);
-      const handBox = this.ecs.getComponents(this.handEntity).get(ImmovableBox);
-      const handBody = physicsWorld.getBodyById(handBox.bodyId);
       const cameraTransform = components.get(Transform);
 
       // Hand
@@ -107,7 +138,7 @@ export class FpsHandSystem extends System {
             this.targetHandRotation,
             progress,
           );
-          handBody.quaternion.set(
+          this.localHandBody.quaternion.set(
             newRotation[0],
             newRotation[1],
             newRotation[2],
@@ -128,10 +159,29 @@ export class FpsHandSystem extends System {
           cameraTransform.rotation,
         ),
       );
-      handBody.position.set(
-        newHandPosition[0],
-        newHandPosition[1],
-        newHandPosition[2],
+      handTransform.position = newHandPosition;
+
+      const lanternTransform = this.ecs
+        .getComponents(this.lanternEntity)
+        .get(Transform);
+
+      // Local Physics
+      this.localPhysicsWorld.fixedStep(deltaTime / 1000);
+      handTransform.rotation = [
+        this.localHandBody.quaternion.x,
+        this.localHandBody.quaternion.y,
+        this.localHandBody.quaternion.z,
+        this.localHandBody.quaternion.w,
+      ];
+      // lanternTransform.rotation = [
+      //   this.localLanternBody.quaternion.x,
+      //   this.localLanternBody.quaternion.y,
+      //   this.localLanternBody.quaternion.z,
+      //   this.localLanternBody.quaternion.w,
+      // ];
+      lanternTransform.position = vec3.add(
+        newHandPosition,
+        vec3.transformQuat(vec3.create(0, 0, 2), handTransform.rotation),
       );
     }
   }

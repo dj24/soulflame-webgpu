@@ -61,7 +61,7 @@ export class GravitySystem extends System {
     }
 
     // Step the physics world.
-    world.fixedStep();
+    world.fixedStep(deltaTime / 1000);
 
     // Update the transforms of the entities.
     for (const [entity, body] of this.addedEntities) {

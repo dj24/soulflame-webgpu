@@ -662,6 +662,10 @@ ${lightsCompute}`;
       });
     });
 
+    if (lights.length === 0) {
+      return;
+    }
+
     if (!svgfConfigBuffer) {
       svgfConfigBuffer = device.createBuffer({
         label: "svgf-config-buffer",

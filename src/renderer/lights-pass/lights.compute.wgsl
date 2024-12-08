@@ -152,8 +152,8 @@ let worldPos = textureLoad(worldPosTex, offsetPixel, 0).xyz;
   blueNoisePixel.x += frameOffsetX;
   blueNoisePixel.y += frameOffsetY;
   // TODO: Causes lockup on macOS
-  let r = textureLoad(blueNoiseTex,blueNoisePixel % 512, 0).xy;
-//  let r = vec2(0.2);
+//  let r = textureLoad(blueNoiseTex,blueNoisePixel % 512, 0).xy;
+  let r = vec2(0.2);
   var importance = array<f32, LIGHT_COUNT>();
   var CDF = array<f32, LIGHT_COUNT>();
 
