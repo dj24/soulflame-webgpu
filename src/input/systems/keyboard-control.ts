@@ -37,30 +37,6 @@ export class KeyboardControl extends System {
           vec3.negate(transformComponent.direction),
         );
       }
-      if (this.keyboardControls.pressed.q) {
-        rotationDelta = quat.rotateY(
-          rotationDelta,
-          -controllableComponent.rotationSpeed * deltaTime,
-        );
-      }
-      if (this.keyboardControls.pressed.e) {
-        rotationDelta = quat.rotateY(
-          rotationDelta,
-          controllableComponent.rotationSpeed * deltaTime,
-        );
-      }
-      if (this.keyboardControls.pressed.z) {
-        rotationDelta = quat.rotateX(
-          rotationDelta,
-          -controllableComponent.rotationSpeed * deltaTime,
-        );
-      }
-      if (this.keyboardControls.pressed.x) {
-        rotationDelta = quat.rotateX(
-          rotationDelta,
-          controllableComponent.rotationSpeed * deltaTime,
-        );
-      }
       if (this.keyboardControls.pressed[" "]) {
         positionDelta = vec3.add(positionDelta, transformComponent.up);
       }
@@ -85,8 +61,6 @@ export class KeyboardControl extends System {
           vec3.mulScalar(velocityComponent.velocity, DAMPING * deltaTime),
         );
       }
-
-      velocityComponent.angularVelocity = rotationDelta;
     }
   }
 }

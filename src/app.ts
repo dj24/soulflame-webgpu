@@ -22,6 +22,9 @@ import { FpsHandSystem } from "./xmas-game-jam-2024/systems/fps-hand-system";
 import { HingeSystem } from "./systems/hinge-system";
 import { GravitySystem } from "@physics/systems/gravity-system";
 import { KinematicSystem } from "@physics/systems/kinematic-system";
+import { GlobalAudioSystem } from "./xmas-game-jam-2024/systems/global-audio-system";
+import { GlobalAudioSource } from "./xmas-game-jam-2024/components/global-audio-source";
+import { MouseLookSystem } from "@input/systems/mouse-look-system";
 
 const LIGHT_INTENSITY = 10;
 
@@ -66,11 +69,18 @@ ecs.addSystem(new ChunkCombinerSystem(512));
 ecs.addSystem(new ChunkCombinerSystem(1024));
 ecs.addSystem(new HingeSystem());
 ecs.addSystem(new FpsHandSystem());
+ecs.addSystem(new GlobalAudioSystem());
+ecs.addSystem(new MouseLookSystem());
 
+// Globals
 const singleton = ecs.addEntity();
 ecs.addComponent(singleton, new GPUDeviceSingleton());
 ecs.addComponent(singleton, new PhysicsWorldSingleton());
 ecs.addComponent(singleton, new TerrainSingleton());
+ecs.addComponent(
+  singleton,
+  new GlobalAudioSource("./xmas-game-jam-2024/blizzard.wav", 0.01),
+);
 
 // Camera
 const camera = ecs.addEntity();

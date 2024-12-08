@@ -143,7 +143,7 @@ fn main(
     output.normal = vec4(transformNormal(voxelObject.inverseTransform,vec3<f32>(result.normal)), 0.0);
     output.velocity = vec4(0.0);
     let raymarchedDistance = length(output.worldPosition.xyz  - rayOrigin);
-    output.worldPosition = vec4(rayOrigin + rayDirection * result.t, raymarchedDistance);
+    output.worldPosition = vec4(rayOrigin + rayDirection * result.t - 0.0001, raymarchedDistance);
 
     // TODO: get from buffer
     let nearFar = extractNearFar(viewProjections.projection);

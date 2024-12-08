@@ -73,23 +73,27 @@ export class FpsHandSystem extends System {
         this.localPhysicsWorld.addBody(this.localHandBody);
 
         // Lantern
+        const lanternScale = 0.075;
         this.lanternEntity = this.ecs.addEntity();
         this.ecs.addComponents(
           this.lanternEntity,
           lanternVoxels,
           new Transform([0, 0, 0], quat.identity(), [
-            handScale,
-            handScale,
-            handScale,
+            lanternScale,
+            lanternScale,
+            lanternScale,
           ]),
         );
         this.localLanternBody = new CANNON.Body({
+          mass: 1,
+          angularDamping: 0.9,
+          linearDamping: 0.9,
           position: new CANNON.Vec3(0, 0, 0),
           shape: new CANNON.Box(
             new CANNON.Vec3(
-              (lanternVoxels.size[0] / 2) * handScale,
-              (lanternVoxels.size[1] / 2) * handScale,
-              (lanternVoxels.size[2] / 2) * handScale,
+              (lanternVoxels.size[0] / 2) * lanternScale,
+              (lanternVoxels.size[1] / 2) * lanternScale,
+              (lanternVoxels.size[2] / 2) * lanternScale,
             ),
           ),
         });
@@ -107,7 +111,7 @@ export class FpsHandSystem extends System {
             ),
             pivotB: new CANNON.Vec3(
               0,
-              (lanternVoxels.size[1] / 2 - 1.5) * handScale,
+              (lanternVoxels.size[1] / 2 - 1.5) * lanternScale,
               0,
             ),
             // axisA: new CANNON.Vec3(0, 0, 1),
@@ -151,15 +155,12 @@ export class FpsHandSystem extends System {
           }),
         },
       );
+
       const idleBob = 0.075 * Math.sin(now / 500);
-      const newHandPosition = vec3.add(
-        cameraTransform.position,
-        vec3.transformQuat(
-          vec3.create(-2, -1.5 + idleBob, 3),
-          cameraTransform.rotation,
-        ),
+      const leftHandOffset = vec3.transformQuat(
+        vec3.create(-3, -1.5 + idleBob, 5),
+        cameraTransform.rotation,
       );
-      handTransform.position = newHandPosition;
 
       const lanternTransform = this.ecs
         .getComponents(this.lanternEntity)
@@ -173,15 +174,35 @@ export class FpsHandSystem extends System {
         this.localHandBody.quaternion.z,
         this.localHandBody.quaternion.w,
       ];
-      // lanternTransform.rotation = [
-      //   this.localLanternBody.quaternion.x,
-      //   this.localLanternBody.quaternion.y,
-      //   this.localLanternBody.quaternion.z,
-      //   this.localLanternBody.quaternion.w,
-      // ];
+      handTransform.position = [
+        this.localHandBody.position.x,
+        this.localHandBody.position.y,
+        this.localHandBody.position.z,
+      ];
+      handTransform.position = vec3.add(handTransform.position, leftHandOffset);
+      handTransform.position = vec3.add(
+        handTransform.position,
+        cameraTransform.position,
+      );
+
+      lanternTransform.rotation = [
+        this.localLanternBody.quaternion.x,
+        this.localLanternBody.quaternion.y,
+        this.localLanternBody.quaternion.z,
+        this.localLanternBody.quaternion.w,
+      ];
+      lanternTransform.position = [
+        this.localLanternBody.position.x,
+        this.localLanternBody.position.y,
+        this.localLanternBody.position.z,
+      ];
       lanternTransform.position = vec3.add(
-        newHandPosition,
-        vec3.transformQuat(vec3.create(0, 0, 2), handTransform.rotation),
+        lanternTransform.position,
+        leftHandOffset,
+      );
+      lanternTransform.position = vec3.add(
+        lanternTransform.position,
+        cameraTransform.position,
       );
     }
   }
