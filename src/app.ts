@@ -28,7 +28,7 @@ import { MouseLookSystem } from "@input/systems/mouse-look-system";
 import { AudioSource } from "./xmas-game-jam-2024/components/audio-source";
 import { FootstepAudioSystem } from "./xmas-game-jam-2024/systems/footstep-audio-system";
 
-const LIGHT_INTENSITY = 10;
+const LIGHT_INTENSITY = 500;
 
 const ecs = new ECS();
 
@@ -59,7 +59,7 @@ ecs.addSystem(new FootstepAudioSystem());
 //     ecs.addComponents(
 //       newEntity,
 //       new Transform(
-//         vec3.create(x, 48, z),
+//         vec3.create(x, 24, z),
 //         quat.fromEuler(0, 0, 0, "xyz"),
 //         vec3.create(1, 1, 1),
 //       ),

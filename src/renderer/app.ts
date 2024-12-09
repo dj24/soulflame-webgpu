@@ -231,18 +231,18 @@ export const init = async (
     getClearPass(worldPositionTexture),
     getClearPass(outputTexture),
     getRasterTracePass(),
-    (async () => {
-      return {
-        label: "copy albedo",
-        render: (renderArgs: RenderArgs) => {
-          copyGBufferTexture(
-            renderArgs.commandEncoder,
-            renderArgs.outputTextures.albedoTexture,
-            renderArgs.outputTextures.finalTexture,
-          );
-        },
-      };
-    })(),
+    // (async () => {
+    //   return {
+    //     label: "copy albedo",
+    //     render: (renderArgs: RenderArgs) => {
+    //       copyGBufferTexture(
+    //         renderArgs.commandEncoder,
+    //         renderArgs.outputTextures.albedoTexture,
+    //         renderArgs.outputTextures.finalTexture,
+    //       );
+    //     },
+    //   };
+    // })(),
     // getShadowsPass(),
     // getLightsPass(device),
     getSimpleLightsPass(),

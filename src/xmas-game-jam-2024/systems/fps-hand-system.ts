@@ -126,7 +126,7 @@ export class FpsHandSystem extends System {
         this.ecs.addComponents(
           this.lightEntity,
           new Transform([0, 0, 0], quat.identity(), [1, 1, 1]),
-          new Light([400, 300, 100]),
+          new Light([250, 150, 80]),
         );
       });
     }
@@ -225,7 +225,7 @@ export class FpsHandSystem extends System {
       }
       lightTransform.position = vec3.add(
         lanternTransform.position,
-        vec3.transformQuat([0, -2, 0], lanternTransform.rotation),
+        vec3.transformQuat([0, -1.3, 0], lanternTransform.rotation),
       );
     }
   }

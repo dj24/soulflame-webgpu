@@ -11,6 +11,7 @@ export const fullscreenQuad = async (
     "Normals",
     "Albedo",
     "Position",
+    "Depth",
   ]);
 
   const fullscreenQuadShaderModule = device.createShaderModule({
@@ -51,6 +52,8 @@ export const fullscreenQuad = async (
           return args.outputTextures.albedoTexture.view;
         case "Position":
           return args.outputTextures.worldPositionTexture.view;
+        case "Depth":
+          return args.outputTextures.depthTexture.view;
       }
     };
 

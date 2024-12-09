@@ -19,11 +19,6 @@ struct Time {
 @group(0) @binding(3) var<storage> voxelObjects : array<VoxelObject>;
 @group(0) @binding(4) var<uniform> time : Time;
 
-fn extractNearFar(projection: mat4x4<f32>) -> vec2<f32> {
-  let near = projection[3][2] / (projection[2][2] - 1.0);
-  let far = projection[3][2] / (projection[2][2] + 1.0);
-  return vec2<f32>(near, far);
-}
 
 struct GBufferOutput {
   @location(0) albedo : vec4f,
@@ -146,9 +141,9 @@ fn main(
     output.worldPosition = vec4(rayOrigin + rayDirection * result.t - 0.0001, raymarchedDistance);
 
     // TODO: get from buffer
-    let nearFar = extractNearFar(viewProjections.projection);
-    let viewSpacePosition = (viewProjections.viewMatrix * vec4(output.worldPosition.xyz, 1.0)).xyz;
-    let linearDepth = normaliseValue(nearFar[0], nearFar[1], -viewSpacePosition.z);
-    output.depth = linearDepth;
+    let clipSpacePosition = viewProjections.viewProjection * vec4(output.worldPosition.xyz, 1.0);
+    let ndcPosition = clipSpacePosition.xyz / clipSpacePosition.w;
+    output.depth = (clipSpacePosition.z / clipSpacePosition.w);
+//    output.depth = 0.0;
     return output;
 }

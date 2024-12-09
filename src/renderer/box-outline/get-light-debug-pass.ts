@@ -101,6 +101,11 @@ export const getLightDebugPass = async (
       topology: "triangle-list",
       cullMode: "back",
     },
+    depthStencil: {
+      depthWriteEnabled: true,
+      depthCompare: "less",
+      format: "depth32float",
+    },
   });
 
   let verticesBuffer: GPUBuffer;
@@ -174,6 +179,13 @@ export const getLightDebugPass = async (
       );
     });
 
+    const depthStencilAttachment: GPURenderPassDepthStencilAttachment = {
+      view: outputTextures.depthTexture.view,
+      depthClearValue: 1.0,
+      depthLoadOp: "load",
+      depthStoreOp: "store",
+    };
+
     const passEncoder = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
@@ -183,6 +195,7 @@ export const getLightDebugPass = async (
           storeOp: "store",
         },
       ],
+      depthStencilAttachment,
       timestampWrites,
     });
 

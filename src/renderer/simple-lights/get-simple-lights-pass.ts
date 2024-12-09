@@ -48,6 +48,14 @@ export const getSimpleLightsPass = async (): Promise<RenderPass> => {
         visibility: GPUShaderStage.FRAGMENT,
         sampler: {},
       },
+      // Camera position
+      {
+        binding: 5,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: {
+          type: "uniform",
+        },
+      },
     ],
   });
 
@@ -100,6 +108,7 @@ export const getSimpleLightsPass = async (): Promise<RenderPass> => {
     outputTextures,
     timestampWrites,
     ecs,
+    cameraPositionBuffer,
   }: RenderArgs) => {
     let lights: { position: Vec3; color: Vec3 }[] = [];
     ecs.getEntitiesithComponent(Light).forEach((entity) => {
@@ -173,6 +182,12 @@ export const getSimpleLightsPass = async (): Promise<RenderPass> => {
           binding: 4,
           resource: sampler,
         },
+        {
+          binding: 5,
+          resource: {
+            buffer: cameraPositionBuffer,
+          },
+        },
       ],
     });
 
@@ -182,7 +197,9 @@ export const getSimpleLightsPass = async (): Promise<RenderPass> => {
     });
     passEncoder.setPipeline(pipeline);
     passEncoder.setBindGroup(0, bindGroup);
+    // for (let i = 0; i < lights.length; i++) {
     passEncoder.draw(6, lights.length);
+    // }
     passEncoder.end();
   };
 
