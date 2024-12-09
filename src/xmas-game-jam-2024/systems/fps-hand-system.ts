@@ -122,12 +122,12 @@ export class FpsHandSystem extends System {
         this.localPhysicsWorld.addConstraint(hinge);
 
         // Light
-        // this.lightEntity = this.ecs.addEntity();
-        // this.ecs.addComponents(
-        //   this.lightEntity,
-        //   new Transform([0, 0, 0], quat.identity(), [1, 1, 1]),
-        //   new Light([4, 3, 1]),
-        // );
+        this.lightEntity = this.ecs.addEntity();
+        this.ecs.addComponents(
+          this.lightEntity,
+          new Transform([0, 0, 0], quat.identity(), [1, 1, 1]),
+          new Light([400, 300, 100]),
+        );
       });
     }
     // Follow every frame

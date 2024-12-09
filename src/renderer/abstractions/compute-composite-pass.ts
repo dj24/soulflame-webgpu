@@ -40,28 +40,11 @@ const matricesEntry: GPUBindGroupLayoutEntry = {
   },
 };
 
-const voxelsEntry: GPUBindGroupLayoutEntry = {
-  binding: 4,
-  visibility: GPUShaderStage.COMPUTE,
-  texture: {
-    sampleType: "float",
-    viewDimension: "3d",
-  },
-};
-
 const cameraPositionEntry: GPUBindGroupLayoutEntry = {
   binding: 5,
   visibility: GPUShaderStage.COMPUTE,
   buffer: {
     type: "uniform",
-  },
-};
-
-const voxelObjectsEntry: GPUBindGroupLayoutEntry = {
-  binding: 6,
-  visibility: GPUShaderStage.COMPUTE,
-  buffer: {
-    type: "read-only-storage",
   },
 };
 
@@ -125,14 +108,6 @@ const velocityAndWaterEntry: GPUBindGroupLayoutEntry = {
   },
 };
 
-const bvhBufferEntry: GPUBindGroupLayoutEntry = {
-  binding: 15,
-  visibility: GPUShaderStage.COMPUTE,
-  buffer: {
-    type: "read-only-storage",
-  },
-};
-
 const worldPosEntry: GPUBindGroupLayoutEntry = {
   binding: 16,
   visibility: GPUShaderStage.COMPUTE,
@@ -158,22 +133,12 @@ const skyCubeTextureEntry: GPUBindGroupLayoutEntry = {
   },
 };
 
-const octreeBufferEntry: GPUBindGroupLayoutEntry = {
-  binding: 19,
-  visibility: GPUShaderStage.COMPUTE,
-  buffer: {
-    type: "read-only-storage",
-  },
-};
-
 export const baseBindGroupLayoutEntries = [
   depthEntry,
   inputTextureEntry,
   outputTextureEntry,
   matricesEntry,
-  voxelsEntry,
   cameraPositionEntry,
-  voxelObjectsEntry,
   sunDirectionEntry,
   linearSamplerEntry,
   normalTextureEntry,
@@ -181,11 +146,9 @@ export const baseBindGroupLayoutEntries = [
   timeEntry,
   nearestSamplerEntry,
   velocityAndWaterEntry,
-  bvhBufferEntry,
   worldPosEntry,
   albedoEntry,
   skyCubeTextureEntry,
-  octreeBufferEntry,
 ];
 
 const NUM_THREADS_X = 8;
@@ -240,9 +203,7 @@ struct Time {
 @group(0) @binding(1) var inputTex : texture_2d<f32>;
 @group(0) @binding(2) var outputTex : texture_storage_2d<${OUTPUT_TEXTURE_FORMAT}, write>;
 @group(0) @binding(3) var<uniform> viewProjections : ViewProjectionMatrices;
-@group(0) @binding(4) var voxels : texture_3d<f32>;
 @group(0) @binding(5) var<uniform> cameraPosition : vec3<f32>;
-@group(0) @binding(6) var<storage> voxelObjects : array<VoxelObject>;
 @group(0) @binding(7) var<uniform> sunDirection : vec3<f32>;
 @group(0) @binding(8) var linearSampler : sampler;
 @group(0) @binding(9) var intermediaryTexture : texture_2d<f32>;
@@ -251,11 +212,9 @@ struct Time {
 @group(0) @binding(12) var<uniform> time : Time;
 @group(0) @binding(13) var nearestSampler : sampler;
 @group(0) @binding(14) var velocityAndWaterTex : texture_2d<f32>;
-@group(0) @binding(15) var<storage> bvhNodes: array<BVHNode>;
 @group(0) @binding(16) var worldPosTex : texture_2d<f32>;
 @group(0) @binding(17) var albedoTex : texture_2d<f32>;
 @group(0) @binding(18) var skyCube : texture_cube<f32>;
-@group(0) @binding(19) var<storage, read> octreeBuffer : array<vec4<u32>>;
 
 const DOWNSCALE = ${downscale};
 ${matrices}
@@ -263,8 +222,6 @@ ${randomCommon}
 ${getRayDirection}
 ${boxIntersection}
 ${depth}
-${raymarchVoxels}
-${bvh}
 ${shaderCode}`;
 
   const effectPipeline = device.createComputePipeline({
@@ -380,19 +337,9 @@ ${shaderCode}`;
           },
         },
         {
-          binding: 4,
-          resource: volumeAtlas.atlasTextureView,
-        },
-        {
           binding: 5,
           resource: {
             buffer: cameraPositionBuffer,
-          },
-        },
-        {
-          binding: 6,
-          resource: {
-            buffer: transformationMatrixBuffer,
           },
         },
         {
@@ -428,12 +375,6 @@ ${shaderCode}`;
           resource: outputTextures.velocityTexture.view,
         },
         {
-          binding: 15,
-          resource: {
-            buffer: bvhBuffer,
-          },
-        },
-        {
           binding: 16,
           resource: outputTextures.worldPositionTexture.view,
         },
@@ -446,12 +387,6 @@ ${shaderCode}`;
           resource: outputTextures.skyTexture.createView({
             dimension: "cube",
           }),
-        },
-        {
-          binding: 19,
-          resource: {
-            buffer: volumeAtlas.octreeBuffer,
-          },
         },
       ];
 

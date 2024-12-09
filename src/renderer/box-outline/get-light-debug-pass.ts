@@ -51,7 +51,7 @@ export const getLightDebugPass = async (
         ) -> VertexOutput {
           var output : VertexOutput;
           output.position = modelViewProjectionMatrix * objectPos;
-          output.color = color * 0.05;
+          output.color = color;
           return output;
         }
 

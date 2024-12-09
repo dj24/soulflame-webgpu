@@ -42,9 +42,7 @@ struct Time {
 @group(0) @binding(1) var inputTex : texture_2d<f32>;
 @group(0) @binding(2) var outputTex : texture_storage_2d<${OUTPUT_TEXTURE_FORMAT}, write>;
 @group(0) @binding(3) var<uniform> viewProjections : ViewProjectionMatrices;
-@group(0) @binding(4) var voxels : texture_3d<f32>;
 @group(0) @binding(5) var<uniform> cameraPosition : vec3<f32>;
-@group(0) @binding(6) var<storage> voxelObjects : array<VoxelObject>;
 @group(0) @binding(7) var<uniform> sunDirection : vec3<f32>;
 @group(0) @binding(8) var linearSampler : sampler;
 @group(0) @binding(10) var normalTex : texture_2d<f32>;
@@ -52,18 +50,14 @@ struct Time {
 @group(0) @binding(12) var<uniform> time : Time;
 @group(0) @binding(13) var nearestSampler : sampler;
 @group(0) @binding(14) var velocityAndWaterTex : texture_2d<f32>;
-@group(0) @binding(15) var<storage> bvhNodes: array<BVHNode>;
 @group(0) @binding(16) var worldPosTex : texture_2d<f32>;
 @group(0) @binding(17) var albedoTex : texture_2d<f32>;
 @group(0) @binding(18) var skyCube : texture_cube<f32>;
-@group(0) @binding(19) var<storage, read> octreeBuffer : array<vec4<u32>>;
 
 ${matrices}
 ${randomCommon}
 ${getRayDirection}
 ${boxIntersection}
-${raymarchVoxels}
-${bvh}
 ${shaderCode}`;
 
   const effectPipeline = device.createComputePipeline({
@@ -154,19 +148,9 @@ ${shaderCode}`;
           },
         },
         {
-          binding: 4,
-          resource: volumeAtlas.atlasTextureView,
-        },
-        {
           binding: 5,
           resource: {
             buffer: cameraPositionBuffer,
-          },
-        },
-        {
-          binding: 6,
-          resource: {
-            buffer: transformationMatrixBuffer,
           },
         },
         {
@@ -202,12 +186,6 @@ ${shaderCode}`;
           resource: outputTextures.velocityTexture.view,
         },
         {
-          binding: 15,
-          resource: {
-            buffer: bvhBuffer,
-          },
-        },
-        {
           binding: 16,
           resource: outputTextures.worldPositionTexture.view,
         },
@@ -220,12 +198,6 @@ ${shaderCode}`;
           resource: outputTextures.skyTexture.createView({
             dimension: "cube",
           }),
-        },
-        {
-          binding: 19,
-          resource: {
-            buffer: volumeAtlas.octreeBuffer,
-          },
         },
       ];
 

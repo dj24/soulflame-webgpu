@@ -49,7 +49,7 @@ const getHorizontalBlur = (radius: number) => {
             let uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(textureDimensions(inputTex));
             for(var i = -${radius}; i <= ${radius}; i++) {
                 let offset = vec2<f32>(f32(i) / f32(textureDimensions(inputTex).x), 0.0);
-                sum += textureSampleLevel(inputTex, linearSampler, uv + offset, 0.0);
+                sum += textureSampleLevel(inputTex, linearSampler, uv + offset * 2.0, 0.0);
             }
             textureStore(outputTex, GlobalInvocationID.xy, sum / f32(${radius * 2 + 1}));
         }
@@ -149,7 +149,7 @@ const getVerticalBlur = (radius: number) => {
             let uv = vec2<f32>(GlobalInvocationID.xy) / vec2<f32>(textureDimensions(inputTex));
             for(var i = -${radius}; i <= ${radius}; i++) {
                 let offset = vec2<f32>(0.0, f32(i) / f32(textureDimensions(inputTex).x) );
-                sum += textureSampleLevel(inputTex, linearSampler, uv + offset, 0.0);
+                sum += textureSampleLevel(inputTex, linearSampler, uv + offset * 2.0, 0.0);
             }
             textureStore(outputTex, GlobalInvocationID.xy, sum / f32(${radius * 2 + 1}));
         }
@@ -359,8 +359,7 @@ const getAdditiveBlend = (blendAmount = 1) => {
             var total = vec4<f32>(0.0);
             for(var mip = 6; mip >= 0; mip--) {
                 let mipTexelSize = 1.0 / vec2<f32>(textureDimensions(inputTex, mip));
-                // TODO: understand why i need two texels offset?
-                total += textureSampleLevel(inputTex, linearSampler, uv + mipTexelSize * 2, f32(mip));
+                total += textureSampleLevel(inputTex, linearSampler, uv, f32(mip));
             }
             total /= 7.0;
             total *= ${blendAmount};
@@ -462,10 +461,10 @@ export const getBloomPass = async (): Promise<RenderPass> => {
           @builtin(global_invocation_id) GlobalInvocationID : vec3<u32>
         ) {
             let gBufferPixel = vec2<i32>(GlobalInvocationID.xy) * DOWNSCALE_FACTOR;
-            let bloomPixel = vec2<i32>(GlobalInvocationID.xy);
+            let bloomPixel = vec2<i32>(GlobalInvocationID.xy - vec2(8));
             let color = textureLoad(inputTex, gBufferPixel, 0);
             let luminance = dot(color.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
-            let threshold = 64.0;
+            let threshold = 16.0;
             let smoothedLuminance = smoothstep(threshold - 1.0, threshold, luminance);
             let thresholded = mix(vec4<f32>(0.0), color, smoothedLuminance);
             textureStore(outputTex,bloomPixel, thresholded);
@@ -484,10 +483,10 @@ export const getBloomPass = async (): Promise<RenderPass> => {
   let thresholdTextureCopyViews: GPUTextureView[];
   let allMipsView: GPUTextureView;
 
-  const horizontalBlur = getHorizontalBlur(1);
-  const verticalBlur = getVerticalBlur(1);
+  const horizontalBlur = getHorizontalBlur(4);
+  const verticalBlur = getVerticalBlur(4);
   const downscalePass = getHalfResDownscalePass();
-  const additiveBlend = getAdditiveBlend(0.5);
+  const additiveBlend = getAdditiveBlend(0.1);
 
   let bindGroup: GPUBindGroup;
 

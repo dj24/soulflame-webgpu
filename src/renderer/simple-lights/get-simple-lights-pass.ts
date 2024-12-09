@@ -1,22 +1,58 @@
-import {
-  device,
-  getViewMatrix,
-  RenderArgs,
-  RenderPass,
-  VOXEL_OBJECT_STRUCT_SIZE,
-} from "../app";
+import { device, RenderArgs, RenderPass } from "../app";
 import lightsShader from "./lights.wgsl";
-import { mat4 } from "wgpu-matrix";
-import { VoxelObject } from "@renderer/voxel-object";
+import { Vec3 } from "wgpu-matrix";
 import { Transform } from "@renderer/components/transform";
 import { OUTPUT_TEXTURE_FORMAT } from "@renderer/constants";
+import { Light } from "@renderer/components/light";
 
-const MVP_BUFFER_STRIDE = 64;
-const vertexStride = 16;
+const LIGHT_BUFFER_STRIDE = 32;
 
 export const getSimpleLightsPass = async (): Promise<RenderPass> => {
+  const bindGroupLayout = device.createBindGroupLayout({
+    entries: [
+      // Lights
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: {
+          type: "read-only-storage",
+        },
+      },
+      // Position texture
+      {
+        binding: 1,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: {
+          sampleType: "float",
+        },
+      },
+      // Normal texture
+      {
+        binding: 2,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: {
+          sampleType: "float",
+        },
+      },
+      // Albedo texture
+      {
+        binding: 3,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: {
+          sampleType: "float",
+        },
+      },
+      // Sampler
+      {
+        binding: 4,
+        visibility: GPUShaderStage.FRAGMENT,
+        sampler: {},
+      },
+    ],
+  });
+
   const pipelineLayout = device.createPipelineLayout({
-    bindGroupLayouts: [],
+    bindGroupLayouts: [bindGroupLayout],
   });
 
   const pipeline = device.createRenderPipeline({
@@ -34,67 +70,119 @@ export const getSimpleLightsPass = async (): Promise<RenderPass> => {
       entryPoint: "fragment_main",
       targets: [
         // final
-        { format: OUTPUT_TEXTURE_FORMAT },
+        {
+          format: OUTPUT_TEXTURE_FORMAT,
+          blend: {
+            color: {
+              srcFactor: "src-alpha",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+            alpha: {
+              srcFactor: "one",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+          },
+        },
       ],
     },
+  });
+
+  let lightBuffer: GPUBuffer;
+  const sampler = device.createSampler({
+    magFilter: "linear",
+    minFilter: "linear",
   });
 
   const render = ({
     commandEncoder,
     outputTextures,
-    volumeAtlas,
-    viewProjectionMatricesBuffer,
     timestampWrites,
-    cameraPositionBuffer,
-    renderableEntities,
     ecs,
-    camera,
-    cameraTransform,
-    transformationMatrixBuffer,
-    timeBuffer,
   }: RenderArgs) => {
+    let lights: { position: Vec3; color: Vec3 }[] = [];
+    ecs.getEntitiesithComponent(Light).forEach((entity) => {
+      const transform = ecs.getComponents(entity).get(Transform);
+      const light = ecs.getComponents(entity).get(Light);
+      lights.push({
+        position: transform.position,
+        color: light.color,
+      });
+    });
+
+    if (lights.length === 0) {
+      return;
+    }
+
     const colorAttachments: GPURenderPassColorAttachment[] = [
       {
         view: outputTextures.finalTexture.view,
         clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-        loadOp: "clear",
+        loadOp: "load",
         storeOp: "store",
       },
     ];
 
-    // const bindGroup = device.createBindGroup({
-    //   layout: pipeline.getBindGroupLayout(0),
-    //   entries: [],
-    // });
-    // for (let i = 0; i < renderableEntities.length; i++) {
-    //   const transform = ecs.getComponents(renderableEntities[i]).get(Transform);
-    //   const voxelObject = ecs
-    //     .getComponents(renderableEntities[i])
-    //     .get(VoxelObject);
-    //
-    //   const size = voxelObject.size;
-    //   const m = mat4.scale(transform.transform, size);
-    //   const vp = mat4.mul(
-    //     mat4.scale(camera.projectionMatrix, [-1, 1, 1]),
-    //     getViewMatrix(cameraTransform),
-    //   );
-    //   const mvp = new Float32Array(mat4.mul(vp, m));
-    //   const bufferOffset = i * MVP_BUFFER_STRIDE;
-    //   device.queue.writeBuffer(
-    //     modelViewProjectionMatrixBuffer,
-    //     bufferOffset,
-    //     mvp,
-    //   );
-    // }
+    if (
+      !lightBuffer ||
+      lightBuffer.size !== LIGHT_BUFFER_STRIDE * lights.length
+    ) {
+      lightBuffer = device.createBuffer({
+        size: LIGHT_BUFFER_STRIDE * lights.length,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      });
+    }
+
+    const arrayBuffer = new ArrayBuffer(LIGHT_BUFFER_STRIDE * lights.length);
+    const lightDataView = new DataView(arrayBuffer);
+    for (let i = 0; i < lights.length; i++) {
+      const light = lights[i];
+      const lightBufferOffset = i * LIGHT_BUFFER_STRIDE;
+      lightDataView.setFloat32(lightBufferOffset, light.position[0], true);
+      lightDataView.setFloat32(lightBufferOffset + 4, light.position[1], true);
+      lightDataView.setFloat32(lightBufferOffset + 8, light.position[2], true);
+      lightDataView.setFloat32(lightBufferOffset + 16, light.color[0], true);
+      lightDataView.setFloat32(lightBufferOffset + 20, light.color[1], true);
+      lightDataView.setFloat32(lightBufferOffset + 24, light.color[2], true);
+    }
+    device.queue.writeBuffer(lightBuffer, 0, arrayBuffer);
+
+    const bindGroup = device.createBindGroup({
+      layout: bindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: {
+            buffer: lightBuffer,
+          },
+        },
+        {
+          binding: 1,
+          resource: outputTextures.worldPositionTexture.view,
+        },
+        {
+          binding: 2,
+          resource: outputTextures.normalTexture.view,
+        },
+        {
+          binding: 3,
+          resource: outputTextures.albedoTexture.view,
+        },
+        {
+          binding: 4,
+          resource: sampler,
+        },
+      ],
+    });
 
     const passEncoder = commandEncoder.beginRenderPass({
       colorAttachments,
       timestampWrites,
     });
     passEncoder.setPipeline(pipeline);
-    // passEncoder.setVertexBuffer(0, verticesBuffer);
-    // passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.draw(6);
+    passEncoder.setBindGroup(0, bindGroup);
+    passEncoder.draw(6, lights.length);
     passEncoder.end();
   };
 

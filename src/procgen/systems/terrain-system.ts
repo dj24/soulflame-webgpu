@@ -145,7 +145,7 @@ export class TerrainSystem extends System {
           [1, 1, 1],
         );
         light1Transform.position = vec3.add(light1Transform.position, cabinPos);
-        this.ecs.addComponents(light1, light1Transform, new Light([5, 0, 0]));
+        this.ecs.addComponents(light1, light1Transform, new Light([200, 0, 0]));
 
         const light2 = this.ecs.addEntity();
         const light2Transform = new Transform(
@@ -154,7 +154,7 @@ export class TerrainSystem extends System {
           [1, 1, 1],
         );
         light2Transform.position = vec3.add(light2Transform.position, cabinPos);
-        this.ecs.addComponents(light2, light2Transform, new Light([0, 5, 0]));
+        this.ecs.addComponents(light2, light2Transform, new Light([0, 200, 0]));
       });
       this.isInitialized = true;
     }

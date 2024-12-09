@@ -766,7 +766,10 @@ ${lightsCompute}`;
       });
     }
 
-    if (!lightBuffer) {
+    if (
+      !lightBuffer ||
+      lightBuffer.size !== LIGHT_BUFFER_STRIDE * lights.length
+    ) {
       lightBuffer = device.createBuffer({
         size: LIGHT_BUFFER_STRIDE * lights.length,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
