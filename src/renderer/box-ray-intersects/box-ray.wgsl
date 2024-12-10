@@ -57,12 +57,14 @@ fn main(
     }
     case 4: {
       let rayDirection = boxRayInput.front;
-
+      let raymarchResult = rayMarchBVHFirstHit(boxRayInput.position, rayDirection);
+      boxRayOutputs[boxRayOutputIndex].front = raymarchResult.t;
       break;
     }
     case 5: {
       let rayDirection = -boxRayInput.front;
-
+      let raymarchResult = rayMarchBVHFirstHit(boxRayInput.position, rayDirection);
+      boxRayOutputs[boxRayOutputIndex].back = raymarchResult.t;
       break;
     }
     default: {

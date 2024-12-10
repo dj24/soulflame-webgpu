@@ -5,7 +5,8 @@ import boxIntersection from "@renderer/shader/box-intersection.wgsl";
 import bvh from "@renderer/shader/bvh.wgsl";
 import boxRayShader from "./box-ray.wgsl";
 import { Transform } from "../components/transform";
-import { vec3 } from "wgpu-matrix";
+import { quat, vec3 } from "wgpu-matrix";
+import { PitchYaw } from "../../xmas-game-jam-2024/components/pitch-yaw";
 
 const INPUT_STRIDE = 4 * 4 * 4;
 const OUTPUT_STRIDE = 6 * 4;
@@ -138,16 +139,15 @@ export const getBoxRayIntersectPass = (device: GPUDevice) => {
     validBoxRayEntities.forEach((entity, index) => {
       const components = args.ecs.getComponents(entity);
       const transform = components.get(Transform);
-      const rotation = transform.rotation;
-      const position = transform.position;
-      // const up = vec3.transformQuat([0, 1, 0], rotation);
+      const pitchYaw = components.get(PitchYaw);
+      const rotation = quat.fromEuler(0, pitchYaw.yaw, 0, "xyz");
       const up = [0, 1, 0];
       const right = vec3.transformQuat([1, 0, 0], rotation);
       const forward = vec3.transformQuat([0, 0, 1], rotation);
       const arr = new Float32Array([
-        position[0],
-        position[1],
-        position[2],
+        transform.position[0],
+        transform.position[1],
+        transform.position[2],
         0,
         right[0],
         right[1],
@@ -239,8 +239,6 @@ export const getBoxRayIntersectPass = (device: GPUDevice) => {
           boxRayIntersect.right = outputArray[offset + 3];
           boxRayIntersect.front = outputArray[offset + 4];
           boxRayIntersect.back = outputArray[offset + 5];
-
-          console.log(boxRayIntersect.front);
         });
         isMapPending = false;
         outputCopyBuffer.unmap();

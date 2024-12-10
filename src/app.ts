@@ -24,6 +24,8 @@ import { FootstepAudioSystem } from "./xmas-game-jam-2024/systems/footstep-audio
 import { LightFlickerSystem } from "./xmas-game-jam-2024/systems/light-flicker-system";
 import { BoxRayIntersect } from "./components/box-ray-intersect";
 import { PlayerControllerSystem } from "./xmas-game-jam-2024/systems/player-controller-system";
+import { PitchYaw } from "./xmas-game-jam-2024/components/pitch-yaw";
+import { KrampusSystem } from "./xmas-game-jam-2024/systems/krampus-system";
 
 const ecs = new ECS();
 
@@ -46,6 +48,7 @@ ecs.addSystem(new MouseLookSystem());
 ecs.addSystem(new FootstepAudioSystem());
 ecs.addSystem(new LightFlickerSystem());
 ecs.addSystem(new PlayerControllerSystem());
+ecs.addSystem(new KrampusSystem());
 
 // Globals
 const singleton = ecs.addEntity();
@@ -63,7 +66,7 @@ ecs.addComponents(
   camera,
   new Camera({ fieldOfView: 70 * (Math.PI / 180), near: 2.0, far: 1000000 }),
   new Transform(
-    vec3.create(64, 32, 64),
+    vec3.create(64, 32.5, 64),
     quat.fromEuler(0, 45 * (Math.PI / 180), 0, "xyz"),
     vec3.create(1, 1, 1),
   ),
@@ -72,6 +75,7 @@ ecs.addComponents(
   new AudioSource("./xmas-game-jam-2024/snow-footsteps.wav", 0.02),
   // new GlobalAudioSource("./xmas-game-jam-2024/heartbeat.wav", 0.01),
   new BoxRayIntersect(),
+  new PitchYaw(),
 );
 
 const wind = ecs.addEntity();

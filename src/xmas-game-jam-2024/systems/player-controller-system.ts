@@ -3,15 +3,21 @@ import { BoxRayIntersect } from "../../components/box-ray-intersect";
 import { Transform } from "@renderer/components/transform";
 import { KeyboardControls } from "@input/keyboard-controls";
 import { Velocity } from "../../components/velocity";
-import { vec3 } from "wgpu-matrix";
+import { quat, vec3 } from "wgpu-matrix";
 import { animate, glide } from "motion";
 import { deltaTime } from "@renderer/app";
+import { PitchYaw } from "../components/pitch-yaw";
 
 const moveSpeed = 0.05;
 
 export class PlayerControllerSystem extends System {
   keyboardControls = new KeyboardControls();
-  componentsRequired = new Set([BoxRayIntersect, Transform, Velocity]);
+  componentsRequired = new Set([
+    BoxRayIntersect,
+    Transform,
+    Velocity,
+    PitchYaw,
+  ]);
 
   update(entities: Set<Entity>, now: number, deltaTime: number): void {
     for (const entity of entities) {
@@ -19,22 +25,40 @@ export class PlayerControllerSystem extends System {
       const boxRayIntersectComponent = components.get(BoxRayIntersect);
       const transformComponent = components.get(Transform);
       const velocityComponent = components.get(Velocity);
-      let positionDelta = vec3.create();
+      const pitchYaw = components.get(PitchYaw);
 
-      if (this.keyboardControls.pressed.a) {
-        positionDelta = vec3.add(positionDelta, transformComponent.left);
+      let positionDelta = vec3.create();
+      const playerRadius = 20;
+      const rotation = quat.fromEuler(0, pitchYaw.yaw, 0, "xyz");
+
+      const canMoveLeft =
+        boxRayIntersectComponent.left > playerRadius ||
+        boxRayIntersectComponent.left === 0;
+      const canMoveRight =
+        boxRayIntersectComponent.right > playerRadius ||
+        boxRayIntersectComponent.right === 0;
+      const canMoveFront =
+        boxRayIntersectComponent.front > playerRadius ||
+        boxRayIntersectComponent.front === 0;
+      const canMoveBack =
+        boxRayIntersectComponent.back > playerRadius ||
+        boxRayIntersectComponent.back === 0;
+
+      if (this.keyboardControls.pressed.a && canMoveLeft) {
+        const direction = vec3.transformQuat([-1, 0, 0], rotation);
+        positionDelta = vec3.add(positionDelta, direction);
       }
-      if (this.keyboardControls.pressed.d) {
-        positionDelta = vec3.add(positionDelta, transformComponent.right);
+      if (this.keyboardControls.pressed.d && canMoveRight) {
+        const direction = vec3.transformQuat([1, 0, 0], rotation);
+        positionDelta = vec3.add(positionDelta, direction);
       }
-      if (this.keyboardControls.pressed.w) {
-        positionDelta = vec3.add(positionDelta, transformComponent.direction);
+      if (this.keyboardControls.pressed.w && canMoveFront) {
+        const direction = vec3.transformQuat([0, 0, 1], rotation);
+        positionDelta = vec3.add(positionDelta, direction);
       }
-      if (this.keyboardControls.pressed.s) {
-        positionDelta = vec3.add(
-          positionDelta,
-          vec3.negate(transformComponent.direction),
-        );
+      if (this.keyboardControls.pressed.s && canMoveBack) {
+        const direction = vec3.transformQuat([0, 0, -1], rotation);
+        positionDelta = vec3.add(positionDelta, direction);
       }
 
       positionDelta = vec3.mulScalar(vec3.normalize(positionDelta), moveSpeed);
@@ -45,6 +69,7 @@ export class PlayerControllerSystem extends System {
           positionDelta,
           progress,
         );
+        velocityComponent.velocity[1] = 0;
       });
 
       const playerHeight = 10.0;
@@ -66,6 +91,8 @@ export class PlayerControllerSystem extends System {
             }),
           },
         );
+      } else {
+        velocityComponent.velocity[1] += 0.01 * deltaTime;
       }
     }
   }

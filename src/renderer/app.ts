@@ -248,11 +248,11 @@ export const init = async (
     // getLightsPass(device),
     getSimpleLightsPass(),
     getLightDebugPass(device),
-    getTaaPass(outputTexture),
+    // getTaaPass(outputTexture),
     getBloomPass(),
     // getSimpleFogPass(),
     // getTonemapPass(),w
-    // getMotionBlurPass(),
+    getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
     getVignettePass(10.0),
     fullscreenQuad(device),

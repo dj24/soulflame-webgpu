@@ -1,15 +1,10 @@
 import { System, Entity } from "@ecs/ecs";
 import { Transform } from "@renderer/components/transform";
-import { KeyboardControls } from "@input/keyboard-controls";
-import { mat4, quat, vec3 } from "wgpu-matrix";
+import { quat } from "wgpu-matrix";
 import { KeyboardControllable } from "@input/components/keyboard-controllable";
-import { Velocity } from "../../components/velocity";
 import { animate, glide } from "motion";
 import { MouseControls } from "@input/mouse-controls";
-import { deltaTime } from "@renderer/app";
-
-const DAMPING = 0.01;
-const ROTATION_DAMPING = 0.01;
+import { PitchYaw } from "../../xmas-game-jam-2024/components/pitch-yaw";
 
 const getQuatFromYawPitch = (yaw: number, pitch: number) => {
   const q_yaw = quat.fromAxisAngle([0, 1, 0], yaw);
@@ -19,9 +14,7 @@ const getQuatFromYawPitch = (yaw: number, pitch: number) => {
 
 export class MouseLookSystem extends System {
   mouseControls = new MouseControls();
-  componentsRequired = new Set([Transform, KeyboardControllable]);
-  yaw = 0;
-  pitch = 0;
+  componentsRequired = new Set([Transform, KeyboardControllable, PitchYaw]);
 
   constructor() {
     super();
@@ -40,23 +33,27 @@ export class MouseLookSystem extends System {
       const components = this.ecs.getComponents(entity);
       const transformComponent = components.get(Transform);
       const controllableComponent = components.get(KeyboardControllable);
+      const pitchYaw = components.get(PitchYaw);
 
-      this.yaw +=
+      pitchYaw.yaw +=
         this.mouseControls.velocity[0] *
         deltaTime *
         controllableComponent.rotationSpeed;
-      this.pitch +=
+      pitchYaw.pitch +=
         this.mouseControls.velocity[1] *
         deltaTime *
         controllableComponent.rotationSpeed;
 
-      this.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.pitch));
+      pitchYaw.pitch = Math.max(
+        -Math.PI / 2,
+        Math.min(Math.PI / 2, pitchYaw.pitch),
+      );
 
       animate(
         (progress: number) => {
           transformComponent.rotation = quat.slerp(
             transformComponent.rotation,
-            getQuatFromYawPitch(this.yaw, this.pitch),
+            getQuatFromYawPitch(pitchYaw.yaw, pitchYaw.pitch),
             progress,
           );
         },

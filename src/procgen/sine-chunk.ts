@@ -26,7 +26,7 @@ export const encodeTerrainName = (
   return `Terrain(${position[0]},${position[1]},${position[2]})(${size[0]},${size[1]},${size[2]})`;
 };
 
-const getTreeCache = async () => {
+const getCabinCache = async () => {
   const path = "./xmas-game-jam-2024/tree1.vxm";
   const response = await fetch(path);
   const arrayBuffer = await response.arrayBuffer();
@@ -40,7 +40,9 @@ const getTreeCache = async () => {
     cache[index * 3 + 1] = voxels.RGBA[voxel.c].g;
     cache[index * 3 + 2] = voxels.RGBA[voxel.c].b;
   });
-  return (x: number, y: number, z: number) => {
+
+  console.log({ cache });
+  const getVoxel = (x: number, y: number, z: number) => {
     const index = convert3DTo1D(voxels.SIZE, [x, y, z]);
     const red = cache[index * 3];
     const green = cache[index * 3 + 1];
@@ -58,6 +60,8 @@ const getTreeCache = async () => {
       solid: true,
     };
   };
+
+  return getVoxel;
 };
 
 const sdCone = (p: Vec3, sinCosAngle: Vec2, height: number) => {
@@ -177,15 +181,18 @@ export const getTerrainVoxel = (
     const colour = [white, white, white];
     return { red: colour[0], green: colour[1], blue: colour[2], solid: true };
   }
-  if (offsetY < Math.floor(terrainNoise * CHUNK_HEIGHT)) {
-    return { red: 50, green: 50, blue: 50, solid: true };
-  }
   return null;
 };
 
 const nearestN = (v: number, n: number) => Math.floor(v / n) * n;
 
 const getTreeVoxel = await getSdfTreeCache();
+
+const cabinPositions = [vec2.create(0, 0), vec2.create(0, 64)];
+
+const cabinheight = 32;
+
+const getCabinVoxel = await getCabinCache();
 
 export const createOctreeAndReturnBytes = async (
   position: [number, number, number],
@@ -221,6 +228,12 @@ export const createOctreeAndReturnBytes = async (
         position[1],
       );
 
+      // if (x < cabinSize[0] && z < cabinSize[2]) {
+      //   const cabinVoxel = getCabinVoxel(x, y, z);
+      //   if (cabinVoxel) {
+      //     return cabinVoxel;
+      //   }
+      // }
       return treeVoxel ?? terrainVoxel;
     },
     size,

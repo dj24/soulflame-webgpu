@@ -13,9 +13,10 @@ import { getPhysicsWorld } from "../../abstractions/get-physics-world";
 import { HingeSystem } from "../../systems/hinge-system";
 import { Light } from "@renderer/components/light";
 import { LightFlicker } from "../components/light-flicker";
+import { Velocity } from "../../components/velocity";
 
 export class FpsHandSystem extends System {
-  componentsRequired = new Set([Camera, Transform]);
+  componentsRequired = new Set([Camera, Transform, Velocity]);
   isInitialized = false;
   handEntity: number;
   lanternEntity: number;
