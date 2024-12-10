@@ -28,6 +28,7 @@ import { MouseLookSystem } from "@input/systems/mouse-look-system";
 import { AudioSource } from "./xmas-game-jam-2024/components/audio-source";
 import { FootstepAudioSystem } from "./xmas-game-jam-2024/systems/footstep-audio-system";
 import { LightFlickerSystem } from "./xmas-game-jam-2024/systems/light-flicker-system";
+import { BoxRayIntersect } from "./components/box-ray-intersect";
 
 const LIGHT_INTENSITY = 500;
 
@@ -101,6 +102,7 @@ ecs.addComponents(
   new Velocity(),
   new AudioSource("./xmas-game-jam-2024/snow-footsteps.wav", 0.02),
   new GlobalAudioSource("./xmas-game-jam-2024/heartbeat.wav", 0.01),
+  new BoxRayIntersect(),
 );
 
 const breathing = ecs.addEntity();

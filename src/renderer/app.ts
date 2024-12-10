@@ -55,6 +55,7 @@ import { getLightDebugPass } from "@renderer/box-outline/get-light-debug-pass";
 import { OUTPUT_TEXTURE_FORMAT } from "@renderer/constants";
 import { getSmoothNormalsPass } from "@renderer/smooth-normals-pass/smooth-normals-pass";
 import { getSimpleLightsPass } from "@renderer/simple-lights/get-simple-lights-pass";
+import { getBoxRayIntersectPass } from "@renderer/box-ray-intersects/box-ray-intersects";
 
 export const debugValues = new DebugValuesStore();
 export let gpuContext: GPUCanvasContext;
@@ -255,6 +256,7 @@ export const init = async (
     // getLutPass("luts/Reeve 38.CUBE"),
     getVignettePass(10.0),
     fullscreenQuad(device),
+    getBoxRayIntersectPass(device),
     // getBoxOutlinePass(device),
   ]);
 
