@@ -29,29 +29,43 @@ fn main(
   let boxRayOutputIndex = workgroupIdx.x;
   let boxRayInput = boxRayInputs[boxRayOutputIndex];
   var rayDirection = vec3(0.0);
+
+  boxRayOutputs[boxRayOutputIndex].top = -1.0;
+  boxRayOutputs[boxRayOutputIndex].bottom = -1.0;
+  boxRayOutputs[boxRayOutputIndex].left = -1.0;
+  boxRayOutputs[boxRayOutputIndex].right = -1.0;
+
+
+
   switch(localIdx.x){
     case 0: {
       rayDirection = boxRayInput.top;
+
       break;
     }
     case 1: {
       rayDirection = -boxRayInput.top;
+
       break;
     }
     case 2: {
       rayDirection = -boxRayInput.right;
+
       break;
     }
     case 3: {
       rayDirection = boxRayInput.right;
+
       break;
     }
     case 4: {
       rayDirection = boxRayInput.front;
+
       break;
     }
     case 5: {
       rayDirection = -boxRayInput.front;
+
       break;
     }
     default: {

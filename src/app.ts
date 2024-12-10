@@ -101,15 +101,15 @@ ecs.addComponents(
   new KeyboardControllable(),
   new Velocity(),
   new AudioSource("./xmas-game-jam-2024/snow-footsteps.wav", 0.02),
-  new GlobalAudioSource("./xmas-game-jam-2024/heartbeat.wav", 0.01),
+  // new GlobalAudioSource("./xmas-game-jam-2024/heartbeat.wav", 0.01),
   new BoxRayIntersect(),
 );
 
-const breathing = ecs.addEntity();
-ecs.addComponent(
-  breathing,
-  new GlobalAudioSource("./xmas-game-jam-2024/breathing.wav", 0.01),
-);
+// const breathing = ecs.addEntity();
+// ecs.addComponent(
+//   breathing,
+//   new GlobalAudioSource("./xmas-game-jam-2024/breathing.wav", 0.01),
+// );
 
 const wind = ecs.addEntity();
 ecs.addComponent(

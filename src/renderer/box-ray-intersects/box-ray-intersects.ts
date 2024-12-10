@@ -7,7 +7,7 @@ import boxRayShader from "./box-ray.wgsl";
 import { Transform } from "../components/transform";
 import { vec3 } from "wgpu-matrix";
 
-const INPUT_STRIDE = 4 * 4;
+const INPUT_STRIDE = 4 * 4 * 4;
 const OUTPUT_STRIDE = 6 * 4;
 
 export const getBoxRayIntersectPass = (device: GPUDevice) => {
@@ -135,7 +135,7 @@ export const getBoxRayIntersectPass = (device: GPUDevice) => {
     }
 
     // Update input buffer with directions
-    boxRayEntities.forEach((entity, index) => {
+    validBoxRayEntities.forEach((entity, index) => {
       const components = args.ecs.getComponents(entity);
       const transform = components.get(Transform);
       const rotation = transform.rotation;
@@ -143,28 +143,27 @@ export const getBoxRayIntersectPass = (device: GPUDevice) => {
       const up = vec3.transformQuat([0, 1, 0], rotation);
       const right = vec3.transformQuat([1, 0, 0], rotation);
       const forward = vec3.transformQuat([0, 0, 1], rotation);
+      const arr = new Float32Array([
+        position[0],
+        position[1],
+        position[2],
+        0,
+        right[0],
+        right[1],
+        right[2],
+        0,
+        up[0],
+        up[1],
+        up[2],
+        0,
+        forward[0],
+        forward[1],
+        forward[2],
+      ]);
 
-      device.queue.writeBuffer(
-        boxRayInputBuffer,
-        index * INPUT_STRIDE,
-        new Float32Array([
-          position[0],
-          position[1],
-          position[2],
-          0,
-          right[0],
-          right[1],
-          right[2],
-          0,
-          up[0],
-          up[1],
-          up[2],
-          0,
-          forward[0],
-          forward[1],
-          forward[2],
-        ]),
-      );
+      console.log(arr.byteLength, index * INPUT_STRIDE);
+
+      device.queue.writeBuffer(boxRayInputBuffer, index * INPUT_STRIDE, arr);
     });
 
     const bindGroup = device.createBindGroup({
@@ -213,21 +212,24 @@ export const getBoxRayIntersectPass = (device: GPUDevice) => {
     pass.dispatchWorkgroups(validBoxRayEntities.length);
     pass.end();
     device.queue.submit([commandEncoder.finish()]);
+    const commandEncoder2 = device.createCommandEncoder();
     // Set flag to prevent multiple mapAsync calls
     isMapPending = true;
-    commandEncoder.copyBufferToBuffer(
+    commandEncoder2.copyBufferToBuffer(
       boxRayOutputBuffer,
       0,
       outputCopyBuffer,
       0,
       outputArraySize,
     );
+    device.queue.submit([commandEncoder2.finish()]);
     device.queue.onSubmittedWorkDone().then(() => {
       outputCopyBuffer.mapAsync(GPUMapMode.READ).finally(() => {
         const arrayBuffer = outputCopyBuffer.getMappedRange();
         const outputArray = new Float32Array(arrayBuffer);
         console.log(outputArray);
         isMapPending = false;
+        outputCopyBuffer.unmap();
       });
     });
   };
