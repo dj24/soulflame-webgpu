@@ -172,10 +172,13 @@ export const getTerrainVoxel = (
 ) => {
   const terrainNoise = noiseCache.get([x, z]);
   let offsetY = y + yStart;
-  if (offsetY < terrainNoise * CHUNK_HEIGHT) {
+  if (offsetY === Math.floor(terrainNoise * CHUNK_HEIGHT)) {
     const white = 255 - myrng() * 32;
     const colour = [white, white, white];
     return { red: colour[0], green: colour[1], blue: colour[2], solid: true };
+  }
+  if (offsetY < Math.floor(terrainNoise * CHUNK_HEIGHT)) {
+    return { red: 50, green: 50, blue: 50, solid: true };
   }
   return null;
 };

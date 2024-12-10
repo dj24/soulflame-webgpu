@@ -28,43 +28,40 @@ fn main(
 ) {
   let boxRayOutputIndex = workgroupIdx.x;
   let boxRayInput = boxRayInputs[boxRayOutputIndex];
-  var rayDirection = vec3(0.0);
-
-  boxRayOutputs[boxRayOutputIndex].top = -1.0;
-  boxRayOutputs[boxRayOutputIndex].bottom = -1.0;
-  boxRayOutputs[boxRayOutputIndex].left = -1.0;
-  boxRayOutputs[boxRayOutputIndex].right = -1.0;
-
 
 
   switch(localIdx.x){
     case 0: {
-      rayDirection = boxRayInput.top;
-
+      let rayDirection = boxRayInput.top;
+      let raymarchResult = rayMarchBVHFirstHit(boxRayInput.position, rayDirection);
+      boxRayOutputs[boxRayOutputIndex].top = raymarchResult.t;
       break;
     }
     case 1: {
-      rayDirection = -boxRayInput.top;
-
+      let rayDirection = -boxRayInput.top;
+      let raymarchResult = rayMarchBVHFirstHit(boxRayInput.position, rayDirection);
+      boxRayOutputs[boxRayOutputIndex].bottom = raymarchResult.t;
       break;
     }
     case 2: {
-      rayDirection = -boxRayInput.right;
-
+      let rayDirection = -boxRayInput.right;
+      let raymarchResult = rayMarchBVHFirstHit(boxRayInput.position, rayDirection);
+      boxRayOutputs[boxRayOutputIndex].left = raymarchResult.t;
       break;
     }
     case 3: {
-      rayDirection = boxRayInput.right;
-
+      let rayDirection = boxRayInput.right;
+      let raymarchResult = rayMarchBVHFirstHit(boxRayInput.position, rayDirection);
+      boxRayOutputs[boxRayOutputIndex].right = raymarchResult.t;
       break;
     }
     case 4: {
-      rayDirection = boxRayInput.front;
+      let rayDirection = boxRayInput.front;
 
       break;
     }
     case 5: {
-      rayDirection = -boxRayInput.front;
+      let rayDirection = -boxRayInput.front;
 
       break;
     }

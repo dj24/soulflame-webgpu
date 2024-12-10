@@ -3,21 +3,15 @@ import { Camera } from "@renderer/components/camera";
 import { Transform } from "@renderer/components/transform";
 import { quat, vec3 } from "wgpu-matrix";
 import { Renderer } from "@renderer/systems/renderer";
-import { KeyboardControl } from "@input/systems/keyboard-control";
 import { KeyboardControllable } from "@input/components/keyboard-controllable";
 import { GPUDeviceSingleton } from "@renderer/components/gpu-device-singleton";
 import { PhysicsWorldSingleton } from "@physics/components/physics-world-singleton";
-import { GamepadKinematicBoxControl } from "@input/systems/gamepad-kinematic-box-control";
 import { TerrainSystem } from "./procgen/systems/terrain-system";
 import { TerrainSingleton } from "./procgen/components/terrain-singleton";
 import { VelocitySystem } from "./systems/velocity-system";
 import { Velocity } from "./components/velocity";
-import { MouseScrollZoomSystem } from "@input/systems/mouse-scroll-zoom-system";
-import { Light } from "@renderer/components/light";
 import { ChunkCombinerSystem } from "./procgen/systems/chunk-combiner-system";
 import { DebugRotaterSystem } from "./systems/debug-rotater-system";
-import { processNewVoxelImport } from "@renderer/create-tavern";
-import { getGPUDeviceSingleton } from "./abstractions/get-gpu-device-singleton";
 import { FpsHandSystem } from "./xmas-game-jam-2024/systems/fps-hand-system";
 import { HingeSystem } from "./systems/hinge-system";
 import { GravitySystem } from "@physics/systems/gravity-system";
@@ -29,17 +23,14 @@ import { AudioSource } from "./xmas-game-jam-2024/components/audio-source";
 import { FootstepAudioSystem } from "./xmas-game-jam-2024/systems/footstep-audio-system";
 import { LightFlickerSystem } from "./xmas-game-jam-2024/systems/light-flicker-system";
 import { BoxRayIntersect } from "./components/box-ray-intersect";
-
-const LIGHT_INTENSITY = 500;
+import { PlayerControllerSystem } from "./xmas-game-jam-2024/systems/player-controller-system";
 
 const ecs = new ECS();
 
 // Systems
 ecs.addSystem(new GravitySystem());
 ecs.addSystem(new KinematicSystem());
-ecs.addSystem(new KeyboardControl());
 ecs.addSystem(new Renderer());
-ecs.addSystem(new GamepadKinematicBoxControl());
 ecs.addSystem(new TerrainSystem());
 ecs.addSystem(new VelocitySystem());
 ecs.addSystem(new DebugRotaterSystem());
@@ -54,29 +45,7 @@ ecs.addSystem(new GlobalAudioSystem());
 ecs.addSystem(new MouseLookSystem());
 ecs.addSystem(new FootstepAudioSystem());
 ecs.addSystem(new LightFlickerSystem());
-
-// Lights
-// for (let x = 64; x < 1024; x += 128) {
-//   for (let z = 64; z < 1024; z += 128) {
-//     const newEntity = ecs.addEntity();
-//     ecs.addComponents(
-//       newEntity,
-//       new Transform(
-//         vec3.create(x, 24, z),
-//         quat.fromEuler(0, 0, 0, "xyz"),
-//         vec3.create(1, 1, 1),
-//       ),
-//       new Light(
-//         vec3.mulScalar(
-//           vec3.normalize(
-//             vec3.create(Math.random(), Math.random(), Math.random()),
-//           ),
-//           LIGHT_INTENSITY,
-//         ),
-//       ),
-//     );
-//   }
-// }
+ecs.addSystem(new PlayerControllerSystem());
 
 // Globals
 const singleton = ecs.addEntity();
@@ -104,12 +73,6 @@ ecs.addComponents(
   // new GlobalAudioSource("./xmas-game-jam-2024/heartbeat.wav", 0.01),
   new BoxRayIntersect(),
 );
-
-// const breathing = ecs.addEntity();
-// ecs.addComponent(
-//   breathing,
-//   new GlobalAudioSource("./xmas-game-jam-2024/breathing.wav", 0.01),
-// );
 
 const wind = ecs.addEntity();
 ecs.addComponent(

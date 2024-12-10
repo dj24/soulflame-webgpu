@@ -11,12 +11,19 @@ struct Light {
   padding_2: f32,
 };
 
+struct Time {
+  frame: u32,
+  deltaTime: f32,
+  elapsed: f32
+};
+
 @group(0) @binding(0) var<storage, read> lightsBuffer : array<Light>;
 @group(0) @binding(1) var worldPosTex : texture_2d<f32>;
 @group(0) @binding(2) var normalTex : texture_2d<f32>;
-@group(0) @binding(3) var albedoTex : texture_2d<f32>;
+@group(0) @binding(3) var blueNoiseTex : texture_2d<f32>;
 @group(0) @binding(4) var linearSampler : sampler;
 @group(0) @binding(5) var<uniform> cameraPosition : vec3<f32>;
+@group(0) @binding(6) var<uniform> time : Time;
 
 fn random(co : vec2<f32>) -> f32 {
     return fract(sin(dot(co, vec2<f32>(12.9898, 78.233))) * 43758.5453);
@@ -66,12 +73,25 @@ fn fragment_main(
   let light = lightsBuffer[instanceId];
   let worldPos = textureSampleLevel(worldPosTex, linearSampler, fragUV, 0).xyz;
   let normal = textureSampleLevel(normalTex, linearSampler, fragUV, 0).xyz;
-  let albedo = textureSampleLevel(albedoTex, linearSampler, fragUV, 0).xyz;
+
+  var blueNoiseUV = fragUV;
+
+  blueNoiseUV.x += f32(time.frame) * fwidth(fragUV).x * 2.0;
+  blueNoiseUV.y += f32(time.frame) * fwidth(fragUV).y;
+  if(time.frame % 2 == 0){
+    blueNoiseUV.y =1.0 - blueNoiseUV.y;
+  }
+  if(time.frame % 3 == 0){
+    blueNoiseUV.x = 1.0 - blueNoiseUV.x;
+  }
+
 
   // Area Light
   var totalAttenuation = 0.0;
   for(var i = 0; i < 8; i = i + 1) {
-    let randomOffset = randomFloat3(fragUV + vec2<f32>(f32(i) * 0.01, 0.0));
+    let sampleBlueNoiseUv = blueNoiseUV + vec2(f32(i) * fwidth(fragUV).x, -f32(i) * fwidth(fragUV).x);
+    let blueNoise = textureSampleLevel(blueNoiseTex, linearSampler, sampleBlueNoiseUv, 0);
+    let randomOffset = randomFloat3(blueNoise.xy);
     let lightPos = light.position + (randomOffset * 2.0 - 1.0);
     let lightDir = lightPos - worldPos;
     let distance = length(lightDir);
@@ -82,7 +102,6 @@ fn fragment_main(
     totalAttenuation += attenuation;
   }
   totalAttenuation /= 8.0;
-  totalAttenuation *= length(light.color);
 
-  return vec4<f32>(albedo * normalize(light.color), totalAttenuation);
+  return vec4<f32>(light.color, clamp(totalAttenuation, 0.,1.));
 }

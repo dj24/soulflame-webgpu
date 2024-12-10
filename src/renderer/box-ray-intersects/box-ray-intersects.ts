@@ -34,7 +34,7 @@ export const getBoxRayIntersectPass = (device: GPUDevice) => {
         binding: 2,
         visibility: GPUShaderStage.COMPUTE,
         buffer: {
-          type: "storage",
+          type: "read-only-storage",
         },
       },
       // BVH buffer
@@ -42,7 +42,7 @@ export const getBoxRayIntersectPass = (device: GPUDevice) => {
         binding: 3,
         visibility: GPUShaderStage.COMPUTE,
         buffer: {
-          type: "storage",
+          type: "read-only-storage",
         },
       },
       // Voxel object buffer
@@ -50,7 +50,7 @@ export const getBoxRayIntersectPass = (device: GPUDevice) => {
         binding: 4,
         visibility: GPUShaderStage.COMPUTE,
         buffer: {
-          type: "storage",
+          type: "read-only-storage",
         },
       },
     ],
@@ -87,7 +87,7 @@ export const getBoxRayIntersectPass = (device: GPUDevice) => {
     }
 
     const boxRayEntities = args.ecs.getEntitiesithComponent(BoxRayIntersect);
-    let validBoxRayEntities = [];
+    let validBoxRayEntities: number[] = [];
 
     for (const entity of boxRayEntities) {
       const components = args.ecs.getComponents(entity);
@@ -140,7 +140,8 @@ export const getBoxRayIntersectPass = (device: GPUDevice) => {
       const transform = components.get(Transform);
       const rotation = transform.rotation;
       const position = transform.position;
-      const up = vec3.transformQuat([0, 1, 0], rotation);
+      // const up = vec3.transformQuat([0, 1, 0], rotation);
+      const up = [0, 1, 0];
       const right = vec3.transformQuat([1, 0, 0], rotation);
       const forward = vec3.transformQuat([0, 0, 1], rotation);
       const arr = new Float32Array([
@@ -160,8 +161,6 @@ export const getBoxRayIntersectPass = (device: GPUDevice) => {
         forward[1],
         forward[2],
       ]);
-
-      console.log(arr.byteLength, index * INPUT_STRIDE);
 
       device.queue.writeBuffer(boxRayInputBuffer, index * INPUT_STRIDE, arr);
     });
@@ -227,7 +226,22 @@ export const getBoxRayIntersectPass = (device: GPUDevice) => {
       outputCopyBuffer.mapAsync(GPUMapMode.READ).finally(() => {
         const arrayBuffer = outputCopyBuffer.getMappedRange();
         const outputArray = new Float32Array(arrayBuffer);
-        console.log(outputArray);
+        validBoxRayEntities.forEach((entity, index) => {
+          const components = args.ecs.getComponents(entity);
+          const boxRayIntersect = components.get(BoxRayIntersect);
+          if (!boxRayIntersect) {
+            return;
+          }
+          const offset = index * OUTPUT_STRIDE;
+          boxRayIntersect.top = outputArray[offset];
+          boxRayIntersect.bottom = outputArray[offset + 1];
+          boxRayIntersect.left = outputArray[offset + 2];
+          boxRayIntersect.right = outputArray[offset + 3];
+          boxRayIntersect.front = outputArray[offset + 4];
+          boxRayIntersect.back = outputArray[offset + 5];
+
+          console.log(boxRayIntersect.front);
+        });
         isMapPending = false;
         outputCopyBuffer.unmap();
       });

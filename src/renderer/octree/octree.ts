@@ -219,7 +219,7 @@ export class Octree {
       0,
     );
 
-    const isAllVoxelsFilled = totalVoxels === size ** 3;
+    const isAllVoxelsFilled = totalVoxels === size ** 3 && size > 1;
 
     if (isAllVoxelsFilled) {
       const centerOfOctant = offset.map((o) => o + size / 2);

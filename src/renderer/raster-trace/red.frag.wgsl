@@ -66,21 +66,20 @@ fn fractal(uv:vec2<f32>) -> f32
   return f;
 }
 
-fn getVelocity(objectPos: vec3<f32>, modelMatrix: mat4x4<f32>, previousModelMatrix: mat4x4<f32>, viewProjections: ViewProjectionMatrices) -> vec3<f32> {
+fn getVelocityStatic(worldPos: vec3<f32>, viewProjections:ViewProjectionMatrices) -> vec2<f32>{
   let vp = viewProjections.viewProjection;
   let previousVp = viewProjections.previousViewProjection;
 
-  // Get current object space position of the current pixel
-  let objectClipSpace = vp * modelMatrix * vec4(objectPos.xyz, 1.0);
-  let objectNDC = objectClipSpace.xyz / objectClipSpace.w;
+  let clipSpace = vp * vec4(worldPos.xyz, 1.0);
+  let previousClipSpace = previousVp * vec4(worldPos.xyz, 1.0);
 
-  // Get previous position of the current object space position
-  let previousObjectClipSpace = previousVp * previousModelMatrix * vec4(objectPos.xyz, 1.0);
-  let previousObjectNDC = previousObjectClipSpace.xyz / previousObjectClipSpace.w;
+  let ndc = clipSpace.xyz / clipSpace.w;
+  let previousNdc = previousClipSpace.xyz / previousClipSpace.w;
 
-  // Get velocity based on the difference between the current and previous positions
-  var velocity = previousObjectNDC - objectNDC;
-  velocity.y = -velocity.y;
+  var uv = ndc.xy * 0.5 + 0.5;
+  var previousUv = previousNdc.xy * 0.5 + 0.5;
+
+  var velocity = previousUv - uv;
   return velocity;
 }
 
@@ -136,9 +135,10 @@ fn main(
     let nDotL = dot(result.normal, normalize(vec3<f32>(0.0, 1.0, 0.0)));
     output.albedo = vec4(result.colour * mix(nDotL, 1.0, 1.0), 1.0);
     output.normal = vec4(transformNormal(voxelObject.inverseTransform,vec3<f32>(result.normal)), 0.0);
-    output.velocity = vec4(0.0);
+
     let raymarchedDistance = length(output.worldPosition.xyz  - rayOrigin);
     output.worldPosition = vec4(rayOrigin + rayDirection * result.t - 0.0001, raymarchedDistance);
+    output.velocity = vec4(getVelocityStatic(output.worldPosition.xyz, viewProjections), 0.0, 0.0);
 
     // TODO: get from buffer
     let clipSpacePosition = viewProjections.viewProjection * vec4(output.worldPosition.xyz, 1.0);

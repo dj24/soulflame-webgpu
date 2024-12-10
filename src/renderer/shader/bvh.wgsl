@@ -125,6 +125,8 @@ fn rayMarchBVHFirstHit(rayOrigin: vec3<f32>, rayDirection: vec3<f32>) -> RayMarc
     }
     iterations += 1;
   }
+  var result = RayMarchResult();
+  result.t = -1.0;
   return RayMarchResult();
 }
 

@@ -464,7 +464,7 @@ export const getBloomPass = async (): Promise<RenderPass> => {
             let bloomPixel = vec2<i32>(GlobalInvocationID.xy - vec2(8));
             let color = textureLoad(inputTex, gBufferPixel, 0);
             let luminance = dot(color.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
-            let threshold = 16.0;
+            let threshold = 0.8;
             let smoothedLuminance = smoothstep(threshold - 1.0, threshold, luminance);
             let thresholded = mix(vec4<f32>(0.0), color, smoothedLuminance);
             textureStore(outputTex,bloomPixel, thresholded);

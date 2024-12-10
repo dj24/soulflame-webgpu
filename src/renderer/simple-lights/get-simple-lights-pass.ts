@@ -34,7 +34,7 @@ export const getSimpleLightsPass = async (): Promise<RenderPass> => {
           sampleType: "float",
         },
       },
-      // Albedo texture
+      // Blue noise
       {
         binding: 3,
         visibility: GPUShaderStage.FRAGMENT,
@@ -51,6 +51,14 @@ export const getSimpleLightsPass = async (): Promise<RenderPass> => {
       // Camera position
       {
         binding: 5,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: {
+          type: "uniform",
+        },
+      },
+      // Time buffer
+      {
+        binding: 6,
         visibility: GPUShaderStage.FRAGMENT,
         buffer: {
           type: "uniform",
@@ -101,6 +109,8 @@ export const getSimpleLightsPass = async (): Promise<RenderPass> => {
   const sampler = device.createSampler({
     magFilter: "linear",
     minFilter: "linear",
+    addressModeU: "repeat",
+    addressModeV: "repeat",
   });
 
   const render = ({
@@ -109,6 +119,8 @@ export const getSimpleLightsPass = async (): Promise<RenderPass> => {
     timestampWrites,
     ecs,
     cameraPositionBuffer,
+    blueNoiseTextureView,
+    timeBuffer,
   }: RenderArgs) => {
     let lights: { position: Vec3; color: Vec3 }[] = [];
     ecs.getEntitiesithComponent(Light).forEach((entity) => {
@@ -176,7 +188,7 @@ export const getSimpleLightsPass = async (): Promise<RenderPass> => {
         },
         {
           binding: 3,
-          resource: outputTextures.albedoTexture.view,
+          resource: blueNoiseTextureView,
         },
         {
           binding: 4,
@@ -186,6 +198,12 @@ export const getSimpleLightsPass = async (): Promise<RenderPass> => {
           binding: 5,
           resource: {
             buffer: cameraPositionBuffer,
+          },
+        },
+        {
+          binding: 6,
+          resource: {
+            buffer: timeBuffer,
           },
         },
       ],
