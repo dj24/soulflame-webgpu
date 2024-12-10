@@ -12,6 +12,7 @@ import { ImmovableBox } from "@physics/components/immovable-box";
 import { getPhysicsWorld } from "../../abstractions/get-physics-world";
 import { HingeSystem } from "../../systems/hinge-system";
 import { Light } from "@renderer/components/light";
+import { LightFlicker } from "../components/light-flicker";
 
 export class FpsHandSystem extends System {
   componentsRequired = new Set([Camera, Transform]);
@@ -126,7 +127,8 @@ export class FpsHandSystem extends System {
         this.ecs.addComponents(
           this.lightEntity,
           new Transform([0, 0, 0], quat.identity(), [1, 1, 1]),
-          new Light([250, 150, 80]),
+          new Light([400, 300, 120]),
+          new LightFlicker(),
         );
       });
     }

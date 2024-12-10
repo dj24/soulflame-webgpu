@@ -66,11 +66,6 @@ const sdCone = (p: Vec3, sinCosAngle: Vec2, height: number) => {
   return Math.max(dot, -height - p[1]);
 };
 
-// Infinite cylinder pointing up
-const sdCylinder = (p: Vec3, radius: number) => {
-  return vec2.length(vec2.create(p[0], p[2])) - radius;
-};
-
 const getSdfTreeCache = async () => {
   const circumference = 64;
   const maxConeSize = 10;
@@ -112,19 +107,29 @@ const getSdfTreeCache = async () => {
           const coneY = (i / 12) * height + coneHeight;
           let coneP = [p[0], p[1] - coneY, p[2]];
           const noise = fractalNoise3D(p[0], p[1], p[2], 0.2, 1);
-          coneP[1] += noise * 0.8;
+          coneP[1] += noise * 0.2;
           return Math.max(
             -sdCone(coneP, sinCosAngle, coneHeight),
             sdCone(vec3.sub(coneP, [0, 1, 0]), sinCosAngle, coneHeight),
           );
         });
         if (cones.some((v) => v <= 0)) {
-          const red = 0;
-          const green = 64 - myrng() * 16;
-          const blue = 0;
-          cache[index * 3] = red;
-          cache[index * 3 + 1] = green;
-          cache[index * 3 + 2] = blue;
+          const snowNoise = fractalNoise3D(p[0], p[1], p[2], 1.0, 2);
+          if (snowNoise > 0.1) {
+            const red = 255;
+            const green = 255;
+            const blue = 255;
+            cache[index * 3] = red;
+            cache[index * 3 + 1] = green;
+            cache[index * 3 + 2] = blue;
+          } else {
+            const red = 0;
+            const green = 64 - myrng() * 16;
+            const blue = 0;
+            cache[index * 3] = red;
+            cache[index * 3 + 1] = green;
+            cache[index * 3 + 2] = blue;
+          }
         }
       }
     }
@@ -168,12 +173,8 @@ export const getTerrainVoxel = (
   const terrainNoise = noiseCache.get([x, z]);
   let offsetY = y + yStart;
   if (offsetY < terrainNoise * CHUNK_HEIGHT) {
-    const colour = vec3.lerp(
-      [0, 128 - myrng() * 32, 0],
-      [72 - myrng() * 8, 48, 42],
-      0,
-    );
-    // return null;
+    const white = 255 - myrng() * 32;
+    const colour = [white, white, white];
     return { red: colour[0], green: colour[1], blue: colour[2], solid: true };
   }
   return null;

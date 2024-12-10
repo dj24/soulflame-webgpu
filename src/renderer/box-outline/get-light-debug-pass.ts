@@ -141,7 +141,7 @@ export const getLightDebugPass = async (
     [...renderableEntities].forEach((entity, i) => {
       const transform = ecs.getComponents(entity).get(Transform);
       const light = ecs.getComponents(entity).get(Light);
-      const vertices = getCuboidVerticesColours([2, 2, 2], light.color);
+      const vertices = getCuboidVerticesColours([0.5, 0.5, 0.5], light.color);
       const bufferOffset = i * 256;
 
       device.queue.writeBuffer(

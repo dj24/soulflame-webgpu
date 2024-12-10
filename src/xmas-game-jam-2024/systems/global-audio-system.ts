@@ -19,14 +19,13 @@ export class GlobalAudioSystem extends System {
       if (this.audioSources.has(globalAudioSource.path)) {
         continue;
       }
+      const source = this.audioContext.createBufferSource();
+      this.audioSources.set(globalAudioSource.path, source);
       fetch(globalAudioSource.path)
         .then((response) => response.arrayBuffer())
         .then((buffer) => {
           this.audioContext.decodeAudioData(buffer, (audioBuffer) => {
-            const source = this.audioContext.createBufferSource();
-            this.audioSources.set(globalAudioSource.path, source);
             source.buffer = audioBuffer;
-
             const gainNode = this.audioContext.createGain();
             gainNode.gain.value = globalAudioSource.volume;
             source.connect(gainNode);

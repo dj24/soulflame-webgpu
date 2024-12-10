@@ -55,15 +55,15 @@ export class FootstepAudioSystem extends System {
           dryGain.gain.value = 0;
           dryGain.gain.linearRampToValueAtTime(
             audioSource.volume,
-            this.audioContext.currentTime + 0.5,
+            this.audioContext.currentTime + 1.0,
           );
 
           // Convolver Volume
           const wetGain = this.audioContext.createGain();
           wetGain.gain.value = 0;
           wetGain.gain.linearRampToValueAtTime(
-            audioSource.volume * 0.9,
-            this.audioContext.currentTime + 0.5,
+            audioSource.volume,
+            this.audioContext.currentTime + 1.0,
           );
 
           // Connect the source to the dry path

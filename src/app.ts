@@ -27,6 +27,7 @@ import { GlobalAudioSource } from "./xmas-game-jam-2024/components/global-audio-
 import { MouseLookSystem } from "@input/systems/mouse-look-system";
 import { AudioSource } from "./xmas-game-jam-2024/components/audio-source";
 import { FootstepAudioSystem } from "./xmas-game-jam-2024/systems/footstep-audio-system";
+import { LightFlickerSystem } from "./xmas-game-jam-2024/systems/light-flicker-system";
 
 const LIGHT_INTENSITY = 500;
 
@@ -51,6 +52,7 @@ ecs.addSystem(new FpsHandSystem());
 ecs.addSystem(new GlobalAudioSystem());
 ecs.addSystem(new MouseLookSystem());
 ecs.addSystem(new FootstepAudioSystem());
+ecs.addSystem(new LightFlickerSystem());
 
 // Lights
 // for (let x = 64; x < 1024; x += 128) {
@@ -97,7 +99,20 @@ ecs.addComponents(
   ),
   new KeyboardControllable(),
   new Velocity(),
-  new AudioSource("./xmas-game-jam-2024/footsteps.wav", 0.2),
+  new AudioSource("./xmas-game-jam-2024/snow-footsteps.wav", 0.02),
+  new GlobalAudioSource("./xmas-game-jam-2024/heartbeat.wav", 0.01),
+);
+
+const breathing = ecs.addEntity();
+ecs.addComponent(
+  breathing,
+  new GlobalAudioSource("./xmas-game-jam-2024/breathing.wav", 0.01),
+);
+
+const wind = ecs.addEntity();
+ecs.addComponent(
+  wind,
+  new GlobalAudioSource("./xmas-game-jam-2024/wind.wav", 0.02),
 );
 
 // Game loop

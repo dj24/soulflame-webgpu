@@ -484,7 +484,7 @@ export const getBloomPass = async (): Promise<RenderPass> => {
   let allMipsView: GPUTextureView;
 
   const horizontalBlur = getHorizontalBlur(4);
-  const verticalBlur = getVerticalBlur(4);
+  const verticalBlur = getVerticalBlur(8);
   const downscalePass = getHalfResDownscalePass();
   const additiveBlend = getAdditiveBlend(0.1);
 

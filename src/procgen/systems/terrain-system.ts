@@ -122,6 +122,62 @@ export class TerrainSystem extends System {
       foo(this.ecs);
       // DEBUG
       processNewVoxelImport(
+        "./xmas-game-jam-2024/krampus.vxm",
+        gpuSingleton.device,
+      ).then((voxels) => {
+        const newEntity = this.ecs.addEntity();
+        this.ecs.addComponent(newEntity, voxels);
+
+        const krampusPos = [32, 0, 16];
+        const krampusScale = 0.2;
+
+        const transform = new Transform(
+          [
+            (voxels.size[0] * krampusScale) / 2,
+            (voxels.size[1] * krampusScale) / 2,
+            (voxels.size[2] * krampusScale) / 2,
+          ],
+          quat.fromEuler(0, 0, 0, "xyz"),
+          [krampusScale, krampusScale, krampusScale],
+        );
+        transform.position = vec3.add(transform.position, krampusPos);
+        this.ecs.addComponent(newEntity, transform);
+
+        // lights in eyes
+        const leftEye = this.ecs.addEntity();
+        const leftEyeTransform = new Transform(
+          vec3.mulScalar(vec3.create(44.5, 78, 16), krampusScale),
+          quat.fromEuler(0, 0, 0, "xyz"),
+          [1, 1, 1],
+        );
+        leftEyeTransform.position = vec3.add(
+          leftEyeTransform.position,
+          krampusPos,
+        );
+        this.ecs.addComponents(
+          leftEye,
+          leftEyeTransform,
+          new Light([0, 0, 50]),
+        );
+
+        const rightEye = this.ecs.addEntity();
+        const rightEyeTransform = new Transform(
+          vec3.mulScalar(vec3.create(35.5, 78, 16), krampusScale),
+          quat.fromEuler(0, 0, 0, "xyz"),
+          [1, 1, 1],
+        );
+        rightEyeTransform.position = vec3.add(
+          rightEyeTransform.position,
+          krampusPos,
+        );
+        this.ecs.addComponents(
+          rightEye,
+          rightEyeTransform,
+          new Light([0, 0, 50]),
+        );
+      });
+
+      processNewVoxelImport(
         "./xmas-game-jam-2024/cabin.vxm",
         gpuSingleton.device,
       ).then((voxels) => {
