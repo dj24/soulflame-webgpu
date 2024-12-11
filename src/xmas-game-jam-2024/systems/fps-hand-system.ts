@@ -128,7 +128,7 @@ export class FpsHandSystem extends System {
         this.ecs.addComponents(
           this.lightEntity,
           new Transform([0, 0, 0], quat.identity(), [1, 1, 1]),
-          new Light([400, 300, 120]),
+          new Light([600, 400, 200]),
           new LightFlicker(),
         );
       });

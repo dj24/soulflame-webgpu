@@ -83,6 +83,37 @@ fn getVelocityStatic(worldPos: vec3<f32>, viewProjections:ViewProjectionMatrices
   return velocity;
 }
 
+fn claculateObjectVelocity(worldPos:vec3<f32>, transform: mat4x4<f32>, previousTransform: mat4x4<f32>) -> vec3<f32> {
+  let previousPosition = (previousTransform * vec4<f32>(worldPos, 1.0)).xyz;
+  let position = (transform * vec4<f32>(worldPos, 1.0)).xyz;
+  return position - previousPosition;
+}
+
+
+fn getVelocity(worldPos: vec3<f32>, viewProjections: ViewProjectionMatrices, objectVelocity: vec3<f32>) -> vec2<f32> {
+    let vp = viewProjections.viewProjection;
+    let previousVp = viewProjections.previousViewProjection;
+
+    // Calculate the previous world position using object velocity
+    let previousWorldPos = worldPos - objectVelocity;
+
+    // Transform current and previous world positions into clip space
+    let clipSpace = vp * vec4<f32>(worldPos, 1.0);
+    let previousClipSpace = previousVp * vec4<f32>(previousWorldPos, 1.0);
+
+    // Normalize to NDC
+    let ndc = clipSpace.xyz / clipSpace.w;
+    let previousNdc = previousClipSpace.xyz / previousClipSpace.w;
+
+    // Convert to UV coordinates
+    var uv = ndc.xy * 0.5 + 0.5;
+    var previousUv = previousNdc.xy * 0.5 + 0.5;
+
+    // Calculate velocity in screen space
+    var velocity = uv - previousUv;
+    return velocity;
+}
+
 struct Ray {
   origin : vec3<f32>,
   direction : vec3<f32>,
@@ -111,6 +142,7 @@ fn calculate_ray(ndc_coords: vec2<f32>, inverse_view_proj: mat4x4<f32>, inverse_
     return Ray(ray_origin, ray_direction);
 }
 
+
 @fragment
 fn main(
   @location(0) objectPos : vec3f,
@@ -138,7 +170,10 @@ fn main(
 
     let raymarchedDistance = length(output.worldPosition.xyz  - rayOrigin);
     output.worldPosition = vec4(rayOrigin + rayDirection * result.t - 0.0001, raymarchedDistance);
-    output.velocity = vec4(getVelocityStatic(output.worldPosition.xyz, viewProjections), 0.0, 0.0);
+
+    let objectVelocity = claculateObjectVelocity(output.worldPosition.xyz, voxelObject.transform, voxelObject.previousTransform);
+
+    output.velocity = vec4(getVelocity(output.worldPosition.xyz, viewProjections, objectVelocity), 0.0, 0.0);
 
     // TODO: get from buffer
     let clipSpacePosition = viewProjections.viewProjection * vec4(output.worldPosition.xyz, 1.0);

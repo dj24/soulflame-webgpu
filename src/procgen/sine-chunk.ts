@@ -192,7 +192,7 @@ const cabinPositions = [vec2.create(0, 0), vec2.create(0, 64)];
 
 const cabinheight = 32;
 
-const getCabinVoxel = await getCabinCache();
+// const getCabinVoxel = await getCabinCache();
 
 export const createOctreeAndReturnBytes = async (
   position: [number, number, number],
@@ -227,6 +227,21 @@ export const createOctreeAndReturnBytes = async (
         z % treeRepeatZ,
         position[1],
       );
+      const isGate = x % 2 == 1 || z % 2 == 0;
+
+      const isEdgeOfMap =
+        position[0] + x === 0 ||
+        position[2] + z === 0 ||
+        position[0] + x === 256 * 3 - 1 ||
+        position[2] + z === 256 * 3 - 1;
+      if (isEdgeOfMap && isGate) {
+        return {
+          red: 20,
+          green: 20,
+          blue: 20,
+          solid: true,
+        };
+      }
 
       // if (x < cabinSize[0] && z < cabinSize[2]) {
       //   const cabinVoxel = getCabinVoxel(x, y, z);

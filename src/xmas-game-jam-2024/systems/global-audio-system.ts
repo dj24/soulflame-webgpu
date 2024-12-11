@@ -3,37 +3,27 @@ import { GlobalAudioSource } from "../components/global-audio-source";
 
 export class GlobalAudioSystem extends System {
   componentsRequired = new Set([GlobalAudioSource]);
-  audioContext: AudioContext;
-  audioSources: Map<string, AudioBufferSourceNode> = new Map();
+  audios: Map<string, HTMLAudioElement> = new Map();
 
   update(entities: Set<Entity>, now: number, deltaTime: number) {
-    if (!this.audioContext) {
-      this.audioContext = new AudioContext();
-    }
     for (const entity of entities) {
       const components = this.ecs.getComponents(entity);
       const globalAudioSource = components.get(GlobalAudioSource);
       if (!globalAudioSource) {
         continue;
       }
-      if (this.audioSources.has(globalAudioSource.path)) {
-        continue;
-      }
-      const source = this.audioContext.createBufferSource();
-      this.audioSources.set(globalAudioSource.path, source);
-      fetch(globalAudioSource.path)
-        .then((response) => response.arrayBuffer())
-        .then((buffer) => {
-          this.audioContext.decodeAudioData(buffer, (audioBuffer) => {
-            source.buffer = audioBuffer;
-            const gainNode = this.audioContext.createGain();
-            gainNode.gain.value = globalAudioSource.volume;
-            source.connect(gainNode);
-            gainNode.connect(this.audioContext.destination);
-            source.loop = true;
-            source.start();
-          });
+      if (!this.audios.has(globalAudioSource.path)) {
+        const audio = new Audio(globalAudioSource.path);
+        audio.volume = 0;
+        audio.loop = true;
+        this.audios.set(globalAudioSource.path, audio);
+        audio.play().catch(() => {
+          console.error(`Failed to play audio: ${globalAudioSource.path}`);
+          this.audios.delete(globalAudioSource.path);
         });
+      }
+      const audio = this.audios.get(globalAudioSource.path);
+      audio.volume = globalAudioSource.volume;
     }
   }
 }

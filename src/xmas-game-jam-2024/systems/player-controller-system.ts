@@ -8,7 +8,7 @@ import { animate, glide } from "motion";
 import { deltaTime } from "@renderer/app";
 import { PitchYaw } from "../components/pitch-yaw";
 
-const moveSpeed = 0.05;
+const moveSpeed = 0.045;
 
 export class PlayerControllerSystem extends System {
   keyboardControls = new KeyboardControls();

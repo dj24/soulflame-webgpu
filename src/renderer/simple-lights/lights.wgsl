@@ -24,6 +24,7 @@ struct Time {
 @group(0) @binding(4) var linearSampler : sampler;
 @group(0) @binding(5) var<uniform> cameraPosition : vec3<f32>;
 @group(0) @binding(6) var<uniform> time : Time;
+@group(0) @binding(7) var albedoTex : texture_2d<f32>;
 
 fn random(co : vec2<f32>) -> f32 {
     return fract(sin(dot(co, vec2<f32>(12.9898, 78.233))) * 43758.5453);
@@ -73,6 +74,7 @@ fn fragment_main(
   let light = lightsBuffer[instanceId];
   let worldPos = textureSampleLevel(worldPosTex, linearSampler, fragUV, 0).xyz;
   let normal = textureSampleLevel(normalTex, linearSampler, fragUV, 0).xyz;
+  let albedo = textureSampleLevel(albedoTex, linearSampler, fragUV, 0).xyz;
 
   var blueNoiseUV = fragUV;
 
@@ -103,5 +105,5 @@ fn fragment_main(
   }
   totalAttenuation /= 8.0;
 
-  return vec4<f32>(light.color, clamp(totalAttenuation, 0.,1.));
+  return vec4<f32>(light.color * albedo, clamp(totalAttenuation, 0.,1.));
 }

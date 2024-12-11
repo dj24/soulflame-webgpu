@@ -26,6 +26,11 @@ import { BoxRayIntersect } from "./components/box-ray-intersect";
 import { PlayerControllerSystem } from "./xmas-game-jam-2024/systems/player-controller-system";
 import { PitchYaw } from "./xmas-game-jam-2024/components/pitch-yaw";
 import { KrampusSystem } from "./xmas-game-jam-2024/systems/krampus-system";
+import { UpdatePreviousTransforms } from "./systems/update-previous-transforms";
+import { PresentPickupSystem } from "./xmas-game-jam-2024/systems/present-pickup-system";
+import { KrampusProximitySystem } from "./xmas-game-jam-2024/systems/krampus-proximity-system";
+import { KrampusProximity } from "./xmas-game-jam-2024/components/krampus-proximity";
+import { PresentCount } from "./xmas-game-jam-2024/components/present-count";
 
 const ecs = new ECS();
 
@@ -49,6 +54,9 @@ ecs.addSystem(new FootstepAudioSystem());
 ecs.addSystem(new LightFlickerSystem());
 ecs.addSystem(new PlayerControllerSystem());
 ecs.addSystem(new KrampusSystem());
+ecs.addSystem(new UpdatePreviousTransforms());
+ecs.addSystem(new PresentPickupSystem());
+ecs.addSystem(new KrampusProximitySystem());
 
 // Globals
 const singleton = ecs.addEntity();
@@ -57,7 +65,7 @@ ecs.addComponent(singleton, new PhysicsWorldSingleton());
 ecs.addComponent(singleton, new TerrainSingleton());
 ecs.addComponent(
   singleton,
-  new GlobalAudioSource("./xmas-game-jam-2024/blizzard.wav", 0.01),
+  new GlobalAudioSource("./xmas-game-jam-2024/blizzard.wav", 0.05),
 );
 
 // Camera / Player
@@ -66,22 +74,37 @@ ecs.addComponents(
   camera,
   new Camera({ fieldOfView: 70 * (Math.PI / 180), near: 2.0, far: 1000000 }),
   new Transform(
-    vec3.create(64, 32.5, 64),
+    vec3.create(256 * 1.5, 32.5, 256 * 1.5),
     quat.fromEuler(0, 45 * (Math.PI / 180), 0, "xyz"),
     vec3.create(1, 1, 1),
   ),
   new KeyboardControllable(),
   new Velocity(),
-  new AudioSource("./xmas-game-jam-2024/snow-footsteps.wav", 0.02),
+  new AudioSource("./xmas-game-jam-2024/snow-footsteps.wav", 0.04),
   // new GlobalAudioSource("./xmas-game-jam-2024/heartbeat.wav", 0.01),
   new BoxRayIntersect(),
   new PitchYaw(),
+  new PresentCount(),
 );
 
 const wind = ecs.addEntity();
 ecs.addComponent(
   wind,
-  new GlobalAudioSource("./xmas-game-jam-2024/wind.wav", 0.02),
+  new GlobalAudioSource("./xmas-game-jam-2024/wind.wav", 0.05),
+);
+
+const heartbeat = ecs.addEntity();
+ecs.addComponents(
+  heartbeat,
+  new GlobalAudioSource("./xmas-game-jam-2024/heartbeat.wav", 0.1),
+  new KrampusProximity(),
+);
+
+const breath = ecs.addEntity();
+ecs.addComponents(
+  breath,
+  new GlobalAudioSource("./xmas-game-jam-2024/breathing.wav", 0.02),
+  new KrampusProximity(),
 );
 
 // Game loop

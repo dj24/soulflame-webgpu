@@ -64,6 +64,14 @@ export const getSimpleLightsPass = async (): Promise<RenderPass> => {
           type: "uniform",
         },
       },
+      // Albedo texture
+      {
+        binding: 7,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: {
+          sampleType: "float",
+        },
+      },
     ],
   });
 
@@ -205,6 +213,10 @@ export const getSimpleLightsPass = async (): Promise<RenderPass> => {
           resource: {
             buffer: timeBuffer,
           },
+        },
+        {
+          binding: 7,
+          resource: outputTextures.albedoTexture.view,
         },
       ],
     });

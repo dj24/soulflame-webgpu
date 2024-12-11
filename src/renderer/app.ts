@@ -232,18 +232,18 @@ export const init = async (
     getClearPass(worldPositionTexture),
     getClearPass(outputTexture),
     getRasterTracePass(),
-    (async () => {
-      return {
-        label: "copy albedo",
-        render: (renderArgs: RenderArgs) => {
-          copyGBufferTexture(
-            renderArgs.commandEncoder,
-            renderArgs.outputTextures.albedoTexture,
-            renderArgs.outputTextures.finalTexture,
-          );
-        },
-      };
-    })(),
+    // (async () => {
+    //   return {
+    //     label: "copy albedo",
+    //     render: (renderArgs: RenderArgs) => {
+    //       copyGBufferTexture(
+    //         renderArgs.commandEncoder,
+    //         renderArgs.outputTextures.albedoTexture,
+    //         renderArgs.outputTextures.finalTexture,
+    //       );
+    //     },
+    //   };
+    // })(),
     // getShadowsPass(),
     // getLightsPass(device),
     getSimpleLightsPass(),
@@ -252,7 +252,7 @@ export const init = async (
     getBloomPass(),
     // getSimpleFogPass(),
     // getTonemapPass(),w
-    getMotionBlurPass(),
+    // getMotionBlurPass(),
     // getLutPass("luts/Reeve 38.CUBE"),
     getVignettePass(10.0),
     fullscreenQuad(device),

@@ -12,6 +12,7 @@ import { Light } from "@renderer/components/light";
 import { Krampus } from "../../xmas-game-jam-2024/components/krampus";
 import { BoxRayIntersect } from "../../components/box-ray-intersect";
 import { PitchYaw } from "../../xmas-game-jam-2024/components/pitch-yaw";
+import { Present } from "../../xmas-game-jam-2024/components/present";
 
 export const chunkWidth = 64;
 
@@ -146,76 +147,34 @@ export class TerrainSystem extends System {
         this.ecs.addComponent(newEntity, new Krampus());
         this.ecs.addComponent(newEntity, new BoxRayIntersect());
         this.ecs.addComponent(newEntity, new PitchYaw());
-
-        // lights in eyes
-        const leftEye = this.ecs.addEntity();
-        const leftEyeTransform = new Transform(
-          vec3.mulScalar(vec3.create(44.5, 78, 16), krampusScale),
-          quat.fromEuler(0, 0, 0, "xyz"),
-          [1, 1, 1],
-        );
-        leftEyeTransform.position = vec3.add(
-          leftEyeTransform.position,
-          krampusPos,
-        );
-        this.ecs.addComponents(
-          leftEye,
-          leftEyeTransform,
-          new Light([0, 0, 50]),
-        );
-
-        const rightEye = this.ecs.addEntity();
-        const rightEyeTransform = new Transform(
-          vec3.mulScalar(vec3.create(35.5, 78, 16), krampusScale),
-          quat.fromEuler(0, 0, 0, "xyz"),
-          [1, 1, 1],
-        );
-        rightEyeTransform.position = vec3.add(
-          rightEyeTransform.position,
-          krampusPos,
-        );
-        this.ecs.addComponents(
-          rightEye,
-          rightEyeTransform,
-          new Light([0, 0, 50]),
-        );
       });
+
+      const presentPositions = [
+        [256 * 1.5, 25, 256 * 1.5],
+        [64 + 6, 12, 64 + 6],
+        [32, 12, 384 - 64 + 6],
+        [256 * 2.5, 14, 64 - 6],
+      ];
 
       processNewVoxelImport(
-        "./xmas-game-jam-2024/cabin.vxm",
+        "./xmas-game-jam-2024/present.vxm",
         gpuSingleton.device,
       ).then((voxels) => {
-        const cabinPos = [76, 28, 64];
-
-        const newEntity = this.ecs.addEntity();
-        this.ecs.addComponent(newEntity, voxels);
-        const transform = new Transform(
-          [voxels.size[0] / 2, -voxels.size[1] / 2, voxels.size[2] / 2],
-          quat.fromEuler(0, 0, 0, "xyz"),
-          [1, 1, 1],
-        );
-        transform.position = vec3.add(transform.position, cabinPos);
-        this.ecs.addComponent(newEntity, transform);
-
-        // Lights
-        const light1 = this.ecs.addEntity();
-        const light1Transform = new Transform(
-          [8, 8, 24],
-          quat.fromEuler(0, 0, 0, "xyz"),
-          [1, 1, 1],
-        );
-        light1Transform.position = vec3.add(light1Transform.position, cabinPos);
-        this.ecs.addComponents(light1, light1Transform, new Light([200, 0, 0]));
-
-        const light2 = this.ecs.addEntity();
-        const light2Transform = new Transform(
-          [voxels.size[0] - 8, 8, 24],
-          quat.fromEuler(0, 0, 0, "xyz"),
-          [1, 1, 1],
-        );
-        light2Transform.position = vec3.add(light2Transform.position, cabinPos);
-        this.ecs.addComponents(light2, light2Transform, new Light([0, 200, 0]));
+        for (const presentPos of presentPositions) {
+          const newEntity = this.ecs.addEntity();
+          this.ecs.addComponent(newEntity, voxels);
+          const transform = new Transform(
+            [voxels.size[0] / 2, -voxels.size[1] / 2, voxels.size[2] / 2],
+            quat.fromEuler(0, 0, 0, "xyz"),
+            [0.5, 0.5, 0.5],
+          );
+          transform.position = vec3.add(transform.position, presentPos);
+          this.ecs.addComponent(newEntity, transform);
+          this.ecs.addComponent(newEntity, new Present());
+          this.ecs.addComponent(newEntity, new Light([0, 0, 20]));
+        }
       });
+
       this.isInitialized = true;
     }
   }

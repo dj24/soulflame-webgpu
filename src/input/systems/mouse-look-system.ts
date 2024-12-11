@@ -18,11 +18,11 @@ export class MouseLookSystem extends System {
 
   constructor() {
     super();
-    // document.body.addEventListener("click", () => {
-    //   if (document.pointerLockElement !== document.body) {
-    //     const foo = document.body.requestPointerLock();
-    //   }
-    // });
+    document.body.addEventListener("click", () => {
+      if (document.pointerLockElement !== document.body) {
+        const foo = document.body.requestPointerLock();
+      }
+    });
   }
 
   update(entities: Set<Entity>, now: number, deltaTime: number): void {
