@@ -232,22 +232,22 @@ export const init = async (
     getClearPass(worldPositionTexture),
     getClearPass(outputTexture),
     getRasterTracePass(),
-    // (async () => {
-    //   return {
-    //     label: "copy albedo",
-    //     render: (renderArgs: RenderArgs) => {
-    //       copyGBufferTexture(
-    //         renderArgs.commandEncoder,
-    //         renderArgs.outputTextures.albedoTexture,
-    //         renderArgs.outputTextures.finalTexture,
-    //       );
-    //     },
-    //   };
-    // })(),
+    (async () => {
+      return {
+        label: "copy albedo",
+        render: (renderArgs: RenderArgs) => {
+          copyGBufferTexture(
+            renderArgs.commandEncoder,
+            renderArgs.outputTextures.albedoTexture,
+            renderArgs.outputTextures.finalTexture,
+          );
+        },
+      };
+    })(),
     // getShadowsPass(),
     // getLightsPass(device),
-    getSimpleLightsPass(),
-    getLightDebugPass(device),
+    // getSimpleLightsPass(),
+    // getLightDebugPass(device),
     // getTaaPass(outputTexture),
     getBloomPass(),
     // getSimpleFogPass(),
@@ -257,7 +257,7 @@ export const init = async (
     getVignettePass(10.0),
     fullscreenQuad(device),
     getBoxRayIntersectPass(device),
-    // getBoxOutlinePass(device),
+    getBoxOutlinePass(device),
   ]);
 
   timestampLabels = computePasses.reduce((acc, val) => {

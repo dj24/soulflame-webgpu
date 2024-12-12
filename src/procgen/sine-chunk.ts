@@ -13,7 +13,7 @@ import { VoxelCache } from "./voxel-cache";
 import { vec2, Vec2, Vec3, vec3 } from "wgpu-matrix";
 import { convertVxm } from "@renderer/convert-vxm";
 
-export const CHUNK_HEIGHT = 64;
+export const CHUNK_HEIGHT = 128;
 
 let octree: Octree;
 let voxelCaches: VoxelCache[];
@@ -41,7 +41,6 @@ const getCabinCache = async () => {
     cache[index * 3 + 2] = voxels.RGBA[voxel.c].b;
   });
 
-  console.log({ cache });
   const getVoxel = (x: number, y: number, z: number) => {
     const index = convert3DTo1D(voxels.SIZE, [x, y, z]);
     const red = cache[index * 3];
@@ -110,8 +109,8 @@ const getSdfTreeCache = async () => {
           const coneHeight = (1.0 - i / 12) * maxConeSize;
           const coneY = (i / 12) * height + coneHeight;
           let coneP = [p[0], p[1] - coneY, p[2]];
-          const noise = fractalNoise3D(p[0], p[1], p[2], 0.2, 1);
-          coneP[1] += noise * 0.2;
+          // const noise = fractalNoise3D(p[0], p[1], p[2], 0.2, 1);
+          // coneP[1] += noise * 0.2;
           return Math.max(
             -sdCone(coneP, sinCosAngle, coneHeight),
             sdCone(vec3.sub(coneP, [0, 1, 0]), sinCosAngle, coneHeight),
@@ -119,21 +118,21 @@ const getSdfTreeCache = async () => {
         });
         if (cones.some((v) => v <= 0)) {
           const snowNoise = fractalNoise3D(p[0], p[1], p[2], 1.0, 2);
-          if (snowNoise > 0.1) {
-            const red = 255;
-            const green = 255;
-            const blue = 255;
-            cache[index * 3] = red;
-            cache[index * 3 + 1] = green;
-            cache[index * 3 + 2] = blue;
-          } else {
-            const red = 0;
-            const green = 64 - myrng() * 16;
-            const blue = 0;
-            cache[index * 3] = red;
-            cache[index * 3 + 1] = green;
-            cache[index * 3 + 2] = blue;
-          }
+          // if (snowNoise > 0.1) {
+          //   const red = 255;
+          //   const green = 255;
+          //   const blue = 255;
+          //   cache[index * 3] = red;
+          //   cache[index * 3 + 1] = green;
+          //   cache[index * 3 + 2] = blue;
+          // } else {
+          const red = 0;
+          const green = 64 - myrng() * 16;
+          const blue = 0;
+          cache[index * 3] = red;
+          cache[index * 3 + 1] = green;
+          cache[index * 3 + 2] = blue;
+          // }
         }
       }
     }
@@ -176,7 +175,7 @@ export const getTerrainVoxel = (
 ) => {
   const terrainNoise = noiseCache.get([x, z]);
   let offsetY = y + yStart;
-  if (offsetY === Math.floor(terrainNoise * CHUNK_HEIGHT)) {
+  if (offsetY <= Math.floor(terrainNoise * CHUNK_HEIGHT)) {
     const white = 255 - myrng() * 32;
     const colour = [white, white, white];
     return { red: colour[0], green: colour[1], blue: colour[2], solid: true };
@@ -227,28 +226,6 @@ export const createOctreeAndReturnBytes = async (
         z % treeRepeatZ,
         position[1],
       );
-      const isGate = x % 2 == 1 || z % 2 == 0;
-
-      const isEdgeOfMap =
-        position[0] + x === 0 ||
-        position[2] + z === 0 ||
-        position[0] + x === 256 * 3 - 1 ||
-        position[2] + z === 256 * 3 - 1;
-      if (isEdgeOfMap && isGate) {
-        return {
-          red: 20,
-          green: 20,
-          blue: 20,
-          solid: true,
-        };
-      }
-
-      // if (x < cabinSize[0] && z < cabinSize[2]) {
-      //   const cabinVoxel = getCabinVoxel(x, y, z);
-      //   if (cabinVoxel) {
-      //     return cabinVoxel;
-      //   }
-      // }
       return treeVoxel ?? terrainVoxel;
     },
     size,

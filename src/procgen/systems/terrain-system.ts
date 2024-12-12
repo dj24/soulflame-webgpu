@@ -95,10 +95,10 @@ const foo = async (ecs: ECS) => {
 
   // Get all the chunk positions
   let chunkPositions: [number, number, number][] = [];
-  for (let x = 0; x < 256 * 3; x += chunkWidth) {
-    for (let z = 0; z < 256 * 3; z += chunkWidth) {
+  for (let x = 0; x < chunkWidth; x += chunkWidth) {
+    for (let z = 0; z < chunkWidth; z += chunkWidth) {
       // Iterate from the top of the world down, so we can skip when we hit empty chunks
-      for (let y = 0; y < 128; y += chunkWidth) {
+      for (let y = 0; y < CHUNK_HEIGHT; y += chunkWidth) {
         chunkPositions.push([x, y, z]);
       }
     }
@@ -124,57 +124,6 @@ export class TerrainSystem extends System {
 
     if (!this.isInitialized) {
       foo(this.ecs);
-      // DEBUG
-      processNewVoxelImport(
-        "./xmas-game-jam-2024/krampus.vxm",
-        gpuSingleton.device,
-      ).then((voxels) => {
-        const newEntity = this.ecs.addEntity();
-        this.ecs.addComponent(newEntity, voxels);
-        const krampusPos = [16, 0, 16];
-        const krampusScale = 0.2;
-        const transform = new Transform(
-          [
-            (voxels.size[0] * krampusScale) / 2,
-            (voxels.size[1] * krampusScale) / 2,
-            (voxels.size[2] * krampusScale) / 2,
-          ],
-          quat.fromEuler(0, 0, 0, "xyz"),
-          [krampusScale, krampusScale, krampusScale],
-        );
-        transform.position = vec3.add(transform.position, krampusPos);
-        this.ecs.addComponent(newEntity, transform);
-        this.ecs.addComponent(newEntity, new Krampus());
-        this.ecs.addComponent(newEntity, new BoxRayIntersect());
-        this.ecs.addComponent(newEntity, new PitchYaw());
-      });
-
-      const presentPositions = [
-        [256 * 1.5, 25, 256 * 1.5],
-        [64 + 6, 12, 64 + 6],
-        [32, 12, 384 - 64 + 6],
-        [256 * 2.5, 14, 64 - 6],
-      ];
-
-      processNewVoxelImport(
-        "./xmas-game-jam-2024/present.vxm",
-        gpuSingleton.device,
-      ).then((voxels) => {
-        for (const presentPos of presentPositions) {
-          const newEntity = this.ecs.addEntity();
-          this.ecs.addComponent(newEntity, voxels);
-          const transform = new Transform(
-            [voxels.size[0] / 2, -voxels.size[1] / 2, voxels.size[2] / 2],
-            quat.fromEuler(0, 0, 0, "xyz"),
-            [0.5, 0.5, 0.5],
-          );
-          transform.position = vec3.add(transform.position, presentPos);
-          this.ecs.addComponent(newEntity, transform);
-          this.ecs.addComponent(newEntity, new Present());
-          this.ecs.addComponent(newEntity, new Light([0, 0, 20]));
-        }
-      });
-
       this.isInitialized = true;
     }
   }
