@@ -104,6 +104,8 @@ struct LeafNode {
 }
 
 const mask4 = 0xFu;
+const mask5 = 0x1Fu;
+const mask6 = 0x3Fu;
 const mask8 = 0xFFu;
 const mask12 = 0xFFFu;
 const mask16 = 0xFFFFu;
@@ -114,6 +116,12 @@ fn isLeaf(node:vec4<u32>) -> bool {
   return ((node[1] >> 16u) & mask8) == 0;
 }
 
+fn unpackDequantise565(colour: u32) -> vec3<u32> {
+  let r = u32(f32(colour & mask5) / 31.0 * 255.0);
+  let g = u32(f32((colour >> 5) & mask6) / 63.0 * 255.0);
+  let b = u32(f32((colour >> 11) & mask5) / 31.0 * 255.0);
+  return vec3<u32>(r, g, b);
+}
 
 fn unpackLeaf(node: vec4<u32>) -> LeafNode {
   var output = LeafNode();
@@ -128,15 +136,12 @@ fn unpackLeaf(node: vec4<u32>) -> LeafNode {
   let z = second4Bytes & mask12;
   output.size = 1u << ((second4Bytes >> 12u) & mask4); // 2 raised to the power of the size
 
-  let r = (second4Bytes >> 24u) & mask8;
-  let g = third4Bytes & mask8;
-  let b = (third4Bytes >> 8u) & mask8;
-
-  output.colour = vec3<u32>(r, g, b);
+  output.colour = unpackDequantise565(third4Bytes);
   output.position = vec3<u32>(x, y, z);
 
   return output;
 }
+
 
 fn unpackInternal(node: vec4<u32>) -> InternalNode {
   var output = InternalNode();
@@ -216,27 +221,7 @@ fn sort3Desc(a: f32, b: f32, c: f32) -> vec3<f32> {
 
 fn getPlaneIntersections(rayOrigin: vec3<f32>, rayDirection:vec3<f32>, nodeSize: f32) -> vec3<f32> {
     let boxExtents = nodeSize * 0.5;
-
-    var planeIntersections = getDistanceToEachAxis(rayOrigin, rayDirection, boxExtents);
-    var yPlaneIntersectionTNear = planeIntersections.y;
-    var xPlaneIntersectionTNear = planeIntersections.x;
-    var zPlaneIntersectionTNear = planeIntersections.z;
-
-    // If the intersection is outside the bounds of the node, set it to a large value to ignore it
-    let yPlaneHitPosition = rayOrigin + rayDirection * yPlaneIntersectionTNear  - EPSILON;
-    if(any(yPlaneHitPosition < vec3(0.0)) || any(yPlaneHitPosition > vec3(f32(nodeSize)))){
-      yPlaneIntersectionTNear  = 10000.0;
-    }
-    let xPlaneHitPosition = rayOrigin + rayDirection * xPlaneIntersectionTNear  - EPSILON;
-    if(any(xPlaneHitPosition < vec3(0.0)) || any(xPlaneHitPosition > vec3(f32(nodeSize)))){
-      xPlaneIntersectionTNear  = 10000.0;
-    }
-    let zPlaneHitPosition = rayOrigin + rayDirection * zPlaneIntersectionTNear  - EPSILON;
-    if(any(zPlaneHitPosition < vec3(0.0)) || any(zPlaneHitPosition > vec3(f32(nodeSize)))){
-      zPlaneIntersectionTNear  = 10000.0;
-    }
-
-    return vec3(xPlaneIntersectionTNear, yPlaneIntersectionTNear, zPlaneIntersectionTNear);
+    return getDistanceToEachAxis(rayOrigin, rayDirection, boxExtents);
 }
 
 fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>, maxDistance: f32) -> RayMarchResult {
@@ -267,18 +252,6 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       let nodeSize = f32(internalNode.size);
       let nodeOrigin = vec3<f32>(internalNode.position);
       let nodeRayOrigin = objectRayOrigin - nodeOrigin;
-
-      if((isLeaf(node) && output.iterations > 1u)){
-        // TODO: find out how to get normal without extra intersection
-        let leafNode = unpackLeaf(node);
-        let nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(nodeSize * 0.5));
-        output.hit = true;
-        output.t = nodeIntersection.tNear;
-        output.normal = nodeIntersection.normal;
-        output.colour = vec3<f32>(leafNode.colour) / 255.0;
-        return output;
-      }
-
       let centerOfChild = vec3(nodeSize * 0.5);
 
       // Use planes to find the "inner" intersections
@@ -290,36 +263,42 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       // Get the side of the planes that the ray is on
       let sideOfPlanes = sign(nodeRayOrigin - centerOfChild);
 
+
+      // TODO: clean this up
+      // TODO: offset by octant center, and check abs value of intersection
       // Push the children onto the stack, furthest first
       for(var i = 0u; i < 3u; i++){
-        if(sortedIntersections[i] > maxDistance || sortedIntersections[i] < 0.0){
-          continue;
-        }
-
         var hitPosition = nodeRayOrigin + objectRayDirection * sortedIntersections[i] - sideOfPlanes * EPSILON;
         let hitOctant = vec3<u32>(hitPosition >= centerOfChild);
         let hitIndex = octantOffsetToIndex(hitOctant);
+        let localOctantOrigin = vec3<f32>(hitOctant) * nodeSize * 0.5;
+        let octantNodeOrigin = nodeOrigin + localOctantOrigin;
+        let octantRayOrigin = objectRayOrigin - octantNodeOrigin;
+
+        // TODO: remove these two box intersections
+        let intersection = boxIntersection(octantRayOrigin, objectRayDirection, vec3(nodeSize * 0.25));
+        if(!intersection.isHit){
+          continue;
+        }
+
+        if(getBit(internalNode.leafMask, hitIndex)){
+          let octantNode = octreeBuffer[nodeIndex + internalNode.firstChildOffset + hitIndex];
+          let leafNode = unpackLeaf(octantNode);
+          let nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(nodeSize * 0.5));
+          if(nodeIntersection.isHit){
+            output.hit = true;
+            output.t = nodeIntersection.tNear;
+            output.normal = nodeIntersection.normal;
+            output.colour = vec3<f32>(leafNode.colour) / 255.0;
+            return output;
+          }
+        }
 
         // If the child is present, push it onto the stack
         if(getBit(internalNode.childMask, hitIndex)){
            let childIndex = nodeIndex + internalNode.firstChildOffset + hitIndex;
            stacku32_push(&stack, childIndex);
         }
-      }
-
-      // Check if the ray intersects the node, if not, skip it
-      let nodeT = cubeIntersection(nodeRayOrigin, objectRayDirection, nodeSize * 0.5);
-      if(nodeT > maxDistance || nodeT < 0.0){
-        continue;
-      }
-      let intersectionPoint = nodeRayOrigin + objectRayDirection * nodeT;
-      let hitOctant = vec3<u32>(intersectionPoint >= centerOfChild);
-      let hitIndex = octantOffsetToIndex(hitOctant);
-
-      // If the child is present, push it onto the stack
-      if(getBit(internalNode.childMask, hitIndex)){
-        let childIndex = nodeIndex + internalNode.firstChildOffset + hitIndex;
-        stacku32_push(&stack, childIndex);
       }
     }
 

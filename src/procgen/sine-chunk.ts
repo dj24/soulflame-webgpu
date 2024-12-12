@@ -187,12 +187,6 @@ const nearestN = (v: number, n: number) => Math.floor(v / n) * n;
 
 const getTreeVoxel = await getSdfTreeCache();
 
-const cabinPositions = [vec2.create(0, 0), vec2.create(0, 64)];
-
-const cabinheight = 32;
-
-// const getCabinVoxel = await getCabinCache();
-
 export const createOctreeAndReturnBytes = async (
   position: [number, number, number],
   size: [number, number, number],

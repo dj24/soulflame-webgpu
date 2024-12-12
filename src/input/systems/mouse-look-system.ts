@@ -59,7 +59,7 @@ export class MouseLookSystem extends System {
         },
         {
           easing: glide({
-            velocity: 0.0004 * deltaTime,
+            velocity: 0.001 * deltaTime,
           }),
         },
       );

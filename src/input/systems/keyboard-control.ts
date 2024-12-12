@@ -20,7 +20,6 @@ export class KeyboardControl extends System {
       const controllableComponent = components.get(KeyboardControllable);
       const velocityComponent = components.get(Velocity);
       let positionDelta = vec3.create();
-      let rotationDelta = quat.identity();
 
       if (this.keyboardControls.pressed.a) {
         positionDelta = vec3.add(positionDelta, transformComponent.left);
@@ -48,19 +47,25 @@ export class KeyboardControl extends System {
       }
 
       // position
-      if (vec3.length(positionDelta) > 0) {
-        positionDelta = vec3.normalize(positionDelta);
-        velocityComponent.velocity = vec3.mulScalar(
-          positionDelta,
-          controllableComponent.speed,
-        );
-      } else {
-        //decaying velocity
-        velocityComponent.velocity = vec3.sub(
-          velocityComponent.velocity,
-          vec3.mulScalar(velocityComponent.velocity, DAMPING * deltaTime),
-        );
-      }
+      positionDelta = vec3.normalize(positionDelta);
+      const targetVelocity = vec3.mulScalar(
+        positionDelta,
+        controllableComponent.speed,
+      );
+      animate(
+        (progress) => {
+          velocityComponent.velocity = vec3.lerp(
+            velocityComponent.velocity,
+            targetVelocity,
+            progress,
+          );
+        },
+        {
+          easing: glide({
+            velocity: 0.003 * deltaTime,
+          }),
+        },
+      );
     }
   }
 }

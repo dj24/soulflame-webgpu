@@ -212,13 +212,14 @@ export class Octree {
     }, 0);
 
     //TODO: correctly set leaf mask
-    let leafMask = 0;
+    let leafMask = size === 2 ? childMask : 0;
 
     const totalVoxels = childOctantsVoxelCount.reduce(
       (total, octantVoxels) => total + octantVoxels,
       0,
     );
 
+    // TODO: do this properly after the octree is built
     const isAllVoxelsFilled = totalVoxels === size ** 3 && size > 4;
 
     if (isAllVoxelsFilled) {
@@ -302,6 +303,16 @@ const unpack12Bit12Bit8Bit = (packed: number) => {
   return [packed & 0xfff, (packed >> 12) & 0xfff, packed >> 24];
 };
 
+const quantise565 = (red: number, green: number, blue: number) => {
+  const redQuantised = Math.floor((red / 255) * 31);
+  const greenQuantised = Math.floor((green / 255) * 63);
+  const blueQuantised = Math.floor((blue / 255) * 31);
+  const redMasked = redQuantised & 0x1f;
+  const greenMasked = greenQuantised & 0x3f;
+  const blueMasked = blueQuantised & 0x1f;
+  return (blueMasked << 11) | (greenMasked << 5) | redMasked;
+};
+
 export const setLeafNode = (
   dataView: DataView,
   index: number,
@@ -318,9 +329,12 @@ export const setLeafNode = (
     true,
   );
   dataView.setUint8(index * OCTREE_STRIDE + 6, 0);
-  dataView.setUint8(index * OCTREE_STRIDE + 7, node.red);
-  dataView.setUint8(index * OCTREE_STRIDE + 8, node.green);
-  dataView.setUint8(index * OCTREE_STRIDE + 9, node.blue);
+  // EMPTY 8 BITS
+  dataView.setUint16(
+    index * OCTREE_STRIDE + 8,
+    quantise565(node.red, node.green, node.blue),
+    true,
+  );
 };
 
 export const setInternalNode = (
@@ -339,7 +353,7 @@ export const setInternalNode = (
     true,
   );
   dataView.setUint8(index * OCTREE_STRIDE + 6, node.childMask);
-  dataView.setUint8(index * OCTREE_STRIDE + 7, node.leafMask); // Filler value
+  dataView.setUint8(index * OCTREE_STRIDE + 7, node.leafMask);
   dataView.setUint32(index * OCTREE_STRIDE + 8, node.firstChildIndex, true);
 };
 

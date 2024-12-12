@@ -95,8 +95,8 @@ const foo = async (ecs: ECS) => {
 
   // Get all the chunk positions
   let chunkPositions: [number, number, number][] = [];
-  for (let x = 0; x < chunkWidth; x += chunkWidth) {
-    for (let z = 0; z < chunkWidth; z += chunkWidth) {
+  for (let x = 0; x < chunkWidth * 2; x += chunkWidth) {
+    for (let z = 0; z < chunkWidth * 2; z += chunkWidth) {
       // Iterate from the top of the world down, so we can skip when we hit empty chunks
       for (let y = 0; y < CHUNK_HEIGHT; y += chunkWidth) {
         chunkPositions.push([x, y, z]);
