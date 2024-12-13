@@ -272,8 +272,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
         let hitOctant = vec3<u32>(hitPosition >= centerOfChild);
         let hitIndex = octantOffsetToIndex(hitOctant);
         let localOctantOrigin = vec3<f32>(hitOctant) * nodeSize * 0.5;
-        let octantNodeOrigin = nodeOrigin + localOctantOrigin;
-        let octantRayOrigin = objectRayOrigin - octantNodeOrigin;
+        let octantRayOrigin = nodeRayOrigin - localOctantOrigin;
 
         // TODO: remove these two box intersections
         let intersection = boxIntersection(octantRayOrigin, objectRayDirection, vec3(nodeSize * 0.25));
@@ -289,7 +288,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
             output.hit = true;
             output.t = nodeIntersection.tNear;
             output.normal = nodeIntersection.normal;
-            output.colour = vec3<f32>(leafNode.colour) / 255.0;
+//            output.colour = vec3<f32>(leafNode.colour) / 255.0;
             return output;
           }
         }
@@ -300,6 +299,8 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
            stacku32_push(&stack, childIndex);
         }
       }
+      output.colour += vec3<f32>(0.075);
+      output.hit = true;
     }
 
     return output;

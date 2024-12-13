@@ -175,7 +175,8 @@ export const getTerrainVoxel = (
 ) => {
   const terrainNoise = noiseCache.get([x, z]);
   let offsetY = y + yStart;
-  if (offsetY <= Math.floor(terrainNoise * CHUNK_HEIGHT)) {
+  // if (offsetY <= Math.floor(terrainNoise * CHUNK_HEIGHT)) {
+  if (offsetY <= 64) {
     const white = 255 - myrng() * 32;
     const colour = [white, white, white];
     return { red: colour[0], green: colour[1], blue: colour[2], solid: true };
@@ -208,6 +209,13 @@ export const createOctreeAndReturnBytes = async (
 
   const leafCache = new VoxelCache({
     getVoxel: (x, y, z) => {
+      // return {
+      //   red: (x / size[0]) * 255,
+      //   green: 1,
+      //   blue: 1,
+      //   solid: true,
+      // };
+
       const terrainVoxel = getTerrainVoxel(x, y, z, position[1], noiseCache);
       const terrainNoise = noiseCache.get([
         nearestN(x, treeRepeatX),
@@ -220,7 +228,7 @@ export const createOctreeAndReturnBytes = async (
         z % treeRepeatZ,
         position[1],
       );
-      return treeVoxel ?? terrainVoxel;
+      return terrainVoxel;
     },
     size,
   });

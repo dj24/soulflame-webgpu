@@ -249,7 +249,7 @@ export const init = async (
     // getSimpleLightsPass(),
     // getLightDebugPass(device),
     // getTaaPass(outputTexture),
-    getBloomPass(),
+    // getBloomPass(),
     // getSimpleFogPass(),
     // getTonemapPass(),w
     // getMotionBlurPass(),
