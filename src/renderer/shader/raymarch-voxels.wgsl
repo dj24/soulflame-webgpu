@@ -3,7 +3,7 @@ const MAX_RAY_STEPS = 256;
 const FAR_PLANE = 10000.0;
 const NEAR_PLANE = 0.5;
 const STACK_LEN: u32 = 32u;
-const MAX_STEPS = 256;
+const MAX_STEPS = 1;
 
 // Function to transform a normal vector from object to world space
 fn transformNormal(inverseTransform: mat4x4<f32>, normal: vec3<f32>) -> vec3<f32> {
@@ -193,7 +193,7 @@ fn planeIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, planeNormal:
   return -(dot(rayOrigin,planeNormal)+planeDistance)/dot(rayDirection,planeNormal);
 }
 
-fn getDistanceToEachAxis(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, boxExtents: f32) -> vec3<f32> {
+fn getDistanceToEachAxis(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, boxExtents: vec3<f32>) -> vec3<f32> {
   return (boxExtents - rayOrigin) / rayDirection;
 }
 
@@ -219,14 +219,31 @@ fn sort3Desc(a: f32, b: f32, c: f32) -> vec3<f32> {
   );
 }
 
-fn getPlaneIntersections(rayOrigin: vec3<f32>, rayDirection:vec3<f32>, nodeSize: f32) -> vec3<f32> {
-    let boxExtents = nodeSize * 0.5;
-    return getDistanceToEachAxis(rayOrigin, rayDirection, boxExtents);
+fn getPlaneIntersections(rayOrigin: vec3<f32>, rayDirection:vec3<f32>, centerPoint: vec3<f32>) -> vec3<f32> {
+    return getDistanceToEachAxis(rayOrigin, rayDirection, centerPoint);
+}
+
+fn getDebugColor(index: u32) -> vec4<f32> {
+  let colors = array<vec4<f32>, 8>(
+    vec4<f32>(1.0, 0.0, 0.0, 1.0),
+    vec4<f32>(0.0, 1.0, 0.0, 1.0),
+    vec4<f32>(0.0, 0.0, 1.0, 1.0),
+    vec4<f32>(1.0, 1.0, 0.0, 1.0),
+    vec4<f32>(1.0, 0.0, 1.0, 1.0),
+    vec4<f32>(0.0, 1.0, 1.0, 1.0),
+    vec4<f32>(1.0, 1.0, 1.0, 1.0),
+    vec4<f32>(0.5, 0.5, 0.5, 1.0)
+  );
+  return colors[index % 8];
 }
 
 fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: vec3<f32>, maxDistance: f32) -> RayMarchResult {
-    let halfExtents = voxelObject.size * 0.5;
-    var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz + halfExtents;
+    let rootNode = octreeBuffer[voxelObject.octreeBufferIndex];
+    let rootInternal = unpackInternal(rootNode);
+    let octreeExtents = vec3(f32(rootInternal.size)) * 0.5;
+    let objectExtents = voxelObject.size * 0.5;
+
+    var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz + objectExtents;
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
     var output = RayMarchResult();
 
@@ -236,8 +253,9 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     // Create a stack to hold the indices of the nodes we need to check
     var stack = stacku32_new();
 
-    // Push the root node index onto the stack
-    stacku32_push(&stack, voxelObject.octreeBufferIndex);
+
+    // Push the root and first node index onto the stack
+    stacku32_push(&stack, 0);
 
     // Main loop
     while (stack.head > 0u && output.iterations < MAX_STEPS) {
@@ -255,7 +273,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       let centerOfChild = vec3(nodeSize * 0.5);
 
       // Use planes to find the "inner" intersections
-      let planeIntersections = getPlaneIntersections(nodeRayOrigin, objectRayDirection, nodeSize);
+      let planeIntersections = getPlaneIntersections(nodeRayOrigin, objectRayDirection, centerOfChild);
 
       // Get the closest plane intersection
       let sortedIntersections = sort3Desc(planeIntersections[0], planeIntersections[1], planeIntersections[2]);
@@ -268,11 +286,14 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       // TODO: offset by octant center, and check abs value of intersection
       // Push the children onto the stack, furthest first
       for(var i = 0u; i < 3u; i++){
-        var hitPosition = nodeRayOrigin + objectRayDirection * sortedIntersections[i] - sideOfPlanes * EPSILON;
+        var hitPosition = nodeRayOrigin + objectRayDirection * sortedIntersections[i] - EPSILON;
         let hitOctant = vec3<u32>(hitPosition >= centerOfChild);
         let hitIndex = octantOffsetToIndex(hitOctant);
         let localOctantOrigin = vec3<f32>(hitOctant) * nodeSize * 0.5;
         let octantRayOrigin = nodeRayOrigin - localOctantOrigin;
+
+        // DEBUG
+        output.colour = vec3<f32>(hitOctant);
 
         // TODO: remove these two box intersections
         let intersection = boxIntersection(octantRayOrigin, objectRayDirection, vec3(nodeSize * 0.25));
@@ -283,14 +304,13 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
         if(getBit(internalNode.leafMask, hitIndex)){
           let octantNode = octreeBuffer[nodeIndex + internalNode.firstChildOffset + hitIndex];
           let leafNode = unpackLeaf(octantNode);
-          let nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(nodeSize * 0.5));
-          if(nodeIntersection.isHit){
-            output.hit = true;
-            output.t = nodeIntersection.tNear;
-            output.normal = nodeIntersection.normal;
-//            output.colour = vec3<f32>(leafNode.colour) / 255.0;
-            return output;
-          }
+          output.hit = true;
+          output.t = intersection.tNear;
+          output.normal = intersection.normal;
+
+//          output.colour = vec3<f32>(leafNode.colour) / 255.0;
+          return output;
+
         }
 
         // If the child is present, push it onto the stack
@@ -299,7 +319,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
            stacku32_push(&stack, childIndex);
         }
       }
-      output.colour += vec3<f32>(0.075);
+//      output.colour += vec3<f32>(0.075);
       output.hit = true;
     }
 

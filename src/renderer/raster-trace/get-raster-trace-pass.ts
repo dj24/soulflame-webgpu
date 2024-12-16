@@ -224,9 +224,14 @@ export const getRasterTracePass = async (): Promise<RenderPass> => {
       const voxelObject = ecs
         .getComponents(renderableEntities[i])
         .get(VoxelObject);
-
-      const size = voxelObject.size;
-      const m = mat4.scale(transform.transform, size);
+      // Nearest power of 2
+      const largestDimension = Math.max(
+        voxelObject.size[0],
+        voxelObject.size[1],
+        voxelObject.size[2],
+      );
+      const size = Math.pow(2, Math.ceil(Math.log2(largestDimension)));
+      const m = mat4.scale(transform.transform, [size, size, size]);
       const vp = mat4.mul(
         mat4.scale(camera.projectionMatrix, [-1, 1, 1]),
         getViewMatrix(cameraTransform),
