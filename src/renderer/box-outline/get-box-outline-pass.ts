@@ -129,7 +129,7 @@ export const getBoxOutlinePass = async (
       );
       const roundToPowerOf2 = (n: number) => 2 ** Math.ceil(Math.log2(n));
       const size = roundToPowerOf2(largestDimension);
-      const vertices = getCuboidVertices([size, size, size]);
+      const vertices = getCuboidVertices(voxelObject.size);
       const bufferOffset = i * 256;
       device.queue.writeBuffer(
         verticesBuffer,

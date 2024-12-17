@@ -124,20 +124,28 @@ export class TerrainSystem extends System {
 
     if (!this.isInitialized) {
       // foo(this.ecs);
-      processNewVoxelImport("./Tavern/teapot.vxm", gpuSingleton.device).then(
+      processNewVoxelImport("./sphere.vxm", gpuSingleton.device).then(
         (voxels) => {
-          for (let i = 0; i < 10; i++) {
-            for (let x = 0; x < 3; x++) {
-              const newEntity = this.ecs.addEntity();
-              this.ecs.addComponent(newEntity, voxels);
-              const transform = new Transform(
-                [x * voxels.size[0], 0, i * voxels.size[2]],
-                quat.fromEuler(0, 0, 0, "xyz"),
-                [0.5, 0.5, 0.5],
-              );
-              this.ecs.addComponent(newEntity, transform);
-            }
-          }
+          // for (let i = 0; i < 10; i++) {
+          //   for (let x = 0; x < 3; x++) {
+          //     const newEntity = this.ecs.addEntity();
+          //     this.ecs.addComponent(newEntity, voxels);
+          //     const transform = new Transform(
+          //       [x * voxels.size[0], 0, i * voxels.size[2]],
+          //       quat.fromEuler(0, 0, 0, "xyz"),
+          //       [0.5, 0.5, 0.5],
+          //     );
+          //     this.ecs.addComponent(newEntity, transform);
+          //   }
+          // }
+          const newEntity = this.ecs.addEntity();
+          this.ecs.addComponent(newEntity, voxels);
+          const transform = new Transform(
+            [0, 0, 0],
+            quat.fromEuler(0, 0, 0, "xyz"),
+            [0.5, 0.5, 0.5],
+          );
+          this.ecs.addComponent(newEntity, transform);
         },
       );
       this.isInitialized = true;

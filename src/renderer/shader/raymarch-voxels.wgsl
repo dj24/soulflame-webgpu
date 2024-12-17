@@ -193,13 +193,17 @@ fn planeIntersection(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, planeNormal:
   return -(dot(rayOrigin,planeNormal)+planeDistance)/dot(rayDirection,planeNormal);
 }
 
-fn getDistanceToEachAxis(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, boxExtents: vec3<f32>) -> vec3<f32> {
-  return (boxExtents - rayOrigin) / rayDirection;
+fn getDistanceToEachAxis(rayOrigin: vec3<f32>, rayDirection: vec3<f32>, centerPoint: vec3<f32>) -> vec3<f32> {
+  return (centerPoint - rayOrigin) / rayDirection;
 }
 
 struct PlaneIntersection {
   tNear: f32,
   side: vec3<i32>
+}
+
+fn getPlaneIntersections(rayOrigin: vec3<f32>, rayDirection:vec3<f32>, centerPoint: vec3<f32>) -> vec3<f32> {
+    return getDistanceToEachAxis(rayOrigin, rayDirection, centerPoint);
 }
 
 
@@ -219,9 +223,7 @@ fn sort3Desc(a: f32, b: f32, c: f32) -> vec3<f32> {
   );
 }
 
-fn getPlaneIntersections(rayOrigin: vec3<f32>, rayDirection:vec3<f32>, centerPoint: vec3<f32>) -> vec3<f32> {
-    return getDistanceToEachAxis(rayOrigin, rayDirection, centerPoint);
-}
+
 
 fn getDebugColor(index: u32) -> vec4<f32> {
   let colors = array<vec4<f32>, 8>(
@@ -246,6 +248,20 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     var objectRayOrigin = (voxelObject.inverseTransform * vec4<f32>(rayOrigin, 1.0)).xyz + objectExtents;
     let objectRayDirection = (voxelObject.inverseTransform * vec4<f32>(rayDirection, 0.0)).xyz;
     var output = RayMarchResult();
+
+//    let intersection = boxIntersection(objectRayOrigin, objectRayDirection, objectExtents);
+//    let hitOctant = vec3<u32>(objectRayOrigin + objectRayDirection * intersection.tNear >= octreeExtents);
+//    output.colour = vec3<f32>(hitOctant);
+//    output.hit = true;
+//    return output;
+
+    let planeIntersections = getPlaneIntersections(objectRayOrigin, objectRayDirection, objectExtents);
+    let hitPosition = objectRayOrigin + objectRayDirection * planeIntersections.x - EPSILON;
+    let hitOctant = vec3<u32>(hitPosition >= octreeExtents);
+    output.colour = vec3<f32>(hitOctant);
+    let nodeExtents = vec3<f32>(f32(rootInternal.size) * 0.5);
+    output.hit = all(abs(hitPosition - objectExtents) <= nodeExtents);
+    return output;
 
     // Set the initial t value to the far plane - essentially an out of bounds value
     output.t = maxDistance;
