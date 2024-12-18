@@ -3,7 +3,7 @@ const MAX_RAY_STEPS = 256;
 const FAR_PLANE = 10000.0;
 const NEAR_PLANE = 0.5;
 const STACK_LEN: u32 = 32u;
-const MAX_STEPS = 1;
+const MAX_STEPS = 64;
 
 // Function to transform a normal vector from object to world space
 fn transformNormal(inverseTransform: mat4x4<f32>, normal: vec3<f32>) -> vec3<f32> {
@@ -265,22 +265,21 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     // Create a stack to hold the indices of the nodes we need to check
     var stack = stacku32_new();
 
-    // Get root intersection for starting point
-    let rootIntersection = cubeIntersection(objectRayOrigin, objectRayDirection, octreeExtents);
-    if(!rootIntersection.hit){
-      return output;
-    }
-
-    let hitPosition = objectRayOrigin + objectRayDirection * rootIntersection.t;
-    let firstOctant = vec3<u32>(hitPosition >= octreeExtents);
-    let firstOctantIndex = octantOffsetToIndex(firstOctant);
-    output.colour = clamp(vec3<f32>(hitOctant) + vec3<f32>(0.1), vec3(0.), vec3(1.));
-    output.t = rootIntersection.t;
-    output.hit = true;
-
-
     // Push the root and first node index onto the stack
     stacku32_push(&stack, 0);
+
+    // Get root intersection for starting point
+    let rootIntersection = cubeIntersection(objectRayOrigin, objectRayDirection, f32(rootInternal.size) * 0.5);
+    let hitPosition = objectRayOrigin + objectRayDirection * rootIntersection;
+    let hitOctant = vec3<u32>(hitPosition >= octreeExtents);
+    let hitIndex = octantOffsetToIndex(hitOctant);
+    if(getBit(rootInternal.childMask, hitIndex)){
+      stacku32_push(&stack, rootInternal.firstChildOffset + hitIndex);
+    }
+//    output.colour = clamp(vec3<f32>(hitOctant) + vec3<f32>(0.1), vec3(0.), vec3(1.));
+//    output.t = rootIntersection;
+//    output.hit = true;
+//    return output;
 
     // Main loop
     while (stack.head > 0u && output.iterations < MAX_STEPS) {
@@ -320,9 +319,9 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
         let hitIndex = octantOffsetToIndex(hitOctant);
 
         // DEBUG
-        output.colour = clamp(vec3<f32>(hitOctant) + vec3<f32>(0.1), vec3(0.), vec3(1.));
+//        output.colour = clamp(vec3<f32>(hitOctant) + vec3<f32>(0.1), vec3(0.), vec3(1.));
         output.t = objectHitDistance;
-        output.hit = true;
+//        output.hit = true;
 
         if(getBit(internalNode.leafMask, hitIndex)){
           let octantNode = octreeBuffer[nodeIndex + internalNode.firstChildOffset + hitIndex];
@@ -344,8 +343,8 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
            stacku32_push(&stack, childIndex);
         }
       }
-//      output.colour += vec3<f32>(0.075);
-//      output.hit = true;
+      output.colour += vec3<f32>(0.075);
+      output.hit = true;
     }
 
     return output;
