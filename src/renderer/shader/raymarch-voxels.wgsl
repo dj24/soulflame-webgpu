@@ -265,6 +265,19 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     // Create a stack to hold the indices of the nodes we need to check
     var stack = stacku32_new();
 
+    // Get root intersection for starting point
+    let rootIntersection = cubeIntersection(objectRayOrigin, objectRayDirection, octreeExtents);
+    if(!rootIntersection.hit){
+      return output;
+    }
+
+    let hitPosition = objectRayOrigin + objectRayDirection * rootIntersection.t;
+    let firstOctant = vec3<u32>(hitPosition >= octreeExtents);
+    let firstOctantIndex = octantOffsetToIndex(firstOctant);
+    output.colour = clamp(vec3<f32>(hitOctant) + vec3<f32>(0.1), vec3(0.), vec3(1.));
+    output.t = rootIntersection.t;
+    output.hit = true;
+
 
     // Push the root and first node index onto the stack
     stacku32_push(&stack, 0);
@@ -295,7 +308,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       // TODO: offset by octant center, and check abs value of intersectionaw
       // Push the children onto the stack, furthest first
       for(var i = 0u; i < 3u; i++){
-        let t = sortedIntersections[i] - EPSILON;
+        let t = sortedIntersections[i] + EPSILON;
         if(t > 9999.0){
           continue;
         }
