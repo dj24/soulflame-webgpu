@@ -3,7 +3,7 @@ const MAX_RAY_STEPS = 256;
 const FAR_PLANE = 10000.0;
 const NEAR_PLANE = 0.5;
 const STACK_LEN: u32 = 32u;
-const MAX_STEPS = 32;
+const MAX_STEPS = 256;
 
 // Function to transform a normal vector from object to world space
 fn transformNormal(inverseTransform: mat4x4<f32>, normal: vec3<f32>) -> vec3<f32> {
@@ -284,7 +284,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
     var stack = stacku32_new();
 
     // Push the root index onto the stack
-    stacku32_push(&stack, 0);
+    stacku32_push(&stack, voxelObject.octreeBufferIndex);
 
     // Main loop
     while (stack.head > 0u && output.iterations < MAX_STEPS) {
@@ -304,9 +304,9 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
       // Get octant hit on the surface of the nodes bounding box
       // Check if the ray intersects the node, if not, skip it
       let nodeIntersection = boxIntersection(nodeRayOrigin, objectRayDirection, vec3(nodeSize * 0.5));
-      if(!nodeIntersection.isHit){
-        continue;
-      }
+//      if(!nodeIntersection.isHit){
+//        continue;
+//      }
       let intersectionPoint = nodeRayOrigin + objectRayDirection * nodeIntersection.tNear;
       let hitOctant = vec3<u32>(intersectionPoint >= centerOfChild);
       let hitIndex = octantOffsetToIndex(vec3<u32>(hitOctant));
@@ -348,7 +348,7 @@ fn rayMarchOctree(voxelObject: VoxelObject, rayDirection: vec3<f32>, rayOrigin: 
           let leafNode = unpackLeaf(octantNode);
           output.hit = true;
           output.t = objectHitDistance;
-//          output.normal = sortedIntersections[i].normal;
+          output.normal = sortedIntersections[i].normal;
           output.colour = vec3<f32>(leafNode.colour) / 255.0;
           return output;
         }

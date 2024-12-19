@@ -95,8 +95,8 @@ const foo = async (ecs: ECS) => {
 
   // Get all the chunk positions
   let chunkPositions: [number, number, number][] = [];
-  for (let x = 0; x < chunkWidth; x += chunkWidth) {
-    for (let z = 0; z < chunkWidth; z += chunkWidth) {
+  for (let x = 0; x < chunkWidth * 2; x += chunkWidth) {
+    for (let z = 0; z < chunkWidth * 2; z += chunkWidth) {
       // Iterate from the top of the world down, so we can skip when we hit empty chunks
       for (let y = 0; y < CHUNK_HEIGHT; y += chunkWidth) {
         chunkPositions.push([x, y, z]);
@@ -123,29 +123,29 @@ export class TerrainSystem extends System {
     }
 
     if (!this.isInitialized) {
-      // foo(this.ecs);
+      foo(this.ecs);
       processNewVoxelImport("./sphere.vxm", gpuSingleton.device).then(
         (voxels) => {
-          for (let i = 0; i < 10; i++) {
-            for (let x = 0; x < 4; x++) {
-              const newEntity = this.ecs.addEntity();
-              this.ecs.addComponent(newEntity, voxels);
-              const transform = new Transform(
-                [x * voxels.size[0], 0, i * voxels.size[2]],
-                quat.fromEuler(0, 0, 0, "xyz"),
-                [0.5, 0.5, 0.5],
-              );
-              this.ecs.addComponent(newEntity, transform);
-            }
-          }
-          // const newEntity = this.ecs.addEntity();
-          // this.ecs.addComponent(newEntity, voxels);
-          // const transform = new Transform(
-          //   [0, 0, 0],
-          //   quat.fromEuler(0, 0, 0, "xyz"),
-          //   [0.5, 0.5, 0.5],
-          // );
-          // this.ecs.addComponent(newEntity, transform);
+          const newEntity = this.ecs.addEntity();
+          this.ecs.addComponent(newEntity, voxels);
+          const transform = new Transform(
+            [32, 8, 32],
+            quat.fromEuler(0, 0, 0, "xyz"),
+            [0.5, 0.5, 0.5],
+          );
+          this.ecs.addComponent(newEntity, transform);
+        },
+      );
+      processNewVoxelImport("./Tavern/Dragon.vxm", gpuSingleton.device).then(
+        (voxels) => {
+          const newEntity = this.ecs.addEntity();
+          this.ecs.addComponent(newEntity, voxels);
+          const transform = new Transform(
+            [64, 8, 32],
+            quat.fromEuler(0, 0, 0, "xyz"),
+            [0.25, 0.25, 0.25],
+          );
+          this.ecs.addComponent(newEntity, transform);
         },
       );
       this.isInitialized = true;
