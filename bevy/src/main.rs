@@ -1,3 +1,5 @@
+mod camera;
+
 use bevy::{
     prelude::*,
     render::{
@@ -5,7 +7,6 @@ use bevy::{
     },
 };
 use std::f32::consts::*;
-use std::ops::Range;
 use bevy::{
     core_pipeline::{
         prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass},
@@ -17,20 +18,18 @@ use bevy::{
     },
     prelude::*,
 };
-use bevy::input::keyboard::KeyboardInput;
-use bevy::input::mouse::{AccumulatedMouseMotion};
-use bevy::pbr::{FogVolume, VolumetricFog, VolumetricLight};
+use bevy::core_pipeline::dof::DepthOfField;
+use bevy::pbr::{FogVolume, VolumetricFog};
+use crate::camera::{ CameraTarget, ThirdPersonCameraPlugin};
 
 fn main() {
     App::new()
         .insert_resource(DefaultOpaqueRendererMethod::deferred())
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
-        .insert_resource(Pause(false))
-        .init_resource::<CameraSettings>()
-        .add_systems(Update, (orbit))
         .insert_resource(ClearColor(Color::srgb(0.0, 1.0, 0.0)))
         .add_plugins((
-            DefaultPlugins
+            DefaultPlugins,
+            ThirdPersonCameraPlugin,
         ))
         .add_systems(Startup, (setup))
         .run();
@@ -42,10 +41,10 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    commands.spawn((
+    let mut camera = commands.spawn((
         Camera3d::default(),
         MotionBlur {
-            shutter_angle: 2.0,
+            shutter_angle: 0.5,
             samples: 4,
         },
         Camera {
@@ -66,12 +65,18 @@ fn setup(
         DepthPrepass,
         MotionVectorPrepass,
         DeferredPrepass,
-    ))
-        .insert(VolumetricFog {
-            // This value is explicitly set to 0 since we have no environment map light
-            ambient_intensity: 0.0,
-            ..default()
-        });
+    ));
+
+    camera.insert(VolumetricFog {
+        // This value is explicitly set to 0 since we have no environment map light
+        ambient_intensity: 0.0,
+        ..default()
+    });
+    camera.insert(DepthOfField {
+        focal_distance: 2.0,
+        ..default()
+    });
+
 
     commands.spawn((
         DirectionalLight {
@@ -86,7 +91,6 @@ fn setup(
         }
             .build(),
         Transform::from_rotation(Quat::from_euler(EulerRot::ZYX, 0.0, 0.0, -FRAC_PI_4)),
-        VolumetricLight,
     ));
 
     // Add the fog volume.
@@ -124,27 +128,6 @@ fn setup(
 
     let sphere_color = Color::srgb(10.0, 4.0, 1.0);
     let sphere_pos = Transform::from_xyz(0.4, 0.5, -0.8);
-    // Emissive sphere
-    let mut unlit_mat: StandardMaterial = sphere_color.into();
-    unlit_mat.unlit = true;
-    commands.spawn((
-        Mesh3d(sphere_h.clone()),
-        MeshMaterial3d(materials.add(unlit_mat)),
-        sphere_pos,
-        NotShadowCaster,
-    ));
-    // Light
-    commands.spawn((
-        PointLight {
-            intensity: 800.0,
-            radius: 0.125,
-            shadows_enabled: true,
-            color: sphere_color,
-            ..default()
-        },
-        sphere_pos,
-        VolumetricLight,
-    ));
 
     // Spheres
     for i in 0..6 {
@@ -198,92 +181,3 @@ fn setup(
     ));
 }
 
-#[derive(Resource)]
-struct Pause(bool);
-
-
-#[derive(Component)]
-struct CameraTarget;
-
-#[derive(Debug, Resource)]
-struct CameraSettings {
-    orbit_distance: f32,
-    pitch_speed: f32,
-    pitch_range: Range<f32>,
-    yaw_speed: f32,
-}
-
-impl Default for CameraSettings {
-    fn default() -> Self {
-        // Limiting pitch stops some unexpected rotation past 90° up or down.
-        let pitch_limit = FRAC_PI_2 - 0.01;
-        Self {
-            orbit_distance: 2.0,
-            pitch_speed: 0.003,
-            pitch_range: -pitch_limit..pitch_limit,
-            yaw_speed: 0.003,
-        }
-    }
-}
-
-
-fn orbit(
-    mut camera: Single<&mut Transform,  (With<Camera>, Without<CameraTarget>)>,
-    mut target: Single<&mut Transform, With<CameraTarget>>,
-    camera_settings: Res<CameraSettings>,
-    mouse_motion: Res<AccumulatedMouseMotion>,
-    keys: Res<ButtonInput<KeyCode>>,
-    time: Res<Time>,
-) {
-    // Look rotation
-    let mouse_delta = mouse_motion.delta;
-    let delta_pitch = mouse_delta.y * camera_settings.pitch_speed;
-    let delta_yaw = mouse_delta.x * camera_settings.yaw_speed;
-
-    let direction = (camera.translation - target.translation).normalize();
-    let current_pitch = direction.y.asin();
-    let current_yaw = direction.z.atan2(direction.x);
-
-    let new_pitch = (current_pitch + delta_pitch).min(camera_settings.pitch_range.end).max(camera_settings.pitch_range.start);
-    let new_yaw = current_yaw + delta_yaw;
-
-    // Offset based on new pitch and yaw, and orbit distance
-    let new_position = target.translation + Vec3::new(
-        camera_settings.orbit_distance * new_pitch.cos() * new_yaw.cos(),
-        camera_settings.orbit_distance * new_pitch.sin(),
-        camera_settings.orbit_distance * new_pitch.cos() * new_yaw.sin(),
-    );
-
-    // Move target
-    let mut direction = Vec3::ZERO;
-    if keys.pressed(KeyCode::KeyW) {
-        direction -= Vec3::Z;
-    }
-    if keys.pressed(KeyCode::KeyS) {
-        direction += Vec3::Z;
-    }
-    if keys.pressed(KeyCode::KeyA) {
-        direction -= Vec3::X;
-    }
-    if keys.pressed(KeyCode::KeyD) {
-        direction += Vec3::X;
-    }
-    if keys.pressed(KeyCode::Space) {
-        direction += Vec3::Y;
-    }
-    if keys.pressed(KeyCode::ShiftLeft) {
-        direction -= Vec3::Y;
-    }
-    // If moving,
-    if(direction.length() > 0.0) {
-        direction = camera.rotation * direction.normalize();
-        let positionDelta = direction * 2.0 * time.delta_secs();
-        target.translation = target.translation + positionDelta;
-        target.rotation = Quat::slerp(target.rotation, Quat::from_rotation_y(-new_yaw), 4.0 * time.delta_secs());
-    } else{
-
-    }
-
-    camera.translation = new_position;
-    camera.look_at(target.translation, Vec3::Y);
-}
