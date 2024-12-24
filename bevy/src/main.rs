@@ -1,4 +1,5 @@
 mod camera;
+mod vxm;
 
 use bevy::{
     prelude::*,
@@ -19,8 +20,10 @@ use bevy::{
     prelude::*,
 };
 use bevy::core_pipeline::dof::DepthOfField;
+use bevy::core_pipeline::smaa::Smaa;
 use bevy::pbr::{FogVolume, VolumetricFog};
 use crate::camera::{ CameraTarget, ThirdPersonCameraPlugin};
+use crate::vxm::VxmImportPlugin;
 
 fn main() {
     App::new()
@@ -30,14 +33,14 @@ fn main() {
         .add_plugins((
             DefaultPlugins,
             ThirdPersonCameraPlugin,
+            VxmImportPlugin
         ))
-        .add_systems(Startup, (setup))
+        .add_systems(Startup, setup)
         .run();
 }
 
 fn setup(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
@@ -65,6 +68,7 @@ fn setup(
         DepthPrepass,
         MotionVectorPrepass,
         DeferredPrepass,
+        Smaa::default(),
     ));
 
     camera.insert(VolumetricFog {
@@ -126,9 +130,6 @@ fn setup(
         Transform::from_xyz(0.2, 0.5, 0.2),
     ));
 
-    let sphere_color = Color::srgb(10.0, 4.0, 1.0);
-    let sphere_pos = Transform::from_xyz(0.4, 0.5, -0.8);
-
     // Spheres
     for i in 0..6 {
         let j = i % 3;
@@ -180,4 +181,5 @@ fn setup(
         NotShadowReceiver,
     ));
 }
+
 
