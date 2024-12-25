@@ -106,7 +106,7 @@ export const convertVxm = (arrayBuffer: ArrayBuffer): TVoxels => {
 
   let lodLevels = reader.readUint32();
 
-  for (let lodLevel = 0; lodLevel < lodLevels; ++lodLevel) {
+  for (let lodLevel = 0; lodLevel < lodLevels; lodLevel++) {
     let textureDimX = reader.readUint32();
     let textureDimY = reader.readUint32();
     if (textureDimX > 2048 || textureDimY > 2048) {
@@ -116,7 +116,7 @@ export const convertVxm = (arrayBuffer: ArrayBuffer): TVoxels => {
     let size = reader.readUint32();
     reader.skip(size); // skip zipped pixel data
 
-    for (let i = 0; i < 6; ++i) {
+    for (let i = 0; i < 6; i++) {
       let quadAmount = reader.readUint32();
 
       if (quadAmount > 0x40000) {
@@ -135,14 +135,14 @@ export const convertVxm = (arrayBuffer: ArrayBuffer): TVoxels => {
   reader.skip(256 * 4); // palette data rgba
   reader.skip(256 * 4); // palette data rgba for emissive materials
   let chunkAmount = reader.readUint8();
-  for (let i = 0; i < chunkAmount; ++i) {
+  for (let i = 0; i < chunkAmount; i++) {
     reader.skip(1024); // chunk id
     reader.readUint8(); // chunk offset
     reader.readUint8(); // chunk length
   }
 
   let materialAmount = reader.readUint8();
-  for (let i = 0; i < materialAmount; ++i) {
+  for (let i = 0; i < materialAmount; i++) {
     let blue = reader.readUint8();
     let green = reader.readUint8();
     let red = reader.readUint8();
@@ -186,9 +186,13 @@ export const convertVxm = (arrayBuffer: ArrayBuffer): TVoxels => {
       layerName = `Layer ${layer}`;
     }
 
+    console.log("buffer index ", reader.index);
+
     // list of numbers that represent the size of the block of voxels
     // block will share the same material
+    let blocks = 0;
     for (;;) {
+      blocks++;
       let length = reader.readUint8();
 
       if (length === 0) {
@@ -196,6 +200,8 @@ export const convertVxm = (arrayBuffer: ArrayBuffer): TVoxels => {
       }
 
       let matIdx = reader.readUint8();
+      console.log({ blocks, length, matIdx });
+
       let EMPTY_PALETTE = 0xff;
       if (matIdx === EMPTY_PALETTE) {
         idx += length;
@@ -219,6 +225,7 @@ export const convertVxm = (arrayBuffer: ArrayBuffer): TVoxels => {
       }
       idx += length;
     }
+    console.log(blocks);
   }
   voxels = voxels.map(({ x, y, z, c }) => {
     return {
@@ -232,6 +239,8 @@ export const convertVxm = (arrayBuffer: ArrayBuffer): TVoxels => {
   const trimmedSize = vec3.sub(bounds.max, bounds.min);
 
   console.timeEnd("convert vxm");
+
+  console.log({ voxels });
 
   return {
     VOX: voxels.length,

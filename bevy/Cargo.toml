@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = { version = "0.15.0" }
+bevy = { version = "0.15.0", features = ["bevy_dev_tools"] }
 
 [profile.dev]
-opt-level = 1
+opt-level = 0
 
 [profile.dev.package."*"]
 opt-level = 3

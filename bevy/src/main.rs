@@ -1,3 +1,4 @@
+#![feature(portable_simd)]
 mod camera;
 mod vxm;
 
@@ -9,6 +10,7 @@ use bevy::{
 };
 use std::f32::consts::*;
 use bevy::{
+    dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin},
     core_pipeline::{
         prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass},
         motion_blur::MotionBlur,
@@ -19,10 +21,13 @@ use bevy::{
     },
     prelude::*,
 };
+
 use bevy::core_pipeline::dof::DepthOfField;
-use bevy::core_pipeline::smaa::Smaa;
-use bevy::pbr::{FogVolume, VolumetricFog};
-use crate::camera::{ CameraTarget, ThirdPersonCameraPlugin};
+use bevy::core_pipeline::experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing};
+use bevy::core_pipeline::fxaa::Fxaa;
+use bevy::pbr::{FogVolume, ScreenSpaceAmbientOcclusion, VolumetricFog};
+use bevy::text::FontSmoothing;
+use crate::camera::{CameraTarget, ThirdPersonCameraPlugin};
 use crate::vxm::VxmImportPlugin;
 
 fn main() {
@@ -33,7 +38,19 @@ fn main() {
         .add_plugins((
             DefaultPlugins,
             ThirdPersonCameraPlugin,
-            VxmImportPlugin
+            VxmImportPlugin,
+            TemporalAntiAliasPlugin,
+            FpsOverlayPlugin {
+                config: FpsOverlayConfig {
+                    text_config: TextFont {
+                        font_size: 24.0,
+                        ..default()
+                    },
+                    // We can also change color of the overlay
+                    text_color: Color::srgb(1.0, 1.0, 1.0),
+                    enabled: true,
+                },
+            },
         ))
         .add_systems(Startup, setup)
         .run();
@@ -68,7 +85,8 @@ fn setup(
         DepthPrepass,
         MotionVectorPrepass,
         DeferredPrepass,
-        Smaa::default(),
+        ScreenSpaceAmbientOcclusion::default(),
+        TemporalAntiAliasing::default(),
     ));
 
     camera.insert(VolumetricFog {

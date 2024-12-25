@@ -136,18 +136,18 @@ export class TerrainSystem extends System {
           this.ecs.addComponent(newEntity, transform);
         },
       );
-      processNewVoxelImport("./Tavern/Dragon.vxm", gpuSingleton.device).then(
-        (voxels) => {
-          const newEntity = this.ecs.addEntity();
-          this.ecs.addComponent(newEntity, voxels);
-          const transform = new Transform(
-            [64, 8, 32],
-            quat.fromEuler(0, 0, 0, "xyz"),
-            [0.25, 0.25, 0.25],
-          );
-          this.ecs.addComponent(newEntity, transform);
-        },
-      );
+      // processNewVoxelImport("./Tavern/Dragon.vxm", gpuSingleton.device).then(
+      //   (voxels) => {
+      //     const newEntity = this.ecs.addEntity();
+      //     this.ecs.addComponent(newEntity, voxels);
+      //     const transform = new Transform(
+      //       [64, 8, 32],
+      //       quat.fromEuler(0, 0, 0, "xyz"),
+      //       [0.25, 0.25, 0.25],
+      //     );
+      //     this.ecs.addComponent(newEntity, transform);
+      //   },
+      // );
       this.isInitialized = true;
     }
   }
