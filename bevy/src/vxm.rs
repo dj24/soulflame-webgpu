@@ -8,6 +8,7 @@ use std::simd::{u32x4, Simd};
 use bevy::app::{App, Plugin, Update};
 use bevy::log::info;
 use bevy::prelude::{EventReader, FileDragAndDrop};
+use bevy::prelude::*;
 
 #[derive(Debug)]
 struct Voxel {
@@ -65,9 +66,9 @@ impl CustomByteReader {
     }
 }
 
-fn convert_vxm(file_path: String) -> Result<Voxels, Box<dyn Error>> {
+fn convert_vxm(file_path: &String) -> Result<Voxels, Box<dyn Error>> {
     let mut start_time = std::time::Instant::now();
-    let file = File::open(&file_path)?;
+    let file = File::open(file_path)?;
     info!("Time taken to open file: {:?}", start_time.elapsed());
 
     let mut reader = CustomByteReader::new(BufReader::new(file));
@@ -223,17 +224,40 @@ fn convert_vxm(file_path: String) -> Result<Voxels, Box<dyn Error>> {
 }
 
 
-fn file_drag_and_drop_system(mut events: EventReader<FileDragAndDrop>) {
+fn file_drag_and_drop_system(
+    mut events: EventReader<FileDragAndDrop>,
+    mut commands: Commands,
+    ass: Res<AssetServer>
+) {
     // Log voxel count to debug for now
     for event in events.read() {
         if let FileDragAndDrop::DroppedFile { window, path_buf } = event {
             let file_path = path_buf.to_str().unwrap().to_string();
-            let start_time = std::time::Instant::now();
-            let voxels = convert_vxm(file_path).unwrap();
-            info!("Time taken: {:?}", start_time.elapsed());
-            info!("Voxel count: {}", voxels.vox_count);
-        }
+            if file_path.ends_with(".vxm") {
+                let start_time = std::time::Instant::now();
+                let voxels = convert_vxm(&file_path);
+                match voxels {
+                    Ok(voxels) => {
+                        info!("Time taken: {:?}", start_time.elapsed());
+                        info!("Voxel count: {}", voxels.vox_count);
+                    }
+                    Err(e) => {
+                        info!("Error: {}", e);
+                    }
+                }
+            }
+            if file_path.ends_with(".glb") {
+                let my_gltf = ass.load(file_path);
 
+                // to position our 3d model, simply use the Transform
+                // in the SceneBundle
+                commands.spawn(SceneBundle {
+                    scene: my_gltf,
+                    transform: Transform::from_xyz(2.0, 0.0, -5.0),
+                    ..Default::default()
+                });
+            }
+        }
     }
 }
 
