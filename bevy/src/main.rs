@@ -24,11 +24,9 @@ use bevy::{
 
 use bevy::core_pipeline::dof::DepthOfField;
 use bevy::core_pipeline::experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing};
-use bevy::core_pipeline::fxaa::Fxaa;
 use bevy::pbr::{FogVolume, ScreenSpaceAmbientOcclusion, VolumetricFog};
-use bevy::text::FontSmoothing;
 use crate::camera::{CameraTarget, ThirdPersonCameraPlugin};
-use crate::vxm::VxmImportPlugin;
+use crate::vxm::{VxmAsset, VxmAssetLoader, VxmImportPlugin};
 
 fn main() {
     App::new()
@@ -52,6 +50,8 @@ fn main() {
                 },
             },
         ))
+        .init_asset::<VxmAsset>()
+        .init_asset_loader::<VxmAssetLoader>()
         .add_systems(Startup, setup)
         .run();
 }

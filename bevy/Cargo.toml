@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 bevy = { version = "0.15.0", features = ["bevy_dev_tools"] }
+thiserror = "1.0.69"
 
 [profile.dev]
 opt-level = 0
