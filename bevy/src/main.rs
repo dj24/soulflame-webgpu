@@ -1,6 +1,8 @@
 #![feature(portable_simd)]
 mod camera;
 mod vxm;
+mod dnd;
+mod vxm_mesh;
 
 use bevy::{
     prelude::*,
@@ -22,11 +24,12 @@ use bevy::{
     prelude::*,
 };
 
-use bevy::core_pipeline::dof::DepthOfField;
 use bevy::core_pipeline::experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing};
 use bevy::pbr::{FogVolume, ScreenSpaceAmbientOcclusion, VolumetricFog};
 use crate::camera::{CameraTarget, ThirdPersonCameraPlugin};
-use crate::vxm::{VxmAsset, VxmAssetLoader, VxmImportPlugin};
+use crate::vxm::{VxmAsset, VxmAssetLoader};
+use crate::dnd::{file_drag_and_drop_system};
+use crate::vxm_mesh::{VxmMeshPlugin};
 
 fn main() {
     App::new()
@@ -36,12 +39,12 @@ fn main() {
         .add_plugins((
             DefaultPlugins,
             ThirdPersonCameraPlugin,
-            VxmImportPlugin,
             TemporalAntiAliasPlugin,
+            VxmMeshPlugin,
             FpsOverlayPlugin {
                 config: FpsOverlayConfig {
                     text_config: TextFont {
-                        font_size: 24.0,
+                        font_size: 18.0,
                         ..default()
                     },
                     // We can also change color of the overlay
@@ -53,6 +56,7 @@ fn main() {
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
         .add_systems(Startup, setup)
+        .add_systems(Update, file_drag_and_drop_system)
         .run();
 }
 
@@ -109,64 +113,23 @@ fn setup(
         Transform::from_scale(Vec3::splat(35.0)),
     ));
 
-
-    let mut forward_mat: StandardMaterial = Color::srgb(0.1, 0.2, 0.1).into();
-    forward_mat.opaque_render_method = OpaqueRendererMethod::Forward;
-    let forward_mat_h = materials.add(forward_mat);
+    let mut mat: StandardMaterial = Color::srgb(0.1, 0.2, 0.1).into();
+    mat.opaque_render_method = OpaqueRendererMethod::Deferred;
+    let mat_h = materials.add(mat);
 
     // Plane
     commands.spawn((
         Mesh3d(meshes.add(Plane3d::default().mesh().size(50.0, 50.0))),
-        MeshMaterial3d(forward_mat_h.clone()),
+        MeshMaterial3d(mat_h.clone()),
     ));
-
-    let cube_h = meshes.add(Cuboid::new(0.1, 0.1, 0.1));
-    let sphere_h = meshes.add(Sphere::new(0.125).mesh().uv(32, 18));
 
     // Cubes
     commands.spawn((
-        Mesh3d(cube_h.clone()),
-        MeshMaterial3d(forward_mat_h.clone()),
+        Mesh3d(meshes.add(Cuboid::new(0.1, 0.1, 0.1))),
+        MeshMaterial3d(mat_h.clone()),
         Transform::from_xyz(-0.3, 0.5, -0.2),
         CameraTarget,
     ));
-
-    // Spheres
-    for i in 0..6 {
-        let j = i % 3;
-        let s_val = if i < 3 { 0.0 } else { 0.2 };
-        let material = if j == 0 {
-            materials.add(StandardMaterial {
-                base_color: Color::srgb(s_val, s_val, 1.0),
-                perceptual_roughness: 0.089,
-                metallic: 0.0,
-                ..default()
-            })
-        } else if j == 1 {
-            materials.add(StandardMaterial {
-                base_color: Color::srgb(s_val, 1.0, s_val),
-                perceptual_roughness: 0.089,
-                metallic: 0.0,
-                ..default()
-            })
-        } else {
-            materials.add(StandardMaterial {
-                base_color: Color::srgb(1.0, s_val, s_val),
-                perceptual_roughness: 0.089,
-                metallic: 0.0,
-                ..default()
-            })
-        };
-        commands.spawn((
-            Mesh3d(sphere_h.clone()),
-            MeshMaterial3d(material),
-            Transform::from_xyz(
-                j as f32 * 0.25 + if i < 3 { -0.15 } else { 0.15 } - 0.4,
-                0.125,
-                -j as f32 * 0.25 + if i < 3 { -0.15 } else { 0.15 } + 0.4,
-            ),
-        ));
-    }
 
     // sky
     commands.spawn((

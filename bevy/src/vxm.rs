@@ -19,10 +19,10 @@ use thiserror::Error;
 
 #[derive(Asset, TypePath, Debug)]
 pub struct VxmAsset {
-    vox_count: usize,
-    size: [u32; 3],
-    voxels: Vec<Voxel>,
-    palette: Vec<PaletteColor>,
+    pub vox_count: usize,
+    pub size: [u32; 3],
+    pub voxels: Vec<Voxel>,
+    pub palette: Vec<PaletteColor>,
 }
 
 #[derive(Default)]
@@ -209,19 +209,19 @@ impl AssetLoader for VxmAssetLoader {
 }
 
 #[derive(Debug)]
-struct Voxel {
-    x: u32,
-    y: u32,
-    z: u32,
-    c: u8,
+pub struct Voxel {
+    pub x: u32,
+    pub y: u32,
+    pub z: u32,
+    pub c: u8,
 }
 
 #[derive(Debug)]
-struct PaletteColor {
-    r: u8,
-    g: u8,
-    b: u8,
-    a: u8,
+pub struct PaletteColor {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
 }
 
 struct CustomByteReader {
@@ -255,219 +255,5 @@ impl CustomByteReader {
 
     fn seek_relative(&mut self, amount: usize) {
         self.index += amount;
-    }
-}
-
-
-fn file_drag_and_drop_system(
-    mut events: EventReader<FileDragAndDrop>,
-    mut commands: Commands,
-    ass: Res<AssetServer>
-) {
-    for event in events.read() {
-        if let FileDragAndDrop::DroppedFile { window, path_buf } = event {
-            let file_path = path_buf.to_str().unwrap().to_string();
-            if file_path.ends_with(".vxm") {
-                let voxels: Handle<VxmAsset> = ass.load(&file_path);
-                commands.spawn(
-                    VoxelObject(voxels),
-                );
-            }
-        }
-    }
-}
-
-fn get_cube_vertex_positions() -> Vec<[f32; 3]> {
-    vec![
-        // Front face
-        [0.0, 0.0, 1.0], // Bottom-left
-        [1.0, 0.0, 1.0], // Bottom-right
-        [1.0, 1.0, 1.0], // Top-right
-        [0.0, 1.0, 1.0], // Top-left
-
-        // Back face
-        [0.0, 0.0, 0.0], // Bottom-left
-        [1.0, 0.0, 0.0], // Bottom-right
-        [1.0, 1.0, 0.0], // Top-right
-        [0.0, 1.0, 0.0], // Top-left
-
-        // Top face
-        [0.0, 1.0, 0.0], // Back-left
-        [1.0, 1.0, 0.0], // Back-right
-        [1.0, 1.0, 1.0], // Front-right
-        [0.0, 1.0, 1.0], // Front-left
-
-        // Bottom face
-        [0.0, 0.0, 0.0], // Back-left
-        [1.0, 0.0, 0.0], // Back-right
-        [1.0, 0.0, 1.0], // Front-right
-        [0.0, 0.0, 1.0], // Front-left
-
-        // Left face
-        [1.0, 0.0, 1.0], // Front-bottom
-        [1.0, 0.0, 0.0], // Back-bottom
-        [1.0, 1.0, 0.0], // Back-top
-        [1.0, 1.0, 1.0], // Front-top
-
-        // Right face
-        [0.0, 0.0, 1.0], // Front-bottom
-        [0.0, 0.0, 0.0], // Back-bottom
-        [0.0, 1.0, 0.0], // Back-top
-        [0.0, 1.0, 1.0], // Front-top
-    ]
-}
-
-fn get_cube_vertex_indices() -> Vec<u32> {
-    vec![
-        // Front face
-        0, 1, 2, 0, 2, 3,
-        // Back face
-        4, 6, 5, 4, 7, 6,
-        // Top face
-        8, 10, 9, 8, 11, 10,
-        // Bottom face
-        12, 13, 14, 12, 14, 15,
-        // Left face
-        16, 17, 18, 16, 18, 19,
-        // Right face
-        20, 22, 21, 20, 23, 22,
-    ]
-}
-
-fn get_cube_normals() -> Vec<[f32; 3]> {
-    vec![
-        // Front face
-        [0.0, 0.0, 1.0],
-        [0.0, 0.0, 1.0],
-        [0.0, 0.0, 1.0],
-        [0.0, 0.0, 1.0],
-
-        // Back face
-        [0.0, 0.0, -1.0],
-        [0.0, 0.0, -1.0],
-        [0.0, 0.0, -1.0],
-        [0.0, 0.0, -1.0],
-
-        // Top face
-        [0.0, 1.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [0.0, 1.0, 0.0],
-
-        // Bottom face
-        [0.0, -1.0, 0.0],
-        [0.0, -1.0, 0.0],
-        [0.0, -1.0, 0.0],
-        [0.0, -1.0, 0.0],
-
-        // Left face
-        [1.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-
-        // Right face
-        [-1.0, 0.0, 0.0],
-        [-1.0, 0.0, 0.0],
-        [-1.0, 0.0, 0.0],
-        [-1.0, 0.0, 0.0],
-    ]
-}
-
-fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
-    let mut positions = Vec::new();
-    let mut indices = Vec::new();
-    let mut normals = Vec::new();
-    let mut colours = Vec::new();
-    let mut voxel_index = 0;
-    let cube_vertex_indices = get_cube_vertex_indices();
-    let cube_vertex_positions = get_cube_vertex_positions();
-    let cube_normals = get_cube_normals();
-
-    for voxel in &voxels.voxels {
-        for vertex in &cube_vertex_positions {
-            positions.push([
-                vertex[0] + voxel.x as f32,
-                vertex[1] + voxel.y as f32,
-                vertex[2] + voxel.z as f32,
-            ]);
-            colours.push([
-                voxels.palette[voxel.c as usize].r as f32 / 255.0,
-                voxels.palette[voxel.c as usize].g as f32 / 255.0,
-                voxels.palette[voxel.c as usize].b as f32 / 255.0,
-                voxels.palette[voxel.c as usize].a as f32 / 255.0,
-            ]);
-        }
-        for normal in &cube_normals {
-            normals.push(*normal);
-        }
-        for index in &cube_vertex_indices {
-            indices.push(index + voxel_index * cube_vertex_positions.len() as u32);
-        }
-        voxel_index += 1;
-    }
-    Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default())
-    // Add 4 vertices, each with its own position attribute (coordinate in
-    // 3D space), for each of the corners of the parallelogram.
-    .with_inserted_attribute(
-        Mesh::ATTRIBUTE_POSITION,
-        positions
-    )
-    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
-    .with_inserted_indices(Indices::U32(indices))
-    .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colours)
-}
-
-#[derive(Component)]
-struct VoxelObject(Handle<VxmAsset>);
-
-fn print_voxel_count_on_load_system(
-    vxm_assets: Res<Assets<VxmAsset>>,
-    mut events: EventReader<AssetEvent<VxmAsset>>,
-    ass: Res<AssetServer>,
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    // Log voxel count to debug for now
-    for event in events.read() {
-        match event {
-            AssetEvent::LoadedWithDependencies { id } => {
-                match vxm_assets.get(*id) {
-                    Some(vxm_asset) => {
-                        info!("Loaded vxm containing {:?} voxels", vxm_asset.vox_count);
-                        commands.spawn((
-                            Mesh3d(meshes.add(create_mesh_from_voxels(&vxm_asset))),
-                            MeshMaterial3d(materials.add(Color::srgb(1., 1., 1.))),
-                            Transform::from_scale(Vec3::new(0.03,0.03,0.03)),
-                            // Wireframe
-                        ));
-                    }
-                    _ => {}
-                }
-            }
-            AssetEvent::Added { id } => {
-                info!("Added {:?}", id);
-            }
-            AssetEvent::Unused { id } => {
-                info!("Unused {:?}", id);
-            }
-            AssetEvent::Modified { id } => {
-                info!("Modified {:?}", id);
-            }
-            AssetEvent::Removed { id } => {
-                info!("Removed {:?}", id);
-            }
-        }
-    }
-}
-
-pub struct VxmImportPlugin;
-
-impl Plugin for VxmImportPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_plugins(WireframePlugin);
-        app.add_systems(Update, file_drag_and_drop_system);
-        app.add_systems(Update, print_voxel_count_on_load_system);
     }
 }
