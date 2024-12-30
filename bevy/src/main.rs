@@ -74,14 +74,6 @@ fn setup(
         },
         Transform::from_xyz(0.7, 0.7, 1.0).looking_at(Vec3::new(0.0, 0.3, 0.0), Vec3::Y),
         Msaa::Off,
-        DistanceFog {
-            color: Color::srgb_u8(43, 44, 47),
-            falloff: FogFalloff::Linear {
-                start: 1.0,
-                end: 8.0,
-            },
-            ..default()
-        },
         DepthPrepass,
         MotionVectorPrepass,
         DeferredPrepass,
@@ -92,10 +84,6 @@ fn setup(
     camera.insert(VolumetricFog {
         // This value is explicitly set to 0 since we have no environment map light
         ambient_intensity: 0.0,
-        ..default()
-    });
-    camera.insert(DepthOfField {
-        focal_distance: 2.0,
         ..default()
     });
 
@@ -112,7 +100,7 @@ fn setup(
             ..default()
         }
             .build(),
-        Transform::from_rotation(Quat::from_euler(EulerRot::ZYX, 0.0, 0.0, -FRAC_PI_4)),
+        Transform::from_rotation(Quat::from_euler(EulerRot::ZYX, 0.0, -FRAC_PI_4, -FRAC_PI_4)),
     ));
 
     // Add the fog volume.
@@ -141,11 +129,6 @@ fn setup(
         MeshMaterial3d(forward_mat_h.clone()),
         Transform::from_xyz(-0.3, 0.5, -0.2),
         CameraTarget,
-    ));
-    commands.spawn((
-        Mesh3d(cube_h),
-        MeshMaterial3d(forward_mat_h),
-        Transform::from_xyz(0.2, 0.5, 0.2),
     ));
 
     // Spheres
