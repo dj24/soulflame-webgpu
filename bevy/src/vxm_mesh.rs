@@ -1,6 +1,7 @@
 use bevy::asset::{AssetEvent, Assets, RenderAssetUsages};
+use bevy::color::palettes::basic::{RED, WHITE};
 use bevy::log::info;
-use bevy::pbr::MeshMaterial3d;
+use bevy::pbr::{ExtendedMaterial, MaterialExtension, MeshMaterial3d, OpaqueRendererMethod};
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, PrimitiveTopology};
 use bevy::render::render_resource::{AsBindGroup, ShaderRef};
@@ -137,7 +138,7 @@ fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
     }
 
     let bytes = positions.len() * 3 * 4 + normals.len() * 3 * 4 + colours.len() * 4 + indices.len();
-    let mb = bytes as f64 / 1024.0 / 1024.0;
+    let mb = indices.len() as f64 / 1024.0 / 1024.0;
     info!("Memory usgage {:?}", mb);
 
     Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default())
@@ -155,7 +156,7 @@ pub fn create_mesh_on_vxm_import_system(
     mut events: EventReader<AssetEvent<VxmAsset>>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<CustomMaterial>>,
+    mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, MyExtension>>>,
 ) {
     // Log voxel count to debug for now
     for event in events.read() {
@@ -166,8 +167,19 @@ pub fn create_mesh_on_vxm_import_system(
                         info!("Loaded vxm containing {:?} voxels", vxm_asset.vox_count);
                         commands.spawn((
                             Mesh3d(meshes.add(create_mesh_from_voxels(&vxm_asset))),
-                            MeshMaterial3d(materials.add(CustomMaterial {
-                                color: LinearRgba::BLUE
+                            MeshMaterial3d(materials.add(ExtendedMaterial {
+                                base: StandardMaterial {
+                                    base_color: WHITE.into(),
+                                    // can be used in forward or deferred mode
+                                    opaque_render_method: OpaqueRendererMethod::Auto,
+                                    // in deferred mode, only the PbrInput can be modified (uvs, color and other material properties),
+                                    // in forward mode, the output can also be modified after lighting is applied.
+                                    // see the fragment shader `extended_material.wgsl` for more info.
+                                    // Note: to run in deferred mode, you must also add a `DeferredPrepass` component to the camera and either
+                                    // change the above to `OpaqueRendererMethod::Deferred` or add the `DefaultOpaqueRendererMethod` resource.
+                                    ..Default::default()
+                                },
+                                extension: MyExtension { color: LinearRgba::BLUE},
                             })),
                             Transform::from_scale(Vec3::new(0.03,0.03,0.03)),
                             // Wireframe
@@ -195,17 +207,20 @@ pub fn create_mesh_on_vxm_import_system(
 /// This example uses a shader source file from the assets subdirectory
 const SHADER_ASSET_PATH: &str = "shaders/custom_material.wgsl";
 
-// This struct defines the data that will be passed to your shader
-#[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
-struct CustomMaterial {
-    #[uniform(0)]
+#[derive(Asset, AsBindGroup, Reflect, Debug, Clone)]
+struct MyExtension {
+    // We need to ensure that the bindings of the base material and the extension do not conflict,
+    // so we start from binding slot 100, leaving slots 0-99 for the base material.
+    #[uniform(100)]
     color: LinearRgba,
 }
 
-/// The Material trait is very configurable, but comes with sensible defaults for all methods.
-/// You only need to implement functions for features that need non-default behavior. See the Material api docs for details!
-impl Material for CustomMaterial {
+impl MaterialExtension for MyExtension {
     fn fragment_shader() -> ShaderRef {
+        SHADER_ASSET_PATH.into()
+    }
+
+    fn deferred_fragment_shader() -> ShaderRef {
         SHADER_ASSET_PATH.into()
     }
 }
@@ -215,7 +230,9 @@ pub struct VxmMeshPlugin;
 
 impl Plugin for VxmMeshPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(MaterialPlugin::<CustomMaterial>::default());
+        app.add_plugins(MaterialPlugin::<
+            ExtendedMaterial<StandardMaterial, MyExtension>,
+        >::default());
         app.add_systems(Update, create_mesh_on_vxm_import_system);
     }
 }
