@@ -13,16 +13,32 @@ struct VoxelObject(Handle<VxmAsset>);
 pub fn file_drag_and_drop_system(
     mut events: EventReader<FileDragAndDrop>,
     mut commands: Commands,
-    ass: Res<AssetServer>
+    asset_server: Res<AssetServer>,
+    mut graphs: ResMut<Assets<AnimationGraph>>,
 ) {
     for event in events.read() {
         if let FileDragAndDrop::DroppedFile { window, path_buf } = event {
-            let file_path = path_buf.to_str().unwrap().to_string();
+            let mut file_path = path_buf.to_str().unwrap().to_string();
             if file_path.ends_with(".vxm") {
-                let voxels: Handle<VxmAsset> = ass.load(&file_path);
+                let voxels: Handle<VxmAsset> = asset_server.load(&file_path);
                 commands.spawn(
                     VoxelObject(voxels),
                 );
+            }
+            if file_path.ends_with(".glb"){
+                let (graph, animation_index) = AnimationGraph::from_clip(
+                    asset_server.load(GltfAssetLabel::Animation(7).from_asset(file_path.clone())),
+                );
+                let mut player = AnimationPlayer::default();
+                player.play(animation_index).repeat();
+
+                commands.spawn((
+                    SceneRoot(asset_server.load(
+                        GltfAssetLabel::Scene(0).from_asset(file_path.clone()),
+                    )),
+                    Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)),
+                    AnimationGraphHandle(graphs.add(graph))
+                ));
             }
         }
     }
