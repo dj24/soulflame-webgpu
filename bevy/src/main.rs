@@ -28,7 +28,7 @@ use bevy::core_pipeline::experimental::taa::{TemporalAntiAliasPlugin, TemporalAn
 use bevy::pbr::{FogVolume, ScreenSpaceAmbientOcclusion, VolumetricFog};
 use crate::camera::{CameraTarget, ThirdPersonCameraPlugin};
 use crate::vxm::{VxmAsset, VxmAssetLoader};
-use crate::dnd::{file_drag_and_drop_system};
+use crate::dnd::{file_drag_and_drop_system, setup_scene_once_loaded};
 use crate::vxm_mesh::{VxmMeshPlugin};
 
 fn main() {
@@ -56,7 +56,7 @@ fn main() {
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
         .add_systems(Startup, setup)
-        .add_systems(Update, file_drag_and_drop_system)
+        .add_systems(Update, (file_drag_and_drop_system, setup_scene_once_loaded))
         .run();
 }
 
