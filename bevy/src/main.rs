@@ -25,11 +25,15 @@ use bevy::{
 };
 
 use bevy::core_pipeline::experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing};
+use bevy::ecs::bundle::DynamicBundle;
 use bevy::pbr::{FogVolume, ScreenSpaceAmbientOcclusion, VolumetricFog};
+use bevy::scene::SceneInstance;
+use bevy::window::{VideoMode, WindowMode};
 use crate::camera::{CameraTarget, ThirdPersonCameraPlugin};
 use crate::vxm::{VxmAsset, VxmAssetLoader};
-use crate::dnd::{file_drag_and_drop_system, setup_scene_once_loaded};
+use crate::dnd::{file_drag_and_drop_system, setup_scene_once_loaded, Animations, VoxelObject};
 use crate::vxm_mesh::{VxmMeshPlugin};
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 fn main() {
     App::new()
@@ -37,7 +41,15 @@ fn main() {
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
         .insert_resource(ClearColor(Color::srgb(0.0, 1.0, 0.0)))
         .add_plugins((
-            DefaultPlugins,
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    mode: WindowMode::BorderlessFullscreen(MonitorSelection::Current),
+                    title: "Soulflame".to_string(),
+                    focused: true,
+                    ..default()
+                }),
+                ..default()
+            }),
             ThirdPersonCameraPlugin,
             TemporalAntiAliasPlugin,
             VxmMeshPlugin,
@@ -52,23 +64,35 @@ fn main() {
                     enabled: true,
                 },
             },
+            WorldInspectorPlugin::new(),
         ))
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
         .add_systems(Startup, setup)
-        .add_systems(Update, (file_drag_and_drop_system, setup_scene_once_loaded))
+        .add_systems(Update, (file_drag_and_drop_system, setup_scene_once_loaded, change_mesh_in_scene))
         .run();
 }
+
+const PLAYER_GLB_PATH: &str = "models/BearRace.glb";
+
+const BEAR_VXM_PATH_PREFIX: &str = "models/Barbearian/Male";
+
+const BEAR_HEAD_VXM_PATH: &str = "models/Barbearian/Male/Head/BearHead.vxm";
+const BEAR_CHEST_VXM_PATH: &str = "models/Barbearian/Male/Chest/BearChest.vxm";
+
+const ORC_HEAD_VXM_PATH: &str = "models/OrcHead.vxm";
 
 fn setup(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
+    asset_server: Res<AssetServer>,
+    mut graphs: ResMut<Assets<AnimationGraph>>,
 ) {
     let mut camera = commands.spawn((
         Camera3d::default(),
         MotionBlur {
-            shutter_angle: 0.5,
+            shutter_angle: 1.0,
             samples: 4,
         },
         Camera {
@@ -122,15 +146,6 @@ fn setup(
         Mesh3d(meshes.add(Plane3d::default().mesh().size(50.0, 50.0))),
         MeshMaterial3d(mat_h.clone()),
     ));
-
-    // Cubes
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(0.1, 0.1, 0.1))),
-        MeshMaterial3d(mat_h.clone()),
-        Transform::from_xyz(-0.3, 0.5, -0.2),
-        CameraTarget,
-    ));
-
     // sky
     commands.spawn((
         Mesh3d(meshes.add(Cuboid::new(2.0, 1.0, 1.0))),
@@ -144,6 +159,83 @@ fn setup(
         NotShadowCaster,
         NotShadowReceiver,
     ));
+
+    // Player
+    let (graph, node_indices) = AnimationGraph::from_clips([
+        asset_server.load(GltfAssetLabel::Animation(7).from_asset(PLAYER_GLB_PATH)),
+    ]);
+    let graph_handle = graphs.add(graph);
+    commands.insert_resource(Animations {
+        animations: node_indices,
+        graph: graph_handle.clone(),
+    });
+    // commands.insert_resource(VoxelObject(asset_server.load(ORC_HEAD_VXM_PATH)));
+    // commands.insert_resource(VoxelObject(asset_server.load(BEAR_HEAD_VXM_PATH)));
+    commands.insert_resource(VoxelObject(asset_server.load(BEAR_CHEST_VXM_PATH)));
+
+    commands.spawn((
+        SceneRoot(asset_server.load(
+            GltfAssetLabel::Scene(0).from_asset(PLAYER_GLB_PATH),
+        )),
+        Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)),
+        AnimationGraphHandle(graph_handle.clone()),
+        CameraTarget,
+        VoxelModelSwapPending,
+    ));
 }
 
+#[derive(Component)]
+struct VoxelModelSwapPending;
 
+// System to detect when scene is loaded and modify meshes
+fn change_mesh_in_scene(
+    scene_root_query: Query<(Entity, &SceneRoot, &Children, &VoxelModelSwapPending)>,
+    children_query: Query<&Children>,
+    scene_instances: Query<&SceneInstance>,
+    material_query: Query<(&Mesh3d, &Name)>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    vxm_assets: Res<Assets<VxmAsset>>,
+    asset_server: Res<AssetServer>,
+) {
+
+    for (root_entity, scene_root, children, swap_completion) in scene_root_query.iter() {
+        // Scene is loaded, we can now process its children
+        info!("Found scene root with {} children", children.len());
+        for child in children_query.iter_descendants(root_entity) {
+            // Check if the child has a mesh component
+            if !material_query.get(child).is_ok() {
+                continue;
+            }
+            let (mesh, name) = material_query.get(child).unwrap();
+            if name.as_str().starts_with("BearChest") {
+                let voxels: Handle<VxmAsset> = asset_server.load(BEAR_CHEST_VXM_PATH);
+                info!("Processing child {:?}", name);
+                if !vxm_assets.contains(voxels.id()) {
+                    continue;
+                }
+                let vxm_asset = vxm_assets.get(voxels.id()).unwrap();
+                let new_mesh = meshes.add(vxm_mesh::create_mesh_from_voxels(&vxm_asset));
+
+                let new_material = materials.add(StandardMaterial::default());
+
+
+                // Remove the old mesh and material
+                commands.entity(child).remove::<MeshMaterial3d<StandardMaterial>>();
+                commands.entity(child).remove::<Mesh3d>();
+
+                // Add the new mesh and material as children of the old mesh so they can be positioned correctly
+                let pivot = commands.spawn((
+                    Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -FRAC_PI_2, 0.0, 0.0)),
+                    MeshMaterial3d(new_material),
+                    Mesh3d(new_mesh))
+                ).id();
+                commands.entity(pivot).set_parent(child);
+            }
+
+        }
+        // Mark the scene as processed
+        commands.entity(root_entity).remove::<VoxelModelSwapPending>();
+    }
+}

@@ -104,7 +104,7 @@ fn get_cube_normals() -> Vec<[f32; 3]> {
     ]
 }
 
-fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
+pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
     let mut positions = Vec::new();
     let mut indices = Vec::new();
     let mut normals = Vec::new();
@@ -117,9 +117,9 @@ fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
     for voxel in &voxels.voxels {
         for vertex in &cube_vertex_positions {
             positions.push([
-                vertex[0] + voxel.x as f32,
-                vertex[1] + voxel.y as f32,
-                vertex[2] + voxel.z as f32,
+                vertex[0] + voxel.x as f32 - voxels.size[0] as f32 / 2.0,
+                vertex[1] + voxel.y as f32 - voxels.size[1] as f32 / 2.0,
+                vertex[2] + voxel.z as f32 - voxels.size[2] as f32 / 2.0,
             ]);
             colours.push([
                 voxels.palette[voxel.c as usize].r as f32 / 255.0,
@@ -170,13 +170,7 @@ pub fn create_mesh_on_vxm_import_system(
                             MeshMaterial3d(materials.add(ExtendedMaterial {
                                 base: StandardMaterial {
                                     base_color: WHITE.into(),
-                                    // can be used in forward or deferred mode
                                     opaque_render_method: OpaqueRendererMethod::Auto,
-                                    // in deferred mode, only the PbrInput can be modified (uvs, color and other material properties),
-                                    // in forward mode, the output can also be modified after lighting is applied.
-                                    // see the fragment shader `extended_material.wgsl` for more info.
-                                    // Note: to run in deferred mode, you must also add a `DeferredPrepass` component to the camera and either
-                                    // change the above to `OpaqueRendererMethod::Deferred` or add the `DefaultOpaqueRendererMethod` resource.
                                     ..Default::default()
                                 },
                                 extension: MyExtension { color: LinearRgba::BLUE},
@@ -233,6 +227,6 @@ impl Plugin for VxmMeshPlugin {
         app.add_plugins(MaterialPlugin::<
             ExtendedMaterial<StandardMaterial, MyExtension>,
         >::default());
-        app.add_systems(Update, create_mesh_on_vxm_import_system);
+        // app.add_systems(Update, create_mesh_on_vxm_import_system);
     }
 }
