@@ -82,6 +82,12 @@ const BEAR_CHEST_VXM_PATH: &str = "models/Barbearian/Male/Chest/BearChest.vxm";
 
 const ORC_HEAD_VXM_PATH: &str = "models/OrcHead.vxm";
 
+#[derive(Resource)]
+pub struct PlayerBodyPartModels{
+    pub head: Handle<VxmAsset>,
+    pub chest: Handle<VxmAsset>,
+}
+
 fn setup(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -169,9 +175,11 @@ fn setup(
         animations: node_indices,
         graph: graph_handle.clone(),
     });
-    // commands.insert_resource(VoxelObject(asset_server.load(ORC_HEAD_VXM_PATH)));
-    // commands.insert_resource(VoxelObject(asset_server.load(BEAR_HEAD_VXM_PATH)));
-    commands.insert_resource(VoxelObject(asset_server.load(BEAR_CHEST_VXM_PATH)));
+
+    commands.insert_resource(PlayerBodyPartModels {
+        head: asset_server.load(BEAR_HEAD_VXM_PATH),
+        chest: asset_server.load(BEAR_CHEST_VXM_PATH),
+    });
 
     commands.spawn((
         SceneRoot(asset_server.load(
@@ -196,7 +204,7 @@ fn change_mesh_in_scene(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    vxm_assets: Res<Assets<VxmAsset>>,
+    player_body_part_models: Res<Assets<PlayerBodyPartModels>>,
     asset_server: Res<AssetServer>,
 ) {
 
@@ -210,28 +218,27 @@ fn change_mesh_in_scene(
             }
             let (mesh, name) = material_query.get(child).unwrap();
             if name.as_str().starts_with("BearChest") {
-                let voxels: Handle<VxmAsset> = asset_server.load(BEAR_CHEST_VXM_PATH);
+                let chest_handle: Handle<VxmAsset> = asset_server.load(BEAR_CHEST_VXM_PATH);
+                let head_handle: Handle<VxmAsset> = asset_server.load(BEAR_HEAD_VXM_PATH);
                 info!("Processing child {:?}", name);
-                if !vxm_assets.contains(voxels.id()) {
-                    continue;
-                }
-                let vxm_asset = vxm_assets.get(voxels.id()).unwrap();
-                let new_mesh = meshes.add(vxm_mesh::create_mesh_from_voxels(&vxm_asset));
+                //
+                // let player_model_asset = vxm_assets.get(voxels.id()).unwrap();
+                // let new_mesh = meshes.add(vxm_mesh::create_mesh_from_voxels(&vxm_asset));
 
                 let new_material = materials.add(StandardMaterial::default());
 
 
                 // Remove the old mesh and material
-                commands.entity(child).remove::<MeshMaterial3d<StandardMaterial>>();
-                commands.entity(child).remove::<Mesh3d>();
-
-                // Add the new mesh and material as children of the old mesh so they can be positioned correctly
-                let pivot = commands.spawn((
-                    Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -FRAC_PI_2, 0.0, 0.0)),
-                    MeshMaterial3d(new_material),
-                    Mesh3d(new_mesh))
-                ).id();
-                commands.entity(pivot).set_parent(child);
+                // commands.entity(child).remove::<MeshMaterial3d<StandardMaterial>>();
+                // commands.entity(child).remove::<Mesh3d>();
+                //
+                // // Add the new mesh and material as children of the old mesh so they can be positioned correctly
+                // let pivot = commands.spawn((
+                //     Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -FRAC_PI_2, 0.0, 0.0)),
+                //     MeshMaterial3d(new_material),
+                //     Mesh3d(new_mesh))
+                // ).id();
+                // commands.entity(pivot).set_parent(child);
             }
 
         }
