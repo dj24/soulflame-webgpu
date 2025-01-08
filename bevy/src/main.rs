@@ -88,6 +88,16 @@ pub struct PlayerBodyPartModels{
     pub chest: Handle<VxmAsset>,
 }
 
+impl FromWorld for PlayerBodyPartModels {
+    fn from_world(world: &mut World) -> Self {
+        let asset_server = world.get_resource::<AssetServer>().unwrap();
+        PlayerBodyPartModels {
+            head: asset_server.load(BEAR_HEAD_VXM_PATH),
+            chest: asset_server.load(BEAR_CHEST_VXM_PATH),
+        }
+    }
+}
+
 fn setup(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -175,12 +185,7 @@ fn setup(
         animations: node_indices,
         graph: graph_handle.clone(),
     });
-
-    commands.insert_resource(PlayerBodyPartModels {
-        head: asset_server.load(BEAR_HEAD_VXM_PATH),
-        chest: asset_server.load(BEAR_CHEST_VXM_PATH),
-    });
-
+    commands.init_resource::<PlayerBodyPartModels>();
     commands.spawn((
         SceneRoot(asset_server.load(
             GltfAssetLabel::Scene(0).from_asset(PLAYER_GLB_PATH),
@@ -188,27 +193,36 @@ fn setup(
         Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)),
         AnimationGraphHandle(graph_handle.clone()),
         CameraTarget,
-        VoxelModelSwapPending,
     ));
 }
 
-#[derive(Component)]
-struct VoxelModelSwapPending;
 
 // System to detect when scene is loaded and modify meshes
 fn change_mesh_in_scene(
-    scene_root_query: Query<(Entity, &SceneRoot, &Children, &VoxelModelSwapPending)>,
+    scene_root_query: Query<(Entity, &SceneRoot, &Children)>,
     children_query: Query<&Children>,
-    scene_instances: Query<&SceneInstance>,
     material_query: Query<(&Mesh3d, &Name)>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    player_body_part_models: Res<Assets<PlayerBodyPartModels>>,
-    asset_server: Res<AssetServer>,
+    player_body_part_models: Option<Res<PlayerBodyPartModels>>,
+    vxm_assets: Res<Assets<VxmAsset>>,
 ) {
+    if player_body_part_models.is_none() {
+        return;
+    }
 
-    for (root_entity, scene_root, children, swap_completion) in scene_root_query.iter() {
+    let player_body_part_models = player_body_part_models.unwrap();
+    let bear_head = vxm_assets.get(&player_body_part_models.head);
+    let bear_chest = vxm_assets.get(&player_body_part_models.chest);
+
+    if bear_head.is_none() || bear_chest.is_none() {
+        return;
+    }
+
+    let new_material = materials.add(StandardMaterial::default());
+
+    for (root_entity, _, children) in scene_root_query.iter() {
         // Scene is loaded, we can now process its children
         info!("Found scene root with {} children", children.len());
         for child in children_query.iter_descendants(root_entity) {
@@ -216,33 +230,42 @@ fn change_mesh_in_scene(
             if !material_query.get(child).is_ok() {
                 continue;
             }
-            let (mesh, name) = material_query.get(child).unwrap();
+            let (_, name) = material_query.get(child).unwrap();
             if name.as_str().starts_with("BearChest") {
-                let chest_handle: Handle<VxmAsset> = asset_server.load(BEAR_CHEST_VXM_PATH);
-                let head_handle: Handle<VxmAsset> = asset_server.load(BEAR_HEAD_VXM_PATH);
                 info!("Processing child {:?}", name);
-                //
-                // let player_model_asset = vxm_assets.get(voxels.id()).unwrap();
-                // let new_mesh = meshes.add(vxm_mesh::create_mesh_from_voxels(&vxm_asset));
-
-                let new_material = materials.add(StandardMaterial::default());
-
+                let chest_mesh = meshes.add(vxm_mesh::create_mesh_from_voxels(bear_chest.unwrap()));
 
                 // Remove the old mesh and material
-                // commands.entity(child).remove::<MeshMaterial3d<StandardMaterial>>();
-                // commands.entity(child).remove::<Mesh3d>();
-                //
+                commands.entity(child).remove::<MeshMaterial3d<StandardMaterial>>();
+                commands.entity(child).remove::<Mesh3d>();
+
                 // // Add the new mesh and material as children of the old mesh so they can be positioned correctly
-                // let pivot = commands.spawn((
-                //     Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -FRAC_PI_2, 0.0, 0.0)),
-                //     MeshMaterial3d(new_material),
-                //     Mesh3d(new_mesh))
-                // ).id();
-                // commands.entity(pivot).set_parent(child);
+                let chest = commands.spawn((
+                    Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -FRAC_PI_2, 0.0, 0.0)),
+                    MeshMaterial3d(new_material.clone()),
+                    Mesh3d(chest_mesh))
+                ).id();
+                commands.entity(chest).set_parent(child);
+            }
+            if name.as_str().starts_with("BearHead") {
+                info!("Processing child {:?}", name);
+                let head_mesh = meshes.add(vxm_mesh::create_mesh_from_voxels(bear_head.unwrap()));
+
+                // Remove the old mesh and material
+                commands.entity(child).remove::<MeshMaterial3d<StandardMaterial>>();
+                commands.entity(child).remove::<Mesh3d>();
+
+                // // Add the new mesh and material as children of the old mesh so they can be positioned correctly
+                let head = commands.spawn((
+                    Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -FRAC_PI_2, 0.0, 0.0)),
+                    MeshMaterial3d(new_material.clone()),
+                    Mesh3d(head_mesh))
+                ).id();
+                commands.entity(head).set_parent(child);
             }
 
         }
         // Mark the scene as processed
-        commands.entity(root_entity).remove::<VoxelModelSwapPending>();
+        commands.remove_resource::<PlayerBodyPartModels>();
     }
 }
