@@ -3,6 +3,7 @@ mod camera;
 mod vxm;
 mod dnd;
 mod vxm_mesh;
+mod blend;
 
 use bevy::{
     prelude::*,
@@ -74,6 +75,7 @@ fn main() {
 }
 
 const PLAYER_GLB_PATH: &str = "models/BearRace.glb";
+const PlAYER_BLEND_PATH: &str = "models/BearRace.blend";
 
 const BEAR_VXM_PATH_PREFIX: &str = "models/Barbearian/Male";
 
@@ -180,6 +182,10 @@ fn setup(
     let (graph, node_indices) = AnimationGraph::from_clips([
         asset_server.load(GltfAssetLabel::Animation(7).from_asset(PLAYER_GLB_PATH)),
     ]);
+
+    //TODO: implement loader fully
+    asset_server.load(PlAYER_BLEND_PATH);
+
     let graph_handle = graphs.add(graph);
     commands.insert_resource(Animations {
         animations: node_indices,
