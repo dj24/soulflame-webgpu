@@ -74,15 +74,15 @@ fn main() {
         .run();
 }
 
-const PLAYER_GLB_PATH: &str = "models/BearRace.glb";
-const PlAYER_BLEND_PATH: &str = "models/BearRace.blend";
+const PLAYER_GLB_PATH: &str = "meshes/BearRace.glb";
+const PlAYER_BLEND_PATH: &str = "meshes/BearRace.blend";
 
-const BEAR_VXM_PATH_PREFIX: &str = "models/Barbearian/Male";
+const BEAR_VXM_PATH_PREFIX: &str = "meshes/Barbearian/Male";
 
-const BEAR_HEAD_VXM_PATH: &str = "models/Barbearian/Male/Head/BearHead.vxm";
-const BEAR_CHEST_VXM_PATH: &str = "models/Barbearian/Male/Chest/BearChest.vxm";
+const BEAR_HEAD_VXM_PATH: &str = "meshes/Barbearian/Male/Head/BearHead.vxm";
+const BEAR_CHEST_VXM_PATH: &str = "meshes/Barbearian/Male/Chest/BearChest.vxm";
 
-const ORC_HEAD_VXM_PATH: &str = "models/OrcHead.vxm";
+const ORC_HEAD_VXM_PATH: &str = "meshes/OrcHead.vxm";
 
 #[derive(Resource)]
 pub struct PlayerBodyPartModels{
