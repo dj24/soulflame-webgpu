@@ -3,7 +3,6 @@ mod camera;
 mod vxm;
 mod dnd;
 mod vxm_mesh;
-mod blend;
 
 use bevy::{
     prelude::*,
@@ -28,6 +27,7 @@ use bevy::{
 use bevy::core_pipeline::experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing};
 use bevy::ecs::bundle::DynamicBundle;
 use bevy::pbr::{FogVolume, ScreenSpaceAmbientOcclusion, VolumetricFog};
+use bevy::render::mesh::VertexAttributeValues;
 use bevy::scene::SceneInstance;
 use bevy::window::{VideoMode, WindowMode};
 use crate::camera::{CameraTarget, ThirdPersonCameraPlugin};
@@ -183,9 +183,6 @@ fn setup(
         asset_server.load(GltfAssetLabel::Animation(7).from_asset(PLAYER_GLB_PATH)),
     ]);
 
-    //TODO: implement loader fully
-    asset_server.load(PlAYER_BLEND_PATH);
-
     let graph_handle = graphs.add(graph);
     commands.insert_resource(Animations {
         animations: node_indices,
@@ -200,6 +197,20 @@ fn setup(
         AnimationGraphHandle(graph_handle.clone()),
         CameraTarget,
     ));
+}
+
+fn get_mesh_origin(mesh: &Mesh) -> Vec3 {
+    if let Some(VertexAttributeValues::Float32x3(positions)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) {
+        // Calculate the centroid of the mesh vertices
+        let mut centroid = Vec3::ZERO;
+        for position in positions {
+            centroid += Vec3::new(position[0], position[1], position[2]);
+        }
+        centroid /= positions.len() as f32;
+        centroid
+    } else {
+        Vec3::ZERO
+    }
 }
 
 
@@ -236,38 +247,47 @@ fn change_mesh_in_scene(
             if !material_query.get(child).is_ok() {
                 continue;
             }
-            let (_, name) = material_query.get(child).unwrap();
-            if name.as_str().starts_with("BearChest") {
-                info!("Processing child {:?}", name);
-                let chest_mesh = meshes.add(vxm_mesh::create_mesh_from_voxels(bear_chest.unwrap()));
-
-                // Remove the old mesh and material
-                commands.entity(child).remove::<MeshMaterial3d<StandardMaterial>>();
-                commands.entity(child).remove::<Mesh3d>();
-
-                // // Add the new mesh and material as children of the old mesh so they can be positioned correctly
-                let chest = commands.spawn((
-                    Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -FRAC_PI_2, 0.0, 0.0)),
-                    MeshMaterial3d(new_material.clone()),
-                    Mesh3d(chest_mesh))
-                ).id();
-                commands.entity(chest).set_parent(child);
-            }
+            let (mesh3d, name) = material_query.get(child).unwrap();
+            let mesh = meshes.get(mesh3d).unwrap();
+            // if name.as_str().starts_with("BearChest") {
+            //     info!("Processing child {:?}", name);
+            //     let chest_mesh = meshes.add(vxm_mesh::create_mesh_from_voxels(bear_chest.unwrap()));
+            //
+            //     // Remove the old mesh and material
+            //     commands.entity(child).remove::<MeshMaterial3d<StandardMaterial>>();
+            //     commands.entity(child).remove::<Mesh3d>();
+            //
+            //     // // Add the new mesh and material as children of the old mesh so they can be positioned correctly
+            //     let chest = commands.spawn((
+            //         Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -FRAC_PI_2, 0.0, 0.0)),
+            //         MeshMaterial3d(new_material.clone()),
+            //         Mesh3d(chest_mesh))
+            //     ).id();
+            //     commands.entity(chest).set_parent(child);
+            // }
             if name.as_str().starts_with("BearHead") {
                 info!("Processing child {:?}", name);
+                let centroid = get_mesh_origin(mesh);
+                info!("Mesh centroid: {:?}", centroid);
+
+
                 let head_mesh = meshes.add(vxm_mesh::create_mesh_from_voxels(bear_head.unwrap()));
 
                 // Remove the old mesh and material
-                commands.entity(child).remove::<MeshMaterial3d<StandardMaterial>>();
-                commands.entity(child).remove::<Mesh3d>();
+                commands.entity(child)
+                    .remove::<MeshMaterial3d<StandardMaterial>>()
+                    .remove::<Mesh3d>()
+                    .insert(MeshMaterial3d(new_material.clone()))
+                    .insert( Mesh3d(head_mesh));
+
 
                 // // Add the new mesh and material as children of the old mesh so they can be positioned correctly
-                let head = commands.spawn((
-                    Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -FRAC_PI_2, 0.0, 0.0)),
-                    MeshMaterial3d(new_material.clone()),
-                    Mesh3d(head_mesh))
-                ).id();
-                commands.entity(head).set_parent(child);
+                // let head = commands.spawn((
+                //     Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -FRAC_PI_2, 0.0, 0.0)),
+                //     MeshMaterial3d(new_material.clone()),
+                //     Mesh3d(head_mesh))
+                // ).id();
+                // commands.entity(head).set_parent(child);
             }
 
         }
