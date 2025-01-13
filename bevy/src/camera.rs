@@ -6,7 +6,13 @@ use bevy::math::{Quat, Vec3};
 use bevy::prelude::*;
 
 #[derive(Component)]
-pub struct CameraTarget;
+pub struct CameraTarget(pub Vec3);
+
+impl Default for CameraTarget {
+    fn default() -> Self {
+        Self(Vec3::ZERO)
+    }
+}
 
 #[derive(Debug, Resource)]
 struct CameraSettings {
@@ -21,7 +27,7 @@ impl Default for CameraSettings {
         // Limiting pitch stops some unexpected rotation past 90° up or down.
         let pitch_limit = FRAC_PI_2 - 0.01;
         Self {
-            orbit_distance: 3.0,
+            orbit_distance: 2.0,
             pitch_speed: 0.003,
             pitch_range: -pitch_limit..pitch_limit,
             yaw_speed: 0.003,
@@ -41,17 +47,21 @@ impl Plugin for ThirdPersonCameraPlugin {
 fn orbit(
     mut camera: Single<&mut Transform,  (With<Camera>, Without<CameraTarget>)>,
     mut target: Single<&mut Transform, With<CameraTarget>>,
+    camera_target: Single<&CameraTarget>,
     camera_settings: Res<CameraSettings>,
     mouse_motion: Res<AccumulatedMouseMotion>,
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
 ) {
+    let camera_target_offset = camera_target.0;
+
+    let target_position = target.translation + camera_target_offset;
     // Look rotation
     let mouse_delta = mouse_motion.delta;
     let delta_pitch = mouse_delta.y * camera_settings.pitch_speed;
     let delta_yaw = mouse_delta.x * camera_settings.yaw_speed;
 
-    let direction = (camera.translation - target.translation).normalize();
+    let direction = (camera.translation - target_position).normalize();
     let current_pitch = direction.y.asin();
     let current_yaw = direction.z.atan2(direction.x);
 
@@ -59,7 +69,7 @@ fn orbit(
     let new_yaw = current_yaw + delta_yaw;
 
     // Offset based on new pitch and yaw, and orbit distance
-    let new_position = target.translation + Vec3::new(
+    let new_position = target_position + Vec3::new(
         camera_settings.orbit_distance * new_pitch.cos() * new_yaw.cos(),
         camera_settings.orbit_distance * new_pitch.sin(),
         camera_settings.orbit_distance * new_pitch.cos() * new_yaw.sin(),
@@ -89,12 +99,12 @@ fn orbit(
     if direction.length() > 0.0 {
         direction = camera.rotation * direction.normalize();
         let position_delta = direction * 2.0 * time.delta_secs();
-        target.translation = target.translation + position_delta;
+        target.translation = target_position + position_delta;
         target.rotation = Quat::slerp(target.rotation, Quat::from_rotation_y(-new_yaw), 4.0 * time.delta_secs());
     } else{
 
     }
 
     camera.translation = new_position;
-    camera.look_at(target.translation, Vec3::Y);
+    camera.look_at(target_position, Vec3::Y);
 }

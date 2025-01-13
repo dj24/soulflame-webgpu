@@ -63,9 +63,10 @@ pub fn setup_scene_once_loaded(
 ) {
     for (entity, mut player) in &mut players {
         let mut transitions = AnimationTransitions::new();
-        transitions
+         transitions
             .play(&mut player, animations.animations[0], Duration::ZERO)
-            .repeat();
+            .repeat()
+            .set_speed(0.05);
         commands
             .entity(entity)
             .insert(AnimationGraphHandle(animations.graph.clone()))
