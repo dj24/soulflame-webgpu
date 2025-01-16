@@ -351,14 +351,14 @@ fn change_mesh_in_scene(
 
             for model in &player_body_part_models.0 {
                 if name.as_str().starts_with(model.name.as_str()) {
-                    let replacement_mesh = vxm_mesh::create_mesh_from_voxels(vxm_assets.get(&model.vxm_handle).unwrap(), true);
+                    let replacement_mesh = vxm_mesh::create_mesh_from_voxels(vxm_assets.get(&model.vxm_handle).unwrap());
                     mesh_handle = meshes.add(replacement_mesh);
                     let replacement_mesh_centroid = get_mesh_origin(meshes.get(&mesh_handle).unwrap());
                     let centroid_difference = centroid - replacement_mesh_centroid;
                     let new_transform =
-                        Transform::from_translation(centroid_difference)
-                                .mul_transform(
-                                    Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -FRAC_PI_2, 0.0, 0.0)));
+                        Transform::from_translation(centroid_difference);
+                                // .mul_transform(
+                                //     Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -FRAC_PI_2, 0.0, 0.0)));
 
                     // Remove the old mesh and material
                     commands.entity(child)

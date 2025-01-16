@@ -104,7 +104,7 @@ fn get_cube_normals() -> Vec<[f32; 3]> {
     ]
 }
 
-pub fn create_mesh_from_voxels(voxels: &VxmAsset, flip_z_axis: bool) -> Mesh {
+pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
     let mut positions = Vec::new();
     let mut indices = Vec::new();
     let mut normals = Vec::new();
@@ -138,8 +138,15 @@ pub fn create_mesh_from_voxels(voxels: &VxmAsset, flip_z_axis: bool) -> Mesh {
     }
 
     let bytes = positions.len() * 3 * 4 + normals.len() * 3 * 4 + colours.len() * 4 + indices.len();
-    let mb = indices.len() as f64 / 1024.0 / 1024.0;
-    info!("Memory usgage {:?}", mb);
+    let kb = bytes as f64 / 1024.0;
+    let mb = kb / 1024.0;
+    if mb > 0.1 {
+        info!("Memory usage {:?}mb", mb);
+    }
+    else {
+        info!("Memory usage {:?}kb", kb);
+    }
+
 
 
     Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default())
@@ -167,7 +174,7 @@ pub fn create_mesh_on_vxm_import_system(
                     Some(vxm_asset) => {
                         info!("Loaded vxm containing {:?} voxels", vxm_asset.vox_count);
                         commands.spawn((
-                            Mesh3d(meshes.add(create_mesh_from_voxels(&vxm_asset, true))),
+                            Mesh3d(meshes.add(create_mesh_from_voxels(&vxm_asset))),
                             MeshMaterial3d(materials.add(ExtendedMaterial {
                                 base: StandardMaterial {
                                     base_color: WHITE.into(),
