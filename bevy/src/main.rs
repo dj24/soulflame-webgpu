@@ -69,12 +69,14 @@ fn main() {
         ))
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
-        .add_systems(Startup, setup)
-        .add_systems(Update, (file_drag_and_drop_system, setup_scene_once_loaded, change_mesh_in_scene, draw_gizmos))
+        .add_systems(Startup, (setup, spawn_chest))
+        .add_systems(Update, (file_drag_and_drop_system, setup_scene_once_loaded, change_player_mesh_in_scene,change_chest_mesh_in_scene, draw_gizmos))
         .run();
 }
 
 const PLAYER_GLB_PATH: &str = "meshes/BearRace.glb";
+const CHEST_GLB_PATH: &str = "meshes/ChestAnimations.glb";
+
 const PlAYER_BLEND_PATH: &str = "meshes/BearRace.blend";
 
 const BEAR_VXM_PATH_PREFIX: &str = "meshes/Barbearian/Male";
@@ -101,94 +103,166 @@ const BEAR_JAW_VXM_PATH: &str = "meshes/Barbearian/Male/Jaw/BearJaw.vxm";
 const ORC_HEAD_VXM_PATH: &str = "meshes/OrcHead.vxm";
 
 
-struct PlayerBodyPartModel {
+struct VxmModel {
     name: String,
     vxm_handle: Handle<VxmAsset>,
 }
 
 #[derive(Resource)]
-pub struct PlayerBodyPartModels(Vec<PlayerBodyPartModel>);
+pub struct ChestModels(Vec<VxmModel>);
+
+impl FromWorld for ChestModels {
+    fn from_world(world: &mut World) -> Self {
+        let asset_server = world.get_resource::<AssetServer>().unwrap();
+        ChestModels(
+            vec![
+                VxmModel {
+                    name: "ChestTop".to_string(),
+                    vxm_handle: asset_server.load("meshes/Chest/ChestTop.vxm"),
+                },
+                VxmModel {
+                    name: "ChestBottom".to_string(),
+                    vxm_handle: asset_server.load("meshes/Chest/ChestBottom.vxm"),
+                },
+            ]
+        )
+    }
+}
+
+#[derive(Resource)]
+pub struct PlayerBodyPartModels(Vec<VxmModel>);
 
 impl FromWorld for PlayerBodyPartModels {
     fn from_world(world: &mut World) -> Self {
         let asset_server = world.get_resource::<AssetServer>().unwrap();
         PlayerBodyPartModels(
             vec![
-                PlayerBodyPartModel {
+                VxmModel {
                     name: "BearHead".to_string(),
                     vxm_handle: asset_server.load(BEAR_HEAD_VXM_PATH),
                 },
-                PlayerBodyPartModel {
+                VxmModel {
                     name: "BearChest".to_string(),
                     vxm_handle: asset_server.load(BEAR_CHEST_VXM_PATH),
                 },
-                PlayerBodyPartModel {
+                VxmModel {
                     name: "FurChest".to_string(),
                     vxm_handle: asset_server.load(BEAR_FUR_CHEST_VXM_PATH),
                 },
-                PlayerBodyPartModel {
+                VxmModel {
                     name: "FurHead".to_string(),
                     vxm_handle: asset_server.load(BEAR_FUR_HEAD_VXM_PATH),
                 },
-                PlayerBodyPartModel {
+                VxmModel {
                     name: "BearNose".to_string(),
                     vxm_handle: asset_server.load(BEAR_NOSE_VXM_PATH),
                 },
-                PlayerBodyPartModel {
+                VxmModel {
                     name: "BearEars".to_string(),
                     vxm_handle: asset_server.load(BEAR_EARS_VXM_PATH),
                 },
-                PlayerBodyPartModel {
+                VxmModel {
                     name: "BearEyes".to_string(),
                     vxm_handle: asset_server.load(BEAR_EYES_VXM_PATH),
                 },
-                PlayerBodyPartModel {
+                VxmModel {
                     name: "BearBicep".to_string(),
                     vxm_handle: asset_server.load(BEAR_BICEP_VXM_PATH),
                 },
-                PlayerBodyPartModel {
+                VxmModel {
                     name: "BearArm".to_string(),
                     vxm_handle: asset_server.load(BEAR_ARM_VXM_PATH),
                 },
-                PlayerBodyPartModel {
+                VxmModel {
                     name: "BearHand".to_string(),
                     vxm_handle: asset_server.load(BEAR_HAND_VXM_PATH),
                 },
-                PlayerBodyPartModel {
+                VxmModel {
                     name: "BearWaist".to_string(),
                     vxm_handle: asset_server.load(BEAR_WAIST_VXM_PATH),
                 },
-                PlayerBodyPartModel {
+                VxmModel {
                     name: "Thigh".to_string(),
                     vxm_handle: asset_server.load(BEAR_THIGH_VXM_PATH),
                 },
-                PlayerBodyPartModel {
+                VxmModel {
                     name: "BearLeg".to_string(),
                     vxm_handle: asset_server.load(BEAR_LEG_VXM_PATH),
                 },
-                PlayerBodyPartModel {
+                VxmModel {
                     name: "BearFoot".to_string(),
                     vxm_handle: asset_server.load(BEAR_FOOT_VXM_PATH),
                 },
-                PlayerBodyPartModel {
+                VxmModel {
                     name: "Claws".to_string(),
                     vxm_handle: asset_server.load(BEAR_CLAWS_VXM_PATH),
                 },
-                PlayerBodyPartModel {
+                VxmModel {
                     name: "FurBicep".to_string(),
                     vxm_handle: asset_server.load(BEAR_FUR_BICEP_VXM_PATH),
                 },
-                PlayerBodyPartModel {
+                VxmModel {
                     name: "FurWaist".to_string(),
                     vxm_handle: asset_server.load(BEAR_FUR_WAIST_VXM_PATH),
                 },
-                PlayerBodyPartModel {
+                VxmModel {
                     name: "BearJaw".to_string(),
                     vxm_handle: asset_server.load(BEAR_JAW_VXM_PATH),
                 },
             ]
         )
     }
+}
+
+fn spawn_player(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut graphs: ResMut<Assets<AnimationGraph>>,
+) {
+    let (graph, node_indices) = AnimationGraph::from_clips([
+        asset_server.load(GltfAssetLabel::Animation(7).from_asset(PLAYER_GLB_PATH)),
+    ]);
+    let player_graph_handle = graphs.add(graph);
+    commands.insert_resource(Animations {
+        animations: node_indices,
+        graph: player_graph_handle.clone(),
+    });
+    commands.init_resource::<PlayerBodyPartModels>();
+    commands.spawn((
+        SceneRoot(asset_server.load(
+            GltfAssetLabel::Scene(0).from_asset(PLAYER_GLB_PATH),
+        )),
+        Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)),
+        AnimationGraphHandle(player_graph_handle.clone()),
+        CameraTarget(Vec3::new(0.0, 0.2, 0.0)),
+    ));
+}
+
+// TODO: fix race condition with two animations playing at once
+fn spawn_chest(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut graphs: ResMut<Assets<AnimationGraph>>,
+) {
+    let (chest_graph, chest_node_indices) = AnimationGraph::from_clips([
+        asset_server.load(GltfAssetLabel::Animation(0).from_asset(CHEST_GLB_PATH)),
+    ]);
+    let chest_graph_handle = graphs.add(chest_graph);
+    commands.insert_resource(Animations {
+        animations: chest_node_indices,
+        graph: chest_graph_handle.clone(),
+    });
+
+    commands.init_resource::<ChestModels>();
+    commands.spawn((
+        SceneRoot(asset_server.load(
+            GltfAssetLabel::Scene(0).from_asset(CHEST_GLB_PATH),
+        )),
+        Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)).mul_transform(
+            Transform::from_translation(Vec3::new(0.0, 16.0, 0.0)),
+        ),
+        AnimationGraphHandle(chest_graph_handle.clone()),
+    ));
 }
 
 fn setup(
@@ -270,24 +344,11 @@ fn setup(
     ));
 
     // Player
-    let (graph, node_indices) = AnimationGraph::from_clips([
-        asset_server.load(GltfAssetLabel::Animation(7).from_asset(PLAYER_GLB_PATH)),
-    ]);
 
-    let graph_handle = graphs.add(graph);
-    commands.insert_resource(Animations {
-        animations: node_indices,
-        graph: graph_handle.clone(),
-    });
-    commands.init_resource::<PlayerBodyPartModels>();
-    commands.spawn((
-        SceneRoot(asset_server.load(
-            GltfAssetLabel::Scene(0).from_asset(PLAYER_GLB_PATH),
-        )),
-        Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)),
-        AnimationGraphHandle(graph_handle.clone()),
-        CameraTarget(Vec3::new(0.0, 0.2, 0.0)),
-    ));
+
+
+    //Chest
+
 }
 
 fn get_mesh_origin(mesh: &Mesh) -> Vec3 {
@@ -315,10 +376,8 @@ fn draw_gizmos(
     }
 }
 
-const BODY_PART_PREFIXES: [&str; 2] = ["BearHead", "BearChest"];
-
 // System to detect when scene is loaded and modify meshes
-fn change_mesh_in_scene(
+fn change_player_mesh_in_scene(
     scene_root_query: Query<(Entity, &SceneRoot, &Children)>,
     children_query: Query<&Children>,
     material_query: Query<(&Mesh3d, &Name, &Transform)>,
@@ -359,6 +418,65 @@ fn change_mesh_in_scene(
                         Transform::from_translation(centroid_difference);
                                 // .mul_transform(
                                 //     Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -FRAC_PI_2, 0.0, 0.0)));
+
+                    // Remove the old mesh and material
+                    commands.entity(child)
+                        .remove::<MeshMaterial3d<StandardMaterial>>()
+                        .remove::<Mesh3d>()
+                        .remove::<Transform>()
+                        .insert(MeshMaterial3d(new_material.clone()))
+                        .insert( Mesh3d(mesh_handle))
+                        .insert(new_transform);
+                }
+            }
+
+        }
+        // Mark the scene as processed
+        commands.remove_resource::<PlayerBodyPartModels>();
+    }
+}
+
+fn change_chest_mesh_in_scene(
+    scene_root_query: Query<(Entity, &SceneRoot, &Children)>,
+    children_query: Query<&Children>,
+    material_query: Query<(&Mesh3d, &Name, &Transform)>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    chest_models: Option<Res<ChestModels>>,
+    vxm_assets: Res<Assets<VxmAsset>>,
+) {
+    if chest_models.is_none() {
+        return;
+    }
+
+    let chest_models = chest_models.unwrap();
+
+    let new_material = materials.add(StandardMaterial::default());
+
+    for (root_entity, _, children) in scene_root_query.iter() {
+        // Scene is loaded, we can now process its children
+        info!("Found scene root with {} children", children.len());
+        for child in children_query.iter_descendants(root_entity) {
+            // Check if the child has a mesh component
+            if !material_query.get(child).is_ok() {
+                continue;
+            }
+            let (mesh3d, name, transform) = material_query.get(child).unwrap();
+            let mesh = meshes.get(mesh3d).unwrap();
+            let centroid = get_mesh_origin(mesh);
+            let mut mesh_handle: Handle<Mesh> = Handle::default();
+
+            for model in &chest_models.0 {
+                if name.as_str().starts_with(model.name.as_str()) {
+                    let replacement_mesh = vxm_mesh::create_mesh_from_voxels(vxm_assets.get(&model.vxm_handle).unwrap());
+                    mesh_handle = meshes.add(replacement_mesh);
+                    let replacement_mesh_centroid = get_mesh_origin(meshes.get(&mesh_handle).unwrap());
+                    let centroid_difference = centroid - replacement_mesh_centroid;
+                    let new_transform =
+                        Transform::from_translation(centroid_difference);
+                    // .mul_transform(
+                    //     Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -FRAC_PI_2, 0.0, 0.0)));
 
                     // Remove the old mesh and material
                     commands.entity(child)
