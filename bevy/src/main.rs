@@ -11,6 +11,7 @@ use bevy::{
     },
 };
 use std::f32::consts::*;
+use std::thread::sleep;
 use bevy::{
     dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin},
     core_pipeline::{
@@ -244,14 +245,14 @@ fn spawn_chest(
     asset_server: Res<AssetServer>,
     mut graphs: ResMut<Assets<AnimationGraph>>,
 ) {
-    let (chest_graph, chest_node_indices) = AnimationGraph::from_clips([
-        asset_server.load(GltfAssetLabel::Animation(0).from_asset(CHEST_GLB_PATH)),
-    ]);
-    let chest_graph_handle = graphs.add(chest_graph);
-    commands.insert_resource(Animations {
-        animations: chest_node_indices,
-        graph: chest_graph_handle.clone(),
-    });
+    // let (chest_graph, chest_node_indices) = AnimationGraph::from_clips([
+    //     asset_server.load(GltfAssetLabel::Animation(0).from_asset(CHEST_GLB_PATH)),
+    // ]);
+    // let chest_graph_handle = graphs.add(chest_graph);
+    // commands.insert_resource(Animations {
+    //     animations: chest_node_indices,
+    //     graph: chest_graph_handle.clone(),
+    // });
 
     commands.init_resource::<ChestModels>();
     commands.spawn((
@@ -261,7 +262,8 @@ fn spawn_chest(
         Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)).mul_transform(
             Transform::from_translation(Vec3::new(0.0, 16.0, 0.0)),
         ),
-        AnimationGraphHandle(chest_graph_handle.clone()),
+        // AnimationGraphHandle(chest_graph_handle.clone()),
+        CameraTarget(Vec3::new(0.0, 0.2, 0.0)),
     ));
 }
 
@@ -445,8 +447,9 @@ fn change_chest_mesh_in_scene(
     mut materials: ResMut<Assets<StandardMaterial>>,
     chest_models: Option<Res<ChestModels>>,
     vxm_assets: Res<Assets<VxmAsset>>,
+    time: Res<Time>
 ) {
-    if chest_models.is_none() {
+    if chest_models.is_none() || time.elapsed_secs() < 5.0 {
         return;
     }
 
@@ -491,6 +494,6 @@ fn change_chest_mesh_in_scene(
 
         }
         // Mark the scene as processed
-        commands.remove_resource::<PlayerBodyPartModels>();
+        commands.remove_resource::<ChestModels>();
     }
 }

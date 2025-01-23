@@ -168,7 +168,6 @@ impl AssetLoader for VxmAssetLoader {
                 for i in idx..(idx + length as usize) {
                     let x = i as u32 / (scale[1] * scale[2]);
                     let y = (i as u32 / scale[2]) % scale[1];
-                    // let z = scale[2] - (i as u32 % scale[2]);
                     let z = i as u32 % scale[2];
                     bounds_min[0] = bounds_min[0].min(x);
                     bounds_min[1] = bounds_min[1].min(y);
@@ -189,6 +188,21 @@ impl AssetLoader for VxmAssetLoader {
             voxel.y -= bounds_min[1];
             voxel.z -= bounds_min[2];
         });
+
+        voxels.iter_mut().for_each(|voxel| {
+            let tmp = voxel.y;
+            voxel.y = voxel.z;
+            voxel.z = tmp;
+        });
+
+        let tmp_min = bounds_min[1];
+        let tmp_max = bounds_max[1];
+
+        bounds_min[1] = bounds_min[2];
+        bounds_max[1] = bounds_max[2];
+        bounds_min[2] = tmp_min;
+        bounds_max[2] = tmp_max;
+
 
         let size = [
             bounds_max[0] - bounds_min[0] + 1,
