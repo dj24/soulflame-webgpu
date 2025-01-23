@@ -29,6 +29,7 @@ use bevy::core_pipeline::experimental::taa::{TemporalAntiAliasPlugin, TemporalAn
 use bevy::ecs::bundle::DynamicBundle;
 use bevy::pbr::{FogVolume, ScreenSpaceAmbientOcclusion, VolumetricFog};
 use bevy::render::mesh::VertexAttributeValues;
+use bevy::render::primitives::Aabb;
 use bevy::scene::SceneInstance;
 use bevy::window::{VideoMode, WindowMode};
 use crate::camera::{CameraTarget, ThirdPersonCameraPlugin};
@@ -71,7 +72,15 @@ fn main() {
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
         .add_systems(Startup, (setup, spawn_chest))
-        .add_systems(Update, (file_drag_and_drop_system, setup_scene_once_loaded, change_player_mesh_in_scene,change_chest_mesh_in_scene, draw_gizmos))
+        .add_systems(Update,
+            (
+                file_drag_and_drop_system,
+                setup_scene_once_loaded,
+                change_player_mesh_in_scene,
+                change_chest_mesh_in_scene,
+                draw_gizmos
+            )
+        )
         .run();
 }
 
@@ -267,6 +276,7 @@ fn spawn_chest(
     ));
 }
 
+
 fn setup(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -370,11 +380,18 @@ fn get_mesh_origin(mesh: &Mesh) -> Vec3 {
 
 fn draw_gizmos(
     mut gizmos: Gizmos,
-    mesh_query: Query<(&GlobalTransform, &Mesh3d)>,
+    mesh_query: Query<(&GlobalTransform, &Mesh3d, &Aabb)>,
 ) {
-    for (transform, mesh) in mesh_query.iter() {
+    for (transform, mesh, aabb) in mesh_query.iter() {
         let position = transform.translation();
+        let scale = transform.scale();
+        let rotation = transform.rotation();
+        let aabb_size = Vec3::from(aabb.max() - aabb.min());
         gizmos.sphere(position, 0.05, Color::srgb(1.0, 0.0, 1.0));
+        gizmos.cuboid(
+            Transform::from_translation(position).with_rotation(rotation).with_scale(scale * aabb_size),
+            Color::srgb(1.0, 0.0, 0.0)
+        );
     }
 }
 
@@ -415,7 +432,7 @@ fn change_player_mesh_in_scene(
                     let replacement_mesh = vxm_mesh::create_mesh_from_voxels(vxm_assets.get(&model.vxm_handle).unwrap());
                     mesh_handle = meshes.add(replacement_mesh);
                     let replacement_mesh_centroid = get_mesh_origin(meshes.get(&mesh_handle).unwrap());
-                    let centroid_difference = centroid - replacement_mesh_centroid;
+                    let centroid_difference = (centroid - replacement_mesh_centroid) - Vec3::new(0.0, 1.0, 0.0);
                     let new_transform =
                         Transform::from_translation(centroid_difference);
                                 // .mul_transform(
