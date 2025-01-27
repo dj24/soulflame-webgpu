@@ -268,7 +268,7 @@ fn spawn_chest(
         SceneRoot(asset_server.load(
             GltfAssetLabel::Scene(0).from_asset(CHEST_GLB_PATH),
         )),
-        Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)).mul_transform(
+        Transform::from_scale(Vec3::splat(0.02)).mul_transform(
             Transform::from_translation(Vec3::new(0.0, 16.0, 0.0)),
         ),
         // AnimationGraphHandle(chest_graph_handle.clone()),
@@ -363,7 +363,7 @@ fn setup(
 
 }
 
-fn get_mesh_origin(mesh: &Mesh) -> Vec3 {
+fn get_mesh_centroid(mesh: &Mesh) -> Vec3 {
     if let Some(VertexAttributeValues::Float32x3(positions)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) {
         // Calculate the centroid of the mesh vertices
         let mut centroid = Vec3::ZERO;
@@ -424,14 +424,14 @@ fn change_player_mesh_in_scene(
             }
             let (mesh3d, name, transform) = material_query.get(child).unwrap();
             let mesh = meshes.get(mesh3d).unwrap();
-            let centroid = get_mesh_origin(mesh);
+            let centroid = get_mesh_centroid(mesh);
             let mut mesh_handle: Handle<Mesh> = Handle::default();
 
             for model in &player_body_part_models.0 {
                 if name.as_str().starts_with(model.name.as_str()) {
                     let replacement_mesh = vxm_mesh::create_mesh_from_voxels(vxm_assets.get(&model.vxm_handle).unwrap());
                     mesh_handle = meshes.add(replacement_mesh);
-                    let replacement_mesh_centroid = get_mesh_origin(meshes.get(&mesh_handle).unwrap());
+                    let replacement_mesh_centroid = get_mesh_centroid(meshes.get(&mesh_handle).unwrap());
                     let centroid_difference = (centroid - replacement_mesh_centroid) - Vec3::new(0.0, 1.0, 0.0);
                     let new_transform =
                         Transform::from_translation(centroid_difference);
@@ -455,6 +455,18 @@ fn change_player_mesh_in_scene(
     }
 }
 
+fn translate_mesh_vertices(mesh: &Mesh, translation: Vec3) -> Mesh {
+    let mut new_mesh = mesh.clone();
+    if let Some(VertexAttributeValues::Float32x3(positions)) = new_mesh.attribute_mut(Mesh::ATTRIBUTE_POSITION) {
+        for position in positions {
+            position[0] += translation.x;
+            position[1] += translation.y;
+            position[2] += translation.z;
+        }
+    }
+    new_mesh
+}
+
 fn change_chest_mesh_in_scene(
     scene_root_query: Query<(Entity, &SceneRoot, &Children)>,
     children_query: Query<&Children>,
@@ -466,7 +478,7 @@ fn change_chest_mesh_in_scene(
     vxm_assets: Res<Assets<VxmAsset>>,
     time: Res<Time>
 ) {
-    if chest_models.is_none() || time.elapsed_secs() < 5.0 {
+    if chest_models.is_none() || time.elapsed_secs() < 2.0 {
         return;
     }
 
@@ -484,19 +496,17 @@ fn change_chest_mesh_in_scene(
             }
             let (mesh3d, name, transform) = material_query.get(child).unwrap();
             let mesh = meshes.get(mesh3d).unwrap();
-            let centroid = get_mesh_origin(mesh);
+            let centroid = get_mesh_centroid(mesh);
             let mut mesh_handle: Handle<Mesh> = Handle::default();
 
             for model in &chest_models.0 {
                 if name.as_str().starts_with(model.name.as_str()) {
                     let replacement_mesh = vxm_mesh::create_mesh_from_voxels(vxm_assets.get(&model.vxm_handle).unwrap());
                     mesh_handle = meshes.add(replacement_mesh);
-                    let replacement_mesh_centroid = get_mesh_origin(meshes.get(&mesh_handle).unwrap());
+                    let replacement_mesh_centroid = get_mesh_centroid(meshes.get(&mesh_handle).unwrap());
                     let centroid_difference = centroid - replacement_mesh_centroid;
                     let new_transform =
-                        Transform::from_translation(centroid_difference);
-                    // .mul_transform(
-                    //     Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -FRAC_PI_2, 0.0, 0.0)));
+                        Transform::from_translation(centroid_difference + Vec3::new(0.,0.,1.));
 
                     // Remove the old mesh and material
                     commands.entity(child)
