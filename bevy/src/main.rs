@@ -71,7 +71,7 @@ fn main() {
         ))
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
-        .add_systems(Startup, (setup, spawn_chest))
+        .add_systems(Startup, (setup, spawn_player))
         .add_systems(Update,
             (
                 file_drag_and_drop_system,
@@ -254,14 +254,14 @@ fn spawn_chest(
     asset_server: Res<AssetServer>,
     mut graphs: ResMut<Assets<AnimationGraph>>,
 ) {
-    // let (chest_graph, chest_node_indices) = AnimationGraph::from_clips([
-    //     asset_server.load(GltfAssetLabel::Animation(0).from_asset(CHEST_GLB_PATH)),
-    // ]);
-    // let chest_graph_handle = graphs.add(chest_graph);
-    // commands.insert_resource(Animations {
-    //     animations: chest_node_indices,
-    //     graph: chest_graph_handle.clone(),
-    // });
+    let (chest_graph, chest_node_indices) = AnimationGraph::from_clips([
+        asset_server.load(GltfAssetLabel::Animation(0).from_asset(CHEST_GLB_PATH)),
+    ]);
+    let chest_graph_handle = graphs.add(chest_graph);
+    commands.insert_resource(Animations {
+        animations: chest_node_indices,
+        graph: chest_graph_handle.clone(),
+    });
 
     commands.init_resource::<ChestModels>();
     commands.spawn((
@@ -271,7 +271,7 @@ fn spawn_chest(
         Transform::from_scale(Vec3::splat(0.02)).mul_transform(
             Transform::from_translation(Vec3::new(0.0, 16.0, 0.0)),
         ),
-        // AnimationGraphHandle(chest_graph_handle.clone()),
+        AnimationGraphHandle(chest_graph_handle.clone()),
         CameraTarget(Vec3::new(0.0, 0.2, 0.0)),
     ));
 }
@@ -377,6 +377,40 @@ fn get_mesh_centroid(mesh: &Mesh) -> Vec3 {
     }
 }
 
+enum Axis {
+    X,
+    Y,
+    Z,
+}
+
+fn get_max_on_axis(mesh: &Mesh, axis: Axis) -> f32 {
+    if let Some(VertexAttributeValues::Float32x3(positions)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) {
+        let mut max = -1000000000.0;
+        for position in positions {
+            match axis {
+                Axis::X => {
+                    if position[0] > max {
+                        max = position[0];
+                    }
+                }
+                Axis::Y => {
+                    if position[1] > max {
+                        max = position[1];
+                    }
+                }
+                Axis::Z => {
+                    if position[2] > max {
+                        max = position[2];
+                    }
+                }
+            }
+        }
+        max
+    } else {
+        0.0
+    }
+}
+
 
 fn draw_gizmos(
     mut gizmos: Gizmos,
@@ -424,17 +458,25 @@ fn change_player_mesh_in_scene(
             }
             let (mesh3d, name, transform) = material_query.get(child).unwrap();
             let mesh = meshes.get(mesh3d).unwrap();
-            let centroid = get_mesh_centroid(mesh);
+            let max_axes = Vec3::new(
+                get_max_on_axis(mesh, Axis::X),
+                get_max_on_axis(mesh, Axis::Y),
+                get_max_on_axis(mesh, Axis::Z),
+            );
             let mut mesh_handle: Handle<Mesh> = Handle::default();
 
             for model in &player_body_part_models.0 {
                 if name.as_str().starts_with(model.name.as_str()) {
                     let replacement_mesh = vxm_mesh::create_mesh_from_voxels(vxm_assets.get(&model.vxm_handle).unwrap());
                     mesh_handle = meshes.add(replacement_mesh);
-                    let replacement_mesh_centroid = get_mesh_centroid(meshes.get(&mesh_handle).unwrap());
-                    let centroid_difference = (centroid - replacement_mesh_centroid) - Vec3::new(0.0, 1.0, 0.0);
+                    let replacement_max_axes = Vec3::new(
+                        get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::X),
+                        get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::Y),
+                        get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::Z),
+                    );
+                    let max_axes_difference = max_axes - replacement_max_axes;
                     let new_transform =
-                        Transform::from_translation(centroid_difference);
+                        Transform::from_translation(max_axes_difference);
                                 // .mul_transform(
                                 //     Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -FRAC_PI_2, 0.0, 0.0)));
 
@@ -496,17 +538,26 @@ fn change_chest_mesh_in_scene(
             }
             let (mesh3d, name, transform) = material_query.get(child).unwrap();
             let mesh = meshes.get(mesh3d).unwrap();
-            let centroid = get_mesh_centroid(mesh);
+            let max_axes = Vec3::new(
+                get_max_on_axis(mesh, Axis::X),
+                get_max_on_axis(mesh, Axis::Y),
+                get_max_on_axis(mesh, Axis::Z),
+            );
             let mut mesh_handle: Handle<Mesh> = Handle::default();
 
             for model in &chest_models.0 {
                 if name.as_str().starts_with(model.name.as_str()) {
                     let replacement_mesh = vxm_mesh::create_mesh_from_voxels(vxm_assets.get(&model.vxm_handle).unwrap());
                     mesh_handle = meshes.add(replacement_mesh);
-                    let replacement_mesh_centroid = get_mesh_centroid(meshes.get(&mesh_handle).unwrap());
-                    let centroid_difference = centroid - replacement_mesh_centroid;
+                    let replacement_max_axes = Vec3::new(
+                        get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::X),
+                        get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::Y),
+                        get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::Z),
+                    );
+                    let max_axes_difference = max_axes - replacement_max_axes;
+                    info!("Max axes difference: {:?}", max_axes_difference);
                     let new_transform =
-                        Transform::from_translation(centroid_difference + Vec3::new(0.,0.,1.));
+                        Transform::from_translation(max_axes_difference);
 
                     // Remove the old mesh and material
                     commands.entity(child)

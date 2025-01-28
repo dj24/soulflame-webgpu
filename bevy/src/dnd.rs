@@ -66,7 +66,7 @@ pub fn setup_scene_once_loaded(
          transitions
             .play(&mut player, animations.animations[0], Duration::ZERO)
             .repeat()
-            .set_speed(0.05);
+            .set_speed(1.);
         commands
             .entity(entity)
             .insert(AnimationGraphHandle(animations.graph.clone()))
