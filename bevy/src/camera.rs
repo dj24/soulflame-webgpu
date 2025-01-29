@@ -99,7 +99,7 @@ fn orbit(
     if direction.length() > 0.0 {
         direction = camera.rotation * direction.normalize();
         let position_delta = direction * 2.0 * time.delta_secs();
-        target.translation = target_position + position_delta;
+        // target.translation = target_position + position_delta;
         target.rotation = Quat::slerp(target.rotation, Quat::from_rotation_y(-new_yaw), 4.0 * time.delta_secs());
     } else{
 

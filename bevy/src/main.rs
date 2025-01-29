@@ -1,30 +1,29 @@
 #![feature(portable_simd)]
 mod camera;
-mod vxm;
 mod dnd;
+mod vxm;
 mod vxm_mesh;
 
 use bevy::{
-    prelude::*,
-    render::{
-        extract_resource::{ExtractResource},
-    },
-};
-use std::f32::consts::*;
-use std::thread::sleep;
-use bevy::{
-    dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin},
     core_pipeline::{
-        prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass},
         motion_blur::MotionBlur,
+        prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass},
     },
+    dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin},
     pbr::{
         CascadeShadowConfigBuilder, DefaultOpaqueRendererMethod, DirectionalLightShadowMap,
         NotShadowCaster, NotShadowReceiver, OpaqueRendererMethod,
     },
     prelude::*,
 };
+use bevy::{prelude::*, render::extract_resource::ExtractResource};
+use std::f32::consts::*;
+use std::thread::sleep;
 
+use crate::camera::{CameraTarget, ThirdPersonCameraPlugin};
+use crate::dnd::{file_drag_and_drop_system, setup_scene_once_loaded, Animations, VoxelObject};
+use crate::vxm::{VxmAsset, VxmAssetLoader};
+use crate::vxm_mesh::VxmMeshPlugin;
 use bevy::core_pipeline::experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing};
 use bevy::ecs::bundle::DynamicBundle;
 use bevy::pbr::{FogVolume, ScreenSpaceAmbientOcclusion, VolumetricFog};
@@ -32,10 +31,6 @@ use bevy::render::mesh::VertexAttributeValues;
 use bevy::render::primitives::Aabb;
 use bevy::scene::SceneInstance;
 use bevy::window::{VideoMode, WindowMode};
-use crate::camera::{CameraTarget, ThirdPersonCameraPlugin};
-use crate::vxm::{VxmAsset, VxmAssetLoader};
-use crate::dnd::{file_drag_and_drop_system, setup_scene_once_loaded, Animations, VoxelObject};
-use crate::vxm_mesh::{VxmMeshPlugin};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 fn main() {
@@ -72,14 +67,15 @@ fn main() {
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
         .add_systems(Startup, (setup, spawn_player))
-        .add_systems(Update,
+        .add_systems(
+            Update,
             (
                 file_drag_and_drop_system,
                 setup_scene_once_loaded,
                 change_player_mesh_in_scene,
                 change_chest_mesh_in_scene,
-                draw_gizmos
-            )
+                draw_gizmos,
+            ),
         )
         .run();
 }
@@ -112,7 +108,6 @@ const BEAR_JAW_VXM_PATH: &str = "meshes/Barbearian/Male/Jaw/BearJaw.vxm";
 
 const ORC_HEAD_VXM_PATH: &str = "meshes/OrcHead.vxm";
 
-
 struct VxmModel {
     name: String,
     vxm_handle: Handle<VxmAsset>,
@@ -124,18 +119,16 @@ pub struct ChestModels(Vec<VxmModel>);
 impl FromWorld for ChestModels {
     fn from_world(world: &mut World) -> Self {
         let asset_server = world.get_resource::<AssetServer>().unwrap();
-        ChestModels(
-            vec![
-                VxmModel {
-                    name: "ChestTop".to_string(),
-                    vxm_handle: asset_server.load("meshes/Chest/ChestTop.vxm"),
-                },
-                VxmModel {
-                    name: "ChestBottom".to_string(),
-                    vxm_handle: asset_server.load("meshes/Chest/ChestBottom.vxm"),
-                },
-            ]
-        )
+        ChestModels(vec![
+            VxmModel {
+                name: "ChestTop".to_string(),
+                vxm_handle: asset_server.load("meshes/Chest/ChestTop.vxm"),
+            },
+            VxmModel {
+                name: "ChestBottom".to_string(),
+                vxm_handle: asset_server.load("meshes/Chest/ChestBottom.vxm"),
+            },
+        ])
     }
 }
 
@@ -145,82 +138,80 @@ pub struct PlayerBodyPartModels(Vec<VxmModel>);
 impl FromWorld for PlayerBodyPartModels {
     fn from_world(world: &mut World) -> Self {
         let asset_server = world.get_resource::<AssetServer>().unwrap();
-        PlayerBodyPartModels(
-            vec![
-                VxmModel {
-                    name: "BearHead".to_string(),
-                    vxm_handle: asset_server.load(BEAR_HEAD_VXM_PATH),
-                },
-                VxmModel {
-                    name: "BearChest".to_string(),
-                    vxm_handle: asset_server.load(BEAR_CHEST_VXM_PATH),
-                },
-                VxmModel {
-                    name: "FurChest".to_string(),
-                    vxm_handle: asset_server.load(BEAR_FUR_CHEST_VXM_PATH),
-                },
-                VxmModel {
-                    name: "FurHead".to_string(),
-                    vxm_handle: asset_server.load(BEAR_FUR_HEAD_VXM_PATH),
-                },
-                VxmModel {
-                    name: "BearNose".to_string(),
-                    vxm_handle: asset_server.load(BEAR_NOSE_VXM_PATH),
-                },
-                VxmModel {
-                    name: "BearEars".to_string(),
-                    vxm_handle: asset_server.load(BEAR_EARS_VXM_PATH),
-                },
-                VxmModel {
-                    name: "BearEyes".to_string(),
-                    vxm_handle: asset_server.load(BEAR_EYES_VXM_PATH),
-                },
-                VxmModel {
-                    name: "BearBicep".to_string(),
-                    vxm_handle: asset_server.load(BEAR_BICEP_VXM_PATH),
-                },
-                VxmModel {
-                    name: "BearArm".to_string(),
-                    vxm_handle: asset_server.load(BEAR_ARM_VXM_PATH),
-                },
-                VxmModel {
-                    name: "BearHand".to_string(),
-                    vxm_handle: asset_server.load(BEAR_HAND_VXM_PATH),
-                },
-                VxmModel {
-                    name: "BearWaist".to_string(),
-                    vxm_handle: asset_server.load(BEAR_WAIST_VXM_PATH),
-                },
-                VxmModel {
-                    name: "Thigh".to_string(),
-                    vxm_handle: asset_server.load(BEAR_THIGH_VXM_PATH),
-                },
-                VxmModel {
-                    name: "BearLeg".to_string(),
-                    vxm_handle: asset_server.load(BEAR_LEG_VXM_PATH),
-                },
-                VxmModel {
-                    name: "BearFoot".to_string(),
-                    vxm_handle: asset_server.load(BEAR_FOOT_VXM_PATH),
-                },
-                VxmModel {
-                    name: "Claws".to_string(),
-                    vxm_handle: asset_server.load(BEAR_CLAWS_VXM_PATH),
-                },
-                VxmModel {
-                    name: "FurBicep".to_string(),
-                    vxm_handle: asset_server.load(BEAR_FUR_BICEP_VXM_PATH),
-                },
-                VxmModel {
-                    name: "FurWaist".to_string(),
-                    vxm_handle: asset_server.load(BEAR_FUR_WAIST_VXM_PATH),
-                },
-                VxmModel {
-                    name: "BearJaw".to_string(),
-                    vxm_handle: asset_server.load(BEAR_JAW_VXM_PATH),
-                },
-            ]
-        )
+        PlayerBodyPartModels(vec![
+            VxmModel {
+                name: "BearHead".to_string(),
+                vxm_handle: asset_server.load(BEAR_HEAD_VXM_PATH),
+            },
+            VxmModel {
+                name: "BearChest".to_string(),
+                vxm_handle: asset_server.load(BEAR_CHEST_VXM_PATH),
+            },
+            VxmModel {
+                name: "FurChest".to_string(),
+                vxm_handle: asset_server.load(BEAR_FUR_CHEST_VXM_PATH),
+            },
+            VxmModel {
+                name: "FurHead".to_string(),
+                vxm_handle: asset_server.load(BEAR_FUR_HEAD_VXM_PATH),
+            },
+            VxmModel {
+                name: "BearNose".to_string(),
+                vxm_handle: asset_server.load(BEAR_NOSE_VXM_PATH),
+            },
+            VxmModel {
+                name: "BearEars".to_string(),
+                vxm_handle: asset_server.load(BEAR_EARS_VXM_PATH),
+            },
+            VxmModel {
+                name: "BearEyes".to_string(),
+                vxm_handle: asset_server.load(BEAR_EYES_VXM_PATH),
+            },
+            VxmModel {
+                name: "BearBicep".to_string(),
+                vxm_handle: asset_server.load(BEAR_BICEP_VXM_PATH),
+            },
+            VxmModel {
+                name: "BearArm".to_string(),
+                vxm_handle: asset_server.load(BEAR_ARM_VXM_PATH),
+            },
+            VxmModel {
+                name: "BearHand".to_string(),
+                vxm_handle: asset_server.load(BEAR_HAND_VXM_PATH),
+            },
+            VxmModel {
+                name: "BearWaist".to_string(),
+                vxm_handle: asset_server.load(BEAR_WAIST_VXM_PATH),
+            },
+            VxmModel {
+                name: "Thigh".to_string(),
+                vxm_handle: asset_server.load(BEAR_THIGH_VXM_PATH),
+            },
+            VxmModel {
+                name: "BearLeg".to_string(),
+                vxm_handle: asset_server.load(BEAR_LEG_VXM_PATH),
+            },
+            VxmModel {
+                name: "BearFoot".to_string(),
+                vxm_handle: asset_server.load(BEAR_FOOT_VXM_PATH),
+            },
+            VxmModel {
+                name: "Claws".to_string(),
+                vxm_handle: asset_server.load(BEAR_CLAWS_VXM_PATH),
+            },
+            VxmModel {
+                name: "FurBicep".to_string(),
+                vxm_handle: asset_server.load(BEAR_FUR_BICEP_VXM_PATH),
+            },
+            VxmModel {
+                name: "FurWaist".to_string(),
+                vxm_handle: asset_server.load(BEAR_FUR_WAIST_VXM_PATH),
+            },
+            VxmModel {
+                name: "BearJaw".to_string(),
+                vxm_handle: asset_server.load(BEAR_JAW_VXM_PATH),
+            },
+        ])
     }
 }
 
@@ -230,7 +221,7 @@ fn spawn_player(
     mut graphs: ResMut<Assets<AnimationGraph>>,
 ) {
     let (graph, node_indices) = AnimationGraph::from_clips([
-        asset_server.load(GltfAssetLabel::Animation(7).from_asset(PLAYER_GLB_PATH)),
+        asset_server.load(GltfAssetLabel::Animation(7).from_asset(PLAYER_GLB_PATH))
     ]);
     let player_graph_handle = graphs.add(graph);
     commands.insert_resource(Animations {
@@ -239,9 +230,7 @@ fn spawn_player(
     });
     commands.init_resource::<PlayerBodyPartModels>();
     commands.spawn((
-        SceneRoot(asset_server.load(
-            GltfAssetLabel::Scene(0).from_asset(PLAYER_GLB_PATH),
-        )),
+        SceneRoot(asset_server.load(GltfAssetLabel::Scene(0).from_asset(PLAYER_GLB_PATH))),
         Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)),
         AnimationGraphHandle(player_graph_handle.clone()),
         CameraTarget(Vec3::new(0.0, 0.2, 0.0)),
@@ -255,7 +244,7 @@ fn spawn_chest(
     mut graphs: ResMut<Assets<AnimationGraph>>,
 ) {
     let (chest_graph, chest_node_indices) = AnimationGraph::from_clips([
-        asset_server.load(GltfAssetLabel::Animation(0).from_asset(CHEST_GLB_PATH)),
+        asset_server.load(GltfAssetLabel::Animation(0).from_asset(CHEST_GLB_PATH))
     ]);
     let chest_graph_handle = graphs.add(chest_graph);
     commands.insert_resource(Animations {
@@ -265,17 +254,13 @@ fn spawn_chest(
 
     commands.init_resource::<ChestModels>();
     commands.spawn((
-        SceneRoot(asset_server.load(
-            GltfAssetLabel::Scene(0).from_asset(CHEST_GLB_PATH),
-        )),
-        Transform::from_scale(Vec3::splat(0.02)).mul_transform(
-            Transform::from_translation(Vec3::new(0.0, 16.0, 0.0)),
-        ),
+        SceneRoot(asset_server.load(GltfAssetLabel::Scene(0).from_asset(CHEST_GLB_PATH))),
+        Transform::from_scale(Vec3::splat(0.02))
+            .mul_transform(Transform::from_translation(Vec3::new(0.0, 16.0, 0.0))),
         AnimationGraphHandle(chest_graph_handle.clone()),
         CameraTarget(Vec3::new(0.0, 0.2, 0.0)),
     ));
 }
-
 
 fn setup(
     mut commands: Commands,
@@ -310,7 +295,6 @@ fn setup(
         ..default()
     });
 
-
     commands.spawn((
         DirectionalLight {
             illuminance: 15_000.,
@@ -322,7 +306,7 @@ fn setup(
             maximum_distance: 10.0,
             ..default()
         }
-            .build(),
+        .build(),
         Transform::from_rotation(Quat::from_euler(EulerRot::ZYX, 0.0, -FRAC_PI_4, -FRAC_PI_4)),
     ));
 
@@ -357,14 +341,13 @@ fn setup(
 
     // Player
 
-
-
     //Chest
-
 }
 
 fn get_mesh_centroid(mesh: &Mesh) -> Vec3 {
-    if let Some(VertexAttributeValues::Float32x3(positions)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) {
+    if let Some(VertexAttributeValues::Float32x3(positions)) =
+        mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+    {
         // Calculate the centroid of the mesh vertices
         let mut centroid = Vec3::ZERO;
         for position in positions {
@@ -384,7 +367,9 @@ enum Axis {
 }
 
 fn get_max_on_axis(mesh: &Mesh, axis: Axis) -> f32 {
-    if let Some(VertexAttributeValues::Float32x3(positions)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) {
+    if let Some(VertexAttributeValues::Float32x3(positions)) =
+        mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+    {
         let mut max = -1000000000.0;
         for position in positions {
             match axis {
@@ -411,11 +396,7 @@ fn get_max_on_axis(mesh: &Mesh, axis: Axis) -> f32 {
     }
 }
 
-
-fn draw_gizmos(
-    mut gizmos: Gizmos,
-    mesh_query: Query<(&GlobalTransform, &Mesh3d, &Aabb)>,
-) {
+fn draw_gizmos(mut gizmos: Gizmos, mesh_query: Query<(&GlobalTransform, &Mesh3d, &Aabb)>) {
     for (transform, mesh, aabb) in mesh_query.iter() {
         let position = transform.translation();
         let scale = transform.scale();
@@ -423,8 +404,10 @@ fn draw_gizmos(
         let aabb_size = Vec3::from(aabb.max() - aabb.min());
         gizmos.sphere(position, 0.05, Color::srgb(1.0, 0.0, 1.0));
         gizmos.cuboid(
-            Transform::from_translation(position).with_rotation(rotation).with_scale(scale * aabb_size),
-            Color::srgb(1.0, 0.0, 0.0)
+            Transform::from_translation(position)
+                .with_rotation(rotation)
+                .with_scale(scale * aabb_size),
+            Color::srgb(1.0, 0.0, 0.0),
         );
     }
 }
@@ -467,7 +450,9 @@ fn change_player_mesh_in_scene(
 
             for model in &player_body_part_models.0 {
                 if name.as_str().starts_with(model.name.as_str()) {
-                    let replacement_mesh = vxm_mesh::create_mesh_from_voxels(vxm_assets.get(&model.vxm_handle).unwrap());
+                    let replacement_mesh = vxm_mesh::create_mesh_from_voxels(
+                        vxm_assets.get(&model.vxm_handle).unwrap(),
+                    );
                     mesh_handle = meshes.add(replacement_mesh);
                     let replacement_max_axes = Vec3::new(
                         get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::X),
@@ -475,22 +460,21 @@ fn change_player_mesh_in_scene(
                         get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::Z),
                     );
                     let max_axes_difference = max_axes - replacement_max_axes;
-                    let new_transform =
-                        Transform::from_translation(max_axes_difference);
-                                // .mul_transform(
-                                //     Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -FRAC_PI_2, 0.0, 0.0)));
+                    let new_transform = Transform::from_translation(max_axes_difference);
+                    // .mul_transform(
+                    //     Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -FRAC_PI_2, 0.0, 0.0)));
 
                     // Remove the old mesh and material
-                    commands.entity(child)
+                    commands
+                        .entity(child)
                         .remove::<MeshMaterial3d<StandardMaterial>>()
                         .remove::<Mesh3d>()
                         .remove::<Transform>()
                         .insert(MeshMaterial3d(new_material.clone()))
-                        .insert( Mesh3d(mesh_handle))
+                        .insert(Mesh3d(mesh_handle))
                         .insert(new_transform);
                 }
             }
-
         }
         // Mark the scene as processed
         commands.remove_resource::<PlayerBodyPartModels>();
@@ -499,7 +483,9 @@ fn change_player_mesh_in_scene(
 
 fn translate_mesh_vertices(mesh: &Mesh, translation: Vec3) -> Mesh {
     let mut new_mesh = mesh.clone();
-    if let Some(VertexAttributeValues::Float32x3(positions)) = new_mesh.attribute_mut(Mesh::ATTRIBUTE_POSITION) {
+    if let Some(VertexAttributeValues::Float32x3(positions)) =
+        new_mesh.attribute_mut(Mesh::ATTRIBUTE_POSITION)
+    {
         for position in positions {
             position[0] += translation.x;
             position[1] += translation.y;
@@ -518,7 +504,7 @@ fn change_chest_mesh_in_scene(
     mut materials: ResMut<Assets<StandardMaterial>>,
     chest_models: Option<Res<ChestModels>>,
     vxm_assets: Res<Assets<VxmAsset>>,
-    time: Res<Time>
+    time: Res<Time>,
 ) {
     if chest_models.is_none() || time.elapsed_secs() < 2.0 {
         return;
@@ -547,7 +533,9 @@ fn change_chest_mesh_in_scene(
 
             for model in &chest_models.0 {
                 if name.as_str().starts_with(model.name.as_str()) {
-                    let replacement_mesh = vxm_mesh::create_mesh_from_voxels(vxm_assets.get(&model.vxm_handle).unwrap());
+                    let replacement_mesh = vxm_mesh::create_mesh_from_voxels(
+                        vxm_assets.get(&model.vxm_handle).unwrap(),
+                    );
                     mesh_handle = meshes.add(replacement_mesh);
                     let replacement_max_axes = Vec3::new(
                         get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::X),
@@ -556,20 +544,19 @@ fn change_chest_mesh_in_scene(
                     );
                     let max_axes_difference = max_axes - replacement_max_axes;
                     info!("Max axes difference: {:?}", max_axes_difference);
-                    let new_transform =
-                        Transform::from_translation(max_axes_difference);
+                    let new_transform = Transform::from_translation(max_axes_difference);
 
                     // Remove the old mesh and material
-                    commands.entity(child)
+                    commands
+                        .entity(child)
                         .remove::<MeshMaterial3d<StandardMaterial>>()
                         .remove::<Mesh3d>()
                         .remove::<Transform>()
                         .insert(MeshMaterial3d(new_material.clone()))
-                        .insert( Mesh3d(mesh_handle))
+                        .insert(Mesh3d(mesh_handle))
                         .insert(new_transform);
                 }
             }
-
         }
         // Mark the scene as processed
         commands.remove_resource::<ChestModels>();
