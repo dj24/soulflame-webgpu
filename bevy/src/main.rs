@@ -74,7 +74,7 @@ fn main() {
                 setup_scene_once_loaded,
                 change_player_mesh_in_scene,
                 change_chest_mesh_in_scene,
-                draw_gizmos,
+                // draw_gizmos,
             ),
         )
         .run();
@@ -211,6 +211,10 @@ impl FromWorld for PlayerBodyPartModels {
                 name: "BearJaw".to_string(),
                 vxm_handle: asset_server.load(BEAR_JAW_VXM_PATH),
             },
+            VxmModel {
+                name: "PadFront".to_string(),
+                vxm_handle: asset_server.load("meshes/Armour/Plates and pads/Chest/Male Mid/PadFront.vxm"),
+            }
         ])
     }
 }
@@ -221,7 +225,7 @@ fn spawn_player(
     mut graphs: ResMut<Assets<AnimationGraph>>,
 ) {
     let (graph, node_indices) = AnimationGraph::from_clips([
-        asset_server.load(GltfAssetLabel::Animation(7).from_asset(PLAYER_GLB_PATH))
+        asset_server.load(GltfAssetLabel::Animation(6).from_asset(PLAYER_GLB_PATH))
     ]);
     let player_graph_handle = graphs.add(graph);
     commands.insert_resource(Animations {
@@ -402,7 +406,7 @@ fn draw_gizmos(mut gizmos: Gizmos, mesh_query: Query<(&GlobalTransform, &Mesh3d,
         let scale = transform.scale();
         let rotation = transform.rotation();
         let aabb_size = Vec3::from(aabb.max() - aabb.min());
-        gizmos.sphere(position, 0.05, Color::srgb(1.0, 0.0, 1.0));
+        // gizmos.sphere(position, 0.05, Color::srgb(1.0, 0.0, 1.0));
         gizmos.cuboid(
             Transform::from_translation(position)
                 .with_rotation(rotation)
