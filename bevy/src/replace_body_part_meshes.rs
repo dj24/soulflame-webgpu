@@ -71,33 +71,39 @@ impl FromWorld for PlayerBodyPartModels {
 
         let armour_base_paths = vec![
             ("BearHead", "meshes/Armour/Helms/Mid"),
+            ("BearHead", "meshes/Armour/Helms/Mid/Back"),
+            ("BearHead", "meshes/Armour/Helms/Mid/Top"),
+            ("BearHead", "meshes/Armour/Helms/Mid/Front"),
+            ("BearHead", "meshes/Armour/Helms/Mid/Side"),
             ("BearChest", "meshes/Armour/Plates and pads/Chest/Male Mid"),
-            ("BearWaist", "meshes/Armour/Plates and pads/Waist"),
+            ("BearChest", "meshes/Armour/Details/Chest/Male Mid"),
+            ("BearChest", "meshes/Armour/Secondary/Chest/Male Mid"),
+            ("BearWaist", "meshes/Armour/Plates and pads/Waist/Male Mid"),
+            ("BearWaist", "meshes/Armour/Details/Waist/Male Mid"),
+            ("BearWaist", "meshes/Armour/Secondary/Waist/Male Mid"),
+            ("BearBicep", "meshes/Armour/Plates and pads/Bicep/Mid"),
+            ("BearBicep", "meshes/Armour/Details/Bicep/Mid"),
+            ("BearBicep", "meshes/Armour/Secondary/Bicep/Mid"),
+            ("BearArm", "meshes/Armour/Plates and pads/Arm/Mid"),
+            ("BearArm", "meshes/Armour/Details/Arm/Mid"),
+            ("BearArm", "meshes/Armour/Secondary/Arm/Mid"),
+            ("BearLeg", "meshes/Armour/Plates and pads/Legs/Mid"),
+            ("BearLeg", "meshes/Armour/Details/Legs/Mid"),
+            ("BearLeg", "meshes/Armour/Secondary/Leg/Mid"),
+            ("Thigh", "meshes/Armour/Plates and pads/Thigh/Mid"),
+            ("Thigh", "meshes/Armour/Details/Thigh/Mid"),
+            ("Thigh", "meshes/Armour/Secondary/Thigh/Mid"),
+            ("BearHand", "meshes/Armour/Plates and pads/Hand/Mid"),
+            ("BearHand", "meshes/Armour/Details/Hand/Mid"),
+            ("BearHand", "meshes/Armour/Secondary/Hand/Mid"),
+            ("BearFoot", "meshes/Armour/Plates and pads/Feet/Mid"),
+            ("BearFoot", "meshes/Armour/Details/Feet/Mid"),
+            ("BearFoot", "meshes/Armour/Secondary/Feet/Mid")
         ];
 
         let assets_dir = current_dir().unwrap().join("assets");
 
-        for (body_part_name, path) in armour_base_paths {
-            let dir_clone = assets_dir.clone();
-            let dir_path = dir_clone.join(path);
-            match dir_path.read_dir() {
-                Ok(read_dir_result) => {
-                    info!("Reading directory: {:?}", dir_path);
-                    for entry in read_dir_result {
-                        let file_path = entry.unwrap().path();
-                        if file_path.is_file() && file_path.extension().unwrap_or_default() == "vxm" {
-                            info!("Found armour file: {:?}", file_path);
-                        }
-                    }
-                }
-                Err(e) => {
-                    error!("Error reading directory {:?} {:?}", dir_path, e);
-                    continue;
-                }
-            }
-        }
-
-        PlayerBodyPartModels(vec![
+        let mut model_vec = vec![
             VxmMeshSwapTarget {
                 parent_name: None,
                 name: "BearHead".to_string(),
@@ -188,65 +194,35 @@ impl FromWorld for PlayerBodyPartModels {
                 name: "BearJaw".to_string(),
                 vxm_handle: asset_server.load(BEAR_JAW_VXM_PATH),
             },
-            // Chest Pieces
-            VxmMeshSwapTarget {
-                name: "PadFront".to_string(),
-                vxm_handle: asset_server.load("meshes/Armour/Plates and pads/Chest/Male Mid/PadFront.vxm"),
-                parent_name: Some("BearChest".to_string()),
-            },
-            VxmMeshSwapTarget {
-                name: "PadSide".to_string(),
-                vxm_handle: asset_server.load("meshes/Armour/Plates and pads/Chest/Male Mid/PadSide.vxm"),
-                parent_name: Some("BearChest".to_string()),
-            },
-            VxmMeshSwapTarget {
-                name: "PadBack".to_string(),
-                vxm_handle: asset_server.load("meshes/Armour/Plates and pads/Chest/Male Mid/PadBack.vxm"),
-                parent_name: Some("BearChest".to_string()),
-            },
-            VxmMeshSwapTarget {
-                name: "PadTop".to_string(),
-                vxm_handle: asset_server.load("meshes/Armour/Plates and pads/Chest/Male Mid/PadTop.vxm"),
-                parent_name: Some("BearChest".to_string()),
-            },
-            VxmMeshSwapTarget {
-                name: "Plate".to_string(),
-                vxm_handle: asset_server.load("meshes/Armour/Plates and pads/Chest/Male Mid/Plate.vxm"),
-                parent_name: Some("BearChest".to_string()),
-            },
-            // Waist Pieces
-            VxmMeshSwapTarget {
-                name: "PadFront".to_string(),
-                vxm_handle: asset_server.load("meshes/Armour/Plates and pads/Waist/Male Mid/PadFront.vxm"),
-                parent_name: Some("BearWaist".to_string()),
-            },
-            VxmMeshSwapTarget {
-                name: "PadSide".to_string(),
-                vxm_handle: asset_server.load("meshes/Armour/Plates and pads/Waist/Male Mid/PadSide.vxm"),
-                parent_name: Some("BearWaist".to_string()),
-            },
-            VxmMeshSwapTarget {
-                name: "PadBack".to_string(),
-                vxm_handle: asset_server.load("meshes/Armour/Plates and pads/Waist/Male Mid/PadBack.vxm"),
-                parent_name: Some("BearWaist".to_string()),
-            },
-            VxmMeshSwapTarget {
-                name: "Plate".to_string(),
-                vxm_handle: asset_server.load("meshes/Armour/Plates and pads/Waist/Male Mid/Plate.vxm"),
-                parent_name: Some("BearWaist".to_string()),
-            },
-            // Head Pieces
-            VxmMeshSwapTarget {
-                name: "HelmD8".to_string(),
-                vxm_handle: asset_server.load("meshes/Armour/Helms/Mid/HelmD8.vxm"),
-                parent_name: Some("BearHead".to_string()),
-            },
-            VxmMeshSwapTarget {
-                name: "Side".to_string(),
-                vxm_handle: asset_server.load("meshes/Armour/Helms/Mid/Side/Side.vxm"),
-                parent_name: Some("BearHead".to_string()),
+        ];
+
+        for (body_part_name, path) in armour_base_paths {
+            let dir_clone = assets_dir.clone();
+            let dir_path = dir_clone.join(path);
+            match dir_path.read_dir() {
+                Ok(read_dir_result) => {
+                    info!("Reading directory: {:?}", dir_path);
+                    for entry in read_dir_result {
+                        let file_path = entry.unwrap().path();
+                        if file_path.is_file() && file_path.extension().unwrap_or_default() == "vxm" {
+                            let relative_path = file_path.strip_prefix(&assets_dir).unwrap();
+                            let file_stem = file_path.file_stem().unwrap().to_str().unwrap().to_string();
+                            model_vec.push(VxmMeshSwapTarget {
+                                name: file_stem,
+                                vxm_handle: asset_server.load(relative_path.to_str().unwrap()),
+                                parent_name: Some(body_part_name.to_string()),
+                            });
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Error reading directory {:?} {:?}", dir_path, e);
+                    continue;
+                }
             }
-        ])
+        }
+
+        PlayerBodyPartModels(model_vec)
     }
 }
 
@@ -300,6 +276,7 @@ pub fn change_player_mesh_in_scene(
     mut materials: ResMut<Assets<StandardMaterial>>,
     player_body_part_models: Option<Res<PlayerBodyPartModels>>,
     vxm_assets: Res<Assets<VxmAsset>>,
+    asset_server: Res<AssetServer>
 ) {
     if player_body_part_models.is_none() {
         return;
@@ -314,7 +291,7 @@ pub fn change_player_mesh_in_scene(
     });
 
     let armoured_material = materials.add(StandardMaterial {
-        perceptual_roughness: 0.15,
+        perceptual_roughness: 0.1,
         metallic: 1.0,
         ..Default::default()
     });
