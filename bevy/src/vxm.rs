@@ -190,10 +190,6 @@ impl AssetLoader for VxmAssetLoader {
             voxel.z -= bounds_min[2];
         });
 
-        info!("Min bounds: {:?}", bounds_min);
-        info!("Max bounds: {:?}", bounds_max);
-
-
         let size = [
             bounds_max[0] - bounds_min[0] + 1,
             bounds_max[1] - bounds_min[1] + 1,

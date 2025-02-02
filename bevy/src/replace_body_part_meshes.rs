@@ -1,11 +1,13 @@
+use std::env::current_dir;
+use std::path::Path;
 use bevy::asset::{AssetServer, Assets, Handle};
 use bevy::core::Name;
 use bevy::gltf::GltfAssetLabel;
 use bevy::hierarchy::Children;
-use bevy::log::info;
+use bevy::log::{error, info};
 use bevy::math::Vec3;
 use bevy::pbr::{MeshMaterial3d, StandardMaterial};
-use bevy::prelude::{AnimationGraph, AnimationGraphHandle, Commands, Entity, FromWorld, HierarchyQueryExt, Mesh, Mesh3d, Parent, Query, Res, ResMut, Resource, SceneRoot, Time, Transform, World};
+use bevy::prelude::{AnimationGraph, AnimationGraphHandle, Color, Commands, Entity, FromWorld, HierarchyQueryExt, Mesh, Mesh3d, Parent, Query, Res, ResMut, Resource, SceneRoot, Time, Transform, World};
 use bevy::render::mesh::VertexAttributeValues;
 use crate::{vxm_mesh};
 use crate::camera::CameraTarget;
@@ -66,6 +68,35 @@ pub struct PlayerBodyPartModels(Vec<VxmMeshSwapTarget>);
 impl FromWorld for PlayerBodyPartModels {
     fn from_world(world: &mut World) -> Self {
         let asset_server = world.get_resource::<AssetServer>().unwrap();
+
+        let armour_base_paths = vec![
+            ("BearHead", "meshes/Armour/Helms/Mid"),
+            ("BearChest", "meshes/Armour/Plates and pads/Chest/Male Mid"),
+            ("BearWaist", "meshes/Armour/Plates and pads/Waist"),
+        ];
+
+        let assets_dir = current_dir().unwrap().join("assets");
+
+        for (body_part_name, path) in armour_base_paths {
+            let dir_clone = assets_dir.clone();
+            let dir_path = dir_clone.join(path);
+            match dir_path.read_dir() {
+                Ok(read_dir_result) => {
+                    info!("Reading directory: {:?}", dir_path);
+                    for entry in read_dir_result {
+                        let file_path = entry.unwrap().path();
+                        if file_path.is_file() && file_path.extension().unwrap_or_default() == "vxm" {
+                            info!("Found armour file: {:?}", file_path);
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Error reading directory {:?} {:?}", dir_path, e);
+                    continue;
+                }
+            }
+        }
+
         PlayerBodyPartModels(vec![
             VxmMeshSwapTarget {
                 parent_name: None,
@@ -209,6 +240,11 @@ impl FromWorld for PlayerBodyPartModels {
                 name: "HelmD8".to_string(),
                 vxm_handle: asset_server.load("meshes/Armour/Helms/Mid/HelmD8.vxm"),
                 parent_name: Some("BearHead".to_string()),
+            },
+            VxmMeshSwapTarget {
+                name: "Side".to_string(),
+                vxm_handle: asset_server.load("meshes/Armour/Helms/Mid/Side/Side.vxm"),
+                parent_name: Some("BearHead".to_string()),
             }
         ])
     }
@@ -271,10 +307,15 @@ pub fn change_player_mesh_in_scene(
 
     let player_body_part_models = player_body_part_models.unwrap();
 
-    let new_material = materials.add(StandardMaterial {
-        reflectance: 0.0,
-        metallic: 0.0,
+    let body_material = materials.add(StandardMaterial {
         perceptual_roughness: 1.0,
+        metallic: 0.0,
+        ..Default::default()
+    });
+
+    let armoured_material = materials.add(StandardMaterial {
+        perceptual_roughness: 0.15,
+        metallic: 1.0,
         ..Default::default()
     });
 
@@ -318,6 +359,13 @@ pub fn change_player_mesh_in_scene(
                     continue;
                 }
 
+                // For now, if the piece has a parent, we will assume it is armour
+                let (scale, material) = if is_parent_found.is_some() {
+                    (Vec3::splat(1.001), armoured_material.clone())
+                } else {
+                    (Vec3::splat(1.0), body_material.clone())
+                };
+
                 if name.as_str().starts_with(swap_target.name.as_str()) {
                     let voxels = vxm_assets.get(&swap_target.vxm_handle);
                     if voxels.is_none() {
@@ -334,7 +382,8 @@ pub fn change_player_mesh_in_scene(
                         get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::Z),
                     );
                     let max_axes_difference = max_axes - replacement_max_axes;
-                    let new_transform = Transform::from_translation(max_axes_difference);
+                    let new_transform = Transform::from_translation(max_axes_difference).
+                        mul_transform(Transform::from_scale(scale));
 
                     // Remove the old mesh and material
                     commands
@@ -342,7 +391,7 @@ pub fn change_player_mesh_in_scene(
                         .remove::<MeshMaterial3d<StandardMaterial>>()
                         .remove::<Mesh3d>()
                         .remove::<Transform>()
-                        .insert(MeshMaterial3d(new_material.clone()))
+                        .insert(MeshMaterial3d(material))
                         .insert(Mesh3d(mesh_handle))
                         .insert(new_transform);
                 }

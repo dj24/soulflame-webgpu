@@ -140,11 +140,13 @@ pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
     let bytes = positions.len() * 3 * 4 + normals.len() * 3 * 4 + colours.len() * 4 + indices.len();
     let kb = bytes as f64 / 1024.0;
     let mb = kb / 1024.0;
-    if mb > 0.1 {
-        info!("Memory usage {:?}mb", mb);
+
+
+    if mb > 0.5 {
+        info!("Memory usage {:?}mb", format!("{:.1}",mb));
     }
     else {
-        info!("Memory usage {:?}kb", kb);
+        info!("Memory usage {:?}kb",  format!("{:.1}",kb));
     }
 
 

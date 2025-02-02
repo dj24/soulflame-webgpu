@@ -21,11 +21,13 @@ use bevy::{
 };
 use bevy::{prelude::*, render::extract_resource::ExtractResource};
 use std::f32::consts::*;
+use bevy::core_pipeline::dof::{DepthOfField};
 use crate::camera::{ThirdPersonCameraPlugin};
 use crate::dnd::{file_drag_and_drop_system, setup_scene_once_loaded};
 use crate::vxm::{VxmAsset, VxmAssetLoader};
 use crate::vxm_mesh::VxmMeshPlugin;
 use bevy::core_pipeline::experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing};
+use bevy::core_pipeline::Skybox;
 use bevy::ecs::bundle::DynamicBundle;
 use bevy::pbr::{FogVolume, ScreenSpaceAmbientOcclusion, ScreenSpaceAmbientOcclusionQualityLevel, VolumetricFog};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
@@ -87,7 +89,8 @@ fn setup(
     asset_server: Res<AssetServer>,
     mut graphs: ResMut<Assets<AnimationGraph>>,
 ) {
-    let mut camera = commands.spawn((
+    // Camera
+     commands.spawn((
         Camera3d::default(),
         MotionBlur {
             shutter_angle: 1.0,
@@ -107,14 +110,20 @@ fn setup(
             ..default()
         },
         TemporalAntiAliasing::default(),
-    ));
+        EnvironmentMapLight {
+            intensity: 900.0,
+            diffuse_map: asset_server.load("environment_maps/pisa_diffuse_rgb9e5_zstd.ktx2"),
+            specular_map: asset_server.load("environment_maps/pisa_specular_rgb9e5_zstd.ktx2"),
+            ..default()
+        },
+        VolumetricFog {
+            // This value is explicitly set to 0 since we have no environment map light
+            ambient_intensity: 0.0,
+            ..default()
+        },
+     ));
 
-    camera.insert(VolumetricFog {
-        // This value is explicitly set to 0 since we have no environment map light
-        ambient_intensity: 0.0,
-        ..default()
-    });
-
+    // Sun
     commands.spawn((
         DirectionalLight {
             illuminance: 15_000.,
@@ -149,7 +158,7 @@ fn setup(
     commands.spawn((
         Mesh3d(meshes.add(Cuboid::new(2.0, 1.0, 1.0))),
         MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Srgba::hex("888888").unwrap().into(),
+            base_color: Srgba::hex("87CEEB").unwrap().into(),
             unlit: true,
             cull_mode: None,
             ..default()

@@ -28,7 +28,7 @@ pub fn spawn_player(
         SceneRoot(asset_server.load(GltfAssetLabel::Scene(0).from_asset(PLAYER_GLB_PATH))),
         Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)),
         AnimationGraphHandle(player_graph_handle.clone()),
-        CameraTarget(Vec3::new(0.0, 0.2, 0.0)),
+        CameraTarget(Vec3::new(0.0, 0.5, 0.0)),
     ));
 }
 
