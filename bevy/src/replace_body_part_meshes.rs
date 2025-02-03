@@ -338,7 +338,7 @@ pub fn change_player_mesh_in_scene(
                 let (scale, material) = if is_parent_found.is_some() {
                     (Vec3::splat(1.001), armoured_material.clone())
                 } else {
-                    (Vec3::splat(1.0), body_material.clone())
+                    (Vec3::splat(0.999), body_material.clone())
                 };
 
                 if name.as_str().starts_with(swap_target.name.as_str()) {

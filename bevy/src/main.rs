@@ -31,6 +31,7 @@ use bevy::core_pipeline::Skybox;
 use bevy::ecs::bundle::DynamicBundle;
 use bevy::pbr::{FogVolume, ScreenSpaceAmbientOcclusion, ScreenSpaceAmbientOcclusionQualityLevel, VolumetricFog};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
+use crate::draw_aabb_gizmos::DrawAabbGizmosPlugin;
 use crate::replace_body_part_meshes::{change_player_mesh_in_scene};
 use crate::spawn_player::spawn_player;
 
@@ -63,7 +64,8 @@ fn main() {
                     enabled: true,
                 },
             },
-            WorldInspectorPlugin::new()
+            WorldInspectorPlugin::new(),
+            DrawAabbGizmosPlugin,
         ))
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
@@ -74,7 +76,6 @@ fn main() {
                 file_drag_and_drop_system,
                 setup_scene_once_loaded,
                 change_player_mesh_in_scene,
-                // draw_gizmos,
             ),
         )
         .run();
