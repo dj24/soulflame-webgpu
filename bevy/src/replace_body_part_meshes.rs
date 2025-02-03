@@ -83,16 +83,13 @@ impl FromWorld for PlayerBodyPartModels {
             ("BearWaist", "meshes/Armour/Secondary/Waist/Male Mid"),
             ("BearBicep", "meshes/Armour/Plates and pads/Bicep/Mid"),
             ("BearBicep", "meshes/Armour/Details/Bicep/Mid"),
-            ("BearBicep", "meshes/Armour/Secondary/Bicep/Mid"),
             ("BearArm", "meshes/Armour/Plates and pads/Arm/Mid"),
             ("BearArm", "meshes/Armour/Details/Arm/Mid"),
             ("BearArm", "meshes/Armour/Secondary/Arm/Mid"),
             ("BearLeg", "meshes/Armour/Plates and pads/Legs/Mid"),
             ("BearLeg", "meshes/Armour/Details/Legs/Mid"),
-            ("BearLeg", "meshes/Armour/Secondary/Leg/Mid"),
             ("Thigh", "meshes/Armour/Plates and pads/Thigh/Mid"),
             ("Thigh", "meshes/Armour/Details/Thigh/Mid"),
-            ("Thigh", "meshes/Armour/Secondary/Thigh/Mid"),
             ("BearHand", "meshes/Armour/Plates and pads/Hand/Mid"),
             ("BearHand", "meshes/Armour/Details/Hand/Mid"),
             ("BearHand", "meshes/Armour/Secondary/Hand/Mid"),
@@ -207,6 +204,7 @@ impl FromWorld for PlayerBodyPartModels {
                         if file_path.is_file() && file_path.extension().unwrap_or_default() == "vxm" {
                             let relative_path = file_path.strip_prefix(&assets_dir).unwrap();
                             let file_stem = file_path.file_stem().unwrap().to_str().unwrap().to_string();
+                            info!("Importing armour piece {:?} for {:?}", file_stem, body_part_name);
                             model_vec.push(VxmMeshSwapTarget {
                                 name: file_stem,
                                 vxm_handle: asset_server.load(relative_path.to_str().unwrap()),
