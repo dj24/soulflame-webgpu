@@ -1,12 +1,24 @@
 #![feature(portable_simd)]
 mod camera;
 mod dnd;
-mod vxm;
-mod vxm_mesh;
+mod draw_aabb_gizmos;
 mod replace_body_part_meshes;
 mod spawn_player;
-mod draw_aabb_gizmos;
+mod vxm;
+mod vxm_mesh;
 
+use crate::camera::ThirdPersonCameraPlugin;
+use crate::dnd::{file_drag_and_drop_system, setup_scene_once_loaded};
+use crate::draw_aabb_gizmos::DrawAabbGizmosPlugin;
+use crate::replace_body_part_meshes::change_player_mesh_in_scene;
+use crate::spawn_player::spawn_player;
+use crate::vxm::{VxmAsset, VxmAssetLoader};
+use crate::vxm_mesh::VxmMeshPlugin;
+use bevy::core_pipeline::experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing};
+use bevy::ecs::bundle::DynamicBundle;
+use bevy::pbr::{
+    FogVolume, ScreenSpaceAmbientOcclusion, ScreenSpaceAmbientOcclusionQualityLevel, VolumetricFog,
+};
 use bevy::{
     core_pipeline::{
         motion_blur::MotionBlur,
@@ -20,20 +32,8 @@ use bevy::{
     prelude::*,
 };
 use bevy::{prelude::*, render::extract_resource::ExtractResource};
-use std::f32::consts::*;
-use bevy::core_pipeline::dof::{DepthOfField};
-use crate::camera::{ThirdPersonCameraPlugin};
-use crate::dnd::{file_drag_and_drop_system, setup_scene_once_loaded};
-use crate::vxm::{VxmAsset, VxmAssetLoader};
-use crate::vxm_mesh::VxmMeshPlugin;
-use bevy::core_pipeline::experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing};
-use bevy::core_pipeline::Skybox;
-use bevy::ecs::bundle::DynamicBundle;
-use bevy::pbr::{FogVolume, ScreenSpaceAmbientOcclusion, ScreenSpaceAmbientOcclusionQualityLevel, VolumetricFog};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use crate::draw_aabb_gizmos::DrawAabbGizmosPlugin;
-use crate::replace_body_part_meshes::{change_player_mesh_in_scene};
-use crate::spawn_player::spawn_player;
+use std::f32::consts::*;
 
 fn main() {
     App::new()
@@ -43,7 +43,6 @@ fn main() {
         .add_plugins((
             DefaultPlugins.set(WindowPlugin {
                 primary_window: Some(Window {
-                    // mode: WindowMode::BorderlessFullscreen(MonitorSelection::Current),
                     title: "Soulflame".to_string(),
                     focused: true,
                     ..default()
@@ -81,8 +80,6 @@ fn main() {
         .run();
 }
 
-
-
 fn setup(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -91,7 +88,7 @@ fn setup(
     mut graphs: ResMut<Assets<AnimationGraph>>,
 ) {
     // Camera
-     commands.spawn((
+    commands.spawn((
         Camera3d::default(),
         MotionBlur {
             shutter_angle: 1.0,
@@ -122,7 +119,7 @@ fn setup(
             ambient_intensity: 0.0,
             ..default()
         },
-     ));
+    ));
 
     // Sun
     commands.spawn((
@@ -173,4 +170,3 @@ fn setup(
 
     //Chest
 }
-

@@ -1,3 +1,4 @@
+use crate::vxm::VxmAsset;
 use bevy::asset::{AssetEvent, Assets, RenderAssetUsages};
 use bevy::color::palettes::basic::{RED, WHITE};
 use bevy::log::info;
@@ -5,7 +6,6 @@ use bevy::pbr::{ExtendedMaterial, MaterialExtension, MeshMaterial3d, OpaqueRende
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, PrimitiveTopology};
 use bevy::render::render_resource::{AsBindGroup, ShaderRef};
-use crate::vxm::VxmAsset;
 
 fn get_cube_vertex_positions() -> Vec<[f32; 3]> {
     vec![
@@ -14,31 +14,26 @@ fn get_cube_vertex_positions() -> Vec<[f32; 3]> {
         [1.0, 0.0, 1.0], // Bottom-right
         [1.0, 1.0, 1.0], // Top-right
         [0.0, 1.0, 1.0], // Top-left
-
         // Back face
         [0.0, 0.0, 0.0], // Bottom-left
         [1.0, 0.0, 0.0], // Bottom-right
         [1.0, 1.0, 0.0], // Top-right
         [0.0, 1.0, 0.0], // Top-left
-
         // Top face
         [0.0, 1.0, 0.0], // Back-left
         [1.0, 1.0, 0.0], // Back-right
         [1.0, 1.0, 1.0], // Front-right
         [0.0, 1.0, 1.0], // Front-left
-
         // Bottom face
         [0.0, 0.0, 0.0], // Back-left
         [1.0, 0.0, 0.0], // Back-right
         [1.0, 0.0, 1.0], // Front-right
         [0.0, 0.0, 1.0], // Front-left
-
         // Left face
         [1.0, 0.0, 1.0], // Front-bottom
         [1.0, 0.0, 0.0], // Back-bottom
         [1.0, 1.0, 0.0], // Back-top
         [1.0, 1.0, 1.0], // Front-top
-
         // Right face
         [0.0, 0.0, 1.0], // Front-bottom
         [0.0, 0.0, 0.0], // Back-bottom
@@ -47,19 +42,14 @@ fn get_cube_vertex_positions() -> Vec<[f32; 3]> {
     ]
 }
 
-fn get_cube_vertex_indices() -> Vec<u32> {
+fn get_cube_vertex_indices() -> Vec<u16> {
     vec![
         // Front face
-        0, 1, 2, 0, 2, 3,
-        // Back face
-        4, 6, 5, 4, 7, 6,
-        // Top face
-        8, 10, 9, 8, 11, 10,
-        // Bottom face
-        12, 13, 14, 12, 14, 15,
-        // Left face
-        16, 17, 18, 16, 18, 19,
-        // Right face
+        0, 1, 2, 0, 2, 3, // Back face
+        4, 6, 5, 4, 7, 6, // Top face
+        8, 10, 9, 8, 11, 10, // Bottom face
+        12, 13, 14, 12, 14, 15, // Left face
+        16, 17, 18, 16, 18, 19, // Right face
         20, 22, 21, 20, 23, 22,
     ]
 }
@@ -71,31 +61,26 @@ fn get_cube_normals() -> Vec<[f32; 3]> {
         [0.0, 0.0, 1.0],
         [0.0, 0.0, 1.0],
         [0.0, 0.0, 1.0],
-
         // Back face
         [0.0, 0.0, -1.0],
         [0.0, 0.0, -1.0],
         [0.0, 0.0, -1.0],
         [0.0, 0.0, -1.0],
-
         // Top face
         [0.0, 1.0, 0.0],
         [0.0, 1.0, 0.0],
         [0.0, 1.0, 0.0],
         [0.0, 1.0, 0.0],
-
         // Bottom face
         [0.0, -1.0, 0.0],
         [0.0, -1.0, 0.0],
         [0.0, -1.0, 0.0],
         [0.0, -1.0, 0.0],
-
         // Left face
         [1.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
-
         // Right face
         [-1.0, 0.0, 0.0],
         [-1.0, 0.0, 0.0],
@@ -132,33 +117,30 @@ pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
             normals.push(*normal);
         }
         for index in &cube_vertex_indices {
-            indices.push(index + voxel_index * cube_vertex_positions.len() as u32);
+            indices.push(index + voxel_index as u16 * cube_vertex_positions.len() as u16);
         }
         voxel_index += 1;
     }
 
-    let bytes = positions.len() * 3 * 4 + normals.len() * 3 * 4 + colours.len() * 4 + indices.len();
+    let bytes =
+        positions.len() * 3 * 4 + normals.len() * 3 * 4 + colours.len() * 4 * 4 + indices.len() * 2;
     let kb = bytes as f64 / 1024.0;
     let mb = kb / 1024.0;
 
-
     if mb > 0.5 {
-        info!("Memory usage {:?}mb", format!("{:.1}",mb));
+        info!("Memory usage {:?}mb", format!("{:.1}", mb));
+    } else {
+        info!("Memory usage {:?}kb", format!("{:.1}", kb));
     }
-    else {
-        info!("Memory usage {:?}kb",  format!("{:.1}",kb));
-    }
 
-
-
-    Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default())
-        .with_inserted_attribute(
-            Mesh::ATTRIBUTE_POSITION,
-            positions
-        )
-        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
-        .with_inserted_indices(Indices::U32(indices))
-        .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colours)
+    Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::default(),
+    )
+    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
+    .with_inserted_indices(Indices::U16(indices))
+    .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colours)
 }
 
 pub fn create_mesh_on_vxm_import_system(
@@ -183,9 +165,11 @@ pub fn create_mesh_on_vxm_import_system(
                                     opaque_render_method: OpaqueRendererMethod::Auto,
                                     ..Default::default()
                                 },
-                                extension: MyExtension { color: LinearRgba::BLUE},
+                                extension: MyExtension {
+                                    color: LinearRgba::BLUE,
+                                },
                             })),
-                            Transform::from_scale(Vec3::new(0.03,0.03,0.03)),
+                            Transform::from_scale(Vec3::new(0.03, 0.03, 0.03)),
                             // Wireframe
                         ));
                     }
@@ -228,7 +212,6 @@ impl MaterialExtension for MyExtension {
         SHADER_ASSET_PATH.into()
     }
 }
-
 
 pub struct VxmMeshPlugin;
 
