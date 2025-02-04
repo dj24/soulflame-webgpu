@@ -1,11 +1,12 @@
-use bevy::asset::{AssetServer, Assets};
-use bevy::gltf::GltfAssetLabel;
-use bevy::math::Vec3;
-use bevy::prelude::{AnimationGraph, AnimationGraphHandle, Commands, Res, ResMut, SceneRoot, Transform};
 use crate::camera::CameraTarget;
 use crate::dnd::Animations;
 use crate::replace_body_part_meshes::{ChestModels, PlayerBodyPartModels};
-
+use bevy::asset::{AssetServer, Assets};
+use bevy::gltf::GltfAssetLabel;
+use bevy::math::Vec3;
+use bevy::prelude::{
+    AnimationGraph, AnimationGraphHandle, Commands, Res, ResMut, SceneRoot, Transform,
+};
 
 const PLAYER_GLB_PATH: &str = "meshes/BearRace.glb";
 const CHEST_GLB_PATH: &str = "meshes/ChestAnimations.glb";
@@ -16,7 +17,15 @@ pub fn spawn_player(
     mut graphs: ResMut<Assets<AnimationGraph>>,
 ) {
     let (graph, node_indices) = AnimationGraph::from_clips([
-        asset_server.load(GltfAssetLabel::Animation(6).from_asset(PLAYER_GLB_PATH))
+        asset_server.load(GltfAssetLabel::Animation(0).from_asset(PLAYER_GLB_PATH)),
+        asset_server.load(GltfAssetLabel::Animation(1).from_asset(PLAYER_GLB_PATH)),
+        asset_server.load(GltfAssetLabel::Animation(2).from_asset(PLAYER_GLB_PATH)),
+        asset_server.load(GltfAssetLabel::Animation(3).from_asset(PLAYER_GLB_PATH)),
+        asset_server.load(GltfAssetLabel::Animation(4).from_asset(PLAYER_GLB_PATH)),
+        asset_server.load(GltfAssetLabel::Animation(5).from_asset(PLAYER_GLB_PATH)),
+        asset_server.load(GltfAssetLabel::Animation(6).from_asset(PLAYER_GLB_PATH)),
+        asset_server.load(GltfAssetLabel::Animation(7).from_asset(PLAYER_GLB_PATH)),
+        asset_server.load(GltfAssetLabel::Animation(8).from_asset(PLAYER_GLB_PATH)),
     ]);
     let player_graph_handle = graphs.add(graph);
     commands.insert_resource(Animations {

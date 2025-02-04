@@ -1,9 +1,9 @@
-use std::f32::consts::FRAC_PI_2;
-use std::ops::Range;
-use bevy::input::ButtonInput;
 use bevy::input::mouse::AccumulatedMouseMotion;
+use bevy::input::ButtonInput;
 use bevy::math::{Quat, Vec3};
 use bevy::prelude::*;
+use std::f32::consts::FRAC_PI_2;
+use std::ops::Range;
 
 #[derive(Component)]
 pub struct CameraTarget(pub Vec3);
@@ -45,7 +45,7 @@ impl Plugin for ThirdPersonCameraPlugin {
 }
 
 fn orbit(
-    mut camera: Single<&mut Transform,  (With<Camera>, Without<CameraTarget>)>,
+    mut camera: Single<&mut Transform, (With<Camera>, Without<CameraTarget>)>,
     mut target: Single<&mut Transform, With<CameraTarget>>,
     camera_target: Single<&CameraTarget>,
     camera_settings: Res<CameraSettings>,
@@ -65,44 +65,26 @@ fn orbit(
     let current_pitch = direction.y.asin();
     let current_yaw = direction.z.atan2(direction.x);
 
-    let new_pitch = (current_pitch + delta_pitch).min(camera_settings.pitch_range.end).max(camera_settings.pitch_range.start);
+    let new_pitch = (current_pitch + delta_pitch)
+        .min(camera_settings.pitch_range.end)
+        .max(camera_settings.pitch_range.start);
     let new_yaw = current_yaw + delta_yaw;
 
     // Offset based on new pitch and yaw, and orbit distance
-    let new_position = target_position + Vec3::new(
-        camera_settings.orbit_distance * new_pitch.cos() * new_yaw.cos(),
-        camera_settings.orbit_distance * new_pitch.sin(),
-        camera_settings.orbit_distance * new_pitch.cos() * new_yaw.sin(),
-    );
+    let new_position = target_position
+        + Vec3::new(
+            camera_settings.orbit_distance * new_pitch.cos() * new_yaw.cos(),
+            camera_settings.orbit_distance * new_pitch.sin(),
+            camera_settings.orbit_distance * new_pitch.cos() * new_yaw.sin(),
+        );
 
     // Move target
-    let mut direction = Vec3::ZERO;
     if keys.pressed(KeyCode::KeyW) {
-        direction -= Vec3::Z;
-    }
-    if keys.pressed(KeyCode::KeyS) {
-        direction += Vec3::Z;
-    }
-    if keys.pressed(KeyCode::KeyA) {
-        direction -= Vec3::X;
-    }
-    if keys.pressed(KeyCode::KeyD) {
-        direction += Vec3::X;
-    }
-    if keys.pressed(KeyCode::Space) {
-        direction += Vec3::Y;
-    }
-    if keys.pressed(KeyCode::ShiftLeft) {
-        direction -= Vec3::Y;
-    }
-    // If moving,
-    if direction.length() > 0.0 {
-        direction = camera.rotation * direction.normalize();
-        let position_delta = direction * 2.0 * time.delta_secs();
-        // target.translation = target_position + position_delta;
-        target.rotation = Quat::slerp(target.rotation, Quat::from_rotation_y(-new_yaw), 4.0 * time.delta_secs());
-    } else{
-
+        let target_rotation = Quat::from_rotation_y(-new_yaw - FRAC_PI_2);
+        let direction = target_rotation * Vec3::Z;
+        let position_delta = direction * 0.5 * time.delta_secs();
+        target.translation += position_delta;
+        target.rotation = Quat::slerp(target.rotation, target_rotation, 4.0 * time.delta_secs());
     }
 
     camera.translation = new_position;

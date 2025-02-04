@@ -3,6 +3,7 @@ mod camera;
 mod dnd;
 mod draw_aabb_gizmos;
 mod replace_body_part_meshes;
+mod set_animation_clip_keyboard;
 mod spawn_player;
 mod vxm;
 mod vxm_mesh;

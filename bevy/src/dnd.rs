@@ -1,12 +1,9 @@
-use std::io::{ Read};
-use std::time::Duration;
-use bevy::prelude::{EventReader, FileDragAndDrop};
-use bevy::prelude::*;
-use bevy::{
-    asset::{AssetLoader},
-    prelude::*,
-};
 use crate::vxm::VxmAsset;
+use bevy::prelude::*;
+use bevy::prelude::{EventReader, FileDragAndDrop};
+use bevy::{asset::AssetLoader, prelude::*};
+use std::io::Read;
+use std::time::Duration;
 
 #[derive(Resource)]
 pub struct VoxelObject(pub Handle<VxmAsset>);
@@ -27,27 +24,27 @@ pub fn file_drag_and_drop_system(
         if let FileDragAndDrop::DroppedFile { window, path_buf } = event {
             let mut file_path = path_buf.to_str().unwrap().to_string();
             if file_path.ends_with(".vxm") {
-            //     let voxels: Handle<VxmAsset> = asset_server.load(&file_path);
-            //     commands.spawn(
-            //         VoxelObject(voxels),
-            //     );
+                //     let voxels: Handle<VxmAsset> = asset_server.load(&file_path);
+                //     commands.spawn(
+                //         VoxelObject(voxels),
+                //     );
             }
-            if file_path.ends_with(".glb"){
+            if file_path.ends_with(".glb") {
                 info!(file_path);
-                let (graph, node_indices) = AnimationGraph::from_clips([
-                    asset_server.load(GltfAssetLabel::Animation(7).from_asset(file_path.clone())),
-                ]);
+                let (graph, node_indices) =
+                    AnimationGraph::from_clips([asset_server
+                        .load(GltfAssetLabel::Animation(7).from_asset(file_path.clone()))]);
                 let graph_handle = graphs.add(graph);
                 commands.insert_resource(Animations {
                     animations: node_indices,
                     graph: graph_handle.clone(),
                 });
                 commands.spawn((
-                    SceneRoot(asset_server.load(
-                        GltfAssetLabel::Scene(0).from_asset(file_path.clone()),
-                    )),
+                    SceneRoot(
+                        asset_server.load(GltfAssetLabel::Scene(0).from_asset(file_path.clone())),
+                    ),
                     Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)),
-                    AnimationGraphHandle(graph_handle.clone())
+                    AnimationGraphHandle(graph_handle.clone()),
                 ));
             }
         }
@@ -63,8 +60,8 @@ pub fn setup_scene_once_loaded(
 ) {
     for (entity, mut player) in &mut players {
         let mut transitions = AnimationTransitions::new();
-         transitions
-            .play(&mut player, animations.animations[0], Duration::ZERO)
+        transitions
+            .play(&mut player, animations.animations[1], Duration::ZERO)
             .repeat()
             .set_speed(1.);
         commands
