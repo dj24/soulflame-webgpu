@@ -12,6 +12,7 @@ use crate::camera::ThirdPersonCameraPlugin;
 use crate::dnd::{file_drag_and_drop_system, setup_scene_once_loaded};
 use crate::draw_aabb_gizmos::DrawAabbGizmosPlugin;
 use crate::replace_body_part_meshes::change_player_mesh_in_scene;
+use crate::set_animation_clip_keyboard::SetAnimationClipPlugin;
 use crate::spawn_player::spawn_player;
 use crate::vxm::{VxmAsset, VxmAssetLoader};
 use crate::vxm_mesh::VxmMeshPlugin;
@@ -66,6 +67,7 @@ fn main() {
             },
             WorldInspectorPlugin::new(),
             DrawAabbGizmosPlugin,
+            SetAnimationClipPlugin,
         ))
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
