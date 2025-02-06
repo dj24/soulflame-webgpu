@@ -42,6 +42,73 @@ fn get_cube_vertex_positions() -> Vec<[f32; 3]> {
     ]
 }
 
+enum CubeFace {
+    Front,
+    Back,
+    Top,
+    Bottom,
+    Left,
+    Right,
+}
+
+fn get_cube_face_vertex_positions(cube_face: CubeFace) -> Vec<[f32; 3]> {
+    match cube_face {
+        CubeFace::Back => vec![
+            [0.0, 0.0, 0.0], // Bottom-left
+            [1.0, 0.0, 0.0], // Bottom-right
+            [1.0, 1.0, 0.0], // Top-right
+            [0.0, 1.0, 0.0], // Top-left
+        ],
+        CubeFace::Front => vec![
+            [0.0, 0.0, 1.0], // Bottom-left
+            [1.0, 0.0, 1.0], // Bottom-right
+            [1.0, 1.0, 1.0], // Top-right
+            [0.0, 1.0, 1.0], // Top-left
+        ],
+        CubeFace::Top => vec![
+            [0.0, 1.0, 0.0], // Back-left
+            [1.0, 1.0, 0.0], // Back-right
+            [1.0, 1.0, 1.0], // Front-right
+            [0.0, 1.0, 1.0], // Front-left
+        ],
+        CubeFace::Bottom => vec![
+            [0.0, 0.0, 0.0], // Back-left
+            [1.0, 0.0, 0.0], // Back-right
+            [1.0, 0.0, 1.0], // Front-right
+            [0.0, 0.0, 1.0], // Front-left
+        ],
+        CubeFace::Left => vec![
+            [1.0, 0.0, 1.0], // Front-bottom
+            [1.0, 0.0, 0.0], // Back-bottom
+            [1.0, 1.0, 0.0], // Back-top
+            [1.0, 1.0, 1.0], // Front-top
+        ],
+        CubeFace::Right => vec![
+            [0.0, 0.0, 1.0], // Front-bottom
+            [0.0, 0.0, 0.0], // Back-bottom
+            [0.0, 1.0, 0.0], // Back-top
+            [0.0, 1.0, 1.0], // Front-top
+        ],
+    }
+}
+
+fn get_cube_face_vertex_indices() -> Vec<u16> {
+    vec![
+        0, 1, 2, 0, 2, 3,
+    ]
+}
+
+fn get_cube_face_normals(cube_face: CubeFace) -> Vec<[f32; 3]> {
+    match cube_face {
+        CubeFace::Back => vec![[0.0, 0.0, -1.0]].repeat(4),
+        CubeFace::Front => vec![[0.0, 0.0, 1.0]].repeat(4),
+        CubeFace::Top => vec![[0.0, 1.0, 0.0]].repeat(4),
+        CubeFace::Bottom => vec![[0.0, -1.0, 0.0]].repeat(4),
+        CubeFace::Left => vec![[1.0, 0.0, 0.0]].repeat(4),
+        CubeFace::Right => vec![[-1.0, 0.0, 0.0]].repeat(4),
+    }
+}
+
 fn get_cube_vertex_indices() -> Vec<u16> {
     vec![
         // Front face
@@ -95,9 +162,9 @@ pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
     let mut normals = Vec::new();
     let mut colours = Vec::new();
     let mut voxel_index = 0;
-    let cube_vertex_indices = get_cube_vertex_indices();
-    let cube_vertex_positions = get_cube_vertex_positions();
-    let cube_normals = get_cube_normals();
+    let cube_vertex_indices = get_cube_face_vertex_indices();
+    let cube_vertex_positions = get_cube_face_vertex_positions(CubeFace::Top);
+    let cube_normals = get_cube_face_normals(CubeFace::Top);
 
     for voxel in &voxels.voxels {
         for vertex in &cube_vertex_positions {
