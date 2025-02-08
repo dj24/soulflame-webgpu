@@ -1,13 +1,13 @@
 use std::env::current_dir;
 use std::path::Path;
-use bevy::asset::{AssetServer, Assets, Handle};
+use bevy::asset::{AssetEvent, AssetServer, Assets, Handle};
 use bevy::core::Name;
 use bevy::gltf::GltfAssetLabel;
 use bevy::hierarchy::Children;
 use bevy::log::{error, info};
 use bevy::math::Vec3;
 use bevy::pbr::{MeshMaterial3d, StandardMaterial};
-use bevy::prelude::{AnimationGraph, AnimationGraphHandle, Color, Commands, Entity, FromWorld, HierarchyQueryExt, Mesh, Mesh3d, Parent, Query, Res, ResMut, Resource, SceneRoot, Time, Transform, World};
+use bevy::prelude::{AnimationGraph, AnimationGraphHandle, Color, Commands, Component, Entity, EventReader, FromWorld, Gltf, HierarchyQueryExt, Mesh, Mesh3d, Parent, Query, Res, ResMut, Resource, SceneRoot, Time, Transform, World};
 use bevy::render::mesh::VertexAttributeValues;
 use crate::{vxm_mesh};
 use crate::camera::CameraTarget;
@@ -59,6 +59,36 @@ impl FromWorld for ChestModels {
                 parent_name: None,
             },
         ])
+    }
+}
+
+#[derive(Component)]
+struct ReplaceWithVxm {
+    name: String,
+    vxm_handle: Handle<VxmAsset>,
+}
+
+pub fn create_vxm_swap_targets_on_gltf_import_system(
+    mut events: EventReader<AssetEvent<Gltf>>,
+) {
+    for event in events.read() {
+        match event {
+            AssetEvent::LoadedWithDependencies { id } => {
+                info!("Loaded GLTF {:?}", id);
+            }
+            AssetEvent::Added { id } => {
+                info!("Added GLTF {:?}", id);
+            }
+            AssetEvent::Unused { id } => {
+                info!("Unused GLTF {:?}", id);
+            }
+            AssetEvent::Modified { id } => {
+                info!("Modified GLTF {:?}", id);
+            }
+            AssetEvent::Removed { id } => {
+                info!("Removed GLTF {:?}", id);
+            }
+        }
     }
 }
 
@@ -214,7 +244,7 @@ impl FromWorld for PlayerBodyPartModels {
                     }
                 }
                 Err(e) => {
-                    error!("Error reading directory {:?} {:?}", dir_path, e);
+                    panic!("Error reading directory {:?} {:?}", dir_path, e);
                     continue;
                 }
             }

@@ -162,9 +162,23 @@ pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
     let mut normals = Vec::new();
     let mut colours = Vec::new();
     let mut voxel_index = 0;
-    let cube_vertex_indices = get_cube_face_vertex_indices();
-    let cube_vertex_positions = get_cube_face_vertex_positions(CubeFace::Top);
-    let cube_normals = get_cube_face_normals(CubeFace::Top);
+    let cube_vertex_indices = get_cube_face_vertex_indices().repeat(6);
+
+    let mut cube_vertex_positions = Vec::new();
+    cube_vertex_positions.extend(get_cube_face_vertex_positions(CubeFace::Top));
+    cube_vertex_positions.extend(get_cube_face_vertex_positions(CubeFace::Bottom));
+    cube_vertex_positions.extend(get_cube_face_vertex_positions(CubeFace::Front));
+    cube_vertex_positions.extend(get_cube_face_vertex_positions(CubeFace::Back));
+    cube_vertex_positions.extend(get_cube_face_vertex_positions(CubeFace::Left));
+    cube_vertex_positions.extend(get_cube_face_vertex_positions(CubeFace::Right));
+
+    let mut cube_normals = Vec::new();
+    cube_normals.extend(get_cube_face_normals(CubeFace::Top));
+    cube_normals.extend(get_cube_face_normals(CubeFace::Bottom));
+    cube_normals.extend(get_cube_face_normals(CubeFace::Front));
+    cube_normals.extend(get_cube_face_normals(CubeFace::Back));
+    cube_normals.extend(get_cube_face_normals(CubeFace::Left));
+    cube_normals.extend(get_cube_face_normals(CubeFace::Right));
 
     for voxel in &voxels.voxels {
         for vertex in &cube_vertex_positions {
@@ -213,9 +227,6 @@ pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
 pub fn create_mesh_on_vxm_import_system(
     vxm_assets: Res<Assets<VxmAsset>>,
     mut events: EventReader<AssetEvent<VxmAsset>>,
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, MyExtension>>>,
 ) {
     // Log voxel count to debug for now
     for event in events.read() {
@@ -224,21 +235,6 @@ pub fn create_mesh_on_vxm_import_system(
                 match vxm_assets.get(*id) {
                     Some(vxm_asset) => {
                         info!("Loaded vxm containing {:?} voxels", vxm_asset.vox_count);
-                        commands.spawn((
-                            Mesh3d(meshes.add(create_mesh_from_voxels(&vxm_asset))),
-                            MeshMaterial3d(materials.add(ExtendedMaterial {
-                                base: StandardMaterial {
-                                    base_color: WHITE.into(),
-                                    opaque_render_method: OpaqueRendererMethod::Auto,
-                                    ..Default::default()
-                                },
-                                extension: MyExtension {
-                                    color: LinearRgba::BLUE,
-                                },
-                            })),
-                            Transform::from_scale(Vec3::new(0.03, 0.03, 0.03)),
-                            // Wireframe
-                        ));
                     }
                     _ => {}
                 }

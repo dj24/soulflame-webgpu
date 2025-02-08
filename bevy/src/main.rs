@@ -11,7 +11,7 @@ mod vxm_mesh;
 use crate::camera::ThirdPersonCameraPlugin;
 use crate::dnd::{file_drag_and_drop_system, setup_scene_once_loaded};
 use crate::draw_aabb_gizmos::DrawAabbGizmosPlugin;
-use crate::replace_body_part_meshes::change_player_mesh_in_scene;
+use crate::replace_body_part_meshes::{change_player_mesh_in_scene, create_vxm_swap_targets_on_gltf_import_system};
 use crate::set_animation_clip_keyboard::SetAnimationClipPlugin;
 use crate::spawn_player::spawn_player;
 use crate::vxm::{VxmAsset, VxmAssetLoader};
@@ -36,6 +36,16 @@ use bevy::{
 use bevy::{prelude::*, render::extract_resource::ExtractResource};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use std::f32::consts::*;
+use bevy::window::WindowResolution;
+
+fn exit_on_esc_system(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut exit: EventWriter<AppExit>
+) {
+    if keyboard_input.just_pressed(KeyCode::Escape) {
+        exit.send(AppExit::Success);
+    }
+}
 
 fn main() {
     App::new()
@@ -46,6 +56,7 @@ fn main() {
             DefaultPlugins.set(WindowPlugin {
                 primary_window: Some(Window {
                     title: "Soulflame".to_string(),
+                    resolution: WindowResolution::new(1920., 1080.),
                     focused: true,
                     ..default()
                 }),
@@ -78,6 +89,8 @@ fn main() {
                 file_drag_and_drop_system,
                 setup_scene_once_loaded,
                 change_player_mesh_in_scene,
+                exit_on_esc_system,
+                create_vxm_swap_targets_on_gltf_import_system
             ),
         )
         .run();
