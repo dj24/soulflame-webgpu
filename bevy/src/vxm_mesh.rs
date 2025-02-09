@@ -1,4 +1,4 @@
-use crate::vxm::VxmAsset;
+use crate::vxm::{Voxel, VxmAsset};
 use bevy::asset::{AssetEvent, Assets, RenderAssetUsages};
 use bevy::color::palettes::basic::{RED, WHITE};
 use bevy::log::info;
@@ -93,9 +93,7 @@ fn get_cube_face_vertex_positions(cube_face: CubeFace) -> Vec<[f32; 3]> {
 }
 
 fn get_cube_face_vertex_indices() -> Vec<u16> {
-    vec![
-        0, 1, 2, 0, 2, 3,
-    ]
+    vec![0, 1, 2, 0, 2, 3]
 }
 
 fn get_cube_face_normals(cube_face: CubeFace) -> Vec<[f32; 3]> {
@@ -156,51 +154,138 @@ fn get_cube_normals() -> Vec<[f32; 3]> {
     ]
 }
 
+fn add_face(
+    voxels: &VxmAsset,
+    voxel: &Voxel,
+    positions_in: &Vec<[f32; 3]>,
+    normals_in: &Vec<[f32; 3]>,
+    indices_in: &Vec<u16>,
+    positions_out: &mut Vec<[f32; 3]>,
+    normals_out: &mut Vec<[f32; 3]>,
+    colors_out: &mut Vec<[f32; 4]>,
+    indices_out: &mut Vec<u16>,
+) {
+    let base_index = positions_out.len() as u16;
+    for vertex in positions_in {
+        positions_out.push([
+            vertex[0] + voxel.x as f32 - voxels.size[0] as f32 / 2.0,
+            vertex[1] + voxel.y as f32 - voxels.size[1] as f32 / 2.0,
+            vertex[2] + voxel.z as f32 - voxels.size[2] as f32 / 2.0,
+        ]);
+        colors_out.push([
+            voxels.palette[voxel.c as usize].r as f32 / 255.0,
+            voxels.palette[voxel.c as usize].g as f32 / 255.0,
+            voxels.palette[voxel.c as usize].b as f32 / 255.0,
+            voxels.palette[voxel.c as usize].a as f32 / 255.0,
+        ]);
+    }
+    for normal in normals_in {
+        normals_out.push(*normal);
+    }
+    for index in indices_in {
+        indices_out.push(index + base_index);
+    }
+}
+
 pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
     let mut positions = Vec::new();
     let mut indices = Vec::new();
     let mut normals = Vec::new();
     let mut colours = Vec::new();
-    let mut voxel_index = 0;
+
     let cube_vertex_indices = get_cube_face_vertex_indices().repeat(6);
 
-    let mut cube_vertex_positions = Vec::new();
-    cube_vertex_positions.extend(get_cube_face_vertex_positions(CubeFace::Top));
-    cube_vertex_positions.extend(get_cube_face_vertex_positions(CubeFace::Bottom));
-    cube_vertex_positions.extend(get_cube_face_vertex_positions(CubeFace::Front));
-    cube_vertex_positions.extend(get_cube_face_vertex_positions(CubeFace::Back));
-    cube_vertex_positions.extend(get_cube_face_vertex_positions(CubeFace::Left));
-    cube_vertex_positions.extend(get_cube_face_vertex_positions(CubeFace::Right));
+    let cube_vertex_positions_top = get_cube_face_vertex_positions(CubeFace::Top);
+    let cube_normals_top = get_cube_face_normals(CubeFace::Top);
 
-    let mut cube_normals = Vec::new();
-    cube_normals.extend(get_cube_face_normals(CubeFace::Top));
-    cube_normals.extend(get_cube_face_normals(CubeFace::Bottom));
-    cube_normals.extend(get_cube_face_normals(CubeFace::Front));
-    cube_normals.extend(get_cube_face_normals(CubeFace::Back));
-    cube_normals.extend(get_cube_face_normals(CubeFace::Left));
-    cube_normals.extend(get_cube_face_normals(CubeFace::Right));
+    let cube_vertex_positions_front = get_cube_face_vertex_positions(CubeFace::Front);
+    let cube_normals_front = get_cube_face_normals(CubeFace::Front);
+
+    let cube_vertex_positions_back = get_cube_face_vertex_positions(CubeFace::Back);
+    let cube_normals_back = get_cube_face_normals(CubeFace::Back);
+
+    let cube_vertex_positions_bottom = get_cube_face_vertex_positions(CubeFace::Bottom);
+    let cube_normals_bottom = get_cube_face_normals(CubeFace::Bottom);
+
+    let cube_vertex_positions_left = get_cube_face_vertex_positions(CubeFace::Left);
+    let cube_normals_left = get_cube_face_normals(CubeFace::Left);
+
+    let cube_vertex_positions_right = get_cube_face_vertex_positions(CubeFace::Right);
+    let cube_normals_right = get_cube_face_normals(CubeFace::Right);
 
     for voxel in &voxels.voxels {
-        for vertex in &cube_vertex_positions {
-            positions.push([
-                vertex[0] + voxel.x as f32 - voxels.size[0] as f32 / 2.0,
-                vertex[1] + voxel.y as f32 - voxels.size[1] as f32 / 2.0,
-                vertex[2] + voxel.z as f32 - voxels.size[2] as f32 / 2.0,
-            ]);
-            colours.push([
-                voxels.palette[voxel.c as usize].r as f32 / 255.0,
-                voxels.palette[voxel.c as usize].g as f32 / 255.0,
-                voxels.palette[voxel.c as usize].b as f32 / 255.0,
-                voxels.palette[voxel.c as usize].a as f32 / 255.0,
-            ]);
-        }
-        for normal in &cube_normals {
-            normals.push(*normal);
-        }
-        for index in &cube_vertex_indices {
-            indices.push(index + voxel_index as u16 * cube_vertex_positions.len() as u16);
-        }
-        voxel_index += 1;
+        //Top
+        add_face(
+            voxels,
+            voxel,
+            &cube_vertex_positions_top,
+            &cube_normals_top,
+            &cube_vertex_indices,
+            &mut positions,
+            &mut normals,
+            &mut colours,
+            &mut indices,
+        );
+        //Font
+        add_face(
+            voxels,
+            voxel,
+            &cube_vertex_positions_front,
+            &cube_normals_front,
+            &cube_vertex_indices,
+            &mut positions,
+            &mut normals,
+            &mut colours,
+            &mut indices,
+        );
+        //Back
+        add_face(
+            voxels,
+            voxel,
+            &cube_vertex_positions_back,
+            &cube_normals_back,
+            &cube_vertex_indices,
+            &mut positions,
+            &mut normals,
+            &mut colours,
+            &mut indices,
+        );
+        //Bottom
+        add_face(
+            voxels,
+            voxel,
+            &cube_vertex_positions_bottom,
+            &cube_normals_bottom,
+            &cube_vertex_indices,
+            &mut positions,
+            &mut normals,
+            &mut colours,
+            &mut indices,
+        );
+        //Left
+        add_face(
+            voxels,
+            voxel,
+            &cube_vertex_positions_left,
+            &cube_normals_left,
+            &cube_vertex_indices,
+            &mut positions,
+            &mut normals,
+            &mut colours,
+            &mut indices,
+        );
+        //Right
+        add_face(
+            voxels,
+            voxel,
+            &cube_vertex_positions_right,
+            &cube_normals_right,
+            &cube_vertex_indices,
+            &mut positions,
+            &mut normals,
+            &mut colours,
+            &mut indices,
+        );
     }
 
     let bytes =
@@ -231,14 +316,12 @@ pub fn create_mesh_on_vxm_import_system(
     // Log voxel count to debug for now
     for event in events.read() {
         match event {
-            AssetEvent::LoadedWithDependencies { id } => {
-                match vxm_assets.get(*id) {
-                    Some(vxm_asset) => {
-                        info!("Loaded vxm containing {:?} voxels", vxm_asset.vox_count);
-                    }
-                    _ => {}
+            AssetEvent::LoadedWithDependencies { id } => match vxm_assets.get(*id) {
+                Some(vxm_asset) => {
+                    info!("Loaded vxm containing {:?} voxels", vxm_asset.vox_count);
                 }
-            }
+                _ => {}
+            },
             AssetEvent::Added { id } => {
                 info!("Added {:?}", id);
             }

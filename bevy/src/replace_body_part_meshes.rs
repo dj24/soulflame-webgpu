@@ -1,5 +1,7 @@
-use std::env::current_dir;
-use std::path::Path;
+use crate::camera::CameraTarget;
+use crate::dnd::Animations;
+use crate::vxm::VxmAsset;
+use crate::vxm_mesh;
 use bevy::asset::{AssetEvent, AssetServer, Assets, Handle};
 use bevy::core::Name;
 use bevy::gltf::GltfAssetLabel;
@@ -7,12 +9,14 @@ use bevy::hierarchy::Children;
 use bevy::log::{error, info};
 use bevy::math::Vec3;
 use bevy::pbr::{MeshMaterial3d, StandardMaterial};
-use bevy::prelude::{AnimationGraph, AnimationGraphHandle, Color, Commands, Component, Entity, EventReader, FromWorld, Gltf, HierarchyQueryExt, Mesh, Mesh3d, Parent, Query, Res, ResMut, Resource, SceneRoot, Time, Transform, World};
+use bevy::prelude::{
+    AnimationGraph, AnimationGraphHandle, Color, Commands, Component, Entity, EventReader,
+    FromWorld, Gltf, HierarchyQueryExt, Mesh, Mesh3d, Parent, Query, Res, ResMut, Resource,
+    SceneRoot, Time, Transform, World,
+};
 use bevy::render::mesh::VertexAttributeValues;
-use crate::{vxm_mesh};
-use crate::camera::CameraTarget;
-use crate::dnd::Animations;
-use crate::vxm::VxmAsset;
+use std::env::current_dir;
+use std::path::Path;
 
 const BEAR_HEAD_VXM_PATH: &str = "meshes/Barbearian/Male/Head/BearHead.vxm";
 const BEAR_CHEST_VXM_PATH: &str = "meshes/Barbearian/Male/Chest/BearChest.vxm";
@@ -68,9 +72,7 @@ struct ReplaceWithVxm {
     vxm_handle: Handle<VxmAsset>,
 }
 
-pub fn create_vxm_swap_targets_on_gltf_import_system(
-    mut events: EventReader<AssetEvent<Gltf>>,
-) {
+pub fn create_vxm_swap_targets_on_gltf_import_system(mut events: EventReader<AssetEvent<Gltf>>) {
     for event in events.read() {
         match event {
             AssetEvent::LoadedWithDependencies { id } => {
@@ -125,7 +127,7 @@ impl FromWorld for PlayerBodyPartModels {
             ("BearHand", "meshes/Armour/Secondary/Hand/Mid"),
             ("BearFoot", "meshes/Armour/Plates and pads/Feet/Mid"),
             ("BearFoot", "meshes/Armour/Details/Feet/Mid"),
-            ("BearFoot", "meshes/Armour/Secondary/Feet/Mid")
+            ("BearFoot", "meshes/Armour/Secondary/Feet/Mid"),
         ];
 
         let assets_dir = current_dir().unwrap().join("assets");
@@ -231,10 +233,15 @@ impl FromWorld for PlayerBodyPartModels {
                     info!("Reading directory: {:?}", dir_path);
                     for entry in read_dir_result {
                         let file_path = entry.unwrap().path();
-                        if file_path.is_file() && file_path.extension().unwrap_or_default() == "vxm" {
+                        if file_path.is_file() && file_path.extension().unwrap_or_default() == "vxm"
+                        {
                             let relative_path = file_path.strip_prefix(&assets_dir).unwrap();
-                            let file_stem = file_path.file_stem().unwrap().to_str().unwrap().to_string();
-                            info!("Importing armour piece {:?} for {:?}", file_stem, body_part_name);
+                            let file_stem =
+                                file_path.file_stem().unwrap().to_str().unwrap().to_string();
+                            info!(
+                                "Importing armour piece {:?} for {:?}",
+                                file_stem, body_part_name
+                            );
                             model_vec.push(VxmMeshSwapTarget {
                                 name: file_stem,
                                 vxm_handle: asset_server.load(relative_path.to_str().unwrap()),
@@ -244,7 +251,7 @@ impl FromWorld for PlayerBodyPartModels {
                     }
                 }
                 Err(e) => {
-                    panic!("Error reading directory {:?} {:?}", dir_path, e);
+                    error!("Error reading directory {:?} {:?}", dir_path, e);
                     continue;
                 }
             }
@@ -253,8 +260,6 @@ impl FromWorld for PlayerBodyPartModels {
         PlayerBodyPartModels(model_vec)
     }
 }
-
-
 
 enum Axis {
     X,
@@ -304,7 +309,7 @@ pub fn change_player_mesh_in_scene(
     mut materials: ResMut<Assets<StandardMaterial>>,
     player_body_part_models: Option<Res<PlayerBodyPartModels>>,
     vxm_assets: Res<Assets<VxmAsset>>,
-    asset_server: Res<AssetServer>
+    asset_server: Res<AssetServer>,
 ) {
     if player_body_part_models.is_none() {
         return;
@@ -315,12 +320,14 @@ pub fn change_player_mesh_in_scene(
     let body_material = materials.add(StandardMaterial {
         perceptual_roughness: 1.0,
         metallic: 0.0,
+        cull_mode: None,
         ..Default::default()
     });
 
     let armoured_material = materials.add(StandardMaterial {
         perceptual_roughness: 0.1,
         metallic: 1.0,
+        cull_mode: None,
         ..Default::default()
     });
 
@@ -350,14 +357,16 @@ pub fn change_player_mesh_in_scene(
                     while current_parent.is_ok() {
                         let parent_entity = current_parent.unwrap().get();
                         if let Ok(parent_name_component) = name_query.get(parent_entity) {
-                            if parent_name_component.as_str().starts_with(parent_name.as_str()) {
+                            if parent_name_component
+                                .as_str()
+                                .starts_with(parent_name.as_str())
+                            {
                                 is_parent_found = Some(true);
                                 break;
                             }
                         }
                         current_parent = parent_query.get(parent_entity);
                     }
-
                 }
 
                 if is_parent_found.is_some() && !is_parent_found.unwrap() {
@@ -377,9 +386,7 @@ pub fn change_player_mesh_in_scene(
                         info!("Vxm asset not found for {:?}", swap_target.name);
                         continue;
                     }
-                    let replacement_mesh = vxm_mesh::create_mesh_from_voxels(
-                        voxels.unwrap(),
-                    );
+                    let replacement_mesh = vxm_mesh::create_mesh_from_voxels(voxels.unwrap());
                     mesh_handle = meshes.add(replacement_mesh);
                     let replacement_max_axes = Vec3::new(
                         get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::X),
@@ -387,8 +394,8 @@ pub fn change_player_mesh_in_scene(
                         get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::Z),
                     );
                     let max_axes_difference = max_axes - replacement_max_axes;
-                    let new_transform = Transform::from_translation(max_axes_difference).
-                        mul_transform(Transform::from_scale(scale));
+                    let new_transform = Transform::from_translation(max_axes_difference)
+                        .mul_transform(Transform::from_scale(scale));
 
                     // Remove the old mesh and material
                     commands
