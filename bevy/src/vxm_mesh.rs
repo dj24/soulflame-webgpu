@@ -214,6 +214,7 @@ pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
     let cube_normals_right = get_cube_face_normals(CubeFace::Right);
 
     for voxel in &voxels.voxels {
+        // TODO: check face visibility
         //Top
         add_face(
             voxels,

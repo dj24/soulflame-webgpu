@@ -184,17 +184,26 @@ impl AssetLoader for VxmAssetLoader {
         }
 
         start_time = std::time::Instant::now();
-        voxels.iter_mut().for_each(|voxel| {
-            voxel.x -= bounds_min[0];
-            voxel.y -= bounds_min[1];
-            voxel.z -= bounds_min[2];
-        });
 
         let size = [
             bounds_max[0] - bounds_min[0] + 1,
             bounds_max[1] - bounds_min[1] + 1,
             bounds_max[2] - bounds_min[2] + 1,
         ];
+
+        let x_dim = size[0] as usize;
+        let y_dim = size[1] as usize;
+        let z_dim = size[2] as usize;
+
+        let mut voxel_array = vec![vec![vec![0; z_dim]; y_dim]; x_dim];
+
+        voxels.iter_mut().for_each(|voxel| {
+            voxel.x -= bounds_min[0];
+            voxel.y -= bounds_min[1];
+            voxel.z -= bounds_min[2];
+            voxel_array[voxel.x as usize][voxel.y as usize][voxel.z as usize] = voxel.c;
+        });
+
 
         Ok(VxmAsset {
             vox_count: voxels.len(),
