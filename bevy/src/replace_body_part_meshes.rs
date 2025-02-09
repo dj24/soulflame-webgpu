@@ -8,7 +8,7 @@ use bevy::gltf::GltfAssetLabel;
 use bevy::hierarchy::Children;
 use bevy::log::{error, info};
 use bevy::math::Vec3;
-use bevy::pbr::{MeshMaterial3d, StandardMaterial};
+use bevy::pbr::{ExtendedMaterial, MeshMaterial3d, StandardMaterial};
 use bevy::prelude::{
     AnimationGraph, AnimationGraphHandle, Color, Commands, Component, Entity, EventReader,
     FromWorld, Gltf, HierarchyQueryExt, Mesh, Mesh3d, Parent, Query, Res, ResMut, Resource,
@@ -18,6 +18,7 @@ use bevy::render::mesh::VertexAttributeValues;
 use std::env::current_dir;
 use std::path::Path;
 use bevy::pbr::wireframe::Wireframe;
+use crate::vxm_mesh::MyExtension;
 
 const BEAR_HEAD_VXM_PATH: &str = "meshes/Barbearian/Male/Head/BearHead.vxm";
 const BEAR_CHEST_VXM_PATH: &str = "meshes/Barbearian/Male/Chest/BearChest.vxm";
@@ -365,18 +366,24 @@ pub fn add_vxm_swap_targets(
 
 
 pub fn swap_vxm_meshes(
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, MyExtension>>>,
     replace_with_vxm_query: Query<(Entity, &ReplaceWithVxm)>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut commands: Commands,
     vxm_assets: Res<Assets<VxmAsset>>,
     mesh3d_query: Query<&Mesh3d>,
 ) {
-    let body_material = materials.add(StandardMaterial {
-        perceptual_roughness: 1.0,
-        metallic: 0.0,
-        cull_mode: None,
-        ..Default::default()
+    let body_material = materials.add(
+        ExtendedMaterial {
+            base: StandardMaterial {
+                perceptual_roughness: 1.0,
+                metallic: 0.0,
+                cull_mode: None,
+                ..Default::default()
+            },
+            extension: MyExtension {
+                color: bevy::prelude::LinearRgba::new(1.0, 0.0, 0.0, 1.0),
+            }
     });
 
     for(entity, replace_with_vxm) in replace_with_vxm_query.iter() {

@@ -1,3 +1,4 @@
+use crate::instancing::setup_instancing;
 use crate::vxm::{Voxel, VxmAsset};
 use bevy::asset::{AssetEvent, Assets, RenderAssetUsages};
 use bevy::color::palettes::basic::{PURPLE, RED, WHITE};
@@ -7,6 +8,7 @@ use bevy::pbr::wireframe::WireframeConfig;
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, MeshVertexAttribute, PrimitiveTopology};
 use bevy::render::render_resource::{AsBindGroup, ShaderRef, VertexFormat};
+use crate::instancing::CustomMaterialPlugin;
 
 fn get_cube_vertex_positions() -> Vec<[f32; 3]> {
     vec![
@@ -188,6 +190,22 @@ fn add_face(
     }
 }
 
+/**
+    Ideal data layout per face:
+    32bit: position + palette index + side
+    x: 7bits
+    y: 7bits
+    z: 7bits
+    palette index: 8bits
+    side: 3bits
+
+    Current per vertex
+    32bitx3: position
+    32bitx3: normal
+    32bitx4: colour
+
+    Total per face: 40 bytes
+*/
 pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
     let mut positions = Vec::new();
     let mut indices = Vec::new();
@@ -366,18 +384,14 @@ pub fn create_mesh_on_vxm_import_system(
 const SHADER_ASSET_PATH: &str = "shaders/custom_material.wgsl";
 
 #[derive(Asset, AsBindGroup, Reflect, Debug, Clone)]
-struct MyExtension {
+pub struct MyExtension {
     // We need to ensure that the bindings of the base material and the extension do not conflict,
     // so we start from binding slot 100, leaving slots 0-99 for the base material.
     #[uniform(100)]
-    color: LinearRgba,
+    pub(crate) color: LinearRgba,
 }
 
 impl MaterialExtension for MyExtension {
-    fn fragment_shader() -> ShaderRef {
-        SHADER_ASSET_PATH.into()
-    }
-
     fn deferred_fragment_shader() -> ShaderRef {
         SHADER_ASSET_PATH.into()
     }
@@ -394,6 +408,7 @@ impl Plugin for VxmMeshPlugin {
         app.add_plugins(MaterialPlugin::<
             ExtendedMaterial<StandardMaterial, MyExtension>,
         >::default());
-        // app.add_systems(Update, create_mesh_on_vxm_import_system);
+        // app.add_plugins(CustomMaterialPlugin);
+        // app.add_systems(Startup, setup_instancing);
     }
 }

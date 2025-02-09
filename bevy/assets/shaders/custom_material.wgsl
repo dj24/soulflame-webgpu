@@ -1,19 +1,15 @@
 #import bevy_pbr::{
     pbr_fragment::pbr_input_from_standard_material,
     pbr_functions::alpha_discard,
+    mesh_functions::get_world_from_local,
+    mesh_functions::mesh_position_local_to_world,
+    view_transformations::position_world_to_clip,
 }
 
-#ifdef PREPASS_PIPELINE
 #import bevy_pbr::{
-    prepass_io::{VertexOutput, FragmentOutput},
+    prepass_io::{Vertex, VertexOutput, FragmentOutput},
     pbr_deferred_functions::deferred_output,
 }
-#else
-#import bevy_pbr::{
-    forward_io::{VertexOutput, FragmentOutput},
-    pbr_functions::{apply_pbr_lighting, main_pass_post_lighting_processing},
-}
-#endif
 
 struct MyExtendedMaterial {
     color: vec4<f32>
@@ -22,29 +18,24 @@ struct MyExtendedMaterial {
 @group(2) @binding(100)
 var<uniform> my_extended_material: MyExtendedMaterial;
 
+@vertex
+fn vertex(vertex: Vertex) -> VertexOutput {
+  var out: VertexOutput;
+  let world_from_local = get_world_from_local(vertex.instance_index);
+  out.world_position = mesh_position_local_to_world(world_from_local, vec4<f32>(vertex.position, 1.0));
+  out.position = position_world_to_clip(out.world_position.xyz);
+  out.color = vertex.color;
+  return out;
+}
+
+
 @fragment
 fn fragment(
     in: VertexOutput,
     @builtin(front_facing) is_front: bool,
 ) -> FragmentOutput {
-    // generate a PbrInput struct from the StandardMaterial bindings
     var pbr_input = pbr_input_from_standard_material(in, is_front);
-
-    // alpha discard
     pbr_input.material.base_color = alpha_discard(pbr_input.material, pbr_input.material.base_color);
-
-#ifdef PREPASS_PIPELINE
-    // in deferred mode we can't modify anything after that, as lighting is run in a separate fullscreen shader.
     let out = deferred_output(in, pbr_input);
-#else
-    var out: FragmentOutput;
-    // apply lighting
-    out.color = apply_pbr_lighting(pbr_input);
-
-    // apply in-shader post processing (fog, alpha-premultiply, and also tonemapping, debanding if the camera is non-hdr)
-    // note this does not include fullscreen postprocessing effects like bloom.
-    out.color = main_pass_post_lighting_processing(pbr_input, out.color);
-#endif
-
     return out;
 }

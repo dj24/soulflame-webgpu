@@ -7,6 +7,7 @@ mod set_animation_clip_keyboard;
 mod spawn_player;
 mod vxm;
 mod vxm_mesh;
+mod instancing;
 
 use crate::camera::ThirdPersonCameraPlugin;
 use crate::dnd::{file_drag_and_drop_system, setup_scene_once_loaded};
@@ -39,7 +40,7 @@ use std::f32::consts::*;
 use bevy::render::render_resource::WgpuFeatures;
 use bevy::render::RenderPlugin;
 use bevy::render::settings::{RenderCreation, WgpuSettings};
-use bevy::window::WindowResolution;
+use bevy::window::{PresentMode, WindowResolution};
 
 fn exit_on_esc_system(
     keyboard_input: Res<ButtonInput<KeyCode>>,
@@ -61,6 +62,7 @@ fn main() {
                     title: "Soulflame".to_string(),
                     resolution: WindowResolution::new(1920., 1080.),
                     focused: true,
+                    present_mode: PresentMode::AutoNoVsync,
                     ..default()
                 }),
                 ..default()
