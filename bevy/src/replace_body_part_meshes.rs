@@ -17,6 +17,7 @@ use bevy::prelude::{
 use bevy::render::mesh::VertexAttributeValues;
 use std::env::current_dir;
 use std::path::Path;
+use bevy::pbr::wireframe::Wireframe;
 
 const BEAR_HEAD_VXM_PATH: &str = "meshes/Barbearian/Male/Head/BearHead.vxm";
 const BEAR_CHEST_VXM_PATH: &str = "meshes/Barbearian/Male/Chest/BearChest.vxm";
@@ -67,7 +68,7 @@ impl FromWorld for ChestModels {
 }
 
 #[derive(Component)]
-struct ReplaceWithVxm {
+pub struct ReplaceWithVxm {
     name: String,
     vxm_handle: Handle<VxmAsset>,
 }
@@ -298,38 +299,20 @@ fn get_max_on_axis(mesh: &Mesh, axis: Axis) -> f32 {
 }
 
 // System to detect when scene is loaded and modify meshes
-pub fn change_player_mesh_in_scene(
+pub fn add_vxm_swap_targets(
     scene_root_query: Query<(Entity, &SceneRoot, &Children)>,
     children_query: Query<&Children>,
     parent_query: Query<&Parent>,
     name_query: Query<&Name>,
     material_query: Query<(&Mesh3d, &Name, &Transform)>,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     player_body_part_models: Option<Res<PlayerBodyPartModels>>,
-    vxm_assets: Res<Assets<VxmAsset>>,
-    asset_server: Res<AssetServer>,
 ) {
     if player_body_part_models.is_none() {
         return;
     }
 
     let player_body_part_models = player_body_part_models.unwrap();
-
-    let body_material = materials.add(StandardMaterial {
-        perceptual_roughness: 1.0,
-        metallic: 0.0,
-        cull_mode: None,
-        ..Default::default()
-    });
-
-    let armoured_material = materials.add(StandardMaterial {
-        perceptual_roughness: 0.1,
-        metallic: 1.0,
-        cull_mode: None,
-        ..Default::default()
-    });
 
     for (root_entity, _, children) in scene_root_query.iter() {
         // Scene is loaded, we can now process its children
@@ -340,14 +323,6 @@ pub fn change_player_mesh_in_scene(
                 continue;
             }
             let (mesh3d, name, transform) = material_query.get(child).unwrap();
-            let mesh = meshes.get(mesh3d).unwrap();
-            let max_axes = Vec3::new(
-                get_max_on_axis(mesh, Axis::X),
-                get_max_on_axis(mesh, Axis::Y),
-                get_max_on_axis(mesh, Axis::Z),
-            );
-            let mut mesh_handle: Handle<Mesh> = Handle::default();
-
             for swap_target in &player_body_part_models.0 {
                 let mut is_parent_found: Option<bool> = None;
 
@@ -373,39 +348,13 @@ pub fn change_player_mesh_in_scene(
                     continue;
                 }
 
-                // For now, if the piece has a parent, we will assume it is armour
-                let (scale, material) = if is_parent_found.is_some() {
-                    (Vec3::splat(1.001), armoured_material.clone())
-                } else {
-                    (Vec3::splat(0.999), body_material.clone())
-                };
 
                 if name.as_str().starts_with(swap_target.name.as_str()) {
-                    let voxels = vxm_assets.get(&swap_target.vxm_handle);
-                    if voxels.is_none() {
-                        info!("Vxm asset not found for {:?}", swap_target.name);
-                        continue;
-                    }
-                    let replacement_mesh = vxm_mesh::create_mesh_from_voxels(voxels.unwrap());
-                    mesh_handle = meshes.add(replacement_mesh);
-                    let replacement_max_axes = Vec3::new(
-                        get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::X),
-                        get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::Y),
-                        get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::Z),
-                    );
-                    let max_axes_difference = max_axes - replacement_max_axes;
-                    let new_transform = Transform::from_translation(max_axes_difference)
-                        .mul_transform(Transform::from_scale(scale));
+                    commands.entity(child).insert(ReplaceWithVxm {
+                        name: name.as_str().to_string(),
+                        vxm_handle: swap_target.vxm_handle.clone(),
+                    });
 
-                    // Remove the old mesh and material
-                    commands
-                        .entity(child)
-                        .remove::<MeshMaterial3d<StandardMaterial>>()
-                        .remove::<Mesh3d>()
-                        .remove::<Transform>()
-                        .insert(MeshMaterial3d(material))
-                        .insert(Mesh3d(mesh_handle))
-                        .insert(new_transform);
                 }
             }
         }
@@ -413,3 +362,59 @@ pub fn change_player_mesh_in_scene(
         commands.remove_resource::<PlayerBodyPartModels>();
     }
 }
+
+
+pub fn swap_vxm_meshes(
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    replace_with_vxm_query: Query<(Entity, &ReplaceWithVxm)>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut commands: Commands,
+    vxm_assets: Res<Assets<VxmAsset>>,
+    mesh3d_query: Query<&Mesh3d>,
+) {
+    let body_material = materials.add(StandardMaterial {
+        perceptual_roughness: 1.0,
+        metallic: 0.0,
+        cull_mode: None,
+        ..Default::default()
+    });
+
+    for(entity, replace_with_vxm) in replace_with_vxm_query.iter() {
+        let voxels = vxm_assets.get(&replace_with_vxm.vxm_handle);
+        if voxels.is_none() {
+            info!("Vxm asset not found for {:?}", replace_with_vxm.name);
+            continue;
+        }
+        let replacement_mesh = vxm_mesh::create_mesh_from_voxels(voxels.unwrap());
+        let mesh_handle = meshes.add(replacement_mesh);
+        let replacement_max_axes = Vec3::new(
+            get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::X),
+            get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::Y),
+            get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::Z),
+        );
+        let mesh3d = mesh3d_query.get(entity).unwrap();
+        let mesh = meshes.get(mesh3d).unwrap();
+        let max_axes = Vec3::new(
+            get_max_on_axis(mesh, Axis::X),
+            get_max_on_axis(mesh, Axis::Y),
+            get_max_on_axis(mesh, Axis::Z),
+        );
+        let max_axes_difference = max_axes - replacement_max_axes;
+        let new_transform = Transform::from_translation(max_axes_difference)
+            .mul_transform(Transform::from_scale(Vec3::splat(1.001)));
+
+        // Remove the old mesh and material
+        commands
+            .entity(entity)
+            .remove::<MeshMaterial3d<StandardMaterial>>()
+            .remove::<ReplaceWithVxm>()
+            .remove::<Mesh3d>()
+            .remove::<Transform>()
+            .insert(MeshMaterial3d(body_material.clone()))
+            .insert(Mesh3d(mesh_handle))
+            .insert(new_transform)
+            .insert(Wireframe);
+    }
+
+}
+

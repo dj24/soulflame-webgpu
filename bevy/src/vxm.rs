@@ -23,6 +23,7 @@ pub struct VxmAsset {
     pub size: [u32; 3],
     pub voxels: Vec<Voxel>,
     pub palette: Vec<PaletteColor>,
+    pub voxel_array: Vec<Vec<Vec<i16>>>,
 }
 
 #[derive(Default)]
@@ -195,13 +196,13 @@ impl AssetLoader for VxmAssetLoader {
         let y_dim = size[1] as usize;
         let z_dim = size[2] as usize;
 
-        let mut voxel_array = vec![vec![vec![0; z_dim]; y_dim]; x_dim];
+        let mut voxel_array = vec![vec![vec![-1i16; z_dim]; y_dim]; x_dim];
 
         voxels.iter_mut().for_each(|voxel| {
             voxel.x -= bounds_min[0];
             voxel.y -= bounds_min[1];
             voxel.z -= bounds_min[2];
-            voxel_array[voxel.x as usize][voxel.y as usize][voxel.z as usize] = voxel.c;
+            voxel_array[voxel.x as usize][voxel.y as usize][voxel.z as usize] = voxel.c as i16;
         });
 
 
@@ -210,6 +211,7 @@ impl AssetLoader for VxmAssetLoader {
             size,
             voxels,
             palette,
+            voxel_array
         })
     }
 

@@ -11,7 +11,7 @@ mod vxm_mesh;
 use crate::camera::ThirdPersonCameraPlugin;
 use crate::dnd::{file_drag_and_drop_system, setup_scene_once_loaded};
 use crate::draw_aabb_gizmos::DrawAabbGizmosPlugin;
-use crate::replace_body_part_meshes::{change_player_mesh_in_scene, create_vxm_swap_targets_on_gltf_import_system};
+use crate::replace_body_part_meshes::{add_vxm_swap_targets, create_vxm_swap_targets_on_gltf_import_system, swap_vxm_meshes};
 use crate::set_animation_clip_keyboard::SetAnimationClipPlugin;
 use crate::spawn_player::spawn_player;
 use crate::vxm::{VxmAsset, VxmAssetLoader};
@@ -36,6 +36,9 @@ use bevy::{
 use bevy::{prelude::*, render::extract_resource::ExtractResource};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use std::f32::consts::*;
+use bevy::render::render_resource::WgpuFeatures;
+use bevy::render::RenderPlugin;
+use bevy::render::settings::{RenderCreation, WgpuSettings};
 use bevy::window::WindowResolution;
 
 fn exit_on_esc_system(
@@ -58,6 +61,13 @@ fn main() {
                     title: "Soulflame".to_string(),
                     resolution: WindowResolution::new(1920., 1080.),
                     focused: true,
+                    ..default()
+                }),
+                ..default()
+            }).set(RenderPlugin {
+                render_creation: RenderCreation::Automatic(WgpuSettings {
+                    // WARN this is a native only feature. It will not work with webgl or webgpu
+                    features: WgpuFeatures::POLYGON_MODE_LINE,
                     ..default()
                 }),
                 ..default()
@@ -88,9 +98,10 @@ fn main() {
             (
                 file_drag_and_drop_system,
                 setup_scene_once_loaded,
-                change_player_mesh_in_scene,
+                add_vxm_swap_targets,
                 exit_on_esc_system,
-                create_vxm_swap_targets_on_gltf_import_system
+                create_vxm_swap_targets_on_gltf_import_system,
+                swap_vxm_meshes
             ),
         )
         .run();

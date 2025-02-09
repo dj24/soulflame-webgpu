@@ -1,11 +1,12 @@
 use crate::vxm::{Voxel, VxmAsset};
 use bevy::asset::{AssetEvent, Assets, RenderAssetUsages};
-use bevy::color::palettes::basic::{RED, WHITE};
+use bevy::color::palettes::basic::{PURPLE, RED, WHITE};
 use bevy::log::info;
 use bevy::pbr::{ExtendedMaterial, MaterialExtension, MeshMaterial3d, OpaqueRendererMethod};
+use bevy::pbr::wireframe::WireframeConfig;
 use bevy::prelude::*;
-use bevy::render::mesh::{Indices, PrimitiveTopology};
-use bevy::render::render_resource::{AsBindGroup, ShaderRef};
+use bevy::render::mesh::{Indices, MeshVertexAttribute, PrimitiveTopology};
+use bevy::render::render_resource::{AsBindGroup, ShaderRef, VertexFormat};
 
 fn get_cube_vertex_positions() -> Vec<[f32; 3]> {
     vec![
@@ -78,16 +79,16 @@ fn get_cube_face_vertex_positions(cube_face: CubeFace) -> Vec<[f32; 3]> {
             [0.0, 0.0, 1.0], // Front-left
         ],
         CubeFace::Left => vec![
-            [1.0, 0.0, 1.0], // Front-bottom
-            [1.0, 0.0, 0.0], // Back-bottom
-            [1.0, 1.0, 0.0], // Back-top
-            [1.0, 1.0, 1.0], // Front-top
-        ],
-        CubeFace::Right => vec![
             [0.0, 0.0, 1.0], // Front-bottom
             [0.0, 0.0, 0.0], // Back-bottom
             [0.0, 1.0, 0.0], // Back-top
             [0.0, 1.0, 1.0], // Front-top
+        ],
+        CubeFace::Right => vec![
+            [1.0, 0.0, 1.0], // Front-bottom
+            [1.0, 0.0, 0.0], // Back-bottom
+            [1.0, 1.0, 0.0], // Back-top
+            [1.0, 1.0, 1.0], // Front-top
         ],
     }
 }
@@ -102,8 +103,8 @@ fn get_cube_face_normals(cube_face: CubeFace) -> Vec<[f32; 3]> {
         CubeFace::Front => vec![[0.0, 0.0, 1.0]].repeat(4),
         CubeFace::Top => vec![[0.0, 1.0, 0.0]].repeat(4),
         CubeFace::Bottom => vec![[0.0, -1.0, 0.0]].repeat(4),
-        CubeFace::Left => vec![[1.0, 0.0, 0.0]].repeat(4),
-        CubeFace::Right => vec![[-1.0, 0.0, 0.0]].repeat(4),
+        CubeFace::Left => vec![[-1.0, 0.0, 0.0]].repeat(4),
+        CubeFace::Right => vec![[1.0, 0.0, 0.0]].repeat(4),
     }
 }
 
@@ -215,78 +216,96 @@ pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
 
     for voxel in &voxels.voxels {
         // TODO: check face visibility
+        let x = voxel.x as usize;
+        let y = voxel.y as usize;
+        let z = voxel.z as usize;
+
         //Top
-        add_face(
-            voxels,
-            voxel,
-            &cube_vertex_positions_top,
-            &cube_normals_top,
-            &cube_vertex_indices,
-            &mut positions,
-            &mut normals,
-            &mut colours,
-            &mut indices,
-        );
-        //Font
-        add_face(
-            voxels,
-            voxel,
-            &cube_vertex_positions_front,
-            &cube_normals_front,
-            &cube_vertex_indices,
-            &mut positions,
-            &mut normals,
-            &mut colours,
-            &mut indices,
-        );
-        //Back
-        add_face(
-            voxels,
-            voxel,
-            &cube_vertex_positions_back,
-            &cube_normals_back,
-            &cube_vertex_indices,
-            &mut positions,
-            &mut normals,
-            &mut colours,
-            &mut indices,
-        );
+        if y ==(voxels.size[1] - 1) as usize || voxels.voxel_array[x][y + 1][z] == -1 {
+            add_face(
+                voxels,
+                voxel,
+                &cube_vertex_positions_top,
+                &cube_normals_top,
+                &cube_vertex_indices,
+                &mut positions,
+                &mut normals,
+                &mut colours,
+                &mut indices,
+            );
+        }
         //Bottom
-        add_face(
-            voxels,
-            voxel,
-            &cube_vertex_positions_bottom,
-            &cube_normals_bottom,
-            &cube_vertex_indices,
-            &mut positions,
-            &mut normals,
-            &mut colours,
-            &mut indices,
-        );
+        if y == 0 || voxels.voxel_array[x][y - 1][z] == -1 {
+            //Bottom
+            add_face(
+                voxels,
+                voxel,
+                &cube_vertex_positions_bottom,
+                &cube_normals_bottom,
+                &cube_vertex_indices,
+                &mut positions,
+                &mut normals,
+                &mut colours,
+                &mut indices,
+            );
+        }
         //Left
-        add_face(
-            voxels,
-            voxel,
-            &cube_vertex_positions_left,
-            &cube_normals_left,
-            &cube_vertex_indices,
-            &mut positions,
-            &mut normals,
-            &mut colours,
-            &mut indices,
-        );
+        if x == 0 || voxels.voxel_array[x - 1][y][z] == -1 {
+            add_face(
+                voxels,
+                voxel,
+                &cube_vertex_positions_left,
+                &cube_normals_left,
+                &cube_vertex_indices,
+                &mut positions,
+                &mut normals,
+                &mut colours,
+                &mut indices,
+            );
+        }
         //Right
-        add_face(
-            voxels,
-            voxel,
-            &cube_vertex_positions_right,
-            &cube_normals_right,
-            &cube_vertex_indices,
-            &mut positions,
-            &mut normals,
-            &mut colours,
-            &mut indices,
-        );
+        if x ==(voxels.size[0] - 1) as usize || voxels.voxel_array[x + 1][y][z] == -1 {
+
+            add_face(
+                voxels,
+                voxel,
+                &cube_vertex_positions_right,
+                &cube_normals_right,
+                &cube_vertex_indices,
+                &mut positions,
+                &mut normals,
+                &mut colours,
+                &mut indices,
+            );
+        }
+        //Front
+        if z ==(voxels.size[2] - 1) as usize || voxels.voxel_array[x][y][z + 1] == -1 {
+            add_face(
+                voxels,
+                voxel,
+                &cube_vertex_positions_front,
+                &cube_normals_front,
+                &cube_vertex_indices,
+                &mut positions,
+                &mut normals,
+                &mut colours,
+                &mut indices,
+            );
+        }
+        //Back
+        if z == 0 || voxels.voxel_array[x][y][z - 1] == -1 {
+            add_face(
+                voxels,
+                voxel,
+                &cube_vertex_positions_back,
+                &cube_normals_back,
+                &cube_vertex_indices,
+                &mut positions,
+                &mut normals,
+                &mut colours,
+                &mut indices,
+            );
+        }
     }
 
     let bytes =
@@ -300,6 +319,9 @@ pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
         info!("Memory usage {:?}kb", format!("{:.1}", kb));
     }
 
+    let custom_attribute = MeshVertexAttribute::new("Vertex_CustomAttribute", 123, VertexFormat::Uint8x4);
+    let custom_items = vec![[123u8, 123u8, 123u8, 123u8]];
+
     Mesh::new(
         PrimitiveTopology::TriangleList,
         RenderAssetUsages::default(),
@@ -308,6 +330,7 @@ pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
     .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
     .with_inserted_indices(Indices::U16(indices))
     .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colours)
+    // .with_inserted_attribute(custom_attribute, custom_items) // TODO: store position and colour in here
 }
 
 pub fn create_mesh_on_vxm_import_system(
@@ -364,6 +387,10 @@ pub struct VxmMeshPlugin;
 
 impl Plugin for VxmMeshPlugin {
     fn build(&self, app: &mut App) {
+        app.insert_resource(WireframeConfig {
+            global: true,
+            default_color: Color::from(PURPLE)
+        });
         app.add_plugins(MaterialPlugin::<
             ExtendedMaterial<StandardMaterial, MyExtension>,
         >::default());
