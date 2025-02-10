@@ -2,31 +2,35 @@
 mod camera;
 mod dnd;
 mod draw_aabb_gizmos;
+mod instancing;
 mod replace_body_part_meshes;
 mod set_animation_clip_keyboard;
 mod spawn_player;
 mod vxm;
 mod vxm_mesh;
-mod instancing;
 
 use crate::camera::ThirdPersonCameraPlugin;
 use crate::dnd::{file_drag_and_drop_system, setup_scene_once_loaded};
 use crate::draw_aabb_gizmos::DrawAabbGizmosPlugin;
-use crate::replace_body_part_meshes::{add_vxm_swap_targets, create_vxm_swap_targets_on_gltf_import_system, swap_vxm_meshes};
+use crate::replace_body_part_meshes::{
+    add_vxm_swap_targets, create_vxm_swap_targets_on_gltf_import_system, swap_vxm_meshes,
+};
 use crate::set_animation_clip_keyboard::SetAnimationClipPlugin;
 use crate::spawn_player::spawn_player;
 use crate::vxm::{VxmAsset, VxmAssetLoader};
 use crate::vxm_mesh::VxmMeshPlugin;
 use bevy::core_pipeline::experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing};
+use bevy::core_pipeline::prepass::MotionVectorPrepass;
 use bevy::ecs::bundle::DynamicBundle;
 use bevy::pbr::{
     FogVolume, ScreenSpaceAmbientOcclusion, ScreenSpaceAmbientOcclusionQualityLevel, VolumetricFog,
 };
+use bevy::render::render_resource::WgpuFeatures;
+use bevy::render::settings::{RenderCreation, WgpuSettings};
+use bevy::render::RenderPlugin;
+use bevy::window::{PresentMode, WindowResolution};
 use bevy::{
-    core_pipeline::{
-        motion_blur::MotionBlur,
-        prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass},
-    },
+    core_pipeline::{motion_blur::MotionBlur, prepass::DeferredPrepass},
     dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin},
     pbr::{
         CascadeShadowConfigBuilder, DefaultOpaqueRendererMethod, DirectionalLightShadowMap,
@@ -37,15 +41,8 @@ use bevy::{
 use bevy::{prelude::*, render::extract_resource::ExtractResource};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use std::f32::consts::*;
-use bevy::render::render_resource::WgpuFeatures;
-use bevy::render::RenderPlugin;
-use bevy::render::settings::{RenderCreation, WgpuSettings};
-use bevy::window::{PresentMode, WindowResolution};
 
-fn exit_on_esc_system(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut exit: EventWriter<AppExit>
-) {
+fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
     if keyboard_input.just_pressed(KeyCode::Escape) {
         exit.send(AppExit::Success);
     }
@@ -57,23 +54,25 @@ fn main() {
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
         .insert_resource(ClearColor(Color::srgb(0.0, 1.0, 0.0)))
         .add_plugins((
-            DefaultPlugins.set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: "Soulflame".to_string(),
-                    resolution: WindowResolution::new(1920., 1080.),
-                    focused: true,
-                    present_mode: PresentMode::AutoNoVsync,
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "Soulflame".to_string(),
+                        resolution: WindowResolution::new(1920., 1080.),
+                        focused: true,
+                        present_mode: PresentMode::AutoNoVsync,
+                        ..default()
+                    }),
+                    ..default()
+                })
+                .set(RenderPlugin {
+                    render_creation: RenderCreation::Automatic(WgpuSettings {
+                        // WARN this is a native only feature. It will not work with webgl or webgpu
+                        features: WgpuFeatures::POLYGON_MODE_LINE,
+                        ..default()
+                    }),
                     ..default()
                 }),
-                ..default()
-            }).set(RenderPlugin {
-                render_creation: RenderCreation::Automatic(WgpuSettings {
-                    // WARN this is a native only feature. It will not work with webgl or webgpu
-                    features: WgpuFeatures::POLYGON_MODE_LINE,
-                    ..default()
-                }),
-                ..default()
-            }),
             ThirdPersonCameraPlugin,
             TemporalAntiAliasPlugin,
             VxmMeshPlugin,
@@ -103,7 +102,7 @@ fn main() {
                 add_vxm_swap_targets,
                 exit_on_esc_system,
                 create_vxm_swap_targets_on_gltf_import_system,
-                swap_vxm_meshes
+                swap_vxm_meshes,
             ),
         )
         .run();
@@ -129,7 +128,6 @@ fn setup(
         },
         Transform::from_xyz(0.7, 0.7, 1.0).looking_at(Vec3::new(0.0, 0.3, 0.0), Vec3::Y),
         Msaa::Off,
-        DepthPrepass,
         MotionVectorPrepass,
         DeferredPrepass,
         ScreenSpaceAmbientOcclusion {

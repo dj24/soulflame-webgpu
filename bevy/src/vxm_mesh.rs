@@ -1,14 +1,14 @@
 use crate::instancing::setup_instancing;
+use crate::instancing::CustomMaterialPlugin;
 use crate::vxm::{Voxel, VxmAsset};
 use bevy::asset::{AssetEvent, Assets, RenderAssetUsages};
 use bevy::color::palettes::basic::{PURPLE, RED, WHITE};
 use bevy::log::info;
-use bevy::pbr::{ExtendedMaterial, MaterialExtension, MeshMaterial3d, OpaqueRendererMethod};
 use bevy::pbr::wireframe::WireframeConfig;
+use bevy::pbr::{ExtendedMaterial, MaterialExtension, MeshMaterial3d, OpaqueRendererMethod};
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, MeshVertexAttribute, PrimitiveTopology};
 use bevy::render::render_resource::{AsBindGroup, ShaderRef, VertexFormat};
-use crate::instancing::CustomMaterialPlugin;
 
 fn get_cube_vertex_positions() -> Vec<[f32; 3]> {
     vec![
@@ -239,7 +239,7 @@ pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
         let z = voxel.z as usize;
 
         //Top
-        if y ==(voxels.size[1] - 1) as usize || voxels.voxel_array[x][y + 1][z] == -1 {
+        if y == (voxels.size[1] - 1) as usize || voxels.voxel_array[x][y + 1][z] == -1 {
             add_face(
                 voxels,
                 voxel,
@@ -282,8 +282,7 @@ pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
             );
         }
         //Right
-        if x ==(voxels.size[0] - 1) as usize || voxels.voxel_array[x + 1][y][z] == -1 {
-
+        if x == (voxels.size[0] - 1) as usize || voxels.voxel_array[x + 1][y][z] == -1 {
             add_face(
                 voxels,
                 voxel,
@@ -297,7 +296,7 @@ pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
             );
         }
         //Front
-        if z ==(voxels.size[2] - 1) as usize || voxels.voxel_array[x][y][z + 1] == -1 {
+        if z == (voxels.size[2] - 1) as usize || voxels.voxel_array[x][y][z + 1] == -1 {
             add_face(
                 voxels,
                 voxel,
@@ -337,7 +336,8 @@ pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
         info!("Memory usage {:?}kb", format!("{:.1}", kb));
     }
 
-    let custom_attribute = MeshVertexAttribute::new("Vertex_CustomAttribute", 123, VertexFormat::Uint8x4);
+    let custom_attribute =
+        MeshVertexAttribute::new("Vertex_CustomAttribute", 123, VertexFormat::Uint8x4);
     let custom_items = vec![[123u8, 123u8, 123u8, 123u8]];
 
     Mesh::new(
@@ -392,6 +392,10 @@ pub struct MyExtension {
 }
 
 impl MaterialExtension for MyExtension {
+    fn deferred_vertex_shader() -> ShaderRef {
+        SHADER_ASSET_PATH.into()
+    }
+
     fn deferred_fragment_shader() -> ShaderRef {
         SHADER_ASSET_PATH.into()
     }
@@ -403,7 +407,7 @@ impl Plugin for VxmMeshPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(WireframeConfig {
             global: true,
-            default_color: Color::from(PURPLE)
+            default_color: Color::from(PURPLE),
         });
         app.add_plugins(MaterialPlugin::<
             ExtendedMaterial<StandardMaterial, MyExtension>,
