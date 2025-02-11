@@ -24,10 +24,10 @@ pub fn file_drag_and_drop_system(
         if let FileDragAndDrop::DroppedFile { window, path_buf } = event {
             let mut file_path = path_buf.to_str().unwrap().to_string();
             if file_path.ends_with(".vxm") {
-                //     let voxels: Handle<VxmAsset> = asset_server.load(&file_path);
-                //     commands.spawn(
-                //         VoxelObject(voxels),
-                //     );
+                    // let voxels: Handle<VxmAsset> = asset_server.load(&file_path);
+                    // commands.spawn(
+                    //     VoxelObject(voxels),
+                    // );
             }
             if file_path.ends_with(".glb") {
                 info!(file_path);

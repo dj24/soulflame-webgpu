@@ -25,16 +25,14 @@ fn debug_color(index: u32) -> vec4<f32> {
         vec4<f32>(1.0, 1.0, 0.0, 1.0),
         vec4<f32>(1.0, 0.0, 1.0, 1.0),
         vec4<f32>(0.0, 1.0, 1.0, 1.0),
-        vec4<f32>(1.0, 1.0, 1.0, 1.0),
     );
-    return colors[index % 7];
+    return colors[index % 6];
 }
 
 @vertex
 fn vertex(vertex: Vertex) -> VertexOutput {
     var out: VertexOutput;
-    let mesh_world_from_local = mesh_functions::get_world_from_local(vertex.instance_index);
-    var world_from_local = mesh_world_from_local;
+    var world_from_local = mesh_functions::get_world_from_local(vertex.instance_index);
     out.world_position = mesh_functions::mesh_position_local_to_world(world_from_local, vec4<f32>(vertex.position, 1.0));
     out.position = position_world_to_clip(out.world_position.xyz);
 #ifdef UNCLIPPED_DEPTH_ORTHO_EMULATION

@@ -8,6 +8,8 @@ mod set_animation_clip_keyboard;
 mod spawn_player;
 mod vxm;
 mod vxm_mesh;
+mod custom_phase_item;
+mod custom_shader_instancing;
 
 use crate::camera::ThirdPersonCameraPlugin;
 use crate::dnd::{file_drag_and_drop_system, setup_scene_once_loaded};
@@ -41,6 +43,8 @@ use bevy::{
 use bevy::{prelude::*, render::extract_resource::ExtractResource};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use std::f32::consts::*;
+use crate::custom_phase_item::CustomRenderPhaseItemPlugin;
+use crate::custom_shader_instancing::InstancedMaterialPlugin;
 
 fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
     if keyboard_input.just_pressed(KeyCode::Escape) {
@@ -90,6 +94,8 @@ fn main() {
             WorldInspectorPlugin::new(),
             DrawAabbGizmosPlugin,
             SetAnimationClipPlugin,
+            // CustomRenderPhaseItemPlugin,
+            // InstancedMaterialPlugin
         ))
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
@@ -123,17 +129,14 @@ fn setup(
             samples: 4,
         },
         Camera {
-            hdr: true,
+            hdr: false,
             ..default()
         },
         Transform::from_xyz(0.7, 0.7, 1.0).looking_at(Vec3::new(0.0, 0.3, 0.0), Vec3::Y),
         Msaa::Off,
         MotionVectorPrepass,
         DeferredPrepass,
-        ScreenSpaceAmbientOcclusion {
-            quality_level: ScreenSpaceAmbientOcclusionQualityLevel::Ultra,
-            ..default()
-        },
+        ScreenSpaceAmbientOcclusion::default(),
         TemporalAntiAliasing::default(),
         EnvironmentMapLight {
             intensity: 900.0,

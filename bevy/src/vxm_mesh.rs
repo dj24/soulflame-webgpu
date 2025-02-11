@@ -9,6 +9,7 @@ use bevy::pbr::{ExtendedMaterial, MaterialExtension, MeshMaterial3d, OpaqueRende
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, MeshVertexAttribute, PrimitiveTopology};
 use bevy::render::render_resource::{AsBindGroup, ShaderRef, VertexFormat};
+use bevy::render::storage::ShaderStorageBuffer;
 
 fn get_cube_vertex_positions() -> Vec<[f32; 3]> {
     vec![
@@ -387,8 +388,8 @@ const SHADER_ASSET_PATH: &str = "shaders/custom_material.wgsl";
 pub struct MyExtension {
     // We need to ensure that the bindings of the base material and the extension do not conflict,
     // so we start from binding slot 100, leaving slots 0-99 for the base material.
-    #[uniform(100)]
-    pub(crate) color: LinearRgba,
+    #[storage(100, read_only)]
+    pub colors: Handle<ShaderStorageBuffer>,
 }
 
 impl MaterialExtension for MyExtension {
@@ -412,7 +413,5 @@ impl Plugin for VxmMeshPlugin {
         app.add_plugins(MaterialPlugin::<
             ExtendedMaterial<StandardMaterial, MyExtension>,
         >::default());
-        // app.add_plugins(CustomMaterialPlugin);
-        // app.add_systems(Startup, setup_instancing);
     }
 }

@@ -18,26 +18,8 @@ use bevy::render::mesh::VertexAttributeValues;
 use std::env::current_dir;
 use std::path::Path;
 use bevy::pbr::wireframe::Wireframe;
+use bevy::render::storage::ShaderStorageBuffer;
 use crate::vxm_mesh::MyExtension;
-
-const BEAR_HEAD_VXM_PATH: &str = "meshes/Barbearian/Male/Head/BearHead.vxm";
-const BEAR_CHEST_VXM_PATH: &str = "meshes/Barbearian/Male/Chest/BearChest.vxm";
-const BEAR_FUR_CHEST_VXM_PATH: &str = "meshes/Barbearian/Male/Fur/FurChest.vxm";
-const BEAR_FUR_HEAD_VXM_PATH: &str = "meshes/Barbearian/Male/Fur/FurHead.vxm";
-const BEAR_NOSE_VXM_PATH: &str = "meshes/Barbearian/Male/Nose/BearNose.vxm";
-const BEAR_EARS_VXM_PATH: &str = "meshes/Barbearian/Male/Ears/BearEars.vxm";
-const BEAR_EYES_VXM_PATH: &str = "meshes/Barbearian/Male/Eyes/BearEyes.vxm";
-const BEAR_BICEP_VXM_PATH: &str = "meshes/Barbearian/Male/Bicep/BearBicep.vxm";
-const BEAR_ARM_VXM_PATH: &str = "meshes/Barbearian/Male/Arm/BearArm.vxm";
-const BEAR_HAND_VXM_PATH: &str = "meshes/Barbearian/Male/Hand/BearHand.vxm";
-const BEAR_WAIST_VXM_PATH: &str = "meshes/Barbearian/Male/Waist/BearWaist.vxm";
-const BEAR_THIGH_VXM_PATH: &str = "meshes/Barbearian/Male/Thigh/BearThigh.vxm";
-const BEAR_LEG_VXM_PATH: &str = "meshes/Barbearian/Male/Leg/BearLeg.vxm";
-const BEAR_FOOT_VXM_PATH: &str = "meshes/Barbearian/Male/Foot/BearFoot.vxm";
-const BEAR_CLAWS_VXM_PATH: &str = "meshes/Barbearian/Male/Claws/Claws.vxm";
-const BEAR_FUR_BICEP_VXM_PATH: &str = "meshes/Barbearian/Male/Fur/FurBicep.vxm";
-const BEAR_FUR_WAIST_VXM_PATH: &str = "meshes/Barbearian/Male/Fur/FurWaist.vxm";
-const BEAR_JAW_VXM_PATH: &str = "meshes/Barbearian/Male/Jaw/BearJaw.vxm";
 
 const ORC_HEAD_VXM_PATH: &str = "meshes/OrcHead.vxm";
 
@@ -103,6 +85,27 @@ impl FromWorld for PlayerBodyPartModels {
     fn from_world(world: &mut World) -> Self {
         let asset_server = world.get_resource::<AssetServer>().unwrap();
 
+        let body_base_paths = vec![
+            ("BearHead", "meshes/Barbearian/Male/Head"),
+            ("BearChest", "meshes/Barbearian/Male/Chest"),
+            ("BearNose", "meshes/Barbearian/Male/Nose"),
+            ("BearEars", "meshes/Barbearian/Male/Ears"),
+            ("BearEyes", "meshes/Barbearian/Male/Eyes"),
+            ("BearBicep", "meshes/Barbearian/Male/Bicep"),
+            ("BearArm", "meshes/Barbearian/Male/Arm"),
+            ("BearHand", "meshes/Barbearian/Male/Hand"),
+            ("BearWaist", "meshes/Barbearian/Male/Waist"),
+            ("BearThigh", "meshes/Barbearian/Male/Thigh"),
+            ("BearLeg", "meshes/Barbearian/Male/Leg"),
+            ("BearFoot", "meshes/Barbearian/Male/Foot"),
+            ("Claws", "meshes/Barbearian/Male/Claws"),
+            ("BearJaw", "meshes/Barbearian/Male/Jaw"),
+            ("FurChest", "meshes/Barbearian/Male/Fur"),
+            ("FurBicep", "meshes/Barbearian/Male/Fur"),
+            ("FurWaist", "meshes/Barbearian/Male/Fur"),
+            ("FurHead", "meshes/Barbearian/Male/Fur"),
+        ];
+
         let armour_base_paths = vec![
             ("BearHead", "meshes/Armour/Helms/Mid"),
             ("BearHead", "meshes/Armour/Helms/Mid/Back"),
@@ -134,105 +137,35 @@ impl FromWorld for PlayerBodyPartModels {
 
         let assets_dir = current_dir().unwrap().join("assets");
 
-        let mut model_vec = vec![
-            VxmMeshSwapTarget {
-                parent_name: None,
-                name: "BearHead".to_string(),
-                vxm_handle: asset_server.load(BEAR_HEAD_VXM_PATH),
-            },
-            VxmMeshSwapTarget {
-                parent_name: None,
-                name: "BearChest".to_string(),
-                vxm_handle: asset_server.load(BEAR_CHEST_VXM_PATH),
-            },
-            VxmMeshSwapTarget {
-                parent_name: None,
-                name: "FurChest".to_string(),
-                vxm_handle: asset_server.load(BEAR_FUR_CHEST_VXM_PATH),
-            },
-            VxmMeshSwapTarget {
-                parent_name: None,
-                name: "FurHead".to_string(),
-                vxm_handle: asset_server.load(BEAR_FUR_HEAD_VXM_PATH),
-            },
-            VxmMeshSwapTarget {
-                parent_name: None,
-                name: "BearNose".to_string(),
-                vxm_handle: asset_server.load(BEAR_NOSE_VXM_PATH),
-            },
-            VxmMeshSwapTarget {
-                parent_name: None,
-                name: "BearEars".to_string(),
-                vxm_handle: asset_server.load(BEAR_EARS_VXM_PATH),
-            },
-            VxmMeshSwapTarget {
-                parent_name: None,
-                name: "BearEyes".to_string(),
-                vxm_handle: asset_server.load(BEAR_EYES_VXM_PATH),
-            },
-            VxmMeshSwapTarget {
-                parent_name: None,
-                name: "BearBicep".to_string(),
-                vxm_handle: asset_server.load(BEAR_BICEP_VXM_PATH),
-            },
-            VxmMeshSwapTarget {
-                parent_name: None,
-                name: "BearArm".to_string(),
-                vxm_handle: asset_server.load(BEAR_ARM_VXM_PATH),
-            },
-            VxmMeshSwapTarget {
-                parent_name: None,
-                name: "BearHand".to_string(),
-                vxm_handle: asset_server.load(BEAR_HAND_VXM_PATH),
-            },
-            VxmMeshSwapTarget {
-                parent_name: None,
-                name: "BearWaist".to_string(),
-                vxm_handle: asset_server.load(BEAR_WAIST_VXM_PATH),
-            },
-            VxmMeshSwapTarget {
-                parent_name: None,
-                name: "Thigh".to_string(),
-                vxm_handle: asset_server.load(BEAR_THIGH_VXM_PATH),
-            },
-            VxmMeshSwapTarget {
-                parent_name: None,
-                name: "BearLeg".to_string(),
-                vxm_handle: asset_server.load(BEAR_LEG_VXM_PATH),
-            },
-            VxmMeshSwapTarget {
-                parent_name: None,
-                name: "BearFoot".to_string(),
-                vxm_handle: asset_server.load(BEAR_FOOT_VXM_PATH),
-            },
-            VxmMeshSwapTarget {
-                parent_name: None,
-                name: "Claws".to_string(),
-                vxm_handle: asset_server.load(BEAR_CLAWS_VXM_PATH),
-            },
-            VxmMeshSwapTarget {
-                parent_name: None,
-                name: "FurBicep".to_string(),
-                vxm_handle: asset_server.load(BEAR_FUR_BICEP_VXM_PATH),
-            },
-            VxmMeshSwapTarget {
-                parent_name: None,
-                name: "FurWaist".to_string(),
-                vxm_handle: asset_server.load(BEAR_FUR_WAIST_VXM_PATH),
-            },
-            VxmMeshSwapTarget {
-                parent_name: None,
-                name: "BearJaw".to_string(),
-                vxm_handle: asset_server.load(BEAR_JAW_VXM_PATH),
-            },
-        ];
+        let mut model_vec = vec![];
+
+        for(body_part_name, path) in body_base_paths {
+            let dir_clone = assets_dir.clone();
+            let file = format!("{}{}", body_part_name, ".vxm");
+            let file_path = dir_clone.join(path).join(file);
+            if file_path.is_file()
+            {
+                let relative_path = file_path.strip_prefix(&assets_dir).unwrap();
+                info!(
+                    "Importing body piece {:?}",
+                    body_part_name
+                );
+                model_vec.push(VxmMeshSwapTarget {
+                    name: body_part_name.to_string(),
+                    vxm_handle: asset_server.load(relative_path.to_str().unwrap()),
+                    parent_name: None,
+                });
+            }
+            else {
+                error!("File not found: {:?}", file_path);
+            }
+        }
 
         for (body_part_name, path) in armour_base_paths {
             let dir_clone = assets_dir.clone();
             let dir_path = dir_clone.join(path);
             match dir_path.read_dir() {
                 Ok(read_dir_result) => {
-                    info!("Reading directory: {:?}", dir_path);
                     for entry in read_dir_result {
                         let file_path = entry.unwrap().path();
                         if file_path.is_file() && file_path.extension().unwrap_or_default() == "vxm"
@@ -372,20 +305,8 @@ pub fn swap_vxm_meshes(
     mut commands: Commands,
     vxm_assets: Res<Assets<VxmAsset>>,
     mesh3d_query: Query<&Mesh3d>,
+    mut buffers: ResMut<Assets<ShaderStorageBuffer>>,
 ) {
-    let body_material = materials.add(
-        ExtendedMaterial {
-            base: StandardMaterial {
-                perceptual_roughness: 1.0,
-                metallic: 0.0,
-                cull_mode: None,
-                ..Default::default()
-            },
-            extension: MyExtension {
-                color: bevy::prelude::LinearRgba::new(1.0, 0.0, 0.0, 1.0),
-            }
-    });
-
     for(entity, replace_with_vxm) in replace_with_vxm_query.iter() {
         let voxels = vxm_assets.get(&replace_with_vxm.vxm_handle);
         if voxels.is_none() {
@@ -410,6 +331,28 @@ pub fn swap_vxm_meshes(
         let new_transform = Transform::from_translation(max_axes_difference)
             .mul_transform(Transform::from_scale(Vec3::splat(1.001)));
 
+        // Example data for the storage buffer
+        let color_data: Vec<[f32; 4]> = vec![
+            [1.0, 0.0, 0.0, 1.0],
+            [0.0, 1.0, 0.0, 1.0],
+            [0.0, 0.0, 1.0, 1.0],
+            [1.0, 1.0, 0.0, 1.0],
+            [0.0, 1.0, 1.0, 1.0],
+        ];
+
+        let material_handle = materials.add(
+            ExtendedMaterial {
+                base: StandardMaterial {
+                    perceptual_roughness: 1.0,
+                    metallic: 0.0,
+                    cull_mode: None,
+                    ..Default::default()
+                },
+                extension: MyExtension {
+                    colors: buffers.add(ShaderStorageBuffer::from(color_data))
+                }
+            });
+
         // Remove the old mesh and material
         commands
             .entity(entity)
@@ -417,7 +360,7 @@ pub fn swap_vxm_meshes(
             .remove::<ReplaceWithVxm>()
             .remove::<Mesh3d>()
             .remove::<Transform>()
-            .insert(MeshMaterial3d(body_material.clone()))
+            .insert(MeshMaterial3d(material_handle))
             .insert(Mesh3d(mesh_handle))
             .insert(new_transform)
             .insert(Wireframe);
