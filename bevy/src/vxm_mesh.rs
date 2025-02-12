@@ -1,5 +1,3 @@
-use crate::instancing::setup_instancing;
-use crate::instancing::CustomMaterialPlugin;
 use crate::vxm::{Voxel, VxmAsset};
 use bevy::asset::{AssetEvent, Assets, RenderAssetUsages};
 use bevy::color::palettes::basic::{PURPLE, RED, WHITE};

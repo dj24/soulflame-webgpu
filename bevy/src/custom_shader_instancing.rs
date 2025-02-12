@@ -34,6 +34,11 @@ use bevy::{
         Render, RenderApp, RenderSet,
     },
 };
+use bevy::asset::UntypedAssetId;
+use bevy::core_pipeline::core_3d::{Opaque3d, Opaque3dBinKey};
+use bevy::core_pipeline::deferred::Opaque3dDeferred;
+use bevy::core_pipeline::prepass::OpaqueNoLightmap3dBinKey;
+use bevy::render::render_phase::{BinnedRenderPhaseType, ViewBinnedRenderPhases};
 use bytemuck::{Pod, Zeroable};
 
 /// This example uses a shader source file from the assets subdirectory
@@ -89,7 +94,7 @@ impl Plugin for InstancedMaterialPlugin {
         app.add_plugins(ExtractComponentPlugin::<InstanceMaterialData>::default());
         app.add_systems(Startup, setup);
         app.sub_app_mut(RenderApp)
-            .add_render_command::<Transparent3d, DrawCustom>()
+            .add_render_command::<Opaque3d, DrawCustom>()
             .init_resource::<SpecializedMeshPipelines<CustomPipeline>>()
             .add_systems(
                 Render,
@@ -115,20 +120,20 @@ struct InstanceData {
 
 #[allow(clippy::too_many_arguments)]
 fn queue_custom(
-    transparent_3d_draw_functions: Res<DrawFunctions<Transparent3d>>,
+    opaque_3d_draw_functions: Res<DrawFunctions<Opaque3d>>,
     custom_pipeline: Res<CustomPipeline>,
     mut pipelines: ResMut<SpecializedMeshPipelines<CustomPipeline>>,
     pipeline_cache: Res<PipelineCache>,
     meshes: Res<RenderAssets<RenderMesh>>,
     render_mesh_instances: Res<RenderMeshInstances>,
     material_meshes: Query<(Entity, &MainEntity), With<InstanceMaterialData>>,
-    mut transparent_render_phases: ResMut<ViewSortedRenderPhases<Transparent3d>>,
+    mut opaque_render_phases: ResMut<ViewBinnedRenderPhases<Opaque3d>>,
     views: Query<(Entity, &ExtractedView, &Msaa)>,
 ) {
-    let draw_custom = transparent_3d_draw_functions.read().id::<DrawCustom>();
+    let draw_custom = opaque_3d_draw_functions.read().id::<DrawCustom>();
 
     for (view_entity, view, msaa) in &views {
-        let Some(transparent_phase) = transparent_render_phases.get_mut(&view_entity) else {
+        let Some(opaque_phase) = opaque_render_phases.get_mut(&view_entity) else {
             continue;
         };
 
@@ -149,14 +154,18 @@ fn queue_custom(
             let pipeline = pipelines
                 .specialize(&pipeline_cache, &custom_pipeline, key, &mesh.layout)
                 .unwrap();
-            transparent_phase.add(Transparent3d {
-                entity: (entity, *main_entity),
-                pipeline,
-                draw_function: draw_custom,
-                distance: rangefinder.distance_translation(&mesh_instance.translation),
-                batch_range: 0..1,
-                extra_index: PhaseItemExtraIndex::NONE,
-            });
+
+            opaque_phase.add(
+                Opaque3dBinKey {
+                    draw_function: draw_custom,
+                    pipeline,
+                    asset_id: UntypedAssetId::from(mesh_instance.mesh_asset_id),
+                    material_bind_group_id: None,
+                    lightmap_image: None,
+                },
+                (entity, *main_entity),
+                BinnedRenderPhaseType::NonMesh,
+            );
         }
     }
 }

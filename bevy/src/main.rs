@@ -2,7 +2,6 @@
 mod camera;
 mod dnd;
 mod draw_aabb_gizmos;
-mod instancing;
 mod replace_body_part_meshes;
 mod set_animation_clip_keyboard;
 mod spawn_player;
@@ -96,6 +95,7 @@ fn main() {
             SetAnimationClipPlugin,
             // CustomRenderPhaseItemPlugin,
             // InstancedMaterialPlugin
+            //TODO :try built in instancing by reusing mesh handle?
         ))
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
