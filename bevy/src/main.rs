@@ -1,5 +1,7 @@
 #![feature(portable_simd)]
 mod camera;
+mod custom_phase_item;
+mod custom_shader_instancing;
 mod dnd;
 mod draw_aabb_gizmos;
 mod replace_body_part_meshes;
@@ -7,8 +9,6 @@ mod set_animation_clip_keyboard;
 mod spawn_player;
 mod vxm;
 mod vxm_mesh;
-mod custom_phase_item;
-mod custom_shader_instancing;
 
 use crate::camera::ThirdPersonCameraPlugin;
 use crate::dnd::{file_drag_and_drop_system, setup_scene_once_loaded};
@@ -17,15 +17,12 @@ use crate::replace_body_part_meshes::{
     add_vxm_swap_targets, create_vxm_swap_targets_on_gltf_import_system, swap_vxm_meshes,
 };
 use crate::set_animation_clip_keyboard::SetAnimationClipPlugin;
-use crate::spawn_player::spawn_player;
 use crate::vxm::{VxmAsset, VxmAssetLoader};
-use crate::vxm_mesh::VxmMeshPlugin;
+use crate::vxm_mesh::{create_mesh_on_vxm_import_system, VxmMeshPlugin};
 use bevy::core_pipeline::experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing};
 use bevy::core_pipeline::prepass::MotionVectorPrepass;
 use bevy::ecs::bundle::DynamicBundle;
-use bevy::pbr::{
-    FogVolume, ScreenSpaceAmbientOcclusion, ScreenSpaceAmbientOcclusionQualityLevel, VolumetricFog,
-};
+use bevy::pbr::{FogVolume, ScreenSpaceAmbientOcclusion, VolumetricFog};
 use bevy::render::render_resource::WgpuFeatures;
 use bevy::render::settings::{RenderCreation, WgpuSettings};
 use bevy::render::RenderPlugin;
@@ -42,8 +39,6 @@ use bevy::{
 use bevy::{prelude::*, render::extract_resource::ExtractResource};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use std::f32::consts::*;
-use crate::custom_phase_item::CustomRenderPhaseItemPlugin;
-use crate::custom_shader_instancing::InstancedMaterialPlugin;
 
 fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
     if keyboard_input.just_pressed(KeyCode::Escape) {
@@ -99,7 +94,7 @@ fn main() {
         ))
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
-        .add_systems(Startup, (setup, spawn_player))
+        .add_systems(Startup, (setup))
         .add_systems(
             Update,
             (
@@ -108,6 +103,7 @@ fn main() {
                 add_vxm_swap_targets,
                 exit_on_esc_system,
                 create_vxm_swap_targets_on_gltf_import_system,
+                create_mesh_on_vxm_import_system,
                 swap_vxm_meshes,
             ),
         )

@@ -1,12 +1,13 @@
 use crate::vxm::VxmAsset;
+use crate::vxm_mesh::create_mesh_from_voxels;
 use bevy::prelude::*;
 use bevy::prelude::{EventReader, FileDragAndDrop};
 use bevy::{asset::AssetLoader, prelude::*};
 use std::io::Read;
 use std::time::Duration;
 
-#[derive(Resource)]
-pub struct VoxelObject(pub Handle<VxmAsset>);
+#[derive(Component)]
+pub struct PendingVxm(pub Handle<VxmAsset>);
 
 #[derive(Resource)]
 pub struct Animations {
@@ -15,19 +16,21 @@ pub struct Animations {
 }
 
 pub fn file_drag_and_drop_system(
-    mut events: EventReader<FileDragAndDrop>,
+    mut dnd_events: EventReader<FileDragAndDrop>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut graphs: ResMut<Assets<AnimationGraph>>,
 ) {
-    for event in events.read() {
+    for event in dnd_events.read() {
+        info!("Dropped file: {:?}", event);
         if let FileDragAndDrop::DroppedFile { window, path_buf } = event {
             let mut file_path = path_buf.to_str().unwrap().to_string();
             if file_path.ends_with(".vxm") {
-                    // let voxels: Handle<VxmAsset> = asset_server.load(&file_path);
-                    // commands.spawn(
-                    //     VoxelObject(voxels),
-                    // );
+                info!("dropped vxm file");
+                commands.spawn((
+                    PendingVxm(asset_server.load(file_path.clone())),
+                    Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)),
+                ));
             }
             if file_path.ends_with(".glb") {
                 info!(file_path);

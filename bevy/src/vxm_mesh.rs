@@ -1,3 +1,4 @@
+use crate::dnd::PendingVxm;
 use crate::vxm::{Voxel, VxmAsset};
 use bevy::asset::{AssetEvent, Assets, RenderAssetUsages};
 use bevy::color::palettes::basic::{PURPLE, RED, WHITE};
@@ -351,30 +352,44 @@ pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
 }
 
 pub fn create_mesh_on_vxm_import_system(
-    vxm_assets: Res<Assets<VxmAsset>>,
-    mut events: EventReader<AssetEvent<VxmAsset>>,
+    pending_vxms: Query<(Entity, &PendingVxm)>,
+    mut vxm_assets: ResMut<Assets<VxmAsset>>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, MyExtension>>>,
+    mut buffers: ResMut<Assets<ShaderStorageBuffer>>,
 ) {
-    // Log voxel count to debug for now
-    for event in events.read() {
-        match event {
-            AssetEvent::LoadedWithDependencies { id } => match vxm_assets.get(*id) {
-                Some(vxm_asset) => {
-                    info!("Loaded vxm containing {:?} voxels", vxm_asset.vox_count);
-                }
-                _ => {}
-            },
-            AssetEvent::Added { id } => {
-                info!("Added {:?}", id);
+    for (entity, pending_vxm) in pending_vxms.iter() {
+        match vxm_assets.get(&pending_vxm.0) {
+            Some(vxm) => {
+                // Example data for the storage buffer
+                let color_data: Vec<[f32; 4]> = vec![
+                    [1.0, 0.0, 0.0, 1.0],
+                    [0.0, 1.0, 0.0, 1.0],
+                    [0.0, 0.0, 1.0, 1.0],
+                    [1.0, 1.0, 0.0, 1.0],
+                    [0.0, 1.0, 1.0, 1.0],
+                ];
+                let material_handle = materials.add(ExtendedMaterial {
+                    base: StandardMaterial {
+                        perceptual_roughness: 1.0,
+                        metallic: 0.0,
+                        cull_mode: None,
+                        ..Default::default()
+                    },
+                    extension: MyExtension {
+                        colors: buffers.add(ShaderStorageBuffer::from(color_data)),
+                    },
+                });
+                let mesh_handle = meshes.add(create_mesh_from_voxels(vxm));
+                commands
+                    .entity(entity)
+                    .remove::<PendingVxm>()
+                    .insert(Mesh3d(mesh_handle))
+                    .insert(MeshMaterial3d(material_handle));
+                info!("Mesh created");
             }
-            AssetEvent::Unused { id } => {
-                info!("Unused {:?}", id);
-            }
-            AssetEvent::Modified { id } => {
-                info!("Modified {:?}", id);
-            }
-            AssetEvent::Removed { id } => {
-                info!("Removed {:?}", id);
-            }
+            None => {}
         }
     }
 }
