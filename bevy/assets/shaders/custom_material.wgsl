@@ -29,11 +29,21 @@ fn debug_color(index: u32) -> vec4<f32> {
     return colors[index % 6];
 }
 
+const FACE_VERTEX_POSITIONS = array(
+  vec3<f32>(-1.0, -1.0, 0.0),
+  vec3<f32>(1.0, -1.0, 0.0),
+  vec3<f32>(1.0, 1.0, 0.0),
+  vec3<f32>(-1.0, 1.0, 0.0),
+  vec3<f32>(-1.0, -1.0, 0.0),
+  vec3<f32>(1.0, -1.0, 0.0),
+);
+
 @vertex
-fn vertex(vertex: Vertex) -> VertexOutput {
+fn vertex(vertex: Vertex, @builtin(vertex_index) vertex_index: u32) -> VertexOutput {
     var out: VertexOutput;
     var world_from_local = mesh_functions::get_world_from_local(vertex.instance_index);
-    out.world_position = mesh_functions::mesh_position_local_to_world(world_from_local, vec4<f32>(vertex.position, 1.0));
+    let vertex_position = FACE_VERTEX_POSITIONS[vertex_index % 6] + vec3(f32(vertex_index / 6), 0.0, 0.0); // Offset each face to debug
+    out.world_position = mesh_functions::mesh_position_local_to_world(world_from_local, vec4<f32>(vertex_position, 1.0));
     out.position = position_world_to_clip(out.world_position.xyz);
 #ifdef UNCLIPPED_DEPTH_ORTHO_EMULATION
     out.unclipped_depth = out.position.z;
@@ -51,6 +61,7 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     );
 #ifdef VERTEX_COLORS
     out.color = vertex.color;
+    out.color = debug_color(out.instance_index);
 #endif
 #ifdef MOTION_VECTOR_PREPASS
     let prev_vertex = vertex;
@@ -63,7 +74,6 @@ fn vertex(vertex: Vertex) -> VertexOutput {
 #ifdef VERTEX_OUTPUT_INSTANCE_INDEX
     out.instance_index = vertex.instance_index;
 #endif
-    out.color = debug_color(out.instance_index);
     return out;
 }
 

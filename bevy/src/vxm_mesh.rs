@@ -207,126 +207,15 @@ fn add_face(
     Total per face: 40 bytes
 */
 pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
-    let mut positions = Vec::new();
     let mut indices = Vec::new();
-    let mut normals = Vec::new();
-    let mut colours = Vec::new();
-
-    let cube_vertex_indices = get_cube_face_vertex_indices().repeat(6);
-
-    let cube_vertex_positions_top = get_cube_face_vertex_positions(CubeFace::Top);
-    let cube_normals_top = get_cube_face_normals(CubeFace::Top);
-
-    let cube_vertex_positions_front = get_cube_face_vertex_positions(CubeFace::Front);
-    let cube_normals_front = get_cube_face_normals(CubeFace::Front);
-
-    let cube_vertex_positions_back = get_cube_face_vertex_positions(CubeFace::Back);
-    let cube_normals_back = get_cube_face_normals(CubeFace::Back);
-
-    let cube_vertex_positions_bottom = get_cube_face_vertex_positions(CubeFace::Bottom);
-    let cube_normals_bottom = get_cube_face_normals(CubeFace::Bottom);
-
-    let cube_vertex_positions_left = get_cube_face_vertex_positions(CubeFace::Left);
-    let cube_normals_left = get_cube_face_normals(CubeFace::Left);
-
-    let cube_vertex_positions_right = get_cube_face_vertex_positions(CubeFace::Right);
-    let cube_normals_right = get_cube_face_normals(CubeFace::Right);
 
     for voxel in &voxels.voxels {
-        // TODO: check face visibility
-        let x = voxel.x as usize;
-        let y = voxel.y as usize;
-        let z = voxel.z as usize;
-
-        //Top
-        if y == (voxels.size[1] - 1) as usize || voxels.voxel_array[x][y + 1][z] == -1 {
-            add_face(
-                voxels,
-                voxel,
-                &cube_vertex_positions_top,
-                &cube_normals_top,
-                &cube_vertex_indices,
-                &mut positions,
-                &mut normals,
-                &mut colours,
-                &mut indices,
-            );
-        }
-        //Bottom
-        if y == 0 || voxels.voxel_array[x][y - 1][z] == -1 {
-            //Bottom
-            add_face(
-                voxels,
-                voxel,
-                &cube_vertex_positions_bottom,
-                &cube_normals_bottom,
-                &cube_vertex_indices,
-                &mut positions,
-                &mut normals,
-                &mut colours,
-                &mut indices,
-            );
-        }
-        //Left
-        if x == 0 || voxels.voxel_array[x - 1][y][z] == -1 {
-            add_face(
-                voxels,
-                voxel,
-                &cube_vertex_positions_left,
-                &cube_normals_left,
-                &cube_vertex_indices,
-                &mut positions,
-                &mut normals,
-                &mut colours,
-                &mut indices,
-            );
-        }
-        //Right
-        if x == (voxels.size[0] - 1) as usize || voxels.voxel_array[x + 1][y][z] == -1 {
-            add_face(
-                voxels,
-                voxel,
-                &cube_vertex_positions_right,
-                &cube_normals_right,
-                &cube_vertex_indices,
-                &mut positions,
-                &mut normals,
-                &mut colours,
-                &mut indices,
-            );
-        }
-        //Front
-        if z == (voxels.size[2] - 1) as usize || voxels.voxel_array[x][y][z + 1] == -1 {
-            add_face(
-                voxels,
-                voxel,
-                &cube_vertex_positions_front,
-                &cube_normals_front,
-                &cube_vertex_indices,
-                &mut positions,
-                &mut normals,
-                &mut colours,
-                &mut indices,
-            );
-        }
-        //Back
-        if z == 0 || voxels.voxel_array[x][y][z - 1] == -1 {
-            add_face(
-                voxels,
-                voxel,
-                &cube_vertex_positions_back,
-                &cube_normals_back,
-                &cube_vertex_indices,
-                &mut positions,
-                &mut normals,
-                &mut colours,
-                &mut indices,
-            );
+        for _ in 0..6 {
+            &indices.push(indices.len() as u32); // Increment index
         }
     }
 
-    let bytes =
-        positions.len() * 3 * 4 + normals.len() * 3 * 4 + colours.len() * 4 * 4 + indices.len() * 2;
+    let bytes = indices.len() * 4;
     let kb = bytes as f64 / 1024.0;
     let mb = kb / 1024.0;
 
@@ -344,10 +233,9 @@ pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
         PrimitiveTopology::TriangleList,
         RenderAssetUsages::default(),
     )
-    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
-    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, vec![[0.0, 0.0, 0.0]])
+    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 0.0, 0.0]])
     .with_inserted_indices(Indices::U32(indices))
-    .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colours)
     // .with_inserted_attribute(custom_attribute, custom_items) // TODO: store position and colour in here
 }
 
@@ -383,8 +271,7 @@ pub fn create_mesh_on_vxm_import_system(
                 });
                 let mesh_handle = meshes.add(create_mesh_from_voxels(vxm));
                 let z_offset = vxm.size[2] as f32 / 2.0;
-                // Rotated on import
-                let mut transform = transform.clone().with_translation(Vec3::new(0.0, z_offset * transform.scale[1], 0.0));
+                let transform = transform.clone().with_translation(Vec3::new(0.0, z_offset * transform.scale[1], 0.0));
                 commands
                     .entity(entity)
                     .remove::<PendingVxm>()
@@ -392,7 +279,6 @@ pub fn create_mesh_on_vxm_import_system(
                     .insert(Mesh3d(mesh_handle))
                     .insert(MeshMaterial3d(material_handle))
                     .insert(transform);
-                info!("Mesh created");
             }
             None => {}
         }

@@ -39,6 +39,7 @@ use bevy::{
 use bevy::{prelude::*, render::extract_resource::ExtractResource};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use std::f32::consts::*;
+use crate::custom_shader_instancing::InstancedMaterialPlugin;
 
 fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
     if keyboard_input.just_pressed(KeyCode::Escape) {
