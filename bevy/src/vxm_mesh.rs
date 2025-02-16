@@ -95,7 +95,7 @@ fn get_cube_face_vertex_positions(cube_face: CubeFace) -> Vec<[f32; 3]> {
     }
 }
 
-fn get_cube_face_vertex_indices() -> Vec<u16> {
+fn get_cube_face_vertex_indices() -> Vec<u32> {
     vec![0, 1, 2, 0, 2, 3]
 }
 
@@ -110,7 +110,7 @@ fn get_cube_face_normals(cube_face: CubeFace) -> Vec<[f32; 3]> {
     }
 }
 
-fn get_cube_vertex_indices() -> Vec<u16> {
+fn get_cube_vertex_indices() -> Vec<u32> {
     vec![
         // Front face
         0, 1, 2, 0, 2, 3, // Back face
@@ -162,13 +162,13 @@ fn add_face(
     voxel: &Voxel,
     positions_in: &Vec<[f32; 3]>,
     normals_in: &Vec<[f32; 3]>,
-    indices_in: &Vec<u16>,
+    indices_in: &Vec<u32>,
     positions_out: &mut Vec<[f32; 3]>,
     normals_out: &mut Vec<[f32; 3]>,
     colors_out: &mut Vec<[f32; 4]>,
-    indices_out: &mut Vec<u16>,
+    indices_out: &mut Vec<u32>,
 ) {
-    let base_index = positions_out.len() as u16;
+    let base_index = positions_out.len() as u32;
     for vertex in positions_in {
         positions_out.push([
             vertex[0] + voxel.x as f32 - voxels.size[0] as f32 / 2.0,
@@ -346,20 +346,20 @@ pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
     )
     .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
     .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
-    .with_inserted_indices(Indices::U16(indices))
+    .with_inserted_indices(Indices::U32(indices))
     .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colours)
     // .with_inserted_attribute(custom_attribute, custom_items) // TODO: store position and colour in here
 }
 
 pub fn create_mesh_on_vxm_import_system(
-    pending_vxms: Query<(Entity, &PendingVxm)>,
+    pending_vxms: Query<(Entity, &PendingVxm, &Transform)>,
     mut vxm_assets: ResMut<Assets<VxmAsset>>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, MyExtension>>>,
     mut buffers: ResMut<Assets<ShaderStorageBuffer>>,
 ) {
-    for (entity, pending_vxm) in pending_vxms.iter() {
+    for (entity, pending_vxm, transform) in pending_vxms.iter() {
         match vxm_assets.get(&pending_vxm.0) {
             Some(vxm) => {
                 // Example data for the storage buffer
@@ -382,11 +382,16 @@ pub fn create_mesh_on_vxm_import_system(
                     },
                 });
                 let mesh_handle = meshes.add(create_mesh_from_voxels(vxm));
+                let z_offset = vxm.size[2] as f32 / 2.0;
+                // Rotated on import
+                let mut transform = transform.clone().with_translation(Vec3::new(0.0, z_offset * transform.scale[1], 0.0));
                 commands
                     .entity(entity)
                     .remove::<PendingVxm>()
+                    .remove::<Transform>()
                     .insert(Mesh3d(mesh_handle))
-                    .insert(MeshMaterial3d(material_handle));
+                    .insert(MeshMaterial3d(material_handle))
+                    .insert(transform);
                 info!("Mesh created");
             }
             None => {}

@@ -1,3 +1,4 @@
+use std::f32::consts::{FRAC_1_PI, FRAC_2_PI, FRAC_PI_2};
 use crate::vxm::VxmAsset;
 use crate::vxm_mesh::create_mesh_from_voxels;
 use bevy::prelude::*;
@@ -5,6 +6,7 @@ use bevy::prelude::{EventReader, FileDragAndDrop};
 use bevy::{asset::AssetLoader, prelude::*};
 use std::io::Read;
 use std::time::Duration;
+use crate::camera::CameraTarget;
 
 #[derive(Component)]
 pub struct PendingVxm(pub Handle<VxmAsset>);
@@ -29,7 +31,7 @@ pub fn file_drag_and_drop_system(
                 info!("dropped vxm file");
                 commands.spawn((
                     PendingVxm(asset_server.load(file_path.clone())),
-                    Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)),
+                    Transform::from_scale(Vec3::new(0.01, 0.01, 0.01)).with_rotation(Quat::from_euler(EulerRot::XYZ, FRAC_PI_2, 0.0, 0.0)),
                 ));
             }
             if file_path.ends_with(".glb") {
