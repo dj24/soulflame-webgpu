@@ -39,6 +39,8 @@ use bevy::{
 use bevy::{prelude::*, render::extract_resource::ExtractResource};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use std::f32::consts::*;
+use bevy::color::palettes::basic::WHITE;
+use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 use crate::custom_shader_instancing::InstancedMaterialPlugin;
 
 fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
@@ -72,6 +74,7 @@ fn main() {
                     }),
                     ..default()
                 }),
+            WireframePlugin,
             ThirdPersonCameraPlugin,
             TemporalAntiAliasPlugin,
             VxmMeshPlugin,
@@ -89,10 +92,16 @@ fn main() {
             WorldInspectorPlugin::new(),
             DrawAabbGizmosPlugin,
             SetAnimationClipPlugin,
-            // CustomRenderPhaseItemPlugin,
-            // InstancedMaterialPlugin
-            //TODO :try built in instancing by reusing mesh handle?
         ))
+        .insert_resource(WireframeConfig {
+            // The global wireframe config enables drawing of wireframes on every mesh,
+            // except those with `NoWireframe`. Meshes with `Wireframe` will always have a wireframe,
+            // regardless of the global configuration.
+            global: true,
+            // Controls the default color of all wireframes. Used as the default color for global wireframes.
+            // Can be changed per mesh using the `WireframeColor` component.
+            default_color: WHITE.into(),
+        })
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
         .add_systems(Startup, (setup))
@@ -131,10 +140,10 @@ fn setup(
         },
         Transform::from_xyz(0.7, 0.7, 1.0).looking_at(Vec3::new(0.0, 0.3, 0.0), Vec3::Y),
         Msaa::Off,
-        MotionVectorPrepass,
+        // MotionVectorPrepass,
         DeferredPrepass,
         ScreenSpaceAmbientOcclusion::default(),
-        TemporalAntiAliasing::default(),
+        // TemporalAntiAliasing::default(),
         EnvironmentMapLight {
             intensity: 900.0,
             diffuse_map: asset_server.load("environment_maps/pisa_diffuse_rgb9e5_zstd.ktx2"),
@@ -175,10 +184,11 @@ fn setup(
     let mat_h = materials.add(mat);
 
     // Plane
-    commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(50.0, 50.0))),
-        MeshMaterial3d(mat_h.clone()),
-    ));
+    // commands.spawn((
+    //     Mesh3d(meshes.add(Plane3d::default().mesh().size(50.0, 50.0))),
+    //     MeshMaterial3d(mat_h.clone()),
+    // ));
+
     // sky
     commands.spawn((
         Mesh3d(meshes.add(Cuboid::new(2.0, 1.0, 1.0))),

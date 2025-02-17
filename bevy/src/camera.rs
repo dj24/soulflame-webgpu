@@ -89,30 +89,26 @@ fn orbit(
     // Move target
     if keys.pressed(KeyCode::KeyW) {
         let target_rotation = Quat::from_rotation_y(-new_yaw - FRAC_PI_2);
-        let direction = target_rotation * Vec3::Z;
-        let position_delta = direction * 0.5 * time.delta_secs();
-        target.translation += position_delta;
+        let position_delta = direction * time.delta_secs();
+        target.translation -= position_delta;
         target.rotation = Quat::slerp(target.rotation, target_rotation, 4.0 * time.delta_secs());
     }
     if keys.pressed(KeyCode::KeyS) {
         let target_rotation = Quat::from_rotation_y(-new_yaw + FRAC_PI_2);
-        let direction = target_rotation * Vec3::Z;
-        let position_delta = direction * 0.5 * time.delta_secs();
+        let position_delta = direction * time.delta_secs();
         target.translation += position_delta;
         target.rotation = Quat::slerp(target.rotation, target_rotation, 4.0 * time.delta_secs());
     }
     if keys.pressed(KeyCode::KeyA) {
         let target_rotation = Quat::from_rotation_y(-new_yaw);
-        let direction = target_rotation * Vec3::Z;
-        let position_delta = direction * 0.5 * time.delta_secs();
-        target.translation += position_delta;
+        let position_delta = direction.cross(Vec3::Y) * time.delta_secs();
+        target.translation -= position_delta;
         target.rotation = Quat::slerp(target.rotation, target_rotation, 4.0 * time.delta_secs());
     }
     if keys.pressed(KeyCode::KeyD) {
         let target_rotation = Quat::from_rotation_y(-new_yaw + std::f32::consts::PI);
-        let direction = target_rotation * Vec3::Z;
-        let position_delta = direction * 0.5 * time.delta_secs();
-        target.translation += position_delta;
+        let position_delta = direction.cross(Vec3::Y) * time.delta_secs();
+        target.translation -= position_delta;
         target.rotation = Quat::slerp(target.rotation, target_rotation, 4.0 * time.delta_secs());
     }
 

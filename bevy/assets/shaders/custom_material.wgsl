@@ -10,12 +10,7 @@
     pbr_deferred_functions::deferred_output,
 }
 
-struct MyExtendedMaterial {
-    color: vec4<f32>
-}
-
-@group(2) @binding(100)
-var<uniform> my_extended_material: MyExtendedMaterial;
+@group(2) @binding(100) var<storage, read> face_buffer: array<vec3<f32>>;
 
 fn debug_color(index: u32) -> vec4<f32> {
     let colors = array(
@@ -30,38 +25,28 @@ fn debug_color(index: u32) -> vec4<f32> {
 }
 
 const FACE_VERTEX_POSITIONS = array(
-  vec3<f32>(-1.0, -1.0, 0.0),
-  vec3<f32>(1.0, -1.0, 0.0),
-  vec3<f32>(1.0, 1.0, 0.0),
-  vec3<f32>(-1.0, 1.0, 0.0),
-  vec3<f32>(-1.0, -1.0, 0.0),
-  vec3<f32>(1.0, -1.0, 0.0),
+    vec3<f32>(0.0, 0.0, 0.0),
+    vec3<f32>(1.0, 0.0, 0.0),
+    vec3<f32>(1.0, 1.0, 0.0),
+    vec3<f32>(0.0, 1.0, 0.0),
+    vec3<f32>(0.0, 0.0, 0.0),
+    vec3<f32>(1.0, 1.0, 0.0),
 );
 
 @vertex
 fn vertex(vertex: Vertex, @builtin(vertex_index) vertex_index: u32) -> VertexOutput {
     var out: VertexOutput;
     var world_from_local = mesh_functions::get_world_from_local(vertex.instance_index);
-    let vertex_position = FACE_VERTEX_POSITIONS[vertex_index % 6] + vec3(f32(vertex_index / 6), 0.0, 0.0); // Offset each face to debug
-    out.world_position = mesh_functions::mesh_position_local_to_world(world_from_local, vec4<f32>(vertex_position, 1.0));
+    let face_index = vertex_index / 6;
+    let local_vertex_index = vertex_index % 6;
+    let local_vertex_position = FACE_VERTEX_POSITIONS[local_vertex_index];
+    let vertex_position = local_vertex_position + face_buffer[face_index];
+    out.world_position = world_from_local * vec4<f32>(vertex_position, 1.0);
     out.position = position_world_to_clip(out.world_position.xyz);
-#ifdef UNCLIPPED_DEPTH_ORTHO_EMULATION
-    out.unclipped_depth = out.position.z;
-    out.position.z = min(out.position.z, 1.0); // Clamp depth to avoid clipping
-#endif // UNCLIPPED_DEPTH_ORTHO_EMULATION
-#ifdef VERTEX_UVS_A
-    out.uv = vertex.uv;
-#endif // VERTEX_UVS_A
-#ifdef VERTEX_UVS_B
-    out.uv_b = vertex.uv_b;
-#endif // VERTEX_UVS_B
-    out.world_normal = mesh_functions::mesh_normal_local_to_world(
-        vertex.normal,
-        vertex.instance_index
-    );
+    out.world_normal = (world_from_local * vec4<f32>(0.0, 1.0, 0.0, 0.0)).xyz;
 #ifdef VERTEX_COLORS
     out.color = vertex.color;
-    out.color = debug_color(out.instance_index);
+    out.color = vec4(local_vertex_position, 1.0);
 #endif
 #ifdef MOTION_VECTOR_PREPASS
     let prev_vertex = vertex;

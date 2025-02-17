@@ -27,11 +27,12 @@ pub fn file_drag_and_drop_system(
         info!("Dropped file: {:?}", event);
         if let FileDragAndDrop::DroppedFile { window, path_buf } = event {
             let mut file_path = path_buf.to_str().unwrap().to_string();
+            let file_name = file_path.split("/").last().unwrap();
             if file_path.ends_with(".vxm") {
                 info!("dropped vxm file");
                 commands.spawn((
                     PendingVxm(asset_server.load(file_path.clone())),
-                    Transform::from_scale(Vec3::new(0.01, 0.01, 0.01)).with_rotation(Quat::from_euler(EulerRot::XYZ, FRAC_PI_2, 0.0, 0.0)),
+                    Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)).with_rotation(Quat::from_euler(EulerRot::XYZ, FRAC_PI_2, 0.0, 0.0)),
                 ));
             }
             if file_path.ends_with(".glb") {

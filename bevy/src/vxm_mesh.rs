@@ -190,6 +190,15 @@ fn add_face(
     }
 }
 
+const FACE_CHECKS: [[i32; 3]; 6] = [
+    [0, 0, 1],
+    [0, 0, -1],
+    [0, 1, 0],
+    [0, -1, 0],
+    [1, 0, 0],
+    [-1, 0, 0],
+];
+
 /**
     Ideal data layout per face:
     32bit: position + palette index + side
@@ -225,19 +234,23 @@ pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
         info!("Memory usage {:?}kb", format!("{:.1}", kb));
     }
 
-    let custom_attribute =
-        MeshVertexAttribute::new("Vertex_CustomAttribute", 123, VertexFormat::Uint8x4);
-    let custom_items = vec![[123u8, 123u8, 123u8, 123u8]];
+    info!("index count / 6 {:?}", indices.len() / 6);
 
     Mesh::new(
         PrimitiveTopology::TriangleList,
         RenderAssetUsages::default(),
     )
-    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, vec![[0.0, 0.0, 0.0]])
+    .with_inserted_attribute(
+        Mesh::ATTRIBUTE_POSITION,
+        vec![
+            [0.0, 0.0, 0.0],
+        ])
     .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 0.0, 0.0]])
     .with_inserted_indices(Indices::U32(indices))
-    // .with_inserted_attribute(custom_attribute, custom_items) // TODO: store position and colour in here
+
+
 }
+
 
 pub fn create_mesh_on_vxm_import_system(
     pending_vxms: Query<(Entity, &PendingVxm, &Transform)>,
@@ -250,14 +263,19 @@ pub fn create_mesh_on_vxm_import_system(
     for (entity, pending_vxm, transform) in pending_vxms.iter() {
         match vxm_assets.get(&pending_vxm.0) {
             Some(vxm) => {
-                // Example data for the storage buffer
-                let color_data: Vec<[f32; 4]> = vec![
-                    [1.0, 0.0, 0.0, 1.0],
-                    [0.0, 1.0, 0.0, 1.0],
-                    [0.0, 0.0, 1.0, 1.0],
-                    [1.0, 1.0, 0.0, 1.0],
-                    [0.0, 1.0, 1.0, 1.0],
-                ];
+                // Voxel positions
+                let mut position_data: Vec<[f32; 3]> = vec![];
+
+                for voxel in &vxm.voxels {
+                    position_data.push([
+                        voxel.x as f32,
+                        voxel.y as f32,
+                        voxel.z as f32,
+                    ]);
+                }
+
+                info!("face count: {:?}", position_data.len());
+
                 let material_handle = materials.add(ExtendedMaterial {
                     base: StandardMaterial {
                         perceptual_roughness: 1.0,
@@ -266,7 +284,7 @@ pub fn create_mesh_on_vxm_import_system(
                         ..Default::default()
                     },
                     extension: MyExtension {
-                        colors: buffers.add(ShaderStorageBuffer::from(color_data)),
+                        faces: buffers.add(ShaderStorageBuffer::from(&position_data)),
                     },
                 });
                 let mesh_handle = meshes.add(create_mesh_from_voxels(vxm));
@@ -293,7 +311,7 @@ pub struct MyExtension {
     // We need to ensure that the bindings of the base material and the extension do not conflict,
     // so we start from binding slot 100, leaving slots 0-99 for the base material.
     #[storage(100, read_only)]
-    pub colors: Handle<ShaderStorageBuffer>,
+    pub faces: Handle<ShaderStorageBuffer>,
 }
 
 impl MaterialExtension for MyExtension {

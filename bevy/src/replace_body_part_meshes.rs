@@ -332,12 +332,8 @@ pub fn swap_vxm_meshes(
             .mul_transform(Transform::from_scale(Vec3::splat(1.001)));
 
         // Example data for the storage buffer
-        let color_data: Vec<[f32; 4]> = vec![
-            [1.0, 0.0, 0.0, 1.0],
-            [0.0, 1.0, 0.0, 1.0],
-            [0.0, 0.0, 1.0, 1.0],
-            [1.0, 1.0, 0.0, 1.0],
-            [0.0, 1.0, 1.0, 1.0],
+        let color_data: Vec<[f32; 3]> = vec![
+            [1.0, 0.0, 0.0],
         ];
 
         let material_handle = materials.add(
@@ -349,7 +345,7 @@ pub fn swap_vxm_meshes(
                     ..Default::default()
                 },
                 extension: MyExtension {
-                    colors: buffers.add(ShaderStorageBuffer::from(color_data))
+                    faces: buffers.add(ShaderStorageBuffer::from(color_data))
                 }
             });
 
