@@ -30,52 +30,17 @@ use bevy::{
         render_resource::*,
         renderer::RenderDevice,
         sync_world::MainEntity,
-        view::{ExtractedView, NoFrustumCulling},
+        view::ExtractedView,
         Render, RenderApp, RenderSet,
     },
 };
-use bevy::asset::UntypedAssetId;
-use bevy::core_pipeline::core_3d::{Opaque3d, Opaque3dBinKey};
-use bevy::core_pipeline::deferred::Opaque3dDeferred;
-use bevy::core_pipeline::prepass::OpaqueNoLightmap3dBinKey;
-use bevy::render::render_phase::{BinnedRenderPhaseType, ViewBinnedRenderPhases};
 use bytemuck::{Pod, Zeroable};
 
 /// This example uses a shader source file from the assets subdirectory
 const SHADER_ASSET_PATH: &str = "shaders/instancing.wgsl";
 
-fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(0.5, 0.5, 0.5))),
-        InstanceMaterialData(
-            (1..=10)
-                .flat_map(|x| (1..=10).map(move |y| (x as f32 / 10.0, y as f32 / 10.0)))
-                .map(|(x, y)| InstanceData {
-                    position: Vec3::new(x * 10.0 - 5.0, y * 10.0 - 5.0, 0.0),
-                    scale: 1.0,
-                    color: LinearRgba::from(Color::hsla(x * 360., y, 0.5, 1.0)).to_f32_array(),
-                })
-                .collect(),
-        ),
-        // NOTE: Frustum culling is done based on the Aabb of the Mesh and the GlobalTransform.
-        // As the cube is at the origin, if its Aabb moves outside the view frustum, all the
-        // instanced cubes will be culled.
-        // The InstanceMaterialData contains the 'GlobalTransform' information for this custom
-        // instancing, and that is not taken into account with the built-in frustum culling.
-        // We must disable the built-in frustum culling by adding the `NoFrustumCulling` marker
-        // component to avoid incorrect culling.
-        NoFrustumCulling,
-    ));
-
-    // camera
-    commands.spawn((
-        Camera3d::default(),
-        Transform::from_xyz(0.0, 0.0, 15.0).looking_at(Vec3::ZERO, Vec3::Y),
-    ));
-}
-
 #[derive(Component, Deref)]
-struct InstanceMaterialData(Vec<InstanceData>);
+pub struct InstanceMaterialData(pub Vec<InstanceData>);
 
 impl ExtractComponent for InstanceMaterialData {
     type QueryData = &'static InstanceMaterialData;
@@ -92,9 +57,8 @@ pub struct InstancedMaterialPlugin;
 impl Plugin for InstancedMaterialPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(ExtractComponentPlugin::<InstanceMaterialData>::default());
-        app.add_systems(Startup, setup);
         app.sub_app_mut(RenderApp)
-            .add_render_command::<Opaque3d, DrawCustom>()
+            .add_render_command::<Transparent3d, DrawCustom>()
             .init_resource::<SpecializedMeshPipelines<CustomPipeline>>()
             .add_systems(
                 Render,
@@ -112,28 +76,28 @@ impl Plugin for InstancedMaterialPlugin {
 
 #[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
-struct InstanceData {
-    position: Vec3,
-    scale: f32,
-    color: [f32; 4],
+pub struct InstanceData {
+    pub(crate) position: Vec3,
+    pub(crate) scale: f32,
+    pub(crate) color: [f32; 4],
 }
 
 #[allow(clippy::too_many_arguments)]
 fn queue_custom(
-    opaque_3d_draw_functions: Res<DrawFunctions<Opaque3d>>,
+    transparent_3d_draw_functions: Res<DrawFunctions<Transparent3d>>,
     custom_pipeline: Res<CustomPipeline>,
     mut pipelines: ResMut<SpecializedMeshPipelines<CustomPipeline>>,
     pipeline_cache: Res<PipelineCache>,
     meshes: Res<RenderAssets<RenderMesh>>,
     render_mesh_instances: Res<RenderMeshInstances>,
     material_meshes: Query<(Entity, &MainEntity), With<InstanceMaterialData>>,
-    mut opaque_render_phases: ResMut<ViewBinnedRenderPhases<Opaque3d>>,
+    mut transparent_render_phases: ResMut<ViewSortedRenderPhases<Transparent3d>>,
     views: Query<(Entity, &ExtractedView, &Msaa)>,
 ) {
-    let draw_custom = opaque_3d_draw_functions.read().id::<DrawCustom>();
+    let draw_custom = transparent_3d_draw_functions.read().id::<DrawCustom>();
 
     for (view_entity, view, msaa) in &views {
-        let Some(opaque_phase) = opaque_render_phases.get_mut(&view_entity) else {
+        let Some(transparent_phase) = transparent_render_phases.get_mut(&view_entity) else {
             continue;
         };
 
@@ -154,18 +118,14 @@ fn queue_custom(
             let pipeline = pipelines
                 .specialize(&pipeline_cache, &custom_pipeline, key, &mesh.layout)
                 .unwrap();
-
-            opaque_phase.add(
-                Opaque3dBinKey {
-                    draw_function: draw_custom,
-                    pipeline,
-                    asset_id: UntypedAssetId::from(mesh_instance.mesh_asset_id),
-                    material_bind_group_id: None,
-                    lightmap_image: None,
-                },
-                (entity, *main_entity),
-                BinnedRenderPhaseType::NonMesh,
-            );
+            transparent_phase.add(Transparent3d {
+                entity: (entity, *main_entity),
+                pipeline,
+                draw_function: draw_custom,
+                distance: rangefinder.distance_translation(&mesh_instance.translation),
+                batch_range: 0..1,
+                extra_index: PhaseItemExtraIndex::NONE,
+            });
         }
     }
 }

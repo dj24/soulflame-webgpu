@@ -11,6 +11,7 @@ mod vxm;
 mod vxm_mesh;
 
 use crate::camera::ThirdPersonCameraPlugin;
+use crate::custom_shader_instancing::InstancedMaterialPlugin;
 use crate::dnd::{file_drag_and_drop_system, setup_scene_once_loaded};
 use crate::draw_aabb_gizmos::DrawAabbGizmosPlugin;
 use crate::replace_body_part_meshes::{
@@ -19,16 +20,16 @@ use crate::replace_body_part_meshes::{
 use crate::set_animation_clip_keyboard::SetAnimationClipPlugin;
 use crate::vxm::{VxmAsset, VxmAssetLoader};
 use crate::vxm_mesh::{create_mesh_on_vxm_import_system, VxmMeshPlugin};
-use bevy::core_pipeline::experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing};
-use bevy::core_pipeline::prepass::MotionVectorPrepass;
+use bevy::color::palettes::basic::WHITE;
+use bevy::core_pipeline::experimental::taa::TemporalAntiAliasPlugin;
 use bevy::ecs::bundle::DynamicBundle;
-use bevy::pbr::{FogVolume, ScreenSpaceAmbientOcclusion, VolumetricFog};
+use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
+use bevy::pbr::{FogVolume, VolumetricFog};
 use bevy::render::render_resource::WgpuFeatures;
 use bevy::render::settings::{RenderCreation, WgpuSettings};
 use bevy::render::RenderPlugin;
 use bevy::window::{PresentMode, WindowResolution};
 use bevy::{
-    core_pipeline::{motion_blur::MotionBlur, prepass::DeferredPrepass},
     dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin},
     pbr::{
         CascadeShadowConfigBuilder, DefaultOpaqueRendererMethod, DirectionalLightShadowMap,
@@ -39,9 +40,6 @@ use bevy::{
 use bevy::{prelude::*, render::extract_resource::ExtractResource};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use std::f32::consts::*;
-use bevy::color::palettes::basic::WHITE;
-use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
-use crate::custom_shader_instancing::InstancedMaterialPlugin;
 
 fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
     if keyboard_input.just_pressed(KeyCode::Escape) {
@@ -92,6 +90,7 @@ fn main() {
             WorldInspectorPlugin::new(),
             DrawAabbGizmosPlugin,
             SetAnimationClipPlugin,
+            InstancedMaterialPlugin,
         ))
         .insert_resource(WireframeConfig {
             // The global wireframe config enables drawing of wireframes on every mesh,
@@ -130,10 +129,10 @@ fn setup(
     // Camera
     commands.spawn((
         Camera3d::default(),
-        MotionBlur {
-            shutter_angle: 1.0,
-            samples: 4,
-        },
+        // MotionBlur {
+        //     shutter_angle: 1.0,
+        //     samples: 4,
+        // },
         Camera {
             hdr: false,
             ..default()
@@ -141,8 +140,8 @@ fn setup(
         Transform::from_xyz(0.7, 0.7, 1.0).looking_at(Vec3::new(0.0, 0.3, 0.0), Vec3::Y),
         Msaa::Off,
         // MotionVectorPrepass,
-        DeferredPrepass,
-        ScreenSpaceAmbientOcclusion::default(),
+        // DeferredPrepass,
+        // ScreenSpaceAmbientOcclusion::default(),
         // TemporalAntiAliasing::default(),
         EnvironmentMapLight {
             intensity: 900.0,

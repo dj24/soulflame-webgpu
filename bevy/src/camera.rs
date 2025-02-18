@@ -27,7 +27,7 @@ impl Default for CameraSettings {
         // Limiting pitch stops some unexpected rotation past 90° up or down.
         let pitch_limit = FRAC_PI_2 - 0.01;
         Self {
-            orbit_distance: 2.0,
+            orbit_distance: 50.0,
             pitch_speed: 0.003,
             pitch_range: -pitch_limit..pitch_limit,
             yaw_speed: 0.003,
@@ -46,10 +46,7 @@ impl Plugin for ThirdPersonCameraPlugin {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn((
-        Transform::default(),
-        CameraTarget::default(),
-    ));
+    commands.spawn((Transform::default(), CameraTarget::default()));
 }
 
 fn orbit(

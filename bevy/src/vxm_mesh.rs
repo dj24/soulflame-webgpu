@@ -1,3 +1,4 @@
+use crate::custom_shader_instancing::{InstanceData, InstanceMaterialData};
 use crate::dnd::PendingVxm;
 use crate::vxm::{Voxel, VxmAsset};
 use bevy::asset::{AssetEvent, Assets, RenderAssetUsages};
@@ -9,6 +10,7 @@ use bevy::prelude::*;
 use bevy::render::mesh::{Indices, MeshVertexAttribute, PrimitiveTopology};
 use bevy::render::render_resource::{AsBindGroup, ShaderRef, VertexFormat};
 use bevy::render::storage::ShaderStorageBuffer;
+use bevy::render::view::NoFrustumCulling;
 
 fn get_cube_vertex_positions() -> Vec<[f32; 3]> {
     vec![
@@ -63,7 +65,7 @@ fn get_cube_face_vertex_positions(cube_face: CubeFace) -> Vec<[f32; 3]> {
             [0.0, 1.0, 0.0], // Top-left
         ],
         CubeFace::Front => vec![
-            [0.0, 0.0, 1.0], // Bottom-left
+            [0.0, 0.0, 1.0], // Bottopub pub m-left
             [1.0, 0.0, 1.0], // Bottom-right
             [1.0, 1.0, 1.0], // Top-right
             [0.0, 1.0, 1.0], // Top-left
@@ -200,20 +202,20 @@ const FACE_CHECKS: [[i32; 3]; 6] = [
 ];
 
 /**
-    Ideal data layout per face:
-    32bit: position + palette index + side
-    x: 7bits
-    y: 7bits
-    z: 7bits
-    palette index: 8bits
-    side: 3bits
+Ideal data layout per face:
+32bit: position + palette index + side
+x: 7bits
+y: 7bits
+z: 7bits
+palette index: 8bits
+side: 3bits
 
-    Current per vertex
-    32bitx3: position
-    32bitx3: normal
-    32bitx4: colour
+Current per vertex
+32bitx3: position
+32bitx3: normal
+32bitx4: colour
 
-    Total per face: 40 bytes
+Total per face: 40 bytes
 */
 pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
     let mut indices = Vec::new();
@@ -240,17 +242,10 @@ pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
         PrimitiveTopology::TriangleList,
         RenderAssetUsages::default(),
     )
-    .with_inserted_attribute(
-        Mesh::ATTRIBUTE_POSITION,
-        vec![
-            [0.0, 0.0, 0.0],
-        ])
+    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, vec![[0.0, 0.0, 0.0]])
     .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 0.0, 0.0]])
     .with_inserted_indices(Indices::U32(indices))
-
-
 }
-
 
 pub fn create_mesh_on_vxm_import_system(
     pending_vxms: Query<(Entity, &PendingVxm, &Transform)>,
@@ -263,40 +258,33 @@ pub fn create_mesh_on_vxm_import_system(
     for (entity, pending_vxm, transform) in pending_vxms.iter() {
         match vxm_assets.get(&pending_vxm.0) {
             Some(vxm) => {
-                // Voxel positions
-                let mut position_data: Vec<[f32; 3]> = vec![];
+                let mut instance_data: Vec<InstanceData> = vec![];
 
                 for voxel in &vxm.voxels {
-                    position_data.push([
-                        voxel.x as f32,
-                        voxel.y as f32,
-                        voxel.z as f32,
-                    ]);
+                    instance_data.push(InstanceData {
+                        position: Vec3::new(voxel.x as f32, voxel.y as f32, voxel.z as f32),
+                        scale: 1.0,
+                        color: [
+                            voxel.x as f32 / vxm.size[0] as f32,
+                            voxel.y as f32 / vxm.size[1] as f32,
+                            voxel.z as f32 / vxm.size[2] as f32,
+                            1.0,
+                        ],
+                    });
                 }
 
-                info!("face count: {:?}", position_data.len());
+                info!(
+                    "{:?} instances using {:?}kb",
+                    instance_data.len(),
+                    (size_of_val(&instance_data) * instance_data.len()) / 1024
+                );
 
-                let material_handle = materials.add(ExtendedMaterial {
-                    base: StandardMaterial {
-                        perceptual_roughness: 1.0,
-                        metallic: 0.0,
-                        cull_mode: None,
-                        ..Default::default()
-                    },
-                    extension: MyExtension {
-                        faces: buffers.add(ShaderStorageBuffer::from(&position_data)),
-                    },
-                });
-                let mesh_handle = meshes.add(create_mesh_from_voxels(vxm));
-                let z_offset = vxm.size[2] as f32 / 2.0;
-                let transform = transform.clone().with_translation(Vec3::new(0.0, z_offset * transform.scale[1], 0.0));
-                commands
-                    .entity(entity)
-                    .remove::<PendingVxm>()
-                    .remove::<Transform>()
-                    .insert(Mesh3d(mesh_handle))
-                    .insert(MeshMaterial3d(material_handle))
-                    .insert(transform);
+                commands.entity(entity).remove::<PendingVxm>();
+                commands.spawn((
+                    NoFrustumCulling,
+                    Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
+                    InstanceMaterialData(instance_data),
+                ));
             }
             None => {}
         }
