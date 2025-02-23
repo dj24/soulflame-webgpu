@@ -284,6 +284,7 @@ pub fn create_mesh_on_vxm_import_system(
                     NoFrustumCulling,
                     Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
                     InstanceMaterialData(instance_data),
+                    Transform::from_scale(Vec3::splat(1.0)),
                 ));
             }
             None => {}

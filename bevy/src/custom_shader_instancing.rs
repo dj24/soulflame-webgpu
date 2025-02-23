@@ -42,13 +42,20 @@ const SHADER_ASSET_PATH: &str = "shaders/instancing.wgsl";
 #[derive(Component, Deref)]
 pub struct InstanceMaterialData(pub Vec<InstanceData>);
 
-impl ExtractComponent for InstanceMaterialData {
-    type QueryData = &'static InstanceMaterialData;
-    type QueryFilter = ();
-    type Out = Self;
+#[derive(Component, Deref)]
+pub struct TransformUniform(pub Mat4);
 
-    fn extract_component(item: QueryItem<'_, Self::QueryData>) -> Option<Self> {
-        Some(InstanceMaterialData(item.0.clone()))
+impl ExtractComponent for InstanceMaterialData {
+    type QueryData = (&'static Self, &'static GlobalTransform);
+    type QueryFilter = ();
+    type Out = (Self, TransformUniform);
+
+    fn extract_component(item: QueryItem<'_, Self::QueryData>) -> Option<Self::Out> {
+        let (instance_data, global_transform) = item;
+        Some((
+            InstanceMaterialData(instance_data.0.clone()),
+            TransformUniform(global_transform.compute_matrix()),
+        ))
     }
 }
 
@@ -136,21 +143,38 @@ struct InstanceBuffer {
     length: usize,
 }
 
+#[derive(Component)]
+struct TransformBuffer(Buffer);
+
 fn prepare_instance_buffers(
     mut commands: Commands,
-    query: Query<(Entity, &InstanceMaterialData)>,
+    query: Query<(Entity, &InstanceMaterialData, &GlobalTransform)>,
     render_device: Res<RenderDevice>,
 ) {
-    for (entity, instance_data) in &query {
+    info!("Buffer count {:?}", query.iter().count());
+    for (entity, instance_data, global_transform) in &query {
         let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
             label: Some("instance data buffer"),
             contents: bytemuck::cast_slice(instance_data.as_slice()),
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
         });
-        commands.entity(entity).insert(InstanceBuffer {
-            buffer,
-            length: instance_data.len(),
+
+        let transform_cols_array = global_transform.compute_matrix().to_cols_array();
+
+        let transform_cols_slice = bytemuck::cast_slice(&transform_cols_array);
+
+        let transform_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+            label: Some("transform buffer"),
+            contents: transform_cols_slice,
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
         });
+        commands.entity(entity).insert((
+            InstanceBuffer {
+                buffer,
+                length: instance_data.len(),
+            },
+            TransformBuffer(transform_buffer),
+        ));
     }
 }
 
