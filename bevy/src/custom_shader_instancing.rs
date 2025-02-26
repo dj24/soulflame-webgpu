@@ -148,10 +148,9 @@ struct TransformBuffer(Buffer);
 
 fn prepare_instance_buffers(
     mut commands: Commands,
-    query: Query<(Entity, &InstanceMaterialData, &GlobalTransform)>,
+    query: Query<(Entity, &InstanceMaterialData, &TransformUniform)>,
     render_device: Res<RenderDevice>,
 ) {
-    info!("Buffer count {:?}", query.iter().count());
     for (entity, instance_data, global_transform) in &query {
         let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
             label: Some("instance data buffer"),
@@ -159,7 +158,7 @@ fn prepare_instance_buffers(
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
         });
 
-        let transform_cols_array = global_transform.compute_matrix().to_cols_array();
+        let transform_cols_array = global_transform.to_cols_array();
 
         let transform_cols_slice = bytemuck::cast_slice(&transform_cols_array);
 
@@ -220,6 +219,11 @@ impl SpecializedMeshPipeline for CustomPipeline {
                     offset: VertexFormat::Float32x4.size(),
                     shader_location: 4,
                 },
+                VertexAttribute {
+                    format: VertexFormat::Float32x4,
+                    offset: VertexFormat::Float32x4.size() * 2,
+                    shader_location: 5,
+                },
             ],
         });
         descriptor.fragment.as_mut().unwrap().shader = self.shader.clone();
@@ -243,13 +247,13 @@ impl<P: PhaseItem> RenderCommand<P> for DrawMeshInstanced {
         SRes<MeshAllocator>,
     );
     type ViewQuery = ();
-    type ItemQuery = Read<InstanceBuffer>;
+    type ItemQuery = (Read<InstanceBuffer>, Read<TransformBuffer>);
 
     #[inline]
     fn render<'w>(
         item: &P,
         _view: (),
-        instance_buffer: Option<&'w InstanceBuffer>,
+        buffers: Option<(&'w InstanceBuffer, &'w TransformBuffer)>,
         (meshes, render_mesh_instances, mesh_allocator): SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
@@ -263,7 +267,7 @@ impl<P: PhaseItem> RenderCommand<P> for DrawMeshInstanced {
         let Some(gpu_mesh) = meshes.into_inner().get(mesh_instance.mesh_asset_id) else {
             return RenderCommandResult::Skip;
         };
-        let Some(instance_buffer) = instance_buffer else {
+        let Some(_buffers) = buffers else {
             return RenderCommandResult::Skip;
         };
         let Some(vertex_buffer_slice) =
@@ -272,8 +276,11 @@ impl<P: PhaseItem> RenderCommand<P> for DrawMeshInstanced {
             return RenderCommandResult::Skip;
         };
 
+        let (instance_buffer, _transform_buffer) = buffers.unwrap();
+
         pass.set_vertex_buffer(0, vertex_buffer_slice.buffer.slice(..));
         pass.set_vertex_buffer(1, instance_buffer.buffer.slice(..));
+        pass.set_vertex_buffer(2, _transform_buffer.0.slice(..));
 
         match &gpu_mesh.buffer_info {
             RenderMeshBufferInfo::Indexed {
