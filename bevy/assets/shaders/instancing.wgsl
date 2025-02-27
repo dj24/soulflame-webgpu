@@ -4,10 +4,12 @@ struct Vertex {
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) uv: vec2<f32>,
-
-    @location(3) i_pos_scale: vec4<f32>,
-    @location(4) i_color: vec4<f32>,
 };
+
+struct Instance {
+  @location(3) pos_scale: vec4<f32>,
+  @location(4) color: vec4<f32>,
+}
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
@@ -15,8 +17,8 @@ struct VertexOutput {
 };
 
 @vertex
-fn vertex(vertex: Vertex) -> VertexOutput {
-    let position = vertex.position * vertex.i_pos_scale.w + vertex.i_pos_scale.xyz;
+fn vertex(vertex: Vertex, instance: Instance) -> VertexOutput {
+    let position = vertex.position * instance.pos_scale.w + instance.pos_scale.xyz;
     var out: VertexOutput;
     // NOTE: Passing 0 as the instance_index to get_world_from_local() is a hack
     // for this example as the instance_index builtin would map to the wrong
@@ -26,7 +28,7 @@ fn vertex(vertex: Vertex) -> VertexOutput {
         get_world_from_local(0u),
         vec4<f32>(position, 1.0)
     );
-    out.color = vertex.i_color;
+    out.color = instance.color;
     return out;
 }
 

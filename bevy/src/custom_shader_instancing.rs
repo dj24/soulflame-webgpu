@@ -219,11 +219,6 @@ impl SpecializedMeshPipeline for CustomPipeline {
                     offset: VertexFormat::Float32x4.size(),
                     shader_location: 4,
                 },
-                VertexAttribute {
-                    format: VertexFormat::Float32x4,
-                    offset: VertexFormat::Float32x4.size() * 2,
-                    shader_location: 5,
-                },
             ],
         });
         descriptor.fragment.as_mut().unwrap().shader = self.shader.clone();
@@ -280,7 +275,7 @@ impl<P: PhaseItem> RenderCommand<P> for DrawMeshInstanced {
 
         pass.set_vertex_buffer(0, vertex_buffer_slice.buffer.slice(..));
         pass.set_vertex_buffer(1, instance_buffer.buffer.slice(..));
-        pass.set_vertex_buffer(2, _transform_buffer.0.slice(..));
+        // pass.set_vertex_buffer(2, _transform_buffer.0.slice(..));
 
         match &gpu_mesh.buffer_info {
             RenderMeshBufferInfo::Indexed {
