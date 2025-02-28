@@ -34,6 +34,7 @@ use bevy::{
         Render, RenderApp, RenderSet,
     },
 };
+use bevy::render::render_resource::binding_types::uniform_buffer;
 use bytemuck::{Pod, Zeroable};
 
 /// This example uses a shader source file from the assets subdirectory
@@ -181,18 +182,22 @@ fn prepare_instance_buffers(
 struct CustomPipeline {
     shader: Handle<Shader>,
     mesh_pipeline: MeshPipeline,
+    render_device: RenderDevice
 }
 
 impl FromWorld for CustomPipeline {
     fn from_world(world: &mut World) -> Self {
         let mesh_pipeline = world.resource::<MeshPipeline>();
+        let render_device = world.resource::<RenderDevice>();
 
         CustomPipeline {
             shader: world.load_asset(SHADER_ASSET_PATH),
             mesh_pipeline: mesh_pipeline.clone(),
+            render_device: render_device.clone(),
         }
     }
 }
+
 
 impl SpecializedMeshPipeline for CustomPipeline {
     type Key = MeshPipelineKey;
@@ -221,6 +226,18 @@ impl SpecializedMeshPipeline for CustomPipeline {
                 },
             ],
         });
+
+        // Add uniform buffer binding
+        // let transform_layout = self.render_device.create_bind_group_layout(
+        //     "transmittance_lut_bind_group_layout",
+        //     &BindGroupLayoutEntries::with_indices(
+        //         ShaderStages::VERTEX,
+        //         (// one for each row of matrix
+        //             (0,uniform_buffer::<MatrixArray>(true)),
+        //         ),
+        //     )
+        // );
+        // descriptor.layout.push(transform_layout);
         descriptor.fragment.as_mut().unwrap().shader = self.shader.clone();
         Ok(descriptor)
     }
