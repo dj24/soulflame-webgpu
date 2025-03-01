@@ -107,10 +107,15 @@ fn main() {
         .add_systems(
             Update,
             (
+                exit_on_esc_system,
+            ),
+        )
+        .add_systems(
+            FixedUpdate,
+            (
                 file_drag_and_drop_system,
                 setup_scene_once_loaded,
                 add_vxm_swap_targets,
-                exit_on_esc_system,
                 create_vxm_swap_targets_on_gltf_import_system,
                 create_mesh_on_vxm_import_system,
                 swap_vxm_meshes,

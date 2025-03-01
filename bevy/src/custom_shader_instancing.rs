@@ -7,6 +7,8 @@
 //! implementation using bevy's low level rendering api.
 //! It's generally recommended to try the built-in instancing before going with this approach.
 
+use bevy::reflect::Array;
+use bevy::render::render_resource::binding_types::uniform_buffer;
 use bevy::{
     core_pipeline::core_3d::Transparent3d,
     ecs::{
@@ -34,7 +36,6 @@ use bevy::{
         Render, RenderApp, RenderSet,
     },
 };
-use bevy::render::render_resource::binding_types::uniform_buffer;
 use bytemuck::{Pod, Zeroable};
 
 /// This example uses a shader source file from the assets subdirectory
@@ -78,7 +79,9 @@ impl Plugin for InstancedMaterialPlugin {
     }
 
     fn finish(&self, app: &mut App) {
-        app.sub_app_mut(RenderApp).init_resource::<CustomPipeline>();
+        app.sub_app_mut(RenderApp)
+            .init_resource::<CustomPipeline>()
+            .init_resource::<TransformUniformLayout>();
     }
 }
 
@@ -145,7 +148,7 @@ struct InstanceBuffer {
 }
 
 #[derive(Component)]
-struct TransformBuffer(Buffer);
+struct TransformBindGroup(BindGroup);
 
 fn prepare_instance_buffers(
     mut commands: Commands,
@@ -168,12 +171,15 @@ fn prepare_instance_buffers(
             contents: transform_cols_slice,
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
         });
+
+        let bind_group_
+
         commands.entity(entity).insert((
             InstanceBuffer {
                 buffer,
                 length: instance_data.len(),
             },
-            TransformBuffer(transform_buffer),
+            TransformBindGroup(transform_buffer),
         ));
     }
 }
@@ -182,7 +188,7 @@ fn prepare_instance_buffers(
 struct CustomPipeline {
     shader: Handle<Shader>,
     mesh_pipeline: MeshPipeline,
-    render_device: RenderDevice
+    render_device: RenderDevice,
 }
 
 impl FromWorld for CustomPipeline {
@@ -198,6 +204,22 @@ impl FromWorld for CustomPipeline {
     }
 }
 
+#[derive(Resource)]
+pub(crate) struct TransformUniformLayout(BindGroupLayout);
+
+impl FromWorld for TransformUniformLayout {
+    fn from_world(world: &mut World) -> Self {
+        let render_device = world.resource::<RenderDevice>();
+        let layout = render_device.create_bind_group_layout(
+            "transforms",
+            &BindGroupLayoutEntries::with_indices(
+                ShaderStages::VERTEX | ShaderStages::FRAGMENT,
+                ((0, uniform_buffer::<[f32; 16]>(true)),),
+            ),
+        );
+        TransformUniformLayout(layout)
+    }
+}
 
 impl SpecializedMeshPipeline for CustomPipeline {
     type Key = MeshPipelineKey;
@@ -228,16 +250,16 @@ impl SpecializedMeshPipeline for CustomPipeline {
         });
 
         // Add uniform buffer binding
-        // let transform_layout = self.render_device.create_bind_group_layout(
-        //     "transmittance_lut_bind_group_layout",
-        //     &BindGroupLayoutEntries::with_indices(
-        //         ShaderStages::VERTEX,
-        //         (// one for each row of matrix
-        //             (0,uniform_buffer::<MatrixArray>(true)),
-        //         ),
-        //     )
-        // );
-        // descriptor.layout.push(transform_layout);
+        let transform_layout = self.render_device.create_bind_group_layout(
+            "transform",
+            &BindGroupLayoutEntries::with_indices(
+                ShaderStages::VERTEX,
+                (
+                    (0,uniform_buffer::<[f32; 16]>(true)),
+                ),
+            )
+        );
+        descriptor.layout.push(transform_layout);
         descriptor.fragment.as_mut().unwrap().shader = self.shader.clone();
         Ok(descriptor)
     }
@@ -259,13 +281,13 @@ impl<P: PhaseItem> RenderCommand<P> for DrawMeshInstanced {
         SRes<MeshAllocator>,
     );
     type ViewQuery = ();
-    type ItemQuery = (Read<InstanceBuffer>, Read<TransformBuffer>);
+    type ItemQuery = (Read<InstanceBuffer>, Read<TransformBindGroup>);
 
     #[inline]
     fn render<'w>(
         item: &P,
         _view: (),
-        buffers: Option<(&'w InstanceBuffer, &'w TransformBuffer)>,
+        buffers: Option<(&'w InstanceBuffer, &'w TransformBindGroup)>,
         (meshes, render_mesh_instances, mesh_allocator): SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
@@ -292,7 +314,6 @@ impl<P: PhaseItem> RenderCommand<P> for DrawMeshInstanced {
 
         pass.set_vertex_buffer(0, vertex_buffer_slice.buffer.slice(..));
         pass.set_vertex_buffer(1, instance_buffer.buffer.slice(..));
-        // pass.set_vertex_buffer(2, _transform_buffer.0.slice(..));
 
         match &gpu_mesh.buffer_info {
             RenderMeshBufferInfo::Indexed {

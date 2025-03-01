@@ -259,15 +259,17 @@ pub fn create_mesh_on_vxm_import_system(
         match vxm_assets.get(&pending_vxm.0) {
             Some(vxm) => {
                 let mut instance_data: Vec<InstanceData> = vec![];
+                let palette = &vxm.palette;
 
                 for voxel in &vxm.voxels {
+                    let color = &palette[voxel.c as usize];
                     instance_data.push(InstanceData {
                         position: Vec3::new(voxel.x as f32, voxel.y as f32, voxel.z as f32),
                         scale: 1.0,
                         color: [
-                            voxel.x as f32 / vxm.size[0] as f32,
-                            voxel.y as f32 / vxm.size[1] as f32,
-                            voxel.z as f32 / vxm.size[2] as f32,
+                            color.r as f32 / 255.0,
+                            color.g as f32 / 255.0,
+                            color.b as f32 / 255.0,
                             1.0,
                         ],
                     });
