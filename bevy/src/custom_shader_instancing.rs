@@ -154,6 +154,7 @@ fn prepare_instance_buffers(
     mut commands: Commands,
     query: Query<(Entity, &InstanceMaterialData, &TransformUniform)>,
     render_device: Res<RenderDevice>,
+    transform_uniform_layout: Res<TransformUniformLayout>,
 ) {
     for (entity, instance_data, global_transform) in &query {
         let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
@@ -162,24 +163,18 @@ fn prepare_instance_buffers(
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
         });
 
-        let transform_cols_array = global_transform.to_cols_array();
-
-        let transform_cols_slice = bytemuck::cast_slice(&transform_cols_array);
-
-        let transform_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            label: Some("transform buffer"),
-            contents: transform_cols_slice,
-            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-        });
-
-        let bind_group_
+        let transform_bind_group = render_device.create_bind_group(
+            "transform_bind_group",
+            &transform_uniform_layout.0,
+            &BindGroupEntries::single(&UniformBuffer::from(global_transform.to_cols_array())),
+        );
 
         commands.entity(entity).insert((
             InstanceBuffer {
                 buffer,
                 length: instance_data.len(),
             },
-            TransformBindGroup(transform_buffer),
+            TransformBindGroup(transform_bind_group),
         ));
     }
 }
@@ -254,10 +249,8 @@ impl SpecializedMeshPipeline for CustomPipeline {
             "transform",
             &BindGroupLayoutEntries::with_indices(
                 ShaderStages::VERTEX,
-                (
-                    (0,uniform_buffer::<[f32; 16]>(true)),
-                ),
-            )
+                ((0, uniform_buffer::<[f32; 16]>(true)),),
+            ),
         );
         descriptor.layout.push(transform_layout);
         descriptor.fragment.as_mut().unwrap().shader = self.shader.clone();
