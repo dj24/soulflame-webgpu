@@ -36,6 +36,7 @@ use bevy::{
         Render, RenderApp, RenderSet,
     },
 };
+use bevy::render::renderer::RenderQueue;
 use bytemuck::{Pod, Zeroable};
 
 /// This example uses a shader source file from the assets subdirectory
@@ -80,8 +81,7 @@ impl Plugin for InstancedMaterialPlugin {
 
     fn finish(&self, app: &mut App) {
         app.sub_app_mut(RenderApp)
-            .init_resource::<CustomPipeline>()
-            .init_resource::<TransformUniformLayout>();
+            .init_resource::<CustomPipeline>();
     }
 }
 
@@ -154,7 +154,7 @@ fn prepare_instance_buffers(
     mut commands: Commands,
     query: Query<(Entity, &InstanceMaterialData, &TransformUniform)>,
     render_device: Res<RenderDevice>,
-    transform_uniform_layout: Res<TransformUniformLayout>,
+    render_queue: Res<RenderQueue>
 ) {
     for (entity, instance_data, global_transform) in &query {
         let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
@@ -163,10 +163,23 @@ fn prepare_instance_buffers(
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
         });
 
+        let layout = render_device.create_bind_group_layout(
+            "transforms",
+            &BindGroupLayoutEntries::with_indices(
+                ShaderStages::VERTEX | ShaderStages::FRAGMENT,
+                ((0, uniform_buffer::<[f32; 16]>(true)),),
+            ),
+        );
+
+        // TODO: use storage buffer instead, then we can render in one draw call
+        // Or, maybe pack matrix to fix 16 byte stride
+        let mut uniform_buffer = UniformBuffer::from(global_transform.to_cols_array());
+        uniform_buffer.write_buffer(&render_device, &render_queue);
+
         let transform_bind_group = render_device.create_bind_group(
             "transform_bind_group",
-            &transform_uniform_layout.0,
-            &BindGroupEntries::single(&UniformBuffer::from(global_transform.to_cols_array())),
+            &layout,
+            &BindGroupEntries::single(&uniform_buffer),
         );
 
         commands.entity(entity).insert((
@@ -196,23 +209,6 @@ impl FromWorld for CustomPipeline {
             mesh_pipeline: mesh_pipeline.clone(),
             render_device: render_device.clone(),
         }
-    }
-}
-
-#[derive(Resource)]
-pub(crate) struct TransformUniformLayout(BindGroupLayout);
-
-impl FromWorld for TransformUniformLayout {
-    fn from_world(world: &mut World) -> Self {
-        let render_device = world.resource::<RenderDevice>();
-        let layout = render_device.create_bind_group_layout(
-            "transforms",
-            &BindGroupLayoutEntries::with_indices(
-                ShaderStages::VERTEX | ShaderStages::FRAGMENT,
-                ((0, uniform_buffer::<[f32; 16]>(true)),),
-            ),
-        );
-        TransformUniformLayout(layout)
     }
 }
 
