@@ -249,11 +249,9 @@ pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
 
 pub fn create_mesh_on_vxm_import_system(
     pending_vxms: Query<(Entity, &PendingVxm, &Transform)>,
-    mut vxm_assets: ResMut<Assets<VxmAsset>>,
+    vxm_assets: ResMut<Assets<VxmAsset>>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, MyExtension>>>,
-    mut buffers: ResMut<Assets<ShaderStorageBuffer>>,
 ) {
     for (entity, pending_vxm, transform) in pending_vxms.iter() {
         match vxm_assets.get(&pending_vxm.0) {

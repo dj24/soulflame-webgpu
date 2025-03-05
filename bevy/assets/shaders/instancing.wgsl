@@ -16,20 +16,23 @@ struct VertexOutput {
     @location(0) color: vec4<f32>,
 };
 
-  @group(0) @binding(0) var<uniform> transform: mat4x4<f32>;
+
+@group(2) @binding(0) var<uniform> model_matrix_0: vec4<f32>;
+@group(2) @binding(1) var<uniform> model_matrix_1: vec4<f32>;
+@group(2) @binding(2) var<uniform> model_matrix_2: vec4<f32>;
+@group(2) @binding(3) var<uniform> model_matrix_3: vec4<f32>;
 
 @vertex
 fn vertex(vertex: Vertex, instance: Instance) -> VertexOutput {
-    let position = vertex.position * instance.pos_scale.w + instance.pos_scale.xyz;
-    var out: VertexOutput;
-    // NOTE: Passing 0 as the instance_index to get_world_from_local() is a hack
-    // for this example as the instance_index builtin would map to the wrong
-    // index in the Mesh array. This index could be passed in via another
-    // uniform instead but it's unnecessary for the example.
-    out.clip_position = mesh_position_local_to_clip(
-        get_world_from_local(0u),
-        vec4<f32>(position, 1.0)
+  let model_matrix = mat4x4<f32>(
+        model_matrix_0,
+        model_matrix_1,
+        model_matrix_2,
+        model_matrix_3,
     );
+    let local_position = vertex.position * instance.pos_scale.w + instance.pos_scale.xyz;
+    var out: VertexOutput;
+    out.clip_position = mesh_position_local_to_clip(model_matrix, vec4<f32>(local_position, 1.0));
     out.color = instance.color;
     return out;
 }

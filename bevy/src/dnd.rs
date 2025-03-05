@@ -32,7 +32,7 @@ pub fn file_drag_and_drop_system(
                 info!("dropped vxm file");
                 commands.spawn((
                     PendingVxm(asset_server.load(file_path.clone())),
-                    Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)).with_rotation(Quat::from_euler(EulerRot::XYZ, FRAC_PI_2, 0.0, 0.0)),
+                    Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)),
                 ));
             }
             if file_path.ends_with(".glb") {

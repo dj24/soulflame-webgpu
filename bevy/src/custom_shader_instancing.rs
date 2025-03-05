@@ -167,10 +167,10 @@ fn prepare_instance_buffers(
             &BindGroupLayoutEntries::with_indices(
                 ShaderStages::VERTEX,
                 (
-                    (0, uniform_buffer::<Vec4>(true)),
-                    (1, uniform_buffer::<Vec4>(true)),
-                    (2, uniform_buffer::<Vec4>(true)),
-                    (3, uniform_buffer::<Vec4>(true)),
+                    (0, uniform_buffer::<Vec4>(false)),
+                    (1, uniform_buffer::<Vec4>(false)),
+                    (2, uniform_buffer::<Vec4>(false)),
+                    (3, uniform_buffer::<Vec4>(false)),
                 ),
             ),
         );
@@ -261,10 +261,15 @@ impl SpecializedMeshPipeline for CustomPipeline {
 
         // Add uniform buffer binding
         let transform_layout = self.render_device.create_bind_group_layout(
-            "transform",
+            "transforms",
             &BindGroupLayoutEntries::with_indices(
                 ShaderStages::VERTEX,
-                ((0, uniform_buffer::<[f32; 16]>(true)),),
+                (
+                    (0, uniform_buffer::<Vec4>(false)),
+                    (1, uniform_buffer::<Vec4>(false)),
+                    (2, uniform_buffer::<Vec4>(false)),
+                    (3, uniform_buffer::<Vec4>(false)),
+                ),
             ),
         );
         descriptor.layout.push(transform_layout);
@@ -318,10 +323,11 @@ impl<P: PhaseItem> RenderCommand<P> for DrawMeshInstanced {
             return RenderCommandResult::Skip;
         };
 
-        let (instance_buffer, _transform_buffer) = buffers.unwrap();
+        let (instance_buffer, transform_bind_group) = buffers.unwrap();
 
         pass.set_vertex_buffer(0, vertex_buffer_slice.buffer.slice(..));
         pass.set_vertex_buffer(1, instance_buffer.buffer.slice(..));
+        pass.set_bind_group(2,&transform_bind_group.0, &[]);
 
         match &gpu_mesh.buffer_info {
             RenderMeshBufferInfo::Indexed {
