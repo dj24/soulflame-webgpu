@@ -9,6 +9,7 @@
 
 use bevy::reflect::Array;
 use bevy::render::render_resource::binding_types::uniform_buffer;
+use bevy::render::renderer::RenderQueue;
 use bevy::{
     core_pipeline::core_3d::Transparent3d,
     ecs::{
@@ -36,7 +37,6 @@ use bevy::{
         Render, RenderApp, RenderSet,
     },
 };
-use bevy::render::renderer::RenderQueue;
 use bytemuck::{Pod, Zeroable};
 
 /// This example uses a shader source file from the assets subdirectory
@@ -80,8 +80,7 @@ impl Plugin for InstancedMaterialPlugin {
     }
 
     fn finish(&self, app: &mut App) {
-        app.sub_app_mut(RenderApp)
-            .init_resource::<CustomPipeline>();
+        app.sub_app_mut(RenderApp).init_resource::<CustomPipeline>();
     }
 }
 
@@ -154,7 +153,7 @@ fn prepare_instance_buffers(
     mut commands: Commands,
     query: Query<(Entity, &InstanceMaterialData, &TransformUniform)>,
     render_device: Res<RenderDevice>,
-    render_queue: Res<RenderQueue>
+    render_queue: Res<RenderQueue>,
 ) {
     for (entity, instance_data, global_transform) in &query {
         let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
@@ -166,20 +165,40 @@ fn prepare_instance_buffers(
         let layout = render_device.create_bind_group_layout(
             "transforms",
             &BindGroupLayoutEntries::with_indices(
-                ShaderStages::VERTEX | ShaderStages::FRAGMENT,
-                ((0, uniform_buffer::<[f32; 16]>(true)),),
+                ShaderStages::VERTEX,
+                (
+                    (0, uniform_buffer::<Vec4>(true)),
+                    (1, uniform_buffer::<Vec4>(true)),
+                    (2, uniform_buffer::<Vec4>(true)),
+                    (3, uniform_buffer::<Vec4>(true)),
+                ),
             ),
         );
 
         // TODO: use storage buffer instead, then we can render in one draw call
         // Or, maybe pack matrix to fix 16 byte stride
-        let mut uniform_buffer = UniformBuffer::from(global_transform.to_cols_array());
-        uniform_buffer.write_buffer(&render_device, &render_queue);
-
+        let cols = global_transform.to_cols_array();
+        let mut uniform_buffers = vec![
+            UniformBuffer::from(Vec4::new(cols[0], cols[1], cols[2], cols[3])),
+            UniformBuffer::from(Vec4::new(cols[4], cols[5], cols[6], cols[7])),
+            UniformBuffer::from(Vec4::new(cols[8], cols[9], cols[10], cols[11])),
+            UniformBuffer::from(Vec4::new(cols[12], cols[13], cols[14], cols[15])),
+        ];
+        for uniform_buffer in uniform_buffers.iter_mut() {
+            uniform_buffer.write_buffer(&render_device, &render_queue);
+        }
+        
         let transform_bind_group = render_device.create_bind_group(
             "transform_bind_group",
             &layout,
-            &BindGroupEntries::single(&uniform_buffer),
+            &BindGroupEntries::with_indices(
+                (
+                    (0, &uniform_buffers[0]),
+                    (1, &uniform_buffers[1]),
+                    (2, &uniform_buffers[2]),
+                    (3, &uniform_buffers[3]),
+                ),
+            ),
         );
 
         commands.entity(entity).insert((
