@@ -7,8 +7,8 @@ struct Vertex {
 };
 
 struct Instance {
-  @location(3) pos_scale: vec4<f32>,
-  @location(4) color: vec4<f32>,
+  @location(3) pos_scale: u32,
+  @location(4) color: u32,
 }
 
 struct VertexOutput {
@@ -30,10 +30,10 @@ fn vertex(vertex: Vertex, instance: Instance) -> VertexOutput {
         model_matrix_2,
         model_matrix_3,
     );
-    let local_position = vertex.position * instance.pos_scale.w + instance.pos_scale.xyz;
+    let local_position = vertex.position + vec3<f32>(unpack4xU8(instance.pos_scale).xyz);
     var out: VertexOutput;
     out.clip_position = mesh_position_local_to_clip(model_matrix, vec4<f32>(local_position, 1.0));
-    out.color = instance.color;
+    out.color = unpack4x8unorm(instance.color);
     return out;
 }
 

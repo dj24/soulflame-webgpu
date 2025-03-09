@@ -262,21 +262,14 @@ pub fn create_mesh_on_vxm_import_system(
                 for voxel in &vxm.voxels {
                     let color = &palette[voxel.c as usize];
                     instance_data.push(InstanceData {
-                        position: Vec3::new(voxel.x as f32, voxel.y as f32, voxel.z as f32),
-                        scale: 1.0,
-                        color: [
-                            color.r as f32 / 255.0,
-                            color.g as f32 / 255.0,
-                            color.b as f32 / 255.0,
-                            1.0,
-                        ],
+                        position: [voxel.x as u8, voxel.y as u8, voxel.z as u8, 0],
+                        color: [color.r, color.g, color.b, 255],
                     });
                 }
-
                 info!(
                     "{:?} instances using {:?}kb",
                     instance_data.len(),
-                    (size_of_val(&instance_data) * instance_data.len()) / 1024
+                    (size_of::<InstanceData>() * instance_data.len()) / 1024
                 );
 
                 commands.entity(entity).remove::<PendingVxm>();

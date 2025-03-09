@@ -87,9 +87,8 @@ impl Plugin for InstancedMaterialPlugin {
 #[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
 pub struct InstanceData {
-    pub(crate) position: Vec3,
-    pub(crate) scale: f32,
-    pub(crate) color: [f32; 4],
+    pub(crate) position: [u8; 4],
+    pub(crate) color: [u8; 4],
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -247,13 +246,13 @@ impl SpecializedMeshPipeline for CustomPipeline {
             step_mode: VertexStepMode::Instance,
             attributes: vec![
                 VertexAttribute {
-                    format: VertexFormat::Float32x4,
+                    format: VertexFormat::Uint32,
                     offset: 0,
                     shader_location: 3, // shader locations 0-2 are taken up by Position, Normal and UV attributes
                 },
                 VertexAttribute {
-                    format: VertexFormat::Float32x4,
-                    offset: VertexFormat::Float32x4.size(),
+                    format: VertexFormat::Uint32,
+                    offset: VertexFormat::Uint32.size(),
                     shader_location: 4,
                 },
             ],
