@@ -87,8 +87,10 @@ impl Plugin for InstancedMaterialPlugin {
 #[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
 pub struct InstanceData {
-    pub(crate) position: [u8; 4],
-    pub(crate) color: [u8; 4],
+    pub(crate) position: [u8; 3],
+    pub(crate) x_extent: u8,
+    pub(crate) color: [u8; 3],
+    pub(crate) y_extent: u8,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -186,18 +188,16 @@ fn prepare_instance_buffers(
         for uniform_buffer in uniform_buffers.iter_mut() {
             uniform_buffer.write_buffer(&render_device, &render_queue);
         }
-        
+
         let transform_bind_group = render_device.create_bind_group(
             "transform_bind_group",
             &layout,
-            &BindGroupEntries::with_indices(
-                (
-                    (0, &uniform_buffers[0]),
-                    (1, &uniform_buffers[1]),
-                    (2, &uniform_buffers[2]),
-                    (3, &uniform_buffers[3]),
-                ),
-            ),
+            &BindGroupEntries::with_indices((
+                (0, &uniform_buffers[0]),
+                (1, &uniform_buffers[1]),
+                (2, &uniform_buffers[2]),
+                (3, &uniform_buffers[3]),
+            )),
         );
 
         commands.entity(entity).insert((
@@ -326,7 +326,7 @@ impl<P: PhaseItem> RenderCommand<P> for DrawMeshInstanced {
 
         pass.set_vertex_buffer(0, vertex_buffer_slice.buffer.slice(..));
         pass.set_vertex_buffer(1, instance_buffer.buffer.slice(..));
-        pass.set_bind_group(2,&transform_bind_group.0, &[]);
+        pass.set_bind_group(2, &transform_bind_group.0, &[]);
 
         match &gpu_mesh.buffer_info {
             RenderMeshBufferInfo::Indexed {

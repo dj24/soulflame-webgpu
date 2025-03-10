@@ -12,41 +12,6 @@ use bevy::render::render_resource::{AsBindGroup, ShaderRef, VertexFormat};
 use bevy::render::storage::ShaderStorageBuffer;
 use bevy::render::view::NoFrustumCulling;
 
-fn get_cube_vertex_positions() -> Vec<[f32; 3]> {
-    vec![
-        // Front face
-        [0.0, 0.0, 1.0], // Bottom-left
-        [1.0, 0.0, 1.0], // Bottom-right
-        [1.0, 1.0, 1.0], // Top-right
-        [0.0, 1.0, 1.0], // Top-left
-        // Back face
-        [0.0, 0.0, 0.0], // Bottom-left
-        [1.0, 0.0, 0.0], // Bottom-right
-        [1.0, 1.0, 0.0], // Top-right
-        [0.0, 1.0, 0.0], // Top-left
-        // Top face
-        [0.0, 1.0, 0.0], // Back-left
-        [1.0, 1.0, 0.0], // Back-right
-        [1.0, 1.0, 1.0], // Front-right
-        [0.0, 1.0, 1.0], // Front-left
-        // Bottom face
-        [0.0, 0.0, 0.0], // Back-left
-        [1.0, 0.0, 0.0], // Back-right
-        [1.0, 0.0, 1.0], // Front-right
-        [0.0, 0.0, 1.0], // Front-left
-        // Left face
-        [1.0, 0.0, 1.0], // Front-bottom
-        [1.0, 0.0, 0.0], // Back-bottom
-        [1.0, 1.0, 0.0], // Back-top
-        [1.0, 1.0, 1.0], // Front-top
-        // Right face
-        [0.0, 0.0, 1.0], // Front-bottom
-        [0.0, 0.0, 0.0], // Back-bottom
-        [0.0, 1.0, 0.0], // Back-top
-        [0.0, 1.0, 1.0], // Front-top
-    ]
-}
-
 enum CubeFace {
     Front,
     Back,
@@ -61,38 +26,38 @@ fn get_cube_face_vertex_positions(cube_face: CubeFace) -> Vec<[f32; 3]> {
         CubeFace::Back => vec![
             [0.0, 0.0, 0.0], // Bottom-left
             [1.0, 0.0, 0.0], // Bottom-right
-            [1.0, 1.0, 0.0], // Top-right
             [0.0, 1.0, 0.0], // Top-left
+            [1.0, 1.0, 0.0], // Top-right
         ],
         CubeFace::Front => vec![
-            [0.0, 0.0, 1.0], // Bottopub pub m-left
+            [0.0, 0.0, 1.0], // Bottom-left
             [1.0, 0.0, 1.0], // Bottom-right
-            [1.0, 1.0, 1.0], // Top-right
             [0.0, 1.0, 1.0], // Top-left
+            [1.0, 1.0, 1.0], // Top-right
         ],
         CubeFace::Top => vec![
             [0.0, 1.0, 0.0], // Back-left
             [1.0, 1.0, 0.0], // Back-right
-            [1.0, 1.0, 1.0], // Front-right
             [0.0, 1.0, 1.0], // Front-left
+            [1.0, 1.0, 1.0], // Front-right
         ],
         CubeFace::Bottom => vec![
             [0.0, 0.0, 0.0], // Back-left
             [1.0, 0.0, 0.0], // Back-right
-            [1.0, 0.0, 1.0], // Front-right
             [0.0, 0.0, 1.0], // Front-left
+            [1.0, 0.0, 1.0], // Front-right
         ],
         CubeFace::Left => vec![
             [0.0, 0.0, 1.0], // Front-bottom
             [0.0, 0.0, 0.0], // Back-bottom
-            [0.0, 1.0, 0.0], // Back-top
             [0.0, 1.0, 1.0], // Front-top
+            [0.0, 1.0, 0.0], // Back-top
         ],
         CubeFace::Right => vec![
             [1.0, 0.0, 1.0], // Front-bottom
             [1.0, 0.0, 0.0], // Back-bottom
-            [1.0, 1.0, 0.0], // Back-top
             [1.0, 1.0, 1.0], // Front-top
+            [1.0, 1.0, 0.0], // Back-top
         ],
     }
 }
@@ -111,87 +76,6 @@ fn get_cube_face_normals(cube_face: CubeFace) -> Vec<[f32; 3]> {
         CubeFace::Right => vec![[1.0, 0.0, 0.0]].repeat(4),
     }
 }
-
-fn get_cube_vertex_indices() -> Vec<u32> {
-    vec![
-        // Front face
-        0, 1, 2, 0, 2, 3, // Back face
-        4, 6, 5, 4, 7, 6, // Top face
-        8, 10, 9, 8, 11, 10, // Bottom face
-        12, 13, 14, 12, 14, 15, // Left face
-        16, 17, 18, 16, 18, 19, // Right face
-        20, 22, 21, 20, 23, 22,
-    ]
-}
-
-fn get_cube_normals() -> Vec<[f32; 3]> {
-    vec![
-        // Front face
-        [0.0, 0.0, 1.0],
-        [0.0, 0.0, 1.0],
-        [0.0, 0.0, 1.0],
-        [0.0, 0.0, 1.0],
-        // Back face
-        [0.0, 0.0, -1.0],
-        [0.0, 0.0, -1.0],
-        [0.0, 0.0, -1.0],
-        [0.0, 0.0, -1.0],
-        // Top face
-        [0.0, 1.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [0.0, 1.0, 0.0],
-        // Bottom face
-        [0.0, -1.0, 0.0],
-        [0.0, -1.0, 0.0],
-        [0.0, -1.0, 0.0],
-        [0.0, -1.0, 0.0],
-        // Left face
-        [1.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        // Right face
-        [-1.0, 0.0, 0.0],
-        [-1.0, 0.0, 0.0],
-        [-1.0, 0.0, 0.0],
-        [-1.0, 0.0, 0.0],
-    ]
-}
-
-fn add_face(
-    voxels: &VxmAsset,
-    voxel: &Voxel,
-    positions_in: &Vec<[f32; 3]>,
-    normals_in: &Vec<[f32; 3]>,
-    indices_in: &Vec<u32>,
-    positions_out: &mut Vec<[f32; 3]>,
-    normals_out: &mut Vec<[f32; 3]>,
-    colors_out: &mut Vec<[f32; 4]>,
-    indices_out: &mut Vec<u32>,
-) {
-    let base_index = positions_out.len() as u32;
-    for vertex in positions_in {
-        positions_out.push([
-            vertex[0] + voxel.x as f32 - voxels.size[0] as f32 / 2.0,
-            vertex[1] + voxel.y as f32 - voxels.size[1] as f32 / 2.0,
-            vertex[2] + voxel.z as f32 - voxels.size[2] as f32 / 2.0,
-        ]);
-        colors_out.push([
-            voxels.palette[voxel.c as usize].r as f32 / 255.0,
-            voxels.palette[voxel.c as usize].g as f32 / 255.0,
-            voxels.palette[voxel.c as usize].b as f32 / 255.0,
-            voxels.palette[voxel.c as usize].a as f32 / 255.0,
-        ]);
-    }
-    for normal in normals_in {
-        normals_out.push(*normal);
-    }
-    for index in indices_in {
-        indices_out.push(index + base_index);
-    }
-}
-
 const FACE_CHECKS: [[i32; 3]; 6] = [
     [0, 0, 1],
     [0, 0, -1],
@@ -261,9 +145,12 @@ pub fn create_mesh_on_vxm_import_system(
 
                 for voxel in &vxm.voxels {
                     let color = &palette[voxel.c as usize];
+                    // TODO : greedy meshing
                     instance_data.push(InstanceData {
-                        position: [voxel.x as u8, voxel.y as u8, voxel.z as u8, 0],
-                        color: [color.r, color.g, color.b, 255],
+                        position: [voxel.x as u8, voxel.y as u8, voxel.z as u8],
+                        x_extent: 1u8,
+                        y_extent: 1u8,
+                        color: [color.r, color.g, color.b],
                     });
                 }
                 info!(
@@ -272,10 +159,26 @@ pub fn create_mesh_on_vxm_import_system(
                     (size_of::<InstanceData>() * instance_data.len()) / 1024
                 );
 
+                let quad = meshes.add(
+                    Mesh::new(
+                        PrimitiveTopology::TriangleStrip,
+                        RenderAssetUsages::RENDER_WORLD,
+                    )
+                    .with_inserted_indices(Indices::U16(vec![0, 1, 2, 3]))
+                    .with_inserted_attribute(
+                        Mesh::ATTRIBUTE_POSITION,
+                        get_cube_face_vertex_positions(CubeFace::Front),
+                    )
+                    .with_inserted_attribute(
+                        Mesh::ATTRIBUTE_NORMAL,
+                        get_cube_face_normals(CubeFace::Front),
+                    ),
+                );
+
                 commands.entity(entity).remove::<PendingVxm>();
                 commands.spawn((
                     NoFrustumCulling,
-                    Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
+                    Mesh3d(quad),
                     InstanceMaterialData(instance_data),
                     Transform::from_scale(Vec3::splat(1.0)),
                 ));

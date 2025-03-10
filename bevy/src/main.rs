@@ -51,7 +51,7 @@ fn main() {
     App::new()
         .insert_resource(DefaultOpaqueRendererMethod::deferred())
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
-        .insert_resource(ClearColor(Color::srgb(0.0, 1.0, 0.0)))
+        .insert_resource(ClearColor(Color::srgb(0.0, 0.0, 0.0)))
         .add_plugins((
             DefaultPlugins
                 .set(WindowPlugin {
@@ -104,12 +104,7 @@ fn main() {
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
         .add_systems(Startup, (setup))
-        .add_systems(
-            Update,
-            (
-                exit_on_esc_system,
-            ),
-        )
+        .add_systems(Update, (exit_on_esc_system,))
         .add_systems(
             FixedUpdate,
             (
