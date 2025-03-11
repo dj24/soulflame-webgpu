@@ -20,8 +20,7 @@ use thiserror::Error;
 #[derive(Asset, TypePath, Debug)]
 pub struct VxmAsset {
     pub vox_count: usize,
-    pub size: [u32; 3],
-    pub voxels: Vec<Voxel>,
+    pub size: [u8; 3],
     pub palette: Vec<PaletteColor>,
     pub voxel_array: Vec<Vec<Vec<i16>>>,
 }
@@ -120,7 +119,6 @@ impl AssetLoader for VxmAssetLoader {
 
         let material_amount = reader.read_u8();
 
-        start_time = std::time::Instant::now();
         let mut palette = Vec::new();
         for _ in 0..material_amount {
             let blue = reader.read_u8();
@@ -136,7 +134,6 @@ impl AssetLoader for VxmAssetLoader {
         let mut bounds_max = [0, 0, 0];
         let mut voxels = Vec::new();
 
-        start_time = std::time::Instant::now();
         for _ in 0..max_layers {
             let mut idx = 0;
             let mut layer_name = String::new();
@@ -184,12 +181,10 @@ impl AssetLoader for VxmAssetLoader {
             }
         }
 
-        start_time = std::time::Instant::now();
-
         let size = [
-            bounds_max[0] - bounds_min[0] + 1,
-            bounds_max[1] - bounds_min[1] + 1,
-            bounds_max[2] - bounds_min[2] + 1,
+            (bounds_max[0] - bounds_min[0] + 1) as u8,
+            (bounds_max[1] - bounds_min[1] + 1) as u8,
+            (bounds_max[2] - bounds_min[2] + 1) as u8,
         ];
 
         let x_dim = size[0] as usize;
@@ -205,11 +200,11 @@ impl AssetLoader for VxmAssetLoader {
             voxel_array[voxel.x as usize][voxel.y as usize][voxel.z as usize] = voxel.c as i16;
         });
 
+        info!("imported vxm asset in {:?}ms", start_time.elapsed().as_millis());
 
         Ok(VxmAsset {
             vox_count: voxels.len(),
             size,
-            voxels,
             palette,
             voxel_array
         })

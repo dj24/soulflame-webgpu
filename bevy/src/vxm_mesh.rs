@@ -101,14 +101,16 @@ Current per vertex
 
 Total per face: 40 bytes
 */
+
+// TODO: update this to use instancing
 pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
     let mut indices = Vec::new();
 
-    for voxel in &voxels.voxels {
-        for _ in 0..6 {
-            &indices.push(indices.len() as u32); // Increment index
-        }
-    }
+    // for voxel in &voxels.voxels {
+    //     for _ in 0..6 {
+    //         &indices.push(indices.len() as u32); // Increment index
+    //     }
+    // }
 
     let bytes = indices.len() * 4;
     let kb = bytes as f64 / 1024.0;
@@ -140,28 +142,33 @@ pub fn create_mesh_on_vxm_import_system(
     for (entity, pending_vxm, transform) in pending_vxms.iter() {
         match vxm_assets.get(&pending_vxm.0) {
             Some(vxm) => {
+                let start_time = std::time::Instant::now();
                 let mut instance_data: Vec<InstanceData> = vec![];
                 let palette = &vxm.palette;
+                let visited_voxels = vec![vec![vec![false; vxm.size[2] as usize]; vxm.size[1] as usize]; vxm.size[0] as usize];
 
-                for voxel in &vxm.voxels {
-                    let color = &palette[voxel.c as usize];
-                    // TODO : greedy meshing
-                    instance_data.push(InstanceData {
-                        position: [voxel.x as u8, voxel.y as u8, voxel.z as u8],
-                        x_extent: 1u8,
-                        y_extent: 1u8,
-                        color: [color.r, color.g, color.b],
-                    });
+                // TODO: Greedy mesh in 2 dimensions
+                for x in 0..vxm.size[0] as usize {
+                    for y in 0..vxm.size[1] as usize {
+                        for z in 0..vxm.size[2] as usize {
+                            let palette_index = vxm.voxel_array[x][y][z];
+                            if palette_index == -1 {
+                                continue;
+                            }
+                            let color = &palette[palette_index as usize];
+                            instance_data.push(InstanceData {
+                                position: [x as u8, y as u8, z as u8],
+                                x_extent: 1u8,
+                                y_extent: 1u8,
+                                color: [color.r, color.g, color.b],
+                            });
+                        }
+                    }
                 }
-                info!(
-                    "{:?} instances using {:?}kb",
-                    instance_data.len(),
-                    (size_of::<InstanceData>() * instance_data.len()) / 1024
-                );
 
                 let quad = meshes.add(
                     Mesh::new(
-                        PrimitiveTopology::TriangleStrip,
+                        PrimitiveTopology::LineStrip,
                         RenderAssetUsages::RENDER_WORLD,
                     )
                     .with_inserted_indices(Indices::U16(vec![0, 1, 2, 3]))
@@ -174,14 +181,23 @@ pub fn create_mesh_on_vxm_import_system(
                         get_cube_face_normals(CubeFace::Front),
                     ),
                 );
+                let end_time = start_time.elapsed();
+                info!(
+                    "{:?} size model created {:?} instances using {:?}kb in {:?}ms",
+                    vxm.size,
+                    instance_data.len(),
+                    (size_of::<InstanceData>() * instance_data.len()) / 1024,
+                    end_time.as_millis()
+                );
 
                 commands.entity(entity).remove::<PendingVxm>();
                 commands.spawn((
                     NoFrustumCulling,
                     Mesh3d(quad),
                     InstanceMaterialData(instance_data),
-                    Transform::from_scale(Vec3::splat(1.0)),
+                    Transform::from_scale(Vec3::splat(0.02)),
                 ));
+
             }
             None => {}
         }

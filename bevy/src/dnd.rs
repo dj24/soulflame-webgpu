@@ -1,6 +1,5 @@
 use std::f32::consts::{FRAC_1_PI, FRAC_2_PI, FRAC_PI_2};
 use crate::vxm::VxmAsset;
-use crate::vxm_mesh::create_mesh_from_voxels;
 use bevy::prelude::*;
 use bevy::prelude::{EventReader, FileDragAndDrop};
 use bevy::{asset::AssetLoader, prelude::*};
