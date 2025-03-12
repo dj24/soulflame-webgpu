@@ -28,7 +28,7 @@ use bevy::pbr::{FogVolume, VolumetricFog};
 use bevy::render::render_resource::WgpuFeatures;
 use bevy::render::settings::{RenderCreation, WgpuSettings};
 use bevy::render::RenderPlugin;
-use bevy::window::{PresentMode, WindowResolution};
+use bevy::window::{PresentMode, WindowMode, WindowResolution};
 use bevy::{
     dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin},
     pbr::{
@@ -44,6 +44,19 @@ use std::f32::consts::*;
 fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
     if keyboard_input.just_pressed(KeyCode::Escape) {
         exit.send(AppExit::Success);
+    }
+}
+
+fn toggle_fullscreen(
+    input: Res<ButtonInput<KeyCode>>,
+    mut windows: Query<&mut Window>,
+) {
+    if input.just_pressed(KeyCode::F11) {
+        let mut window = windows.single_mut();
+        window.mode = match window.mode {
+            WindowMode::Windowed => WindowMode::Fullscreen(MonitorSelection::Primary),
+            _ => WindowMode::Windowed,
+        };
     }
 }
 
@@ -104,7 +117,7 @@ fn main() {
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
         .add_systems(Startup, (setup))
-        .add_systems(Update, (exit_on_esc_system,))
+        .add_systems(Update, (exit_on_esc_system,toggle_fullscreen))
         .add_systems(
             FixedUpdate,
             (

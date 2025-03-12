@@ -145,20 +145,34 @@ pub fn create_mesh_on_vxm_import_system(
                 let start_time = std::time::Instant::now();
                 let mut instance_data: Vec<InstanceData> = vec![];
                 let palette = &vxm.palette;
-                let visited_voxels = vec![vec![vec![false; vxm.size[2] as usize]; vxm.size[1] as usize]; vxm.size[0] as usize];
+                let mut visited_voxels = vec![vec![vec![false; vxm.size[2] as usize]; vxm.size[1] as usize]; vxm.size[0] as usize];
 
                 // TODO: Greedy mesh in 2 dimensions
                 for x in 0..vxm.size[0] as usize {
                     for y in 0..vxm.size[1] as usize {
                         for z in 0..vxm.size[2] as usize {
+                            if visited_voxels[x][y][z] {
+                                continue;
+                            }
                             let palette_index = vxm.voxel_array[x][y][z];
+                            visited_voxels[x][y][z] = true;
                             if palette_index == -1 {
                                 continue;
                             }
                             let color = &palette[palette_index as usize];
+                            let mut x_extent = 1u8;
+                            for greedy_x in x..vxm.size[0] as usize {
+                                let palette_index = vxm.voxel_array[greedy_x][y][z];
+                                // TODO: add face checks here
+                                if palette_index == -1 || palette_index != palette_index {
+                                    break;
+                                }
+                                visited_voxels[greedy_x][y][z] = true;
+                                x_extent += 1;
+                            }
                             instance_data.push(InstanceData {
                                 position: [x as u8, y as u8, z as u8],
-                                x_extent: 1u8,
+                                x_extent,
                                 y_extent: 1u8,
                                 color: [color.r, color.g, color.b],
                             });
@@ -168,7 +182,7 @@ pub fn create_mesh_on_vxm_import_system(
 
                 let quad = meshes.add(
                     Mesh::new(
-                        PrimitiveTopology::LineStrip,
+                        PrimitiveTopology::TriangleStrip,
                         RenderAssetUsages::RENDER_WORLD,
                     )
                     .with_inserted_indices(Indices::U16(vec![0, 1, 2, 3]))
