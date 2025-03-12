@@ -11,6 +11,7 @@ use bevy::render::mesh::{Indices, MeshVertexAttribute, PrimitiveTopology};
 use bevy::render::render_resource::{AsBindGroup, ShaderRef, VertexFormat};
 use bevy::render::storage::ShaderStorageBuffer;
 use bevy::render::view::NoFrustumCulling;
+use std::cmp::min;
 
 enum CubeFace {
     Front,
@@ -145,7 +146,11 @@ pub fn create_mesh_on_vxm_import_system(
                 let start_time = std::time::Instant::now();
                 let mut instance_data: Vec<InstanceData> = vec![];
                 let palette = &vxm.palette;
-                let mut visited_voxels = vec![vec![vec![false; vxm.size[2] as usize]; vxm.size[1] as usize]; vxm.size[0] as usize];
+                let mut visited_voxels =
+                    vec![
+                        vec![vec![false; vxm.size[2] as usize]; vxm.size[1] as usize];
+                        vxm.size[0] as usize
+                    ];
 
                 // TODO: Greedy mesh in 2 dimensions
                 for x in 0..vxm.size[0] as usize {
@@ -161,19 +166,35 @@ pub fn create_mesh_on_vxm_import_system(
                             }
                             let color = &palette[palette_index as usize];
                             let mut x_extent = 1u8;
-                            for greedy_x in x..vxm.size[0] as usize {
-                                let palette_index = vxm.voxel_array[greedy_x][y][z];
-                                // TODO: add face checks here
-                                if palette_index == -1 || palette_index != palette_index {
+                            let mut y_extent = 1u8;
+                            for greedy_extent in 1..min(vxm.size[0] - x as u8,  vxm.size[1] - y as u8) {
+                                let mut all_same = true;
+                                for greedy_x in x..x + greedy_extent as usize {
+                                    for greedy_y in y..y + greedy_extent as usize {
+                                        let palette_index_greedy =
+                                            vxm.voxel_array[greedy_x][greedy_y][z];
+                                        // TODO: add face checks here
+                                        if palette_index_greedy == -1
+                                            || palette_index_greedy != palette_index
+                                        {
+                                            all_same = false;
+                                            break;
+                                        }
+                                        visited_voxels[greedy_x][greedy_y][z] = true;
+                                    }
+                                }
+                                if all_same {
+                                    x_extent = greedy_extent;
+                                    y_extent = greedy_extent;
+                                } else {
                                     break;
                                 }
-                                visited_voxels[greedy_x][y][z] = true;
-                                x_extent += 1;
                             }
+
                             instance_data.push(InstanceData {
                                 position: [x as u8, y as u8, z as u8],
                                 x_extent,
-                                y_extent: 1u8,
+                                y_extent,
                                 color: [color.r, color.g, color.b],
                             });
                         }
@@ -211,7 +232,6 @@ pub fn create_mesh_on_vxm_import_system(
                     InstanceMaterialData(instance_data),
                     Transform::from_scale(Vec3::splat(0.02)),
                 ));
-
             }
             None => {}
         }
