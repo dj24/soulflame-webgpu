@@ -167,28 +167,28 @@ pub fn create_mesh_on_vxm_import_system(
                             let color = &palette[palette_index as usize];
                             let mut x_extent = 1u8;
                             let mut y_extent = 1u8;
-                            for greedy_extent in 1..min(vxm.size[0] - x as u8,  vxm.size[1] - y as u8) {
-                                let mut all_same = true;
-                                for greedy_x in x..x + greedy_extent as usize {
-                                    for greedy_y in y..y + greedy_extent as usize {
-                                        let palette_index_greedy =
-                                            vxm.voxel_array[greedy_x][greedy_y][z];
-                                        // TODO: add face checks here
-                                        if palette_index_greedy == -1
-                                            || palette_index_greedy != palette_index
-                                        {
-                                            all_same = false;
+                            let max_extent_y = vxm.size[1] as usize - y;
+                            let max_extent_x = vxm.size[0] as usize - x;
+                            let max_extent = min(max_extent_x, max_extent_y);
+                            for radius in 1..max_extent{
+                                let mut is_all_same = true;
+                                // for dx in 0..radius {
+                                    for dy in 0..radius {
+                                        let check_y = y + dy;
+                                        let check_x = x;
+                                        let greedy_palette_index = vxm.voxel_array[check_x][check_y][z];
+                                        if greedy_palette_index == -1 || greedy_palette_index != palette_index {
+                                            is_all_same = false;
                                             break;
                                         }
-                                        visited_voxels[greedy_x][greedy_y][z] = true;
+                                        visited_voxels[check_x][check_y][z] = true;
                                     }
-                                }
-                                if all_same {
-                                    x_extent = greedy_extent;
-                                    y_extent = greedy_extent;
-                                } else {
+                                // }
+                                if !is_all_same {
                                     break;
                                 }
+                                // x_extent = radius as u8;
+                                y_extent = radius as u8;
                             }
 
                             instance_data.push(InstanceData {
