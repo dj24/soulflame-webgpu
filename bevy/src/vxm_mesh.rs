@@ -170,25 +170,33 @@ pub fn create_mesh_on_vxm_import_system(
                             let max_extent_y = vxm.size[1] as usize - y;
                             let max_extent_x = vxm.size[0] as usize - x;
                             let max_extent = min(max_extent_x, max_extent_y);
-                            for radius in 1..max_extent{
+                            for radius in 1..max_extent {
                                 let mut is_all_same = true;
-                                // for dx in 0..radius {
-                                    for dy in 0..radius {
+                                for dx in 1..radius {
+                                    for dy in 1..radius {
                                         let check_y = y + dy;
-                                        let check_x = x;
-                                        let greedy_palette_index = vxm.voxel_array[check_x][check_y][z];
-                                        if greedy_palette_index == -1 || greedy_palette_index != palette_index {
+                                        let check_x = x + dx;
+                                        let greedy_palette_index =
+                                            vxm.voxel_array[check_x][check_y][z];
+                                        if greedy_palette_index == -1
+                                            || greedy_palette_index != palette_index
+                                        {
                                             is_all_same = false;
                                             break;
                                         }
-                                        visited_voxels[check_x][check_y][z] = true;
                                     }
-                                // }
+                                }
                                 if !is_all_same {
                                     break;
                                 }
-                                // x_extent = radius as u8;
+                                x_extent = radius as u8;
                                 y_extent = radius as u8;
+                            }
+                            
+                            for dx in 0..x_extent {
+                                for dy in 0..y_extent {
+                                    visited_voxels[x + dx as usize][y + dy as usize][z] = true;
+                                }
                             }
 
                             instance_data.push(InstanceData {
