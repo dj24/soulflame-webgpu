@@ -12,7 +12,7 @@ mod vxm_mesh;
 
 use crate::camera::ThirdPersonCameraPlugin;
 use crate::custom_shader_instancing::InstancedMaterialPlugin;
-use crate::dnd::{file_drag_and_drop_system, setup_scene_once_loaded};
+use crate::dnd::{file_drag_and_drop_system, setup_scene_once_loaded, PendingVxm};
 use crate::draw_aabb_gizmos::DrawAabbGizmosPlugin;
 use crate::replace_body_part_meshes::{
     add_vxm_swap_targets, create_vxm_swap_targets_on_gltf_import_system, swap_vxm_meshes,
@@ -67,7 +67,8 @@ fn main() {
                 .set(WindowPlugin {
                     primary_window: Some(Window {
                         title: "Soulflame".to_string(),
-                        resolution: WindowResolution::new(1600., 1600.),
+                        position: WindowPosition::new(IVec2::new(0,0)),
+                        resolution: WindowResolution::new(1024., 1440.),
                         focused: true,
                         present_mode: PresentMode::AutoVsync,
                         ..default()
@@ -165,6 +166,13 @@ fn setup(
             ..default()
         },
     ));
+
+    // Test dragon
+    commands.spawn((
+        PendingVxm(asset_server.load("C:\\Code\\soulflame-webgpu\\public\\game-jam\\Dragon.vxm")),
+        Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)),
+    ));
+
 
     // Sun
     commands.spawn((

@@ -153,15 +153,13 @@ pub fn create_mesh_on_vxm_import_system(
                         vxm.size[0] as usize
                     ];
 
-                // TODO: Greedy mesh in 2 dimensions
-                for x in 0..vxm.size[0] as usize {
-                    for y in 0..vxm.size[1] as usize {
-                        for z in 0..vxm.size[2] as usize {
+                for z in 0..vxm.size[2] as usize {
+                    for x in 0..vxm.size[0] as usize {
+                        for y in 0..vxm.size[1] as usize {
                             if visited_voxels[x][y][z] {
                                 continue;
                             }
                             let palette_index = vxm.voxel_array[x][y][z];
-                            visited_voxels[x][y][z] = true;
                             if palette_index == -1 {
                                 continue;
                             }
@@ -171,43 +169,57 @@ pub fn create_mesh_on_vxm_import_system(
                             let max_extent_y = vxm.size[1] as usize - y - 1;
                             let max_extent_x = vxm.size[0] as usize - x - 1;
                             let max_extent = min(max_extent_x, max_extent_y);
-                            for radius in 1..max_extent {
-                                let mut is_all_same = true;
+
+                            let check_voxel = |x: usize, y: usize| {
+                                let is_face_hidden = z < (vxm.size[2] - 1) as usize
+                                    && vxm.voxel_array[x][y][z + 1] != -1;
+                                vxm.voxel_array[x][y][z] == -1
+                                    || vxm.voxel_array[x][y][z] != palette_index
+                                    || visited_voxels[x][y][z]
+                                    || is_face_hidden
+                            };
+
+                            'extend_square: for radius in 1..max_extent {
                                 for dx in 0..radius {
                                     for dy in 0..radius {
-                                        let check_y = y + dy;
-                                        let check_x = x + dx;
-                                        // Check if the voxel is visited or not
-                                        // TODO: fix out of bounds check
-                                        if visited_voxels[check_y][check_x][z] {
-                                            is_all_same = false;
-                                            break;
-                                        }
-                                        let greedy_palette_index =
-                                            vxm.voxel_array[check_x][check_y][z];
-                                        if greedy_palette_index == -1
-                                            || greedy_palette_index != palette_index
-                                        {
-                                            is_all_same = false;
-                                            break;
+                                        let nx = x + dx;
+                                        let ny = y + dy;
+                                        if check_voxel(nx, ny) {
+                                            break 'extend_square;
                                         }
                                     }
-                                }
-                                if !is_all_same {
-                                    break;
                                 }
                                 x_extent = radius as u8;
                                 y_extent = radius as u8;
                             }
-                            
+
+                            'extend_x: while x_extent < max_extent_x as u8 {
+                                for dy in 0..y_extent as usize {
+                                    let nx = x + x_extent as usize;
+                                    let ny = y + dy;
+                                    if check_voxel(nx, ny) {
+                                        break 'extend_x;
+                                    }
+                                }
+                                x_extent += 1; // If all in the column were valid, we can extend
+                            }
+
+                            'extend_y: while y_extent < max_extent_y as u8 {
+                                for dx in 0..x_extent as usize {
+                                    let nx = x + dx;
+                                    let ny = y + y_extent as usize;
+                                    if check_voxel(x + dx, y + y_extent as usize) {
+                                        break 'extend_y;
+                                    }
+                                }
+                                y_extent += 1; // If all in the column were valid, we can extend
+                            }
+
                             for dx in 0..x_extent {
                                 for dy in 0..y_extent {
                                     visited_voxels[x + dx as usize][y + dy as usize][z] = true;
                                 }
                             }
-
-                            // TODO: Extend in x
-                            // TODO: Extend in y
 
                             instance_data.push(InstanceData {
                                 position: [x as u8, y as u8, z as u8],

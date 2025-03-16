@@ -26,6 +26,7 @@ pub fn file_drag_and_drop_system(
         info!("Dropped file: {:?}", event);
         if let FileDragAndDrop::DroppedFile { window, path_buf } = event {
             let mut file_path = path_buf.to_str().unwrap().to_string();
+            info!("Dropped file: {:?}", &file_path);
             let file_name = file_path.split("/").last().unwrap();
             if file_path.ends_with(".vxm") {
                 info!("dropped vxm file");
