@@ -8,6 +8,7 @@ bevy = { version = "0.15.0", features = ["bevy_dev_tools"] }
 thiserror = "1.0.69"
 bevy-inspector-egui = "0.28.1"
 bytemuck = "1.21.0"
+rayon = "1.10.0"
 
 [profile.dev]
 opt-level = 2
