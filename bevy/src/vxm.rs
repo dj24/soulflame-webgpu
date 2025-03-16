@@ -165,8 +165,10 @@ impl AssetLoader for VxmAssetLoader {
 
                 for i in idx..(idx + length as usize) {
                     let x = i as u32 / (scale[1] * scale[2]);
-                    let z = scale[1] - ((i as u32 / scale[2]) % scale[1]);
-                    let y = i as u32 % scale[2];
+                    // let z = scale[1] - ((i as u32 / scale[2]) % scale[1]);
+                    // let y = i as u32 % scale[2];
+                    let y = (i as u32 / scale[2]) % scale[1];
+                    let z = i as u32 % scale[2];
 
                     bounds_min[0] = bounds_min[0].min(x);
                     bounds_min[1] = bounds_min[1].min(y);

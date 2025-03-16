@@ -47,10 +47,7 @@ fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: Event
     }
 }
 
-fn toggle_fullscreen(
-    input: Res<ButtonInput<KeyCode>>,
-    mut windows: Query<&mut Window>,
-) {
+fn toggle_fullscreen(input: Res<ButtonInput<KeyCode>>, mut windows: Query<&mut Window>) {
     if input.just_pressed(KeyCode::F11) {
         let mut window = windows.single_mut();
         window.mode = match window.mode {
@@ -70,9 +67,9 @@ fn main() {
                 .set(WindowPlugin {
                     primary_window: Some(Window {
                         title: "Soulflame".to_string(),
-                        resolution: WindowResolution::new(1920., 1080.),
+                        resolution: WindowResolution::new(1600., 1600.),
                         focused: true,
-                        present_mode: PresentMode::AutoNoVsync,
+                        present_mode: PresentMode::AutoVsync,
                         ..default()
                     }),
                     ..default()
@@ -117,7 +114,7 @@ fn main() {
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
         .add_systems(Startup, (setup))
-        .add_systems(Update, (exit_on_esc_system,toggle_fullscreen))
+        .add_systems(Update, (exit_on_esc_system, toggle_fullscreen))
         .add_systems(
             FixedUpdate,
             (

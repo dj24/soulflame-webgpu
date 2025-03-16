@@ -46,7 +46,7 @@ impl Plugin for ThirdPersonCameraPlugin {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn((Transform::default(), CameraTarget::default()));
+    // commands.spawn((Transform::default(), CameraTarget::default()));
 }
 
 fn orbit(
@@ -84,30 +84,30 @@ fn orbit(
         );
 
     // Move target
-    if keys.pressed(KeyCode::KeyW) {
-        let target_rotation = Quat::from_rotation_y(-new_yaw - FRAC_PI_2);
-        let position_delta = direction * time.delta_secs();
-        target.translation -= position_delta;
-        target.rotation = Quat::slerp(target.rotation, target_rotation, 40.0 * time.delta_secs());
-    }
-    if keys.pressed(KeyCode::KeyS) {
-        let target_rotation = Quat::from_rotation_y(-new_yaw + FRAC_PI_2);
-        let position_delta = direction * time.delta_secs();
-        target.translation += position_delta;
-        target.rotation = Quat::slerp(target.rotation, target_rotation, 40.0 * time.delta_secs());
-    }
-    if keys.pressed(KeyCode::KeyA) {
-        let target_rotation = Quat::from_rotation_y(-new_yaw);
-        let position_delta = direction.cross(Vec3::Y) * time.delta_secs();
-        target.translation -= position_delta;
-        target.rotation = Quat::slerp(target.rotation, target_rotation, 40.0 * time.delta_secs());
-    }
-    if keys.pressed(KeyCode::KeyD) {
-        let target_rotation = Quat::from_rotation_y(-new_yaw + std::f32::consts::PI);
-        let position_delta = direction.cross(Vec3::Y) * time.delta_secs();
-        target.translation -= position_delta;
-        target.rotation = Quat::slerp(target.rotation, target_rotation, 40.0 * time.delta_secs());
-    }
+    // if keys.pressed(KeyCode::KeyW) {
+    //     let target_rotation = Quat::from_rotation_y(-new_yaw - FRAC_PI_2);
+    //     let position_delta = direction * time.delta_secs();
+    //     target.translation -= position_delta;
+    //     target.rotation = Quat::slerp(target.rotation, target_rotation, 40.0 * time.delta_secs());
+    // }
+    // if keys.pressed(KeyCode::KeyS) {
+    //     let target_rotation = Quat::from_rotation_y(-new_yaw + FRAC_PI_2);
+    //     let position_delta = direction * time.delta_secs();
+    //     target.translation += position_delta;
+    //     target.rotation = Quat::slerp(target.rotation, target_rotation, 40.0 * time.delta_secs());
+    // }
+    // if keys.pressed(KeyCode::KeyA) {
+    //     let target_rotation = Quat::from_rotation_y(-new_yaw);
+    //     let position_delta = direction.cross(Vec3::Y) * time.delta_secs();
+    //     target.translation -= position_delta;
+    //     target.rotation = Quat::slerp(target.rotation, target_rotation, 40.0 * time.delta_secs());
+    // }
+    // if keys.pressed(KeyCode::KeyD) {
+    //     let target_rotation = Quat::from_rotation_y(-new_yaw + std::f32::consts::PI);
+    //     let position_delta = direction.cross(Vec3::Y) * time.delta_secs();
+    //     target.translation -= position_delta;
+    //     target.rotation = Quat::slerp(target.rotation, target_rotation, 40.0 * time.delta_secs());
+    // }
 
     camera.translation = new_position;
     camera.look_at(target_position, Vec3::Y);

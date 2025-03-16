@@ -1,3 +1,4 @@
+use crate::camera::CameraTarget;
 use crate::custom_shader_instancing::{InstanceData, InstanceMaterialData};
 use crate::dnd::PendingVxm;
 use crate::vxm::{Voxel, VxmAsset};
@@ -167,15 +168,21 @@ pub fn create_mesh_on_vxm_import_system(
                             let color = &palette[palette_index as usize];
                             let mut x_extent = 1u8;
                             let mut y_extent = 1u8;
-                            let max_extent_y = vxm.size[1] as usize - y;
-                            let max_extent_x = vxm.size[0] as usize - x;
+                            let max_extent_y = vxm.size[1] as usize - y - 1;
+                            let max_extent_x = vxm.size[0] as usize - x - 1;
                             let max_extent = min(max_extent_x, max_extent_y);
                             for radius in 1..max_extent {
                                 let mut is_all_same = true;
-                                for dx in 1..radius {
-                                    for dy in 1..radius {
+                                for dx in 0..radius {
+                                    for dy in 0..radius {
                                         let check_y = y + dy;
                                         let check_x = x + dx;
+                                        // Check if the voxel is visited or not
+                                        // TODO: fix out of bounds check
+                                        if visited_voxels[check_y][check_x][z] {
+                                            is_all_same = false;
+                                            break;
+                                        }
                                         let greedy_palette_index =
                                             vxm.voxel_array[check_x][check_y][z];
                                         if greedy_palette_index == -1
@@ -198,6 +205,9 @@ pub fn create_mesh_on_vxm_import_system(
                                     visited_voxels[x + dx as usize][y + dy as usize][z] = true;
                                 }
                             }
+
+                            // TODO: Extend in x
+                            // TODO: Extend in y
 
                             instance_data.push(InstanceData {
                                 position: [x as u8, y as u8, z as u8],
@@ -239,6 +249,11 @@ pub fn create_mesh_on_vxm_import_system(
                     Mesh3d(quad),
                     InstanceMaterialData(instance_data),
                     Transform::from_scale(Vec3::splat(0.02)),
+                    CameraTarget(Vec3::new(
+                        (vxm.size[0] as f32 / 2.) * 0.02,
+                        (vxm.size[1] as f32 / 2.) * 0.02,
+                        (vxm.size[2] as f32 / 2.) * 0.02,
+                    )),
                 ));
             }
             None => {}
