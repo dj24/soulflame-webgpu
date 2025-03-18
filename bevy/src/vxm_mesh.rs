@@ -231,7 +231,7 @@ pub fn create_mesh_on_vxm_import_system(
                     })
                     .collect();
 
-                let quad = meshes.add(
+                let front_quad = meshes.add(
                     Mesh::new(
                         PrimitiveTopology::TriangleStrip,
                         RenderAssetUsages::RENDER_WORLD,
@@ -246,6 +246,23 @@ pub fn create_mesh_on_vxm_import_system(
                         get_cube_face_normals(CubeFace::Front),
                     ),
                 );
+
+                let back_quad = meshes.add(
+                    Mesh::new(
+                        PrimitiveTopology::TriangleStrip,
+                        RenderAssetUsages::RENDER_WORLD,
+                    )
+                    .with_inserted_indices(Indices::U16(vec![0, 1, 2, 3]))
+                    .with_inserted_attribute(
+                        Mesh::ATTRIBUTE_POSITION,
+                        get_cube_face_vertex_positions(CubeFace::Back),
+                    )
+                    .with_inserted_attribute(
+                        Mesh::ATTRIBUTE_NORMAL,
+                        get_cube_face_normals(CubeFace::Back),
+                    ),
+                );
+
                 let end_time = start_time.elapsed();
                 info!(
                     "{:?} size model created {:?} instances using {:?}kb in {:?}ms",
@@ -256,17 +273,24 @@ pub fn create_mesh_on_vxm_import_system(
                 );
 
                 commands.entity(entity).remove::<PendingVxm>();
-                commands.spawn((
-                    NoFrustumCulling,
-                    Mesh3d(quad),
-                    InstanceMaterialData(instance_data),
-                    Transform::from_scale(Vec3::splat(0.02)),
-                    CameraTarget(Vec3::new(
-                        (vxm.size[0] as f32 / 2.) * 0.02,
-                        (vxm.size[1] as f32 / 2.) * 0.02,
-                        (vxm.size[2] as f32 / 2.) * 0.02,
-                    )),
-                ));
+                commands
+                    .spawn((
+                        NoFrustumCulling,
+                        Transform::from_scale(Vec3::splat(0.02)),
+                        CameraTarget(Vec3::new(
+                            (vxm.size[0] as f32 / 2.) * 0.02,
+                            (vxm.size[1] as f32 / 2.) * 0.02,
+                            (vxm.size[2] as f32 / 2.) * 0.02,
+                        )),
+                    ))
+                    .with_child((
+                        Mesh3d(front_quad),
+                        InstanceMaterialData(instance_data.clone()),
+                    ))
+                    .with_child((
+                        Mesh3d(back_quad),
+                        InstanceMaterialData(instance_data.clone()),
+                    ));
             }
             None => {}
         }
