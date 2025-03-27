@@ -2,7 +2,6 @@ use std::convert::TryInto;
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufReader, Read, Seek};
-use std::simd::{u32x4, Simd};
 use bevy::app::{App, Plugin, Update};
 use bevy::log::info;
 use bevy::prelude::{EventReader, FileDragAndDrop};

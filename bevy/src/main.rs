@@ -1,4 +1,3 @@
-#![feature(portable_simd)]
 mod camera;
 mod custom_phase_item;
 mod custom_shader_instancing;
@@ -84,7 +83,7 @@ fn main() {
                     ..default()
                 }),
             WireframePlugin,
-            ThirdPersonCameraPlugin,
+            // ThirdPersonCameraPlugin,
             TemporalAntiAliasPlugin,
             VxmMeshPlugin,
             FpsOverlayPlugin {
@@ -100,7 +99,7 @@ fn main() {
             },
             WorldInspectorPlugin::new(),
             DrawAabbGizmosPlugin,
-            SetAnimationClipPlugin,
+            // SetAnimationClipPlugin,
             InstancedMaterialPlugin,
         ))
         .insert_resource(WireframeConfig {
@@ -120,7 +119,7 @@ fn main() {
             FixedUpdate,
             (
                 file_drag_and_drop_system,
-                setup_scene_once_loaded,
+                // setup_scene_once_loaded,
                 add_vxm_swap_targets,
                 create_vxm_swap_targets_on_gltf_import_system,
                 create_mesh_on_vxm_import_system,
