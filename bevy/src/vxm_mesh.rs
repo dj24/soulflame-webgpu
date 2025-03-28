@@ -14,6 +14,7 @@ use bevy::render::storage::ShaderStorageBuffer;
 use bevy::render::view::NoFrustumCulling;
 use rayon::prelude::*;
 use std::cmp::min;
+use bevy::render::primitives::Aabb;
 
 enum CubeFace {
     Front,
@@ -273,15 +274,12 @@ pub fn create_mesh_on_vxm_import_system(
                 );
 
                 commands.entity(entity).remove::<PendingVxm>();
-                commands
-                    .spawn((
+                commands.entity(entity)
+                    .insert((
+                        InheritedVisibility::default(),
                         NoFrustumCulling,
                         Transform::from_scale(Vec3::splat(0.02)),
-                        CameraTarget(Vec3::new(
-                            (vxm.size[0] as f32 / 2.) * 0.02,
-                            (vxm.size[1] as f32 / 2.) * 0.02,
-                            (vxm.size[2] as f32 / 2.) * 0.02,
-                        )),
+                        Aabb::from_min_max(Vec3::ZERO, Vec3::new(vxm.size[0] as f32, vxm.size[1] as f32, vxm.size[2] as f32)),
                     ))
                     .with_child((
                         Mesh3d(front_quad),

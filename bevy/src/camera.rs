@@ -49,24 +49,30 @@ fn setup(mut commands: Commands) {
     // commands.spawn((Transform::default(), CameraTarget::default()));
 }
 
+
 fn orbit(
-    mut camera: Single<&mut Transform, (With<Camera>, Without<CameraTarget>)>,
-    mut target: Single<&mut Transform, With<CameraTarget>>,
-    camera_target: Single<&CameraTarget>,
+    mut camera_transform: Single<&mut Transform, (With<Camera>, Without<CameraTarget>)>,
+    mut target_transform: Option<Single<&mut Transform, With<CameraTarget>>>,
+    camera_target: Option<Single<&CameraTarget>>,
     camera_settings: Res<CameraSettings>,
     mouse_motion: Res<AccumulatedMouseMotion>,
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
 ) {
-    let camera_target_offset = camera_target.0;
 
-    let target_position = target.translation + camera_target_offset;
+    if target_transform.is_none() || camera_target.is_none() {
+        return;
+    }
+
+    let camera_target_offset = camera_target.unwrap().0;
+
+    let target_position = target_transform.unwrap().translation + camera_target_offset;
     // Look rotation
     let mouse_delta = mouse_motion.delta;
     let delta_pitch = mouse_delta.y * camera_settings.pitch_speed;
     let delta_yaw = mouse_delta.x * camera_settings.yaw_speed;
 
-    let direction = (camera.translation - target_position).normalize();
+    let direction = (camera_transform.translation - target_position).normalize();
     let current_pitch = direction.y.asin();
     let current_yaw = direction.z.atan2(direction.x);
 
@@ -109,6 +115,6 @@ fn orbit(
     //     target.rotation = Quat::slerp(target.rotation, target_rotation, 40.0 * time.delta_secs());
     // }
 
-    camera.translation = new_position;
-    camera.look_at(target_position, Vec3::Y);
+    camera_transform.translation = new_position;
+    camera_transform.look_at(target_position, Vec3::Y);
 }

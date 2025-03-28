@@ -9,7 +9,7 @@ mod spawn_player;
 mod vxm;
 mod vxm_mesh;
 
-use crate::camera::ThirdPersonCameraPlugin;
+use crate::camera::{CameraTarget, ThirdPersonCameraPlugin};
 use crate::custom_shader_instancing::InstancedMaterialPlugin;
 use crate::dnd::{file_drag_and_drop_system, setup_scene_once_loaded, PendingVxm};
 use crate::draw_aabb_gizmos::DrawAabbGizmosPlugin;
@@ -66,8 +66,7 @@ fn main() {
                 .set(WindowPlugin {
                     primary_window: Some(Window {
                         title: "Soulflame".to_string(),
-                        position: WindowPosition::new(IVec2::new(0,0)),
-                        resolution: WindowResolution::new(1024., 1440.),
+                        resolution: WindowResolution::new(1920., 1080.),
                         focused: true,
                         present_mode: PresentMode::AutoVsync,
                         ..default()
@@ -83,7 +82,7 @@ fn main() {
                     ..default()
                 }),
             WireframePlugin,
-            // ThirdPersonCameraPlugin,
+            ThirdPersonCameraPlugin,
             TemporalAntiAliasPlugin,
             VxmMeshPlugin,
             FpsOverlayPlugin {
@@ -168,9 +167,29 @@ fn setup(
 
     // Test dragon
     commands.spawn((
-        PendingVxm(asset_server.load("C:\\Code\\soulflame-webgpu\\public\\game-jam\\Dragon.vxm")),
+        Name::new("Dragon 0,0"),
+        PendingVxm(asset_server.load("Dragon.vxm")),
         Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)),
+        CameraTarget(Vec3::new(
+            128.0 * 0.5 * 0.02,
+            89.0 * 0.5  * 0.02,
+            57.0 * 0.5  * 0.02,
+        )),
     ));
+
+    for x in 1..5 {
+        for y in 1..5 {
+            commands.spawn((
+                Name::new(format!("Dragon {:?},{:?}",x,y)),
+                PendingVxm(asset_server.load("Dragon.vxm")),
+                Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)).with_translation(Vec3::new(
+                    x as f32 * 128.0 * 0.02,
+                    y as f32 * 89.0 * 0.02,
+                    0.0
+                )),
+            ));
+        }
+    }
 
 
     // Sun

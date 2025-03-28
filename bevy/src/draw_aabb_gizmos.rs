@@ -1,3 +1,4 @@
+use std::ops::{Add, Div, Mul};
 use bevy::app::{App, Update};
 use bevy::color::Color;
 use bevy::input::ButtonInput;
@@ -33,14 +34,15 @@ pub fn update_gizmos_state(
     }
 }
 
-pub fn draw_gizmos(mut gizmos: Gizmos, mesh_query: Query<(&GlobalTransform, &Mesh3d, &Aabb)>) {
-    for (transform, mesh, aabb) in mesh_query.iter() {
+pub fn draw_gizmos(mut gizmos: Gizmos, mesh_query: Query<(&GlobalTransform,  &Aabb)>) {
+    for (transform, aabb) in mesh_query.iter() {
         let position = transform.translation();
         let scale = transform.scale();
         let rotation = transform.rotation();
         let aabb_size = Vec3::from(aabb.max() - aabb.min());
+        let aabb_midpoint = aabb_size.div(2.0).mul(scale);
         gizmos.cuboid(
-            Transform::from_translation(position)
+            Transform::from_translation(position.add(aabb_midpoint))
                 .with_rotation(rotation)
                 .with_scale(scale * aabb_size),
             Color::srgb(1.0, 0.0, 0.0),
