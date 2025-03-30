@@ -29,7 +29,6 @@ use bevy::render::settings::{RenderCreation, WgpuSettings};
 use bevy::render::RenderPlugin;
 use bevy::window::{PresentMode, WindowMode, WindowResolution};
 use bevy::{
-    dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin},
     pbr::{
         CascadeShadowConfigBuilder, DefaultOpaqueRendererMethod, DirectionalLightShadowMap,
         NotShadowCaster, NotShadowReceiver, OpaqueRendererMethod,
@@ -39,6 +38,8 @@ use bevy::{
 use bevy::{prelude::*, render::extract_resource::ExtractResource};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use std::f32::consts::*;
+use iyes_perf_ui::PerfUiPlugin;
+use iyes_perf_ui::prelude::PerfUiAllEntries;
 
 fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
     if keyboard_input.just_pressed(KeyCode::Escape) {
@@ -61,6 +62,10 @@ fn main() {
         .insert_resource(DefaultOpaqueRendererMethod::deferred())
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
         .insert_resource(ClearColor(Color::srgb(0.0, 0.0, 0.0)))
+        .add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
+        .add_plugins(bevy::diagnostic::EntityCountDiagnosticsPlugin)
+        .add_plugins(bevy::diagnostic::SystemInformationDiagnosticsPlugin)
+        .add_plugins(PerfUiPlugin)
         .add_plugins((
             DefaultPlugins
                 .set(WindowPlugin {
@@ -85,17 +90,6 @@ fn main() {
             ThirdPersonCameraPlugin,
             TemporalAntiAliasPlugin,
             VxmMeshPlugin,
-            FpsOverlayPlugin {
-                config: FpsOverlayConfig {
-                    text_config: TextFont {
-                        font_size: 18.0,
-                        ..default()
-                    },
-                    // We can also change color of the overlay
-                    text_color: Color::srgb(1.0, 1.0, 1.0),
-                    enabled: true,
-                },
-            },
             WorldInspectorPlugin::new(),
             DrawAabbGizmosPlugin,
             // SetAnimationClipPlugin,
@@ -135,6 +129,7 @@ fn setup(
     asset_server: Res<AssetServer>,
     mut graphs: ResMut<Assets<AnimationGraph>>,
 ) {
+    commands.spawn(PerfUiAllEntries::default());
     // Camera
     commands.spawn((
         Camera3d::default(),
@@ -176,16 +171,19 @@ fn setup(
             57.0 * 0.5  * 0.02,
         )),
     ));
-
-    for x in 1..5 {
-        for y in 1..5 {
+    //
+    for x in 0..5 {
+        for z in 0..5 {
+            if x == 0 && z == 0 {
+                continue;
+            }
             commands.spawn((
-                Name::new(format!("Dragon {:?},{:?}",x,y)),
+                Name::new(format!("Dragon {:?},{:?}",x,z)),
                 PendingVxm(asset_server.load("Dragon.vxm")),
                 Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)).with_translation(Vec3::new(
                     x as f32 * 128.0 * 0.02,
-                    y as f32 * 89.0 * 0.02,
-                    0.0
+                    0.0,
+                    -z as f32 * 89.0 * 0.02
                 )),
             ));
         }

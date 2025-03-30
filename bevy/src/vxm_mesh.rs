@@ -66,9 +66,6 @@ fn get_cube_face_vertex_positions(cube_face: CubeFace) -> Vec<[f32; 3]> {
     }
 }
 
-fn get_cube_face_vertex_indices() -> Vec<u32> {
-    vec![0, 1, 2, 0, 2, 3]
-}
 
 fn get_cube_face_normals(cube_face: CubeFace) -> Vec<[f32; 3]> {
     match cube_face {
@@ -80,14 +77,6 @@ fn get_cube_face_normals(cube_face: CubeFace) -> Vec<[f32; 3]> {
         CubeFace::Right => vec![[1.0, 0.0, 0.0]].repeat(4),
     }
 }
-const FACE_CHECKS: [[i32; 3]; 6] = [
-    [0, 0, 1],
-    [0, 0, -1],
-    [0, 1, 0],
-    [0, -1, 0],
-    [1, 0, 0],
-    [-1, 0, 0],
-];
 
 /**
 Ideal data layout per face:
@@ -278,7 +267,6 @@ pub fn create_mesh_on_vxm_import_system(
                     .insert((
                         InheritedVisibility::default(),
                         NoFrustumCulling,
-                        Transform::from_scale(Vec3::splat(0.02)),
                         Aabb::from_min_max(Vec3::ZERO, Vec3::new(vxm.size[0] as f32, vxm.size[1] as f32, vxm.size[2] as f32)),
                     ))
                     .with_child((

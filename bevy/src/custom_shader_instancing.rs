@@ -55,8 +55,9 @@ impl ExtractComponent for InstanceMaterialData {
 
     fn extract_component(item: QueryItem<'_, Self::QueryData>) -> Option<Self::Out> {
         let (instance_data, global_transform) = item;
+        let foo = instance_data.0.clone();
         Some((
-            InstanceMaterialData(instance_data.0.clone()),
+            InstanceMaterialData(foo),
             TransformUniform(global_transform.compute_matrix()),
         ))
     }
@@ -156,25 +157,29 @@ fn prepare_instance_buffers(
     render_device: Res<RenderDevice>,
     render_queue: Res<RenderQueue>,
 ) {
+    let start = std::time::Instant::now();
+    let layout = render_device.create_bind_group_layout(
+        "transforms",
+        &BindGroupLayoutEntries::with_indices(
+            ShaderStages::VERTEX,
+            (
+                (0, uniform_buffer::<Vec4>(false)),
+                (1, uniform_buffer::<Vec4>(false)),
+                (2, uniform_buffer::<Vec4>(false)),
+                (3, uniform_buffer::<Vec4>(false)),
+            ),
+        ),
+    );
+
+
+
+    //TODO: optimise this
     for (entity, instance_data, global_transform) in &query {
         let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
             label: Some("instance data buffer"),
             contents: bytemuck::cast_slice(instance_data.as_slice()),
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
         });
-
-        let layout = render_device.create_bind_group_layout(
-            "transforms",
-            &BindGroupLayoutEntries::with_indices(
-                ShaderStages::VERTEX,
-                (
-                    (0, uniform_buffer::<Vec4>(false)),
-                    (1, uniform_buffer::<Vec4>(false)),
-                    (2, uniform_buffer::<Vec4>(false)),
-                    (3, uniform_buffer::<Vec4>(false)),
-                ),
-            ),
-        );
 
         // TODO: use storage buffer instead, then we can render in one draw call
         // Or, maybe pack matrix to fix 16 byte stride
@@ -208,6 +213,9 @@ fn prepare_instance_buffers(
             TransformBindGroup(transform_bind_group),
         ));
     }
+
+    let elapsed = start.elapsed();
+    println!("Time taken to prepare instance buffers: {:?}", elapsed);
 }
 
 #[derive(Resource)]
