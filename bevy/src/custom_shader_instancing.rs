@@ -172,7 +172,6 @@ fn prepare_instance_buffers(
     );
 
 
-
     //TODO: optimise this
     for (entity, instance_data, global_transform) in &query {
         let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {

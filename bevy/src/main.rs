@@ -172,8 +172,8 @@ fn setup(
         )),
     ));
     //
-    for x in 0..5 {
-        for z in 0..5 {
+    for x in -3..3 {
+        for z in -3..3 {
             if x == 0 && z == 0 {
                 continue;
             }
