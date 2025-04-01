@@ -1,19 +1,11 @@
 use std::convert::TryInto;
-use std::error::Error;
-use std::fs::File;
-use std::io::{BufReader, Read, Seek};
-use bevy::app::{App, Plugin, Update};
+use std::io::{Read, Seek};
 use bevy::log::info;
-use bevy::prelude::{EventReader, FileDragAndDrop};
 use bevy::prelude::*;
 use bevy::{
     asset::{io::Reader, AssetLoader, LoadContext},
-    prelude::*,
     reflect::TypePath,
-    pbr::wireframe::{NoWireframe, Wireframe, WireframeColor, WireframeConfig, WireframePlugin},
 };
-use bevy::asset::RenderAssetUsages;
-use bevy::render::mesh::{Indices, PrimitiveTopology};
 use thiserror::Error;
 
 #[derive(Asset, TypePath, Debug)]
@@ -56,7 +48,7 @@ impl AssetLoader for VxmAssetLoader {
 
         let mut reader = CustomByteReader::new(bytes);
 
-        let mut start_time = std::time::Instant::now();
+        let start_time = std::time::Instant::now();
         // Read magic
         let magic = String::from_utf8(vec![reader.read_u8(), reader.read_u8(), reader.read_u8(), reader.read_u8()])?;
 
@@ -74,8 +66,8 @@ impl AssetLoader for VxmAssetLoader {
             return Err(VxmAssetLoaderError::FromVxmError);
         }
 
-        let mut scale = [&reader.read_u32(), &reader.read_u32(), &reader.read_u32()];
-        let mut normalised_pivot = [reader.read_f32(), reader.read_f32(), reader.read_f32()];
+        let scale = [&reader.read_u32(), &reader.read_u32(), &reader.read_u32()];
+        let normalised_pivot = [reader.read_f32(), reader.read_f32(), reader.read_f32()];
 
         let surface = reader.read_u8();
         if surface > 0 {

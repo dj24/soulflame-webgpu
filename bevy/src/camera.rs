@@ -1,6 +1,6 @@
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::input::ButtonInput;
-use bevy::math::{Quat, Vec3};
+use bevy::math::Vec3;
 use bevy::prelude::*;
 use std::f32::consts::FRAC_PI_2;
 use std::ops::Range;
@@ -45,14 +45,14 @@ impl Plugin for ThirdPersonCameraPlugin {
     }
 }
 
-fn setup(mut commands: Commands) {
+fn setup(commands: Commands) {
     // commands.spawn((Transform::default(), CameraTarget::default()));
 }
 
 
 fn orbit(
     mut camera_transform: Single<&mut Transform, (With<Camera>, Without<CameraTarget>)>,
-    mut target_transform: Option<Single<&mut Transform, With<CameraTarget>>>,
+    target_transform: Option<Single<&mut Transform, With<CameraTarget>>>,
     camera_target: Option<Single<&CameraTarget>>,
     camera_settings: Res<CameraSettings>,
     mouse_motion: Res<AccumulatedMouseMotion>,

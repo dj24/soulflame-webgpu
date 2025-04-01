@@ -1,11 +1,8 @@
-use std::f32::consts::{FRAC_1_PI, FRAC_2_PI, FRAC_PI_2};
 use crate::vxm::VxmAsset;
 use bevy::prelude::*;
 use bevy::prelude::{EventReader, FileDragAndDrop};
-use bevy::{asset::AssetLoader, prelude::*};
+use bevy::asset::AssetLoader;
 use std::io::Read;
-use std::time::Duration;
-use crate::camera::CameraTarget;
 
 #[derive(Component)]
 pub struct PendingVxm(pub Handle<VxmAsset>);
@@ -25,7 +22,7 @@ pub fn file_drag_and_drop_system(
     for event in dnd_events.read() {
         info!("Dropped file: {:?}", event);
         if let FileDragAndDrop::DroppedFile { window, path_buf } = event {
-            let mut file_path = path_buf.to_str().unwrap().to_string();
+            let file_path = path_buf.to_str().unwrap().to_string();
             info!("Dropped file: {:?}", &file_path);
             let file_name = file_path.split("/").last().unwrap();
             if file_path.ends_with(".vxm") {
@@ -64,7 +61,7 @@ pub fn setup_scene_once_loaded(
     animations: Res<Animations>,
     mut players: Query<(Entity, &mut AnimationPlayer), Added<AnimationPlayer>>,
 ) {
-    for (entity, mut player) in &mut players {
+    for (entity, player) in &mut players {
         commands
             .entity(entity)
             .insert(AnimationGraphHandle(animations.graph.clone()));

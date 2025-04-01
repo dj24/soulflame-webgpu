@@ -38,6 +38,7 @@ use bevy::{
     },
 };
 use bytemuck::{Pod, Zeroable};
+use rayon::prelude::*;
 
 /// This example uses a shader source file from the assets subdirectory
 const SHADER_ASSET_PATH: &str = "shaders/instancing.wgsl";
@@ -171,7 +172,6 @@ fn prepare_instance_buffers(
         ),
     );
 
-
     //TODO: optimise this
     for (entity, instance_data, global_transform) in &query {
         let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
@@ -189,6 +189,7 @@ fn prepare_instance_buffers(
             UniformBuffer::from(Vec4::new(cols[8], cols[9], cols[10], cols[11])),
             UniformBuffer::from(Vec4::new(cols[12], cols[13], cols[14], cols[15])),
         ];
+        // TODO: remove this as the slow code
         for uniform_buffer in uniform_buffers.iter_mut() {
             uniform_buffer.write_buffer(&render_device, &render_queue);
         }
@@ -204,13 +205,13 @@ fn prepare_instance_buffers(
             )),
         );
 
-        commands.entity(entity).insert((
-            InstanceBuffer {
-                buffer,
-                length: instance_data.len(),
-            },
-            TransformBindGroup(transform_bind_group),
-        ));
+        commands
+            .entity(entity)
+            .insert(TransformBindGroup(transform_bind_group));
+        commands.entity(entity).insert(InstanceBuffer {
+            buffer,
+            length: instance_data.len(),
+        });
     }
 
     let elapsed = start.elapsed();

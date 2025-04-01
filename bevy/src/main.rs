@@ -11,17 +11,15 @@ mod vxm_mesh;
 
 use crate::camera::{CameraTarget, ThirdPersonCameraPlugin};
 use crate::custom_shader_instancing::InstancedMaterialPlugin;
-use crate::dnd::{file_drag_and_drop_system, setup_scene_once_loaded, PendingVxm};
+use crate::dnd::{file_drag_and_drop_system, PendingVxm};
 use crate::draw_aabb_gizmos::DrawAabbGizmosPlugin;
 use crate::replace_body_part_meshes::{
     add_vxm_swap_targets, create_vxm_swap_targets_on_gltf_import_system, swap_vxm_meshes,
 };
-use crate::set_animation_clip_keyboard::SetAnimationClipPlugin;
 use crate::vxm::{VxmAsset, VxmAssetLoader};
 use crate::vxm_mesh::{create_mesh_on_vxm_import_system, VxmMeshPlugin};
 use bevy::color::palettes::basic::WHITE;
 use bevy::core_pipeline::experimental::taa::TemporalAntiAliasPlugin;
-use bevy::ecs::bundle::DynamicBundle;
 use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 use bevy::pbr::{FogVolume, VolumetricFog};
 use bevy::render::render_resource::WgpuFeatures;
@@ -35,7 +33,6 @@ use bevy::{
     },
     prelude::*,
 };
-use bevy::{prelude::*, render::extract_resource::ExtractResource};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use std::f32::consts::*;
 use iyes_perf_ui::PerfUiPlugin;
@@ -106,7 +103,7 @@ fn main() {
         })
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
-        .add_systems(Startup, (setup))
+        .add_systems(Startup, setup)
         .add_systems(Update, (exit_on_esc_system, toggle_fullscreen))
         .add_systems(
             FixedUpdate,
@@ -127,7 +124,7 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     asset_server: Res<AssetServer>,
-    mut graphs: ResMut<Assets<AnimationGraph>>,
+    graphs: ResMut<Assets<AnimationGraph>>,
 ) {
     commands.spawn(PerfUiAllEntries::default());
     // Camera

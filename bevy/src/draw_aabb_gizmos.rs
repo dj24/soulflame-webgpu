@@ -4,7 +4,7 @@ use bevy::color::Color;
 use bevy::input::ButtonInput;
 use bevy::math::Vec3;
 use bevy::prelude::{
-    in_state, AppExtStates, Gizmos, GlobalTransform, IntoSystemConfigs, KeyCode, Mesh3d, NextState,
+    in_state, AppExtStates, Gizmos, GlobalTransform, IntoSystemConfigs, KeyCode, NextState,
     Plugin, Query, Res, ResMut, State, States, Transform,
 };
 use bevy::render::primitives::Aabb;

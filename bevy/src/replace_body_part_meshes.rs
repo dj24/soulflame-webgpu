@@ -1,22 +1,18 @@
-use crate::camera::CameraTarget;
-use crate::dnd::Animations;
 use crate::vxm::VxmAsset;
 use crate::vxm_mesh;
 use bevy::asset::{AssetEvent, AssetServer, Assets, Handle};
 use bevy::core::Name;
-use bevy::gltf::GltfAssetLabel;
 use bevy::hierarchy::Children;
 use bevy::log::{error, info};
 use bevy::math::Vec3;
 use bevy::pbr::{ExtendedMaterial, MeshMaterial3d, StandardMaterial};
 use bevy::prelude::{
-    AnimationGraph, AnimationGraphHandle, Color, Commands, Component, Entity, EventReader,
+    Commands, Component, Entity, EventReader,
     FromWorld, Gltf, HierarchyQueryExt, Mesh, Mesh3d, Parent, Query, Res, ResMut, Resource,
-    SceneRoot, Time, Transform, World,
+    SceneRoot, Transform, World,
 };
 use bevy::render::mesh::VertexAttributeValues;
 use std::env::current_dir;
-use std::path::Path;
 use bevy::pbr::wireframe::Wireframe;
 use bevy::render::storage::ShaderStorageBuffer;
 use crate::vxm_mesh::MyExtension;

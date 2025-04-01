@@ -1,12 +1,10 @@
 use crate::dnd::Animations;
-use bevy::ecs::system::RunSystemOnce;
 use bevy::prelude::*;
-use std::time::Duration;
 
 fn set_animation_clip_by_keypress(
     keys: Res<ButtonInput<KeyCode>>,
     animations: Res<Animations>,
-    mut players: Query<(&mut AnimationPlayer)>,
+    mut players: Query<&mut AnimationPlayer>,
 ) {
     for (key, index) in [
         (KeyCode::Digit0, 0),

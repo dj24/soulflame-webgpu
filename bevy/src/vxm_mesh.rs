@@ -1,19 +1,17 @@
-use crate::camera::CameraTarget;
 use crate::custom_shader_instancing::{InstanceData, InstanceMaterialData};
 use crate::dnd::PendingVxm;
-use crate::vxm::{Voxel, VxmAsset};
-use bevy::asset::{AssetEvent, Assets, RenderAssetUsages};
-use bevy::color::palettes::basic::{PURPLE, RED, WHITE};
+use crate::vxm::VxmAsset;
+use bevy::asset::{Assets, RenderAssetUsages};
+use bevy::color::palettes::basic::PURPLE;
 use bevy::log::info;
 use bevy::pbr::wireframe::WireframeConfig;
-use bevy::pbr::{ExtendedMaterial, MaterialExtension, MeshMaterial3d, OpaqueRendererMethod};
+use bevy::pbr::{ExtendedMaterial, MaterialExtension};
 use bevy::prelude::*;
-use bevy::render::mesh::{Indices, MeshVertexAttribute, PrimitiveTopology};
-use bevy::render::render_resource::{AsBindGroup, ShaderRef, VertexFormat};
+use bevy::render::mesh::{Indices, PrimitiveTopology};
+use bevy::render::render_resource::{AsBindGroup, ShaderRef};
 use bevy::render::storage::ShaderStorageBuffer;
 use bevy::render::view::NoFrustumCulling;
 use rayon::prelude::*;
-use std::cmp::min;
 use bevy::render::primitives::Aabb;
 
 enum CubeFace {
@@ -97,7 +95,7 @@ Total per face: 40 bytes
 
 // TODO: update this to use instancing
 pub fn create_mesh_from_voxels(voxels: &VxmAsset) -> Mesh {
-    let mut indices = Vec::new();
+    let indices = Vec::new();
 
     // for voxel in &voxels.voxels {
     //     for _ in 0..6 {

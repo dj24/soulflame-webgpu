@@ -34,11 +34,7 @@ use bevy::{
         Render, RenderApp, RenderSet,
     },
 };
-use bevy::color::palettes::basic::PURPLE;
-use bevy::pbr::ExtendedMaterial;
-use bevy::pbr::wireframe::WireframeConfig;
 use bytemuck::{Pod, Zeroable};
-use crate::vxm_mesh::MyExtension;
 
 /// A marker component that represents an entity that is to be rendered using
 /// our custom phase item.
