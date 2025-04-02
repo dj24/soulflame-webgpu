@@ -150,7 +150,7 @@ struct InstanceBuffer {
 }
 
 #[derive(Component)]
-struct DynamicOffset(usize);
+struct DynamicOffset(u32);
 
 #[derive(Component)]
 struct TransformBindGroup(BindGroup);
@@ -171,38 +171,47 @@ fn prepare_instance_buffers(
     );
 
     let alignment = render_device.limits().min_uniform_buffer_offset_alignment as usize;
+    // Round up Mat4 size to required alignment
     let aligned_size = (size_of::<Mat4>() + alignment - 1) & !(alignment - 1);
+    let entity_count = query.iter().count();
 
-    &query
-        .iter()
-        .enumerate()
-        .for_each(|(index, (entity, instance_data, global_transform))| {
-            let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-                label: Some("instance data buffer"),
-                contents: bytemuck::cast_slice(instance_data.as_slice()),
-                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-            });
+    let mut transform_data = vec![0u8; entity_count * aligned_size];
+    for (index, (_, _, global_transform)) in query.iter().enumerate() {
+        let offset = index * aligned_size;
+        let transform_array = global_transform.0.to_cols_array();
+        transform_data[offset..offset + size_of::<Mat4>()]
+            .copy_from_slice(bytemuck::cast_slice(&transform_array));
+    }
 
-            // TODO: use storage buffer instead, then we can render in one draw call
-            let mut uniform_buffer = UniformBuffer::from(global_transform.0);
-            // TODO: remove this as the slow code
-            uniform_buffer.write_buffer(&render_device, &render_queue);
+    let transform_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+        label: Some("transform uniform buffer"),
+        contents: &transform_data,
+        usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+    });
 
-            let transform_bind_group = render_device.create_bind_group(
-                "transform_bind_group",
-                &layout,
-                &BindGroupEntries::with_indices(((0, &uniform_buffer),)),
-            );
-
-            commands.entity(entity).insert((
-                TransformBindGroup(transform_bind_group),
-                DynamicOffset(index),
-                InstanceBuffer {
-                    buffer,
-                    length: instance_data.len(),
-                },
-            ));
+    for (index, (entity, instance_data, global_transform)) in query.iter().enumerate() {
+        let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+            label: Some("instance data buffer"),
+            contents: bytemuck::cast_slice(instance_data.as_slice()),
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
         });
+
+        let transform_bind_group = render_device.create_bind_group(
+            "transform_bind_group",
+            &layout,
+            // TODO change this to be a dynamic offset instead of whole buffer
+            &BindGroupEntries::with_indices(((0, transform_buffer.as_entire_binding()),)),
+        );
+
+        commands.entity(entity).insert((
+            TransformBindGroup(transform_bind_group),
+            DynamicOffset((index * aligned_size) as u32),
+            InstanceBuffer {
+                buffer,
+                length: instance_data.len(),
+            },
+        ));
+    }
 
     let elapsed = start.elapsed();
     println!("Time taken to prepare instance buffers: {:?}", elapsed);
@@ -286,13 +295,21 @@ impl<P: PhaseItem> RenderCommand<P> for DrawMeshInstanced {
         SRes<MeshAllocator>,
     );
     type ViewQuery = ();
-    type ItemQuery = (Read<InstanceBuffer>, Read<TransformBindGroup>);
+    type ItemQuery = (
+        Read<InstanceBuffer>,
+        Read<TransformBindGroup>,
+        Read<DynamicOffset>,
+    );
 
     #[inline]
     fn render<'w>(
         item: &P,
         _view: (),
-        buffers: Option<(&'w InstanceBuffer, &'w TransformBindGroup)>,
+        buffers: Option<(
+            &'w InstanceBuffer,
+            &'w TransformBindGroup,
+            &'w DynamicOffset,
+        )>,
         (meshes, render_mesh_instances, mesh_allocator): SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
@@ -315,11 +332,11 @@ impl<P: PhaseItem> RenderCommand<P> for DrawMeshInstanced {
             return RenderCommandResult::Skip;
         };
 
-        let (instance_buffer, transform_bind_group) = buffers.unwrap();
+        let (instance_buffer, transform_bind_group, dynamic_offset) = buffers.unwrap();
 
         pass.set_vertex_buffer(0, vertex_buffer_slice.buffer.slice(..));
         pass.set_vertex_buffer(1, instance_buffer.buffer.slice(..));
-        pass.set_bind_group(2, &transform_bind_group.0, &[0]);
+        pass.set_bind_group(2, &transform_bind_group.0, &[dynamic_offset.0]);
 
         match &gpu_mesh.buffer_info {
             RenderMeshBufferInfo::Indexed {
