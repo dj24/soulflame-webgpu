@@ -83,7 +83,6 @@ fn main() {
                     }),
                     ..default()
                 }),
-            WireframePlugin,
             ThirdPersonCameraPlugin,
             TemporalAntiAliasPlugin,
             VxmMeshPlugin,
@@ -169,8 +168,8 @@ fn setup(
         )),
     ));
     //
-    for x in -3..3 {
-        for z in -3..3 {
+    for x in -5..5 {
+        for z in -5..5 {
             if x == 0 && z == 0 {
                 continue;
             }
@@ -178,9 +177,9 @@ fn setup(
                 Name::new(format!("Dragon {:?},{:?}",x,z)),
                 PendingVxm(asset_server.load("Dragon.vxm")),
                 Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)).with_translation(Vec3::new(
-                    x as f32 * 128.0 * 0.02,
+                    x as f32 * 128.0 * 0.02 * 2.0,
                     0.0,
-                    -z as f32 * 89.0 * 0.02
+                    -z as f32 * 89.0 * 0.02 * 2.0
                 )),
             ));
         }

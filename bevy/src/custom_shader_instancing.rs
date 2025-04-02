@@ -150,6 +150,9 @@ struct InstanceBuffer {
 }
 
 #[derive(Component)]
+struct DynamicOffset(usize);
+
+#[derive(Component)]
 struct TransformBindGroup(BindGroup);
 
 fn prepare_instance_buffers(
@@ -163,56 +166,43 @@ fn prepare_instance_buffers(
         "transforms",
         &BindGroupLayoutEntries::with_indices(
             ShaderStages::VERTEX,
-            (
-                (0, uniform_buffer::<Vec4>(false)),
-                (1, uniform_buffer::<Vec4>(false)),
-                (2, uniform_buffer::<Vec4>(false)),
-                (3, uniform_buffer::<Vec4>(false)),
-            ),
+            ((0, uniform_buffer::<Mat4>(true)),),
         ),
     );
 
-    //TODO: optimise this
-    for (entity, instance_data, global_transform) in &query {
-        let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            label: Some("instance data buffer"),
-            contents: bytemuck::cast_slice(instance_data.as_slice()),
-            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-        });
+    let alignment = render_device.limits().min_uniform_buffer_offset_alignment as usize;
+    let aligned_size = (size_of::<Mat4>() + alignment - 1) & !(alignment - 1);
 
-        // TODO: use storage buffer instead, then we can render in one draw call
-        // Or, maybe pack matrix to fix 16 byte stride
-        let cols = global_transform.to_cols_array();
-        let mut uniform_buffers = vec![
-            UniformBuffer::from(Vec4::new(cols[0], cols[1], cols[2], cols[3])),
-            UniformBuffer::from(Vec4::new(cols[4], cols[5], cols[6], cols[7])),
-            UniformBuffer::from(Vec4::new(cols[8], cols[9], cols[10], cols[11])),
-            UniformBuffer::from(Vec4::new(cols[12], cols[13], cols[14], cols[15])),
-        ];
-        // TODO: remove this as the slow code
-        for uniform_buffer in uniform_buffers.iter_mut() {
+    &query
+        .iter()
+        .enumerate()
+        .for_each(|(index, (entity, instance_data, global_transform))| {
+            let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+                label: Some("instance data buffer"),
+                contents: bytemuck::cast_slice(instance_data.as_slice()),
+                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+            });
+
+            // TODO: use storage buffer instead, then we can render in one draw call
+            let mut uniform_buffer = UniformBuffer::from(global_transform.0);
+            // TODO: remove this as the slow code
             uniform_buffer.write_buffer(&render_device, &render_queue);
-        }
 
-        let transform_bind_group = render_device.create_bind_group(
-            "transform_bind_group",
-            &layout,
-            &BindGroupEntries::with_indices((
-                (0, &uniform_buffers[0]),
-                (1, &uniform_buffers[1]),
-                (2, &uniform_buffers[2]),
-                (3, &uniform_buffers[3]),
-            )),
-        );
+            let transform_bind_group = render_device.create_bind_group(
+                "transform_bind_group",
+                &layout,
+                &BindGroupEntries::with_indices(((0, &uniform_buffer),)),
+            );
 
-        commands
-            .entity(entity)
-            .insert(TransformBindGroup(transform_bind_group));
-        commands.entity(entity).insert(InstanceBuffer {
-            buffer,
-            length: instance_data.len(),
+            commands.entity(entity).insert((
+                TransformBindGroup(transform_bind_group),
+                DynamicOffset(index),
+                InstanceBuffer {
+                    buffer,
+                    length: instance_data.len(),
+                },
+            ));
         });
-    }
 
     let elapsed = start.elapsed();
     println!("Time taken to prepare instance buffers: {:?}", elapsed);
@@ -271,12 +261,7 @@ impl SpecializedMeshPipeline for CustomPipeline {
             "transforms",
             &BindGroupLayoutEntries::with_indices(
                 ShaderStages::VERTEX,
-                (
-                    (0, uniform_buffer::<Vec4>(false)),
-                    (1, uniform_buffer::<Vec4>(false)),
-                    (2, uniform_buffer::<Vec4>(false)),
-                    (3, uniform_buffer::<Vec4>(false)),
-                ),
+                ((0, uniform_buffer::<Mat4>(true)),),
             ),
         );
         descriptor.layout.push(transform_layout);
@@ -334,7 +319,7 @@ impl<P: PhaseItem> RenderCommand<P> for DrawMeshInstanced {
 
         pass.set_vertex_buffer(0, vertex_buffer_slice.buffer.slice(..));
         pass.set_vertex_buffer(1, instance_buffer.buffer.slice(..));
-        pass.set_bind_group(2, &transform_bind_group.0, &[]);
+        pass.set_bind_group(2, &transform_bind_group.0, &[0]);
 
         match &gpu_mesh.buffer_info {
             RenderMeshBufferInfo::Indexed {

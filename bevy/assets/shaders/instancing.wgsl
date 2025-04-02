@@ -16,19 +16,10 @@ struct VertexOutput {
 };
 
 
-@group(2) @binding(0) var<uniform> model_matrix_0: vec4<f32>;
-@group(2) @binding(1) var<uniform> model_matrix_1: vec4<f32>;
-@group(2) @binding(2) var<uniform> model_matrix_2: vec4<f32>;
-@group(2) @binding(3) var<uniform> model_matrix_3: vec4<f32>;
+@group(2) @binding(0) var<uniform> model_matrix: mat4x4<f32>;
 
 @vertex
 fn vertex(vertex: Vertex, instance: Instance) -> VertexOutput {
-  let model_matrix = mat4x4<f32>(
-        model_matrix_0,
-        model_matrix_1,
-        model_matrix_2,
-        model_matrix_3,
-    );
     let unpacked_pos_x_extent = unpack4xU8(instance.pos_x_extent);
     let x_pos = f32(unpacked_pos_x_extent.x);
     let y_pos = f32(unpacked_pos_x_extent.y);

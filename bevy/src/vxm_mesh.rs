@@ -270,10 +270,6 @@ pub fn create_mesh_on_vxm_import_system(
                     .with_child((
                         Mesh3d(front_quad),
                         InstanceMaterialData(instance_data.clone()),
-                    ))
-                    .with_child((
-                        Mesh3d(back_quad),
-                        InstanceMaterialData(instance_data.clone()),
                     ));
             }
             None => {}
@@ -306,10 +302,6 @@ pub struct VxmMeshPlugin;
 
 impl Plugin for VxmMeshPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(WireframeConfig {
-            global: true,
-            default_color: Color::from(PURPLE),
-        });
         app.add_plugins(MaterialPlugin::<
             ExtendedMaterial<StandardMaterial, MyExtension>,
         >::default());
