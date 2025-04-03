@@ -176,6 +176,8 @@ fn prepare_instance_buffers(
     let entity_count = query.iter().count();
 
     let mut transform_data = vec![0u8; entity_count * aligned_size];
+
+    // TODO: move instance buffers into one
     for (index, (_, _, global_transform)) in query.iter().enumerate() {
         let offset = index * aligned_size;
         let transform_array = global_transform.0.to_cols_array();
@@ -189,23 +191,31 @@ fn prepare_instance_buffers(
         usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
     });
 
-    for (index, (entity, instance_data, global_transform)) in query.iter().enumerate() {
+    for (index, (entity, instance_data, _)) in query.iter().enumerate() {
         let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
             label: Some("instance data buffer"),
             contents: bytemuck::cast_slice(instance_data.as_slice()),
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
         });
 
+        let transform_offset = index * aligned_size;
+
         let transform_bind_group = render_device.create_bind_group(
             "transform_bind_group",
             &layout,
-            // TODO change this to be a dynamic offset instead of whole buffer
-            &BindGroupEntries::with_indices(((0, transform_buffer.as_entire_binding()),)),
+            &BindGroupEntries::with_indices(((
+                0,
+                BufferBinding {
+                    buffer: &transform_buffer,
+                    offset: 0,
+                    size: BufferSize::new(alignment as u64),
+                },
+            ),)),
         );
 
         commands.entity(entity).insert((
             TransformBindGroup(transform_bind_group),
-            DynamicOffset((index * aligned_size) as u32),
+            DynamicOffset(transform_offset as u32),
             InstanceBuffer {
                 buffer,
                 length: instance_data.len(),
