@@ -9,7 +9,6 @@
 
 use bevy::reflect::Array;
 use bevy::render::render_resource::binding_types::uniform_buffer;
-use bevy::render::renderer::RenderQueue;
 use bevy::{
     core_pipeline::core_3d::Transparent3d,
     ecs::{
@@ -76,6 +75,7 @@ impl Plugin for InstancedMaterialPlugin {
                 Render,
                 (
                     queue_custom.in_set(RenderSet::QueueMeshes),
+                    prepare_transforms_uniforms.in_set(RenderSet::PrepareResources),
                     prepare_instance_buffers.in_set(RenderSet::PrepareResources),
                 ),
             );
@@ -152,16 +152,26 @@ struct InstanceBuffer {
 #[derive(Component)]
 struct DynamicOffset(u32);
 
-#[derive(Component)]
-struct TransformBindGroup(BindGroup);
+#[derive(Resource)]
+struct TransformBindGroup {
+    buffer: Buffer,
+    layout: BindGroupLayout,
+    bind_grouo: BindGroup,
+}
 
-fn prepare_instance_buffers(
+fn prepare_transforms_uniforms(
     mut commands: Commands,
     query: Query<(Entity, &InstanceMaterialData, &TransformUniform)>,
     render_device: Res<RenderDevice>,
-    render_queue: Res<RenderQueue>,
 ) {
-    let start = std::time::Instant::now();
+    let entity_count = query.iter().count();
+    if entity_count == 0 {
+        return;
+    }
+
+    let alignment = render_device.limits().min_uniform_buffer_offset_alignment as usize;
+    let aligned_size = (size_of::<Mat4>() + alignment - 1) & !(alignment - 1);
+
     let layout = render_device.create_bind_group_layout(
         "transforms",
         &BindGroupLayoutEntries::with_indices(
@@ -170,14 +180,8 @@ fn prepare_instance_buffers(
         ),
     );
 
-    let alignment = render_device.limits().min_uniform_buffer_offset_alignment as usize;
-    // Round up Mat4 size to required alignment
-    let aligned_size = (size_of::<Mat4>() + alignment - 1) & !(alignment - 1);
-    let entity_count = query.iter().count();
-
     let mut transform_data = vec![0u8; entity_count * aligned_size];
 
-    // TODO: move instance buffers into one
     for (index, (_, _, global_transform)) in query.iter().enumerate() {
         let offset = index * aligned_size;
         let transform_array = global_transform.0.to_cols_array();
@@ -191,6 +195,36 @@ fn prepare_instance_buffers(
         usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
     });
 
+    let transform_bind_group = render_device.create_bind_group(
+        "transform_bind_group",
+        &layout,
+        &BindGroupEntries::with_indices(((
+            0,
+            BufferBinding {
+                buffer: &transform_buffer,
+                offset: 0,
+                size: BufferSize::new(alignment as u64),
+            },
+        ),)),
+    );
+
+    commands.insert_resource(TransformBindGroup {
+        buffer: transform_buffer,
+        layout,
+        bind_grouo: transform_bind_group,
+    });
+}
+
+fn prepare_instance_buffers(
+    mut commands: Commands,
+    query: Query<(Entity, &InstanceMaterialData, &TransformUniform)>,
+    render_device: Res<RenderDevice>,
+) {
+    let start = std::time::Instant::now();
+    let alignment = render_device.limits().min_uniform_buffer_offset_alignment as usize;
+    // Round up Mat4 size to required alignment
+    let aligned_size = (size_of::<Mat4>() + alignment - 1) & !(alignment - 1);
+
     for (index, (entity, instance_data, _)) in query.iter().enumerate() {
         let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
             label: Some("instance data buffer"),
@@ -200,21 +234,7 @@ fn prepare_instance_buffers(
 
         let transform_offset = index * aligned_size;
 
-        let transform_bind_group = render_device.create_bind_group(
-            "transform_bind_group",
-            &layout,
-            &BindGroupEntries::with_indices(((
-                0,
-                BufferBinding {
-                    buffer: &transform_buffer,
-                    offset: 0,
-                    size: BufferSize::new(alignment as u64),
-                },
-            ),)),
-        );
-
         commands.entity(entity).insert((
-            TransformBindGroup(transform_bind_group),
             DynamicOffset(transform_offset as u32),
             InstanceBuffer {
                 buffer,
@@ -303,28 +323,26 @@ impl<P: PhaseItem> RenderCommand<P> for DrawMeshInstanced {
         SRes<RenderAssets<RenderMesh>>,
         SRes<RenderMeshInstances>,
         SRes<MeshAllocator>,
+        SRes<TransformBindGroup>,
     );
     type ViewQuery = ();
-    type ItemQuery = (
-        Read<InstanceBuffer>,
-        Read<TransformBindGroup>,
-        Read<DynamicOffset>,
-    );
+    type ItemQuery = (Read<InstanceBuffer>, Read<DynamicOffset>);
 
     #[inline]
     fn render<'w>(
         item: &P,
         _view: (),
-        buffers: Option<(
-            &'w InstanceBuffer,
-            &'w TransformBindGroup,
-            &'w DynamicOffset,
-        )>,
-        (meshes, render_mesh_instances, mesh_allocator): SystemParamItem<'w, '_, Self::Param>,
+        buffers: Option<(&'w InstanceBuffer, &'w DynamicOffset)>,
+        (meshes, render_mesh_instances, mesh_allocator, transform_bind_group): SystemParamItem<
+            'w,
+            '_,
+            Self::Param,
+        >,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
         // A borrow check workaround.
         let mesh_allocator = mesh_allocator.into_inner();
+        let transform_bind_group = transform_bind_group.into_inner();
 
         let Some(mesh_instance) = render_mesh_instances.render_mesh_queue_data(item.main_entity())
         else {
@@ -342,11 +360,11 @@ impl<P: PhaseItem> RenderCommand<P> for DrawMeshInstanced {
             return RenderCommandResult::Skip;
         };
 
-        let (instance_buffer, transform_bind_group, dynamic_offset) = buffers.unwrap();
+        let (instance_buffer, dynamic_offset) = buffers.unwrap();
 
         pass.set_vertex_buffer(0, vertex_buffer_slice.buffer.slice(..));
         pass.set_vertex_buffer(1, instance_buffer.buffer.slice(..));
-        pass.set_bind_group(2, &transform_bind_group.0, &[dynamic_offset.0]);
+        pass.set_bind_group(2, &transform_bind_group.bind_grouo, &[dynamic_offset.0]);
 
         match &gpu_mesh.buffer_info {
             RenderMeshBufferInfo::Indexed {
