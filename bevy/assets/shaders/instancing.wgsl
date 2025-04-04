@@ -6,7 +6,7 @@ struct Vertex {
 };
 
 struct Instance {
-  @location(3) pos_x_extent: u32,
+  @location(3) pos_x_extent: u32, // 5+5+5 
   @location(4) color_y_extent: u32,
 }
 

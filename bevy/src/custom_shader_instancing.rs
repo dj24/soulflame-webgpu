@@ -144,19 +144,25 @@ fn queue_custom(
 }
 
 #[derive(Component)]
-struct InstanceBuffer {
-    buffer: Buffer,
-    length: usize,
-}
+struct TransformUniformOffset(u32);
 
 #[derive(Component)]
-struct DynamicOffset(u32);
+struct InstanceDataOffset {
+    start: u32,
+    end: u32,
+}
 
 #[derive(Resource)]
 struct TransformBindGroup {
     buffer: Buffer,
     layout: BindGroupLayout,
-    bind_grouo: BindGroup,
+    bind_group: BindGroup,
+}
+
+#[derive(Resource)]
+struct InstanceBuffer {
+    buffer: Buffer,
+    length: usize,
 }
 
 fn prepare_transforms_uniforms(
@@ -211,7 +217,7 @@ fn prepare_transforms_uniforms(
     commands.insert_resource(TransformBindGroup {
         buffer: transform_buffer,
         layout,
-        bind_grouo: transform_bind_group,
+        bind_group: transform_bind_group,
     });
 }
 
@@ -222,26 +228,39 @@ fn prepare_instance_buffers(
 ) {
     let start = std::time::Instant::now();
     let alignment = render_device.limits().min_uniform_buffer_offset_alignment as usize;
-    // Round up Mat4 size to required alignment
     let aligned_size = (size_of::<Mat4>() + alignment - 1) & !(alignment - 1);
+    let instance_data_size = size_of::<InstanceData>();
+
+    let mut all_instance_data: Vec<InstanceData> = Vec::new();
+
+    let mut instance_offset = 0;
 
     for (index, (entity, instance_data, _)) in query.iter().enumerate() {
-        let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            label: Some("instance data buffer"),
-            contents: bytemuck::cast_slice(instance_data.as_slice()),
-            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-        });
-
+        let slice_size = instance_data.len() * instance_data_size;
         let transform_offset = index * aligned_size;
 
         commands.entity(entity).insert((
-            DynamicOffset(transform_offset as u32),
-            InstanceBuffer {
-                buffer,
-                length: instance_data.len(),
+            TransformUniformOffset(transform_offset as u32),
+            InstanceDataOffset {
+                start: instance_offset as u32,
+                end: (instance_offset + slice_size) as u32,
             },
         ));
+
+        all_instance_data.extend_from_slice(instance_data.as_slice());
+        instance_offset += slice_size;
     }
+
+    let all_instance_data_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+        label: Some("instance data buffer"),
+        contents: bytemuck::cast_slice(all_instance_data.as_slice()),
+        usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+    });
+
+    commands.insert_resource(InstanceBuffer {
+        buffer: all_instance_data_buffer,
+        length: all_instance_data.len(),
+    });
 
     let elapsed = start.elapsed();
     println!("Time taken to prepare instance buffers: {:?}", elapsed);
@@ -324,16 +343,17 @@ impl<P: PhaseItem> RenderCommand<P> for DrawMeshInstanced {
         SRes<RenderMeshInstances>,
         SRes<MeshAllocator>,
         SRes<TransformBindGroup>,
+        SRes<InstanceBuffer>,
     );
     type ViewQuery = ();
-    type ItemQuery = (Read<InstanceBuffer>, Read<DynamicOffset>);
+    type ItemQuery = (Read<TransformUniformOffset>, Read<InstanceDataOffset>);
 
     #[inline]
     fn render<'w>(
         item: &P,
         _view: (),
-        buffers: Option<(&'w InstanceBuffer, &'w DynamicOffset)>,
-        (meshes, render_mesh_instances, mesh_allocator, transform_bind_group): SystemParamItem<
+        buffers: Option<(&'w TransformUniformOffset, &'w InstanceDataOffset)>,
+        (meshes, render_mesh_instances, mesh_allocator, transform_bind_group, instance_buffer): SystemParamItem<
             'w,
             '_,
             Self::Param,
@@ -343,6 +363,7 @@ impl<P: PhaseItem> RenderCommand<P> for DrawMeshInstanced {
         // A borrow check workaround.
         let mesh_allocator = mesh_allocator.into_inner();
         let transform_bind_group = transform_bind_group.into_inner();
+        let instance_buffer = instance_buffer.into_inner();
 
         let Some(mesh_instance) = render_mesh_instances.render_mesh_queue_data(item.main_entity())
         else {
@@ -360,11 +381,18 @@ impl<P: PhaseItem> RenderCommand<P> for DrawMeshInstanced {
             return RenderCommandResult::Skip;
         };
 
-        let (instance_buffer, dynamic_offset) = buffers.unwrap();
+        let (dynamic_offset, instance_data_offset) = buffers.unwrap();
+
+        let instance_start = instance_data_offset.start as u64;
+        let instance_end = instance_data_offset.end as u64;
+        let instance_count = (instance_end - instance_start) / 8;
 
         pass.set_vertex_buffer(0, vertex_buffer_slice.buffer.slice(..));
-        pass.set_vertex_buffer(1, instance_buffer.buffer.slice(..));
-        pass.set_bind_group(2, &transform_bind_group.bind_grouo, &[dynamic_offset.0]);
+        pass.set_vertex_buffer(
+            1,
+            instance_buffer.buffer.slice(instance_start..instance_end),
+        );
+        pass.set_bind_group(2, &transform_bind_group.bind_group, &[dynamic_offset.0]);
 
         match &gpu_mesh.buffer_info {
             RenderMeshBufferInfo::Indexed {
@@ -381,11 +409,11 @@ impl<P: PhaseItem> RenderCommand<P> for DrawMeshInstanced {
                 pass.draw_indexed(
                     index_buffer_slice.range.start..(index_buffer_slice.range.start + count),
                     vertex_buffer_slice.range.start as i32,
-                    0..instance_buffer.length as u32,
+                    0..instance_count as u32,
                 );
             }
             RenderMeshBufferInfo::NonIndexed => {
-                pass.draw(vertex_buffer_slice.range, 0..instance_buffer.length as u32);
+                pass.draw(vertex_buffer_slice.range, 0..instance_count as u32);
             }
         }
         RenderCommandResult::Success
