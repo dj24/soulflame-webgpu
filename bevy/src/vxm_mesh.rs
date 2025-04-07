@@ -1,4 +1,4 @@
-use crate::custom_shader_instancing::{InstanceData, InstanceMaterialData};
+use crate::custom_shader_instancing::{InstanceData, InstanceMaterialData, InstanceMaterialDataKey};
 use crate::dnd::PendingVxm;
 use crate::vxm::VxmAsset;
 use bevy::asset::{Assets, RenderAssetUsages};
@@ -264,12 +264,12 @@ pub fn create_mesh_on_vxm_import_system(
                 commands.entity(entity)
                     .insert((
                         InheritedVisibility::default(),
-                        NoFrustumCulling,
                         Aabb::from_min_max(Vec3::ZERO, Vec3::new(vxm.size[0] as f32, vxm.size[1] as f32, vxm.size[2] as f32)),
                     ))
                     .with_child((
                         Mesh3d(front_quad),
                         InstanceMaterialData(instance_data.clone()),
+                        InstanceMaterialDataKey(format!("{:?}-front", entity)),
                     ));
             }
             None => {}

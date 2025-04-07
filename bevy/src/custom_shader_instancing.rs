@@ -7,6 +7,7 @@
 //! implementation using bevy's low level rendering api.
 //! It's generally recommended to try the built-in instancing before going with this approach.
 
+use std::collections::HashMap;
 use bevy::reflect::Array;
 use bevy::render::render_resource::binding_types::uniform_buffer;
 use bevy::{
@@ -38,6 +39,7 @@ use bevy::{
 };
 use bytemuck::{Pod, Zeroable};
 use rayon::prelude::*;
+use log::info;
 
 /// This example uses a shader source file from the assets subdirectory
 const SHADER_ASSET_PATH: &str = "shaders/instancing.wgsl";
@@ -45,23 +47,35 @@ const SHADER_ASSET_PATH: &str = "shaders/instancing.wgsl";
 #[derive(Component, Deref)]
 pub struct InstanceMaterialData(pub Vec<InstanceData>);
 
-#[derive(Component, Deref)]
-pub struct TransformUniform(pub Mat4);
-
 impl ExtractComponent for InstanceMaterialData {
-    type QueryData = (&'static Self, &'static GlobalTransform);
+    type QueryData = (&'static Self, &'static GlobalTransform, &'static InstanceMaterialDataKey);
     type QueryFilter = ();
-    type Out = (Self, TransformUniform);
+    type Out = (InstanceMaterialDataKey, TransformUniform);
 
+    // TODO: create hashmap to store the instance data, and prevent cloning
     fn extract_component(item: QueryItem<'_, Self::QueryData>) -> Option<Self::Out> {
-        let (instance_data, global_transform) = item;
-        let foo = instance_data.0.clone();
+        let (_, global_transform, key) = item;
         Some((
-            InstanceMaterialData(foo),
+            InstanceMaterialDataKey(key.0.clone()),
             TransformUniform(global_transform.compute_matrix()),
         ))
     }
 }
+
+#[derive(Component, Deref)]
+pub struct InstanceMaterialDataKey(pub String);
+
+#[derive(Resource)]
+pub struct InstanceDataMap(pub HashMap<InstanceMaterialDataKey, Vec<InstanceData>>);
+
+impl Default for InstanceDataMap {
+    fn default() -> Self {
+        InstanceDataMap(HashMap::new())
+    }
+}
+
+#[derive(Component, Deref)]
+pub struct TransformUniform(pub Mat4);
 
 pub struct InstancedMaterialPlugin;
 
@@ -188,9 +202,14 @@ fn prepare_transforms_uniforms(
 
     let mut transform_data = vec![0u8; entity_count * aligned_size];
 
-    for (index, (_, _, global_transform)) in query.iter().enumerate() {
+    for (index, (entity, _, global_transform)) in query.iter().enumerate() {
         let offset = index * aligned_size;
         let transform_array = global_transform.0.to_cols_array();
+        let transform_offset = index * aligned_size;
+        commands.entity(entity).insert((
+            TransformUniformOffset(transform_offset as u32),
+        ));
+
         transform_data[offset..offset + size_of::<Mat4>()]
             .copy_from_slice(bytemuck::cast_slice(&transform_array));
     }
@@ -221,35 +240,54 @@ fn prepare_transforms_uniforms(
     });
 }
 
+// TODO: ready hashmap and add to it if not existing
 fn prepare_instance_buffers(
     mut commands: Commands,
     query: Query<(Entity, &InstanceMaterialData, &TransformUniform)>,
     render_device: Res<RenderDevice>,
+    instance_buffer: Option<Res<InstanceBuffer>>,
 ) {
-    let start = std::time::Instant::now();
-    let alignment = render_device.limits().min_uniform_buffer_offset_alignment as usize;
-    let aligned_size = (size_of::<Mat4>() + alignment - 1) & !(alignment - 1);
-    let instance_data_size = size_of::<InstanceData>();
+    let current_size = match instance_buffer {
+        None => {
+            0
+        }
+        Some(buff) => {
+            buff.length * 8
+        }
+    };
 
-    let mut all_instance_data: Vec<InstanceData> = Vec::new();
+    let instance_data_size = size_of::<InstanceData>();
 
     let mut instance_offset = 0;
 
-    for (index, (entity, instance_data, _)) in query.iter().enumerate() {
+    let mut offsets: Vec<(Entity, &InstanceMaterialData, InstanceDataOffset)> = Vec::new();
+    for (entity, instance_data, _) in query.iter() {
         let slice_size = instance_data.len() * instance_data_size;
-        let transform_offset = index * aligned_size;
-
-        commands.entity(entity).insert((
-            TransformUniformOffset(transform_offset as u32),
-            InstanceDataOffset {
-                start: instance_offset as u32,
-                end: (instance_offset + slice_size) as u32,
-            },
-        ));
-
-        all_instance_data.extend_from_slice(instance_data.as_slice());
+        offsets.push((entity,instance_data, InstanceDataOffset {
+            start: instance_offset as u32,
+            end: (instance_offset + slice_size) as u32,
+        }));
+        let slice_size = instance_data.len() * instance_data_size;
         instance_offset += slice_size;
     }
+
+    if instance_offset == current_size {
+        return;
+    }
+
+    let start = std::time::Instant::now();
+    let mut all_instance_data: Vec<InstanceData> = Vec::new();
+
+    for (entity,instance_data, offset) in offsets {
+        all_instance_data.extend_from_slice(instance_data.as_slice());
+        commands.entity(entity).insert((
+            offset,
+        ));
+    }
+    println!("combine buffer: {:?}", start.elapsed());
+
+    // TODO: store this in resource, and only re create it when the size changes
+    let start = std::time::Instant::now();
 
     let all_instance_data_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
         label: Some("instance data buffer"),
@@ -257,13 +295,15 @@ fn prepare_instance_buffers(
         usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
     });
 
+    println!("create buffer with data: {:?}", start.elapsed());
+
     commands.insert_resource(InstanceBuffer {
         buffer: all_instance_data_buffer,
         length: all_instance_data.len(),
     });
 
-    let elapsed = start.elapsed();
-    println!("Time taken to prepare instance buffers: {:?}", elapsed);
+    println!("-------------");
+
 }
 
 #[derive(Resource)]

@@ -22,7 +22,7 @@ use bevy::color::palettes::basic::WHITE;
 use bevy::core_pipeline::experimental::taa::TemporalAntiAliasPlugin;
 use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 use bevy::pbr::{FogVolume, VolumetricFog};
-use bevy::render::render_resource::WgpuFeatures;
+use bevy::render::render_resource::{Face, WgpuFeatures};
 use bevy::render::settings::{RenderCreation, WgpuSettings};
 use bevy::render::RenderPlugin;
 use bevy::window::{PresentMode, WindowMode, WindowResolution};
@@ -168,8 +168,8 @@ fn setup(
         )),
     ));
     //
-    for x in -5..5 {
-        for z in -5..5 {
+    for x in -20..20 {
+        for z in -20..20 {
             if x == 0 && z == 0 {
                 continue;
             }
@@ -224,7 +224,7 @@ fn setup(
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Srgba::hex("87CEEB").unwrap().into(),
             unlit: true,
-            cull_mode: None,
+            cull_mode: Some(Face::Back),
             ..default()
         })),
         Transform::from_scale(Vec3::splat(1_000_000.0)),
