@@ -168,8 +168,8 @@ fn setup(
         )),
     ));
     //
-    for x in -20..20 {
-        for z in -20..20 {
+    for x in -10..10 {
+        for z in -10..10 {
             if x == 0 && z == 0 {
                 continue;
             }

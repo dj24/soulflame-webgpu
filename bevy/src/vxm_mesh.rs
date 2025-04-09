@@ -1,4 +1,6 @@
-use crate::custom_shader_instancing::{InstanceData, InstanceMaterialData, InstanceMaterialDataKey};
+use crate::custom_shader_instancing::{
+    InstanceData, InstanceMaterialData, InstanceMaterialDataKey,
+};
 use crate::dnd::PendingVxm;
 use crate::vxm::VxmAsset;
 use bevy::asset::{Assets, RenderAssetUsages};
@@ -8,11 +10,11 @@ use bevy::pbr::wireframe::WireframeConfig;
 use bevy::pbr::{ExtendedMaterial, MaterialExtension};
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, PrimitiveTopology};
+use bevy::render::primitives::Aabb;
 use bevy::render::render_resource::{AsBindGroup, ShaderRef};
 use bevy::render::storage::ShaderStorageBuffer;
 use bevy::render::view::NoFrustumCulling;
 use rayon::prelude::*;
-use bevy::render::primitives::Aabb;
 
 enum CubeFace {
     Front,
@@ -63,7 +65,6 @@ fn get_cube_face_vertex_positions(cube_face: CubeFace) -> Vec<[f32; 3]> {
         ],
     }
 }
-
 
 fn get_cube_face_normals(cube_face: CubeFace) -> Vec<[f32; 3]> {
     match cube_face {
@@ -130,149 +131,155 @@ pub fn create_mesh_on_vxm_import_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    for (entity, pending_vxm, transform) in pending_vxms.iter() {
-        match vxm_assets.get(&pending_vxm.0) {
-            Some(vxm) => {
-                let start_time = std::time::Instant::now();
-                let palette = &vxm.palette;
+    if pending_vxms.is_empty() {
+        return;
+    }
+    let (entity, pending_vxm, transform) = pending_vxms.iter().next().unwrap();
+    match vxm_assets.get(&pending_vxm.0) {
+        Some(vxm) => {
+            let start_time = std::time::Instant::now();
+            let palette = &vxm.palette;
 
-                let instance_data: Vec<InstanceData> = (0..vxm.size[2] as usize)
-                    .into_par_iter()
-                    .flat_map(|z| {
-                        let mut slice_instance_data: Vec<InstanceData> = vec![];
-                        let mut visited_voxels =
-                            vec![vec![false; vxm.size[1] as usize]; vxm.size[0] as usize];
-                        for x in 0..vxm.size[0] as usize {
-                            for y in 0..vxm.size[1] as usize {
-                                if visited_voxels[x][y] {
-                                    continue;
-                                }
+            let instance_data: Vec<InstanceData> = (0..vxm.size[2] as usize)
+                .into_par_iter()
+                .flat_map(|z| {
+                    let mut slice_instance_data: Vec<InstanceData> = vec![];
+                    let mut visited_voxels =
+                        vec![vec![false; vxm.size[1] as usize]; vxm.size[0] as usize];
+                    for x in 0..vxm.size[0] as usize {
+                        for y in 0..vxm.size[1] as usize {
+                            if visited_voxels[x][y] {
+                                continue;
+                            }
+                            let is_face_hidden = z < (vxm.size[2] - 1) as usize
+                                && vxm.voxel_array[x][y][z + 1] != -1;
+                            if is_face_hidden {
+                                continue;
+                            }
+                            let palette_index = vxm.voxel_array[x][y][z];
+                            if palette_index == -1 {
+                                continue;
+                            }
+                            let color = &palette[palette_index as usize];
+                            let mut x_extent = 1u8;
+                            let mut y_extent = 1u8;
+                            let max_extent_y = vxm.size[1] as usize - y - 1;
+                            let max_extent_x = vxm.size[0] as usize - x - 1;
+
+                            let check_voxel = |x: usize, y: usize| {
                                 let is_face_hidden = z < (vxm.size[2] - 1) as usize
                                     && vxm.voxel_array[x][y][z + 1] != -1;
-                                if is_face_hidden {
-                                    continue;
+                                vxm.voxel_array[x][y][z] == -1
+                                    || vxm.voxel_array[x][y][z] != palette_index
+                                    || visited_voxels[x][y]
+                                    || is_face_hidden
+                            };
+
+                            let mut is_x_extendable = true;
+                            let mut is_y_extendable = true;
+
+                            while (is_x_extendable || is_y_extendable)
+                                && ((x_extent as usize) < max_extent_x)
+                                && ((y_extent as usize) < max_extent_y)
+                            {
+                                if is_x_extendable {
+                                    is_x_extendable = if (0..y_extent as usize)
+                                        .into_iter()
+                                        .any(|dy| check_voxel(x + x_extent as usize, y + dy))
+                                    {
+                                        false
+                                    } else {
+                                        x_extent += 1; // If all in the column were valid, we can extend
+                                        true
+                                    };
                                 }
-                                let palette_index = vxm.voxel_array[x][y][z];
-                                if palette_index == -1 {
-                                    continue;
+                                if is_y_extendable {
+                                    is_y_extendable = if (0..x_extent as usize)
+                                        .into_iter()
+                                        .any(|dx| check_voxel(x + dx, y + y_extent as usize))
+                                    {
+                                        false
+                                    } else {
+                                        y_extent += 1; // If all in the column were valid, we can extend
+                                        true
+                                    };
                                 }
-                                let color = &palette[palette_index as usize];
-                                let mut x_extent = 1u8;
-                                let mut y_extent = 1u8;
-                                let max_extent_y = vxm.size[1] as usize - y - 1;
-                                let max_extent_x = vxm.size[0] as usize - x - 1;
-
-                                let check_voxel = |x: usize, y: usize| {
-                                    let is_face_hidden = z < (vxm.size[2] - 1) as usize
-                                        && vxm.voxel_array[x][y][z + 1] != -1;
-                                    vxm.voxel_array[x][y][z] == -1
-                                        || vxm.voxel_array[x][y][z] != palette_index
-                                        || visited_voxels[x][y]
-                                        || is_face_hidden
-                                };
-
-                                let mut is_x_extendable = true;
-                                let mut is_y_extendable = true;
-
-                                while (is_x_extendable || is_y_extendable)
-                                    && ((x_extent as usize) < max_extent_x)
-                                    && ((y_extent as usize) < max_extent_y)
-                                {
-                                    if is_x_extendable {
-                                        is_x_extendable = if (0..y_extent as usize)
-                                            .into_iter()
-                                            .any(|dy| check_voxel(x + x_extent as usize, y + dy))
-                                        {
-                                            false
-                                        } else {
-                                            x_extent += 1; // If all in the column were valid, we can extend
-                                            true
-                                        };
-                                    }
-                                    if is_y_extendable {
-                                        is_y_extendable = if (0..x_extent as usize)
-                                            .into_iter()
-                                            .any(|dx| check_voxel(x + dx, y + y_extent as usize))
-                                        {
-                                            false
-                                        } else {
-                                            y_extent += 1; // If all in the column were valid, we can extend
-                                            true
-                                        };
-                                    }
-                                }
-
-                                for dx in 0..x_extent as usize {
-                                    let row = &mut visited_voxels[x + dx];
-                                    row[y..y + y_extent as usize].fill(true);
-                                }
-
-                                slice_instance_data.push(InstanceData {
-                                    position: [x as u8, y as u8, z as u8],
-                                    x_extent,
-                                    y_extent,
-                                    color: [color.r, color.g, color.b],
-                                });
                             }
+
+                            for dx in 0..x_extent as usize {
+                                let row = &mut visited_voxels[x + dx];
+                                row[y..y + y_extent as usize].fill(true);
+                            }
+
+                            slice_instance_data.push(InstanceData {
+                                position: [x as u8, y as u8, z as u8],
+                                x_extent,
+                                y_extent,
+                                color: [color.r, color.g, color.b],
+                            });
                         }
-                        slice_instance_data
-                    })
-                    .collect();
+                    }
+                    slice_instance_data
+                })
+                .collect();
 
-                let front_quad = meshes.add(
-                    Mesh::new(
-                        PrimitiveTopology::TriangleStrip,
-                        RenderAssetUsages::RENDER_WORLD,
-                    )
-                    .with_inserted_indices(Indices::U16(vec![0, 1, 2, 3]))
-                    .with_inserted_attribute(
-                        Mesh::ATTRIBUTE_POSITION,
-                        get_cube_face_vertex_positions(CubeFace::Front),
-                    )
-                    .with_inserted_attribute(
-                        Mesh::ATTRIBUTE_NORMAL,
-                        get_cube_face_normals(CubeFace::Front),
+            let front_quad = meshes.add(
+                Mesh::new(
+                    PrimitiveTopology::TriangleStrip,
+                    RenderAssetUsages::RENDER_WORLD,
+                )
+                .with_inserted_indices(Indices::U16(vec![0, 1, 2, 3]))
+                .with_inserted_attribute(
+                    Mesh::ATTRIBUTE_POSITION,
+                    get_cube_face_vertex_positions(CubeFace::Front),
+                )
+                .with_inserted_attribute(
+                    Mesh::ATTRIBUTE_NORMAL,
+                    get_cube_face_normals(CubeFace::Front),
+                ),
+            );
+
+            let back_quad = meshes.add(
+                Mesh::new(
+                    PrimitiveTopology::TriangleStrip,
+                    RenderAssetUsages::RENDER_WORLD,
+                )
+                .with_inserted_indices(Indices::U16(vec![0, 1, 2, 3]))
+                .with_inserted_attribute(
+                    Mesh::ATTRIBUTE_POSITION,
+                    get_cube_face_vertex_positions(CubeFace::Back),
+                )
+                .with_inserted_attribute(
+                    Mesh::ATTRIBUTE_NORMAL,
+                    get_cube_face_normals(CubeFace::Back),
+                ),
+            );
+
+            let end_time = start_time.elapsed();
+            info!(
+                "{:?} size model created {:?} instances using {:?}kb in {:?}ms",
+                vxm.size,
+                instance_data.len(),
+                (size_of::<InstanceData>() * instance_data.len()) / 1024,
+                end_time.as_micros() as f32 / 1000.0
+            );
+
+            commands.entity(entity).remove::<PendingVxm>();
+            commands
+                .entity(entity)
+                .insert((
+                    InheritedVisibility::default(),
+                    Aabb::from_min_max(
+                        Vec3::ZERO,
+                        Vec3::new(vxm.size[0] as f32, vxm.size[1] as f32, vxm.size[2] as f32),
                     ),
-                );
-
-                let back_quad = meshes.add(
-                    Mesh::new(
-                        PrimitiveTopology::TriangleStrip,
-                        RenderAssetUsages::RENDER_WORLD,
-                    )
-                    .with_inserted_indices(Indices::U16(vec![0, 1, 2, 3]))
-                    .with_inserted_attribute(
-                        Mesh::ATTRIBUTE_POSITION,
-                        get_cube_face_vertex_positions(CubeFace::Back),
-                    )
-                    .with_inserted_attribute(
-                        Mesh::ATTRIBUTE_NORMAL,
-                        get_cube_face_normals(CubeFace::Back),
-                    ),
-                );
-
-                let end_time = start_time.elapsed();
-                info!(
-                    "{:?} size model created {:?} instances using {:?}kb in {:?}ms",
-                    vxm.size,
-                    instance_data.len(),
-                    (size_of::<InstanceData>() * instance_data.len()) / 1024,
-                    end_time.as_micros() as f32 / 1000.0
-                );
-
-                commands.entity(entity).remove::<PendingVxm>();
-                commands.entity(entity)
-                    .insert((
-                        InheritedVisibility::default(),
-                        Aabb::from_min_max(Vec3::ZERO, Vec3::new(vxm.size[0] as f32, vxm.size[1] as f32, vxm.size[2] as f32)),
-                    ))
-                    .with_child((
-                        Mesh3d(front_quad),
-                        InstanceMaterialData(instance_data.clone()),
-                    ));
-            }
-            None => {}
+                ))
+                .with_child((
+                    Mesh3d(front_quad),
+                    InstanceMaterialData(instance_data.clone()),
+                ));
         }
+        None => {}
     }
 }
 
