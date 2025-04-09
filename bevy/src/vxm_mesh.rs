@@ -269,7 +269,6 @@ pub fn create_mesh_on_vxm_import_system(
                     .with_child((
                         Mesh3d(front_quad),
                         InstanceMaterialData(instance_data.clone()),
-                        InstanceMaterialDataKey(format!("{:?}-front", entity)),
                     ));
             }
             None => {}

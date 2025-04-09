@@ -48,15 +48,14 @@ const SHADER_ASSET_PATH: &str = "shaders/instancing.wgsl";
 pub struct InstanceMaterialData(pub Vec<InstanceData>);
 
 impl ExtractComponent for InstanceMaterialData {
-    type QueryData = (&'static Self, &'static GlobalTransform, &'static InstanceMaterialDataKey);
+    type QueryData = (&'static Self, &'static GlobalTransform);
     type QueryFilter = ();
-    type Out = (InstanceMaterialDataKey, TransformUniform);
+    type Out = (Self, TransformUniform);
 
-    // TODO: create hashmap to store the instance data, and prevent cloning
     fn extract_component(item: QueryItem<'_, Self::QueryData>) -> Option<Self::Out> {
-        let (_, global_transform, key) = item;
+        let (instance_data, global_transform) = item;
         Some((
-            InstanceMaterialDataKey(key.0.clone()),
+            InstanceMaterialData(instance_data.0.clone()),
             TransformUniform(global_transform.compute_matrix()),
         ))
     }
@@ -64,15 +63,6 @@ impl ExtractComponent for InstanceMaterialData {
 
 #[derive(Component, Deref)]
 pub struct InstanceMaterialDataKey(pub String);
-
-#[derive(Resource)]
-pub struct InstanceDataMap(pub HashMap<InstanceMaterialDataKey, Vec<InstanceData>>);
-
-impl Default for InstanceDataMap {
-    fn default() -> Self {
-        InstanceDataMap(HashMap::new())
-    }
-}
 
 #[derive(Component, Deref)]
 pub struct TransformUniform(pub Mat4);
