@@ -18,9 +18,7 @@ use crate::replace_body_part_meshes::{
 };
 use crate::vxm::{VxmAsset, VxmAssetLoader};
 use crate::vxm_mesh::{create_mesh_on_vxm_import_system, VxmMeshPlugin};
-use bevy::color::palettes::basic::WHITE;
 use bevy::core_pipeline::experimental::taa::TemporalAntiAliasPlugin;
-use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
 use bevy::pbr::{FogVolume, VolumetricFog};
 use bevy::render::render_resource::{Face, WgpuFeatures};
 use bevy::render::settings::{RenderCreation, WgpuSettings};
@@ -34,9 +32,9 @@ use bevy::{
     prelude::*,
 };
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use std::f32::consts::*;
-use iyes_perf_ui::PerfUiPlugin;
 use iyes_perf_ui::prelude::PerfUiAllEntries;
+use iyes_perf_ui::PerfUiPlugin;
+use std::f32::consts::*;
 
 fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
     if keyboard_input.just_pressed(KeyCode::Escape) {
@@ -150,12 +148,12 @@ fn setup(
     // Test dragon
     commands.spawn((
         Name::new("Dragon 0,0"),
-        PendingVxm(asset_server.load("Dragon.vxm")),
+        PendingVxm(asset_server.load("big_cube.vxm")),
         Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)),
         CameraTarget(Vec3::new(
-            128.0 * 0.5 * 0.02,
-            89.0 * 0.5  * 0.02,
-            57.0 * 0.5  * 0.02,
+            32.0 * 0.5 * 0.02,
+            32.0 * 0.5 * 0.02,
+            32.0 * 0.5 * 0.02,
         )),
     ));
     //
@@ -165,17 +163,16 @@ fn setup(
                 continue;
             }
             commands.spawn((
-                Name::new(format!("Dragon {:?},{:?}",x,z)),
-                PendingVxm(asset_server.load("Dragon.vxm")),
+                Name::new(format!("Dragon {:?},{:?}", x, z)),
+                PendingVxm(asset_server.load("big_cube.vxm")),
                 Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)).with_translation(Vec3::new(
-                    x as f32 * 128.0 * 0.02 * 2.0,
+                    x as f32 * 32.0 * 0.02 * 2.0,
                     0.0,
-                    -z as f32 * 89.0 * 0.02 * 2.0
+                    -z as f32 * 32.0 * 0.02 * 2.0,
                 )),
             ));
         }
     }
-
 
     // Sun
     commands.spawn((
