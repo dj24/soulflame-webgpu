@@ -252,7 +252,7 @@ pub fn add_vxm_swap_targets(
             if !material_query.get(child).is_ok() {
                 continue;
             }
-            let (mesh3d, name, transform) = material_query.get(child).unwrap();
+            let (_, name, _) = material_query.get(child).unwrap();
             for swap_target in &player_body_part_models.0 {
                 let mut is_parent_found: Option<bool> = None;
 

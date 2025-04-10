@@ -91,15 +91,6 @@ fn main() {
             // SetAnimationClipPlugin,
             InstancedMaterialPlugin,
         ))
-        .insert_resource(WireframeConfig {
-            // The global wireframe config enables drawing of wireframes on every mesh,
-            // except those with `NoWireframe`. Meshes with `Wireframe` will always have a wireframe,
-            // regardless of the global configuration.
-            global: true,
-            // Controls the default color of all wireframes. Used as the default color for global wireframes.
-            // Can be changed per mesh using the `WireframeColor` component.
-            default_color: WHITE.into(),
-        })
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
         .add_systems(Startup, setup)
@@ -123,7 +114,7 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     asset_server: Res<AssetServer>,
-    graphs: ResMut<Assets<AnimationGraph>>,
+    // graphs: ResMut<Assets<AnimationGraph>>,
 ) {
     commands.spawn(PerfUiAllEntries::default());
     // Camera
@@ -168,8 +159,8 @@ fn setup(
         )),
     ));
     //
-    for x in -10..10 {
-        for z in -10..10 {
+    for x in -8..8 {
+        for z in -8..8 {
             if x == 0 && z == 0 {
                 continue;
             }
@@ -210,7 +201,7 @@ fn setup(
 
     let mut mat: StandardMaterial = Color::srgb(0.1, 0.2, 0.1).into();
     mat.opaque_render_method = OpaqueRendererMethod::Deferred;
-    let mat_h = materials.add(mat);
+    // let mat_h = materials.add(mat);
 
     // Plane
     // commands.spawn((

@@ -7,7 +7,8 @@
 //! implementation using bevy's low level rendering api.
 //! It's generally recommended to try the built-in instancing before going with this approach.
 
-use std::collections::HashMap;
+
+use std::sync::Arc;
 use bevy::reflect::Array;
 use bevy::render::render_resource::binding_types::uniform_buffer;
 use bevy::{
@@ -45,7 +46,7 @@ use log::info;
 const SHADER_ASSET_PATH: &str = "shaders/instancing.wgsl";
 
 #[derive(Component, Deref)]
-pub struct InstanceMaterialData(pub Vec<InstanceData>);
+pub struct InstanceMaterialData(pub Arc<Vec<InstanceData>>);
 
 impl ExtractComponent for InstanceMaterialData {
     type QueryData = (&'static Self, &'static GlobalTransform);
@@ -72,6 +73,7 @@ pub struct InstancedMaterialPlugin;
 impl Plugin for InstancedMaterialPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(ExtractComponentPlugin::<InstanceMaterialData>::default());
+        app.add_plugins(bevy::render::diagnostic::RenderDiagnosticsPlugin);
         app.sub_app_mut(RenderApp)
             .add_render_command::<Transparent3d, DrawCustom>()
             .init_resource::<SpecializedMeshPipelines<CustomPipeline>>()
@@ -245,7 +247,6 @@ fn prepare_instance_buffers(
             buff.length * 8
         }
     };
-
     let instance_data_size = size_of::<InstanceData>();
 
     let mut instance_offset = 0;
@@ -260,6 +261,7 @@ fn prepare_instance_buffers(
         let slice_size = instance_data.len() * instance_data_size;
         instance_offset += slice_size;
     }
+
 
     if instance_offset == current_size {
         return;

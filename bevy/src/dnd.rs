@@ -1,8 +1,6 @@
 use crate::vxm::VxmAsset;
 use bevy::prelude::*;
 use bevy::prelude::{EventReader, FileDragAndDrop};
-use bevy::asset::AssetLoader;
-use std::io::Read;
 
 #[derive(Component)]
 pub struct PendingVxm(pub Handle<VxmAsset>);
@@ -24,7 +22,6 @@ pub fn file_drag_and_drop_system(
         if let FileDragAndDrop::DroppedFile { window, path_buf } = event {
             let file_path = path_buf.to_str().unwrap().to_string();
             info!("Dropped file: {:?}", &file_path);
-            let file_name = file_path.split("/").last().unwrap();
             if file_path.ends_with(".vxm") {
                 info!("dropped vxm file");
                 commands.spawn((
@@ -61,7 +58,7 @@ pub fn setup_scene_once_loaded(
     animations: Res<Animations>,
     mut players: Query<(Entity, &mut AnimationPlayer), Added<AnimationPlayer>>,
 ) {
-    for (entity, player) in &mut players {
+    for (entity, _) in &mut players {
         commands
             .entity(entity)
             .insert(AnimationGraphHandle(animations.graph.clone()));
