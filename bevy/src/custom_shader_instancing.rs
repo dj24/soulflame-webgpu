@@ -7,8 +7,6 @@
 //! implementation using bevy's low level rendering api.
 //! It's generally recommended to try the built-in instancing before going with this approach.
 
-
-use std::sync::Arc;
 use bevy::reflect::Array;
 use bevy::render::render_resource::binding_types::uniform_buffer;
 use bevy::{
@@ -40,7 +38,7 @@ use bevy::{
 };
 use bytemuck::{Pod, Zeroable};
 use rayon::prelude::*;
-use log::info;
+use std::sync::Arc;
 
 /// This example uses a shader source file from the assets subdirectory
 const SHADER_ASSET_PATH: &str = "shaders/instancing.wgsl";
@@ -96,9 +94,9 @@ impl Plugin for InstancedMaterialPlugin {
 #[repr(C)]
 pub struct InstanceData {
     pub(crate) position: [u8; 3],
-    pub(crate) x_extent: u8,
+    pub(crate) width: u8,
     pub(crate) color: [u8; 3],
-    pub(crate) y_extent: u8,
+    pub(crate) height: u8,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -198,9 +196,9 @@ fn prepare_transforms_uniforms(
         let offset = index * aligned_size;
         let transform_array = global_transform.0.to_cols_array();
         let transform_offset = index * aligned_size;
-        commands.entity(entity).insert((
-            TransformUniformOffset(transform_offset as u32),
-        ));
+        commands
+            .entity(entity)
+            .insert((TransformUniformOffset(transform_offset as u32),));
 
         transform_data[offset..offset + size_of::<Mat4>()]
             .copy_from_slice(bytemuck::cast_slice(&transform_array));
@@ -240,12 +238,8 @@ fn prepare_instance_buffers(
     instance_buffer: Option<Res<InstanceBuffer>>,
 ) {
     let current_size = match instance_buffer {
-        None => {
-            0
-        }
-        Some(buff) => {
-            buff.length * 8
-        }
+        None => 0,
+        Some(buff) => buff.length * 8,
     };
     let instance_data_size = size_of::<InstanceData>();
 
@@ -254,14 +248,17 @@ fn prepare_instance_buffers(
     let mut offsets: Vec<(Entity, &InstanceMaterialData, InstanceDataOffset)> = Vec::new();
     for (entity, instance_data, _) in query.iter() {
         let slice_size = instance_data.len() * instance_data_size;
-        offsets.push((entity,instance_data, InstanceDataOffset {
-            start: instance_offset as u32,
-            end: (instance_offset + slice_size) as u32,
-        }));
+        offsets.push((
+            entity,
+            instance_data,
+            InstanceDataOffset {
+                start: instance_offset as u32,
+                end: (instance_offset + slice_size) as u32,
+            },
+        ));
         let slice_size = instance_data.len() * instance_data_size;
         instance_offset += slice_size;
     }
-
 
     if instance_offset == current_size {
         return;
@@ -270,11 +267,9 @@ fn prepare_instance_buffers(
     let start = std::time::Instant::now();
     let mut all_instance_data: Vec<InstanceData> = Vec::new();
 
-    for (entity,instance_data, offset) in offsets {
+    for (entity, instance_data, offset) in offsets {
         all_instance_data.extend_from_slice(instance_data.as_slice());
-        commands.entity(entity).insert((
-            offset,
-        ));
+        commands.entity(entity).insert((offset,));
     }
     println!("combine buffer: {:?}", start.elapsed());
 
@@ -295,7 +290,6 @@ fn prepare_instance_buffers(
     });
 
     println!("-------------");
-
 }
 
 #[derive(Resource)]
