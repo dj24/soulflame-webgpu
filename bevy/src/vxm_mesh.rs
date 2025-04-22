@@ -314,13 +314,23 @@ pub fn create_mesh_on_vxm_import_system(
             Some(vxm) => {
                 let start_time = std::time::Instant::now();
 
-                let (front_instance_data, back_instance_data) = rayon::join(
-                    || generate_instance_data_z(vxm, true),
-                    || generate_instance_data_z(vxm, false),
+                let (
+                    (left_instance_data, right_instance_data),
+                    (front_instance_data, back_instance_data),
+                ) = rayon::join(
+                    || {
+                        rayon::join(
+                            || generate_instance_data_x(vxm, false),
+                            || generate_instance_data_x(vxm, true),
+                        )
+                    },
+                    || {
+                        rayon::join(
+                            || generate_instance_data_z(vxm, true),
+                            || generate_instance_data_z(vxm, false),
+                        )
+                    },
                 );
-
-                let right_instance_data = generate_instance_data_x(vxm, true);
-                let left_instance_data = generate_instance_data_x(vxm, false);
 
                 let front_quad = meshes.add(
                     Mesh::new(
