@@ -157,22 +157,22 @@ fn setup(
         )),
     ));
     //
-    for x in -8..8 {
-        for z in -8..8 {
-            if x == 0 && z == 0 {
-                continue;
-            }
-            commands.spawn((
-                Name::new(format!("Dragon {:?},{:?}", x, z)),
-                PendingVxm(asset_server.load("big_cube.vxm")),
-                Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)).with_translation(Vec3::new(
-                    x as f32 * 32.0 * 0.02 * 2.0,
-                    0.0,
-                    -z as f32 * 32.0 * 0.02 * 2.0,
-                )),
-            ));
-        }
-    }
+    // for x in -8..8 {
+    //     for z in -8..8 {
+    //         if x == 0 && z == 0 {
+    //             continue;
+    //         }
+    //         commands.spawn((
+    //             Name::new(format!("Dragon {:?},{:?}", x, z)),
+    //             PendingVxm(asset_server.load("big_cube.vxm")),
+    //             Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)).with_translation(Vec3::new(
+    //                 x as f32 * 32.0 * 0.02 * 2.0,
+    //                 0.0,
+    //                 -z as f32 * 32.0 * 0.02 * 2.0,
+    //             )),
+    //         ));
+    //     }
+    // }
 
     // Sun
     commands.spawn((

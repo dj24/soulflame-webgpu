@@ -54,10 +54,10 @@ fn get_cube_face_vertex_positions(cube_face: CubeFace) -> Vec<[f32; 3]> {
             [1.0, 0.0, 1.0], // Front-right
         ],
         CubeFace::Left => vec![
-            [0.0, 0.0, 1.0], // Front-bottom
             [0.0, 0.0, 0.0], // Back-bottom
-            [0.0, 1.0, 1.0], // Front-top
+            [0.0, 0.0, 1.0], // Front-bottom
             [0.0, 1.0, 0.0], // Back-top
+            [0.0, 1.0, 1.0], // Front-top
         ],
         CubeFace::Right => vec![
             [1.0, 0.0, 1.0], // Front-bottom
@@ -303,6 +303,94 @@ fn generate_instance_data_x(vxm: &VxmAsset, is_right_face: bool) -> Vec<Instance
         .collect()
 }
 
+fn generate_instance_data_y(vxm: &VxmAsset, is_top_face: bool) -> Vec<InstanceData> {
+    (0..vxm.size[0] as usize)
+        .into_par_iter()
+        .flat_map(|y| {
+            let mut slice_instance_data =
+                Vec::with_capacity(vxm.size[2] as usize * vxm.size[0] as usize / 4); // Estimate 25% of slice will have visible faces
+            let mut visited_voxels = vec![vec![false; vxm.size[0] as usize]; vxm.size[2] as usize];
+
+            for x in 0..vxm.size[0] as usize {
+                for z in 0..vxm.size[2] as usize {
+                    if visited_voxels[x][y] {
+                        continue;
+                    }
+
+                    // Check if face is hidden (different logic for front vs back)
+                    let is_face_hidden = if is_top_face {
+                        y < (vxm.size[1] - 1) as usize && vxm.voxel_array[x][y + 1][z] != -1
+                    } else {
+                        y > 0 && vxm.voxel_array[x][y - 1][z] != -1
+                    };
+
+                    if is_face_hidden {
+                        continue;
+                    }
+
+                    let palette_index = vxm.voxel_array[x][y][z];
+                    if palette_index == -1 {
+                        continue;
+                    }
+
+                    let color = &vxm.palette[palette_index as usize];
+                    let mut x_extent = 1u8;
+                    let mut y_extent = 1u8;
+                    let max_extent_y = vxm.size[1] as usize - y;
+                    let max_extent_x = vxm.size[0] as usize - x;
+
+                    // Create a closure for checking voxels
+                    let check_voxel = |x: usize, y: usize| {
+                        let is_face_hidden = if is_top_face {
+                            y < (vxm.size[1] - 1) as usize && vxm.voxel_array[x][y + 1][z] != -1
+                        } else {
+                            y > 0 && vxm.voxel_array[x][y - 1][z] != -1
+                        };
+
+                        vxm.voxel_array[x][y][z] == -1
+                            || vxm.voxel_array[x][y][z] != palette_index
+                            || visited_voxels[x][y]
+                            || is_face_hidden
+                    };
+
+                    let mut is_x_extendable = true;
+                    let mut is_y_extendable = true;
+
+                    while (is_x_extendable || is_y_extendable)
+                        && ((x_extent as usize) < max_extent_x)
+                        && ((y_extent as usize) < max_extent_y)
+                    {
+                        is_x_extendable = !(0..y_extent as usize)
+                            .any(|dy| check_voxel(x + x_extent as usize, y + dy));
+                        if is_x_extendable {
+                            x_extent += 1;
+                        }
+
+                        is_y_extendable = !(0..x_extent as usize)
+                            .any(|dz| check_voxel(z + dz, y + y_extent as usize));
+                        if is_y_extendable {
+                            y_extent += 1;
+                        }
+                    }
+
+                    for dx in 0..x_extent as usize {
+                        let row = &mut visited_voxels[x + dx];
+                        row[y..y + y_extent as usize].fill(true);
+                    }
+
+                    slice_instance_data.push(InstanceData {
+                        position: [x as u8, y as u8, z as u8],
+                        width: x_extent,
+                        height: y_extent,
+                        color: [color.r, color.g, color.b],
+                    });
+                }
+            }
+            slice_instance_data
+        })
+        .collect()
+}
+
 pub fn create_mesh_on_vxm_import_system(
     pending_vxms: Query<(Entity, &PendingVxm, &Transform)>,
     vxm_assets: ResMut<Assets<VxmAsset>>,
@@ -330,6 +418,11 @@ pub fn create_mesh_on_vxm_import_system(
                             || generate_instance_data_z(vxm, false),
                         )
                     },
+                );
+
+                let (top_instance_data, bottom_instance_data) = rayon::join(
+                    || generate_instance_data_y(vxm, true),
+                    || generate_instance_data_y(vxm, false),
                 );
 
                 let front_quad = meshes.add(
@@ -462,6 +555,14 @@ pub fn create_mesh_on_vxm_import_system(
                     .with_child((
                         Mesh3d(left_quad),
                         InstanceMaterialData(Arc::new(left_instance_data.clone())),
+                    ))
+                    .with_child((
+                        Mesh3d(top_quad),
+                        InstanceMaterialData(Arc::new(top_instance_data.clone())),
+                    ))
+                    .with_child((
+                        Mesh3d(bottom_quad),
+                        InstanceMaterialData(Arc::new(bottom_instance_data.clone())),
                     ));
             }
             None => {}

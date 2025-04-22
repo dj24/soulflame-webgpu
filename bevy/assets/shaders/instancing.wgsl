@@ -30,7 +30,19 @@ fn vertex(vertex: Vertex, instance: Instance) -> VertexOutput {
     let x_scale = f32(unpacked_pos_x_extent.w);
     let y_scale = f32(unpacked_color_y_extent.w);
 
-    let scale = vec3(x_scale, y_scale, 1.0);
+    var scale = vec3(0.0);
+    // Use the normal to determine how to apply the scale
+    if (abs(vertex.normal.x) > 0.5) {
+        // For faces pointing in X direction (left/right), scale Y and Z
+        scale = vec3(1.0, x_scale, y_scale);
+    } else if (abs(vertex.normal.y) > 0.5) {
+        // For faces pointing in Y direction (top/bottom), scale X and Z
+        scale = vec3(x_scale, 1.0, y_scale);
+    } else {
+        // For faces pointing in Z direction (front/back), scale X and Y
+        scale = vec3(x_scale, y_scale, 1.0);
+    }
+
     let local_position = vertex.position * scale + vec3(x_pos,y_pos,z_pos);
     var out: VertexOutput;
     out.clip_position = mesh_position_local_to_clip(model_matrix, vec4<f32>(local_position, 1.0));
