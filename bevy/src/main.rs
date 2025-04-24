@@ -148,12 +148,12 @@ fn setup(
     // Test dragon
     commands.spawn((
         Name::new("Dragon 0,0"),
-        PendingVxm(asset_server.load("big_cube.vxm")),
+        PendingVxm(asset_server.load("dragon.vxm")),
         Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)),
         CameraTarget(Vec3::new(
-            32.0 * 0.5 * 0.02,
-            32.0 * 0.5 * 0.02,
-            32.0 * 0.5 * 0.02,
+            128.0 * 0.5 * 0.02,
+            89.0 * 0.5  * 0.02,
+            57.0 * 0.5  * 0.02,
         )),
     ));
     //

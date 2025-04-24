@@ -292,8 +292,8 @@ fn generate_instance_data_x(vxm: &VxmAsset, is_right_face: bool) -> Vec<Instance
 
                     slice_instance_data.push(InstanceData {
                         position: [x as u8, y as u8, z as u8],
-                        width: z_extent,
-                        height: y_extent,
+                        width: y_extent,
+                        height: z_extent,
                         color: [color.r, color.g, color.b],
                     });
                 }
@@ -304,16 +304,16 @@ fn generate_instance_data_x(vxm: &VxmAsset, is_right_face: bool) -> Vec<Instance
 }
 
 fn generate_instance_data_y(vxm: &VxmAsset, is_top_face: bool) -> Vec<InstanceData> {
-    (0..vxm.size[0] as usize)
+    (0..vxm.size[1] as usize)
         .into_par_iter()
         .flat_map(|y| {
             let mut slice_instance_data =
                 Vec::with_capacity(vxm.size[2] as usize * vxm.size[0] as usize / 4); // Estimate 25% of slice will have visible faces
-            let mut visited_voxels = vec![vec![false; vxm.size[0] as usize]; vxm.size[2] as usize];
+            let mut visited_voxels = vec![vec![false; vxm.size[2] as usize]; vxm.size[0] as usize];
 
             for x in 0..vxm.size[0] as usize {
                 for z in 0..vxm.size[2] as usize {
-                    if visited_voxels[x][y] {
+                    if visited_voxels[x][z] {
                         continue;
                     }
 
@@ -335,12 +335,12 @@ fn generate_instance_data_y(vxm: &VxmAsset, is_top_face: bool) -> Vec<InstanceDa
 
                     let color = &vxm.palette[palette_index as usize];
                     let mut x_extent = 1u8;
-                    let mut y_extent = 1u8;
-                    let max_extent_y = vxm.size[1] as usize - y;
+                    let mut z_extent = 1u8;
+                    let max_extent_z = vxm.size[2] as usize - z;
                     let max_extent_x = vxm.size[0] as usize - x;
 
                     // Create a closure for checking voxels
-                    let check_voxel = |x: usize, y: usize| {
+                    let check_voxel = |x: usize, z: usize| {
                         let is_face_hidden = if is_top_face {
                             y < (vxm.size[1] - 1) as usize && vxm.voxel_array[x][y + 1][z] != -1
                         } else {
@@ -349,39 +349,39 @@ fn generate_instance_data_y(vxm: &VxmAsset, is_top_face: bool) -> Vec<InstanceDa
 
                         vxm.voxel_array[x][y][z] == -1
                             || vxm.voxel_array[x][y][z] != palette_index
-                            || visited_voxels[x][y]
+                            || visited_voxels[x][z]
                             || is_face_hidden
                     };
 
                     let mut is_x_extendable = true;
-                    let mut is_y_extendable = true;
+                    let mut is_z_extendable = true;
 
-                    while (is_x_extendable || is_y_extendable)
+                    while (is_x_extendable || is_z_extendable)
                         && ((x_extent as usize) < max_extent_x)
-                        && ((y_extent as usize) < max_extent_y)
+                        && ((z_extent as usize) < max_extent_z)
                     {
-                        is_x_extendable = !(0..y_extent as usize)
-                            .any(|dy| check_voxel(x + x_extent as usize, y + dy));
+                        is_x_extendable = !(0..z_extent as usize)
+                            .any(|dz| check_voxel(x + x_extent as usize, z + dz));
                         if is_x_extendable {
                             x_extent += 1;
                         }
 
-                        is_y_extendable = !(0..x_extent as usize)
-                            .any(|dz| check_voxel(z + dz, y + y_extent as usize));
-                        if is_y_extendable {
-                            y_extent += 1;
+                        is_z_extendable = !(0..x_extent as usize)
+                            .any(|dx| check_voxel(x + dx, z + z_extent as usize));
+                        if is_z_extendable {
+                            z_extent += 1;
                         }
                     }
 
                     for dx in 0..x_extent as usize {
                         let row = &mut visited_voxels[x + dx];
-                        row[y..y + y_extent as usize].fill(true);
+                        row[z..z + z_extent as usize].fill(true);
                     }
 
                     slice_instance_data.push(InstanceData {
                         position: [x as u8, y as u8, z as u8],
                         width: x_extent,
-                        height: y_extent,
+                        height: z_extent,
                         color: [color.r, color.g, color.b],
                     });
                 }
@@ -402,28 +402,33 @@ pub fn create_mesh_on_vxm_import_system(
             Some(vxm) => {
                 let start_time = std::time::Instant::now();
 
-                let (
-                    (left_instance_data, right_instance_data),
-                    (front_instance_data, back_instance_data),
-                ) = rayon::join(
-                    || {
-                        rayon::join(
-                            || generate_instance_data_x(vxm, false),
-                            || generate_instance_data_x(vxm, true),
-                        )
-                    },
-                    || {
-                        rayon::join(
-                            || generate_instance_data_z(vxm, true),
-                            || generate_instance_data_z(vxm, false),
-                        )
-                    },
-                );
+                let create_y_data = || {
+                    rayon::join(
+                        || generate_instance_data_z(vxm, true),
+                        || generate_instance_data_z(vxm, false),
+                    )
+                };
 
-                let (top_instance_data, bottom_instance_data) = rayon::join(
-                    || generate_instance_data_y(vxm, true),
-                    || generate_instance_data_y(vxm, false),
-                );
+                let create_x_data = || {
+                    rayon::join(
+                        || generate_instance_data_x(vxm, true),
+                        || generate_instance_data_x(vxm, false),
+                    )
+                };
+
+                let create_z_data = || {
+                    rayon::join(
+                        || generate_instance_data_y(vxm, true),
+                        || generate_instance_data_y(vxm, false),
+                    )
+                };
+
+                let ((x_data, z_data), y_data) =
+                    rayon::join(|| rayon::join(create_x_data, create_z_data), create_y_data);
+
+                let (front_instance_data, back_instance_data) = y_data;
+                let (right_instance_data, left_instance_data) = x_data;
+                let (top_instance_data, bottom_instance_data) = z_data;
 
                 let front_quad = meshes.add(
                     Mesh::new(
@@ -521,12 +526,18 @@ pub fn create_mesh_on_vxm_import_system(
                     ),
                 );
 
+                let instance_count = front_instance_data.len()
+                    + back_instance_data.len()
+                    + left_instance_data.len()
+                    + right_instance_data.len()
+                    + top_instance_data.len()
+                    + bottom_instance_data.len();
                 let end_time = start_time.elapsed();
                 info!(
                     "{:?} size model created {:?} instances using {:?}kb in {:?}ms",
                     vxm.size,
-                    front_instance_data.len(),
-                    (size_of::<InstanceData>() * front_instance_data.len()) / 1024,
+                    instance_count,
+                    (size_of::<InstanceData>() * instance_count) / 1024,
                     end_time.as_micros() as f32 / 1000.0
                 );
 
