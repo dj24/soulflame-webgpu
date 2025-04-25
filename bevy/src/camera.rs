@@ -1,5 +1,4 @@
 use bevy::input::mouse::AccumulatedMouseMotion;
-use bevy::input::ButtonInput;
 use bevy::math::Vec3;
 use bevy::prelude::*;
 use std::f32::consts::FRAC_PI_2;
@@ -27,7 +26,7 @@ impl Default for CameraSettings {
         // Limiting pitch stops some unexpected rotation past 90° up or down.
         let pitch_limit = FRAC_PI_2 - 0.01;
         Self {
-            orbit_distance: 2.0,
+            orbit_distance: 4.0,
             pitch_speed: 0.003,
             pitch_range: -pitch_limit..pitch_limit,
             yaw_speed: 0.003,
@@ -44,8 +43,6 @@ impl Plugin for ThirdPersonCameraPlugin {
     }
 }
 
-
-
 fn orbit(
     mut camera_transform: Single<&mut Transform, (With<Camera>, Without<CameraTarget>)>,
     target_transform: Option<Single<&mut Transform, With<CameraTarget>>>,
@@ -55,7 +52,6 @@ fn orbit(
     // keys: Res<ButtonInput<KeyCode>>,
     // time: Res<Time>,
 ) {
-
     if target_transform.is_none() || camera_target.is_none() {
         return;
     }

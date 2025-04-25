@@ -1,10 +1,10 @@
-use std::convert::TryInto;
 use bevy::log::info;
 use bevy::prelude::*;
 use bevy::{
     asset::{io::Reader, AssetLoader, LoadContext},
     reflect::TypePath,
 };
+use std::convert::TryInto;
 use thiserror::Error;
 
 #[derive(Asset, TypePath, Debug)]
@@ -49,7 +49,12 @@ impl AssetLoader for VxmAssetLoader {
 
         let start_time = std::time::Instant::now();
         // Read magic
-        let magic = String::from_utf8(vec![reader.read_u8(), reader.read_u8(), reader.read_u8(), reader.read_u8()])?;
+        let magic = String::from_utf8(vec![
+            reader.read_u8(),
+            reader.read_u8(),
+            reader.read_u8(),
+            reader.read_u8(),
+        ])?;
 
         if !["VXMC", "VXMA"].contains(&magic.as_str()) {
             return Err(VxmAssetLoaderError::FromVxmError);
@@ -66,7 +71,7 @@ impl AssetLoader for VxmAssetLoader {
         }
 
         let scale = [&reader.read_u32(), &reader.read_u32(), &reader.read_u32()];
-        let normalised_pivot = [reader.read_f32(), reader.read_f32(), reader.read_f32()];
+        let _normalised_pivot = [reader.read_f32(), reader.read_f32(), reader.read_f32()];
 
         let surface = reader.read_u8();
         if surface > 0 {
@@ -115,8 +120,13 @@ impl AssetLoader for VxmAssetLoader {
             let green = reader.read_u8();
             let red = reader.read_u8();
             let alpha = reader.read_u8();
-            let emissive = reader.read_u8();
-            palette.push(PaletteColor { r: red, g: green, b: blue, a: alpha });
+            let _emissive = reader.read_u8();
+            palette.push(PaletteColor {
+                r: red,
+                g: green,
+                b: blue,
+                a: alpha,
+            });
         }
 
         let max_layers = if version >= 12 { reader.read_u8() } else { 1 };
@@ -138,9 +148,9 @@ impl AssetLoader for VxmAssetLoader {
                 reader.read_u8(); // Layer visibility
             }
 
-            let mut foo = 0;
+            let mut _foo = 0;
             loop {
-                foo += 1;
+                _foo += 1;
                 let length = reader.read_u8();
 
                 if length == 0 {
@@ -167,7 +177,12 @@ impl AssetLoader for VxmAssetLoader {
                     bounds_max[0] = bounds_max[0].max(x);
                     bounds_max[1] = bounds_max[1].max(y);
                     bounds_max[2] = bounds_max[2].max(z);
-                    voxels.push(Voxel { x, y, z, c: mat_idx });
+                    voxels.push(Voxel {
+                        x,
+                        y,
+                        z,
+                        c: mat_idx,
+                    });
                 }
                 idx += length as usize;
             }
@@ -192,13 +207,16 @@ impl AssetLoader for VxmAssetLoader {
             voxel_array[voxel.x as usize][voxel.y as usize][voxel.z as usize] = voxel.c as i16;
         });
 
-        info!("imported vxm asset in {:?}ms", start_time.elapsed().as_millis());
+        info!(
+            "imported vxm asset in {:?}ms",
+            start_time.elapsed().as_millis()
+        );
 
         Ok(VxmAsset {
             vox_count: voxels.len(),
             size,
             palette,
-            voxel_array
+            voxel_array,
         })
     }
 
@@ -244,7 +262,6 @@ impl CustomByteReader {
         self.index += 4;
         u32::from_le_bytes(bytes)
     }
-
 
     fn read_f32(&mut self) -> f32 {
         let bytes: [u8; 4] = self.bytes[self.index..self.index + 4].try_into().unwrap();

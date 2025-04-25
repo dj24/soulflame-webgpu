@@ -7,7 +7,6 @@
 //! implementation using bevy's low level rendering api.
 //! It's generally recommended to try the built-in instancing before going with this approach.
 
-use bevy::reflect::Array;
 use bevy::render::render_resource::binding_types::uniform_buffer;
 use bevy::{
     core_pipeline::core_3d::Transparent3d,
@@ -37,7 +36,6 @@ use bevy::{
     },
 };
 use bytemuck::{Pod, Zeroable};
-use rayon::prelude::*;
 use std::sync::Arc;
 
 /// This example uses a shader source file from the assets subdirectory

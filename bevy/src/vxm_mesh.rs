@@ -1,21 +1,15 @@
-use crate::custom_shader_instancing::{
-    InstanceData, InstanceMaterialData, InstanceMaterialDataKey,
-};
+use crate::custom_shader_instancing::{InstanceData, InstanceMaterialData};
 use crate::dnd::PendingVxm;
 use crate::vxm::VxmAsset;
 use bevy::asset::{Assets, RenderAssetUsages};
-use bevy::color::palettes::basic::PURPLE;
 use bevy::log::info;
-use bevy::pbr::wireframe::WireframeConfig;
 use bevy::pbr::{ExtendedMaterial, MaterialExtension};
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, PrimitiveTopology};
 use bevy::render::primitives::Aabb;
 use bevy::render::render_resource::{AsBindGroup, ShaderRef};
 use bevy::render::storage::ShaderStorageBuffer;
-use bevy::render::view::NoFrustumCulling;
 use rayon::prelude::*;
-use std::rc::Rc;
 use std::sync::Arc;
 
 enum CubeFace {
@@ -397,7 +391,7 @@ pub fn create_mesh_on_vxm_import_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    for (entity, pending_vxm, transform) in pending_vxms.iter() {
+    for (entity, pending_vxm, _) in pending_vxms.iter() {
         match vxm_assets.get(&pending_vxm.0) {
             Some(vxm) => {
                 let start_time = std::time::Instant::now();
@@ -533,6 +527,7 @@ pub fn create_mesh_on_vxm_import_system(
                     + top_instance_data.len()
                     + bottom_instance_data.len();
                 let end_time = start_time.elapsed();
+
                 info!(
                     "{:?} size model created {:?} instances using {:?}kb in {:?}ms",
                     vxm.size,
@@ -552,26 +547,32 @@ pub fn create_mesh_on_vxm_import_system(
                         ),
                     ))
                     .with_child((
+                        Name::new("Front face instance data"),
                         Mesh3d(front_quad),
                         InstanceMaterialData(Arc::new(front_instance_data.clone())),
                     ))
                     .with_child((
+                        Name::new("Back face instance data"),
                         Mesh3d(back_quad),
                         InstanceMaterialData(Arc::new(back_instance_data.clone())),
                     ))
                     .with_child((
+                        Name::new("Right face instance data"),
                         Mesh3d(right_quad),
                         InstanceMaterialData(Arc::new(right_instance_data.clone())),
                     ))
                     .with_child((
+                        Name::new("Left face instance data"),
                         Mesh3d(left_quad),
                         InstanceMaterialData(Arc::new(left_instance_data.clone())),
                     ))
                     .with_child((
+                        Name::new("Top face instance data"),
                         Mesh3d(top_quad),
                         InstanceMaterialData(Arc::new(top_instance_data.clone())),
                     ))
                     .with_child((
+                        Name::new("Bottom face instance data"),
                         Mesh3d(bottom_quad),
                         InstanceMaterialData(Arc::new(bottom_instance_data.clone())),
                     ));
