@@ -10,6 +10,7 @@ bevy-inspector-egui = "0.28.1"
 bytemuck = "1.21.0"
 rayon = "1.10.0"
 iyes_perf_ui = "0.4.0"
+fastnoise2 = "0.3.1"
 
 [profile.dev]
 opt-level = 1

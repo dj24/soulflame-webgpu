@@ -8,16 +8,18 @@ mod set_animation_clip_keyboard;
 mod spawn_player;
 mod vxm;
 mod vxm_mesh;
+mod vxm_terrain;
 
-use crate::camera::{CameraTarget, ThirdPersonCameraPlugin};
+use crate::camera::ThirdPersonCameraPlugin;
 use crate::custom_shader_instancing::InstancedMaterialPlugin;
-use crate::dnd::{file_drag_and_drop_system, PendingVxm};
+use crate::dnd::file_drag_and_drop_system;
 use crate::draw_aabb_gizmos::DrawAabbGizmosPlugin;
 use crate::replace_body_part_meshes::{
     add_vxm_swap_targets, create_vxm_swap_targets_on_gltf_import_system, swap_vxm_meshes,
 };
 use crate::vxm::{VxmAsset, VxmAssetLoader};
 use crate::vxm_mesh::{create_mesh_on_vxm_import_system, VxmMeshPlugin};
+use crate::vxm_terrain::create_vxm_from_noise;
 use bevy::core_pipeline::experimental::taa::TemporalAntiAliasPlugin;
 use bevy::pbr::{FogVolume, VolumetricFog};
 use bevy::render::render_resource::{Face, WgpuFeatures};
@@ -91,7 +93,7 @@ fn main() {
         ))
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
-        .add_systems(Startup, setup)
+        .add_systems(Startup, (setup, create_vxm_from_noise))
         .add_systems(Update, (exit_on_esc_system, toggle_fullscreen))
         .add_systems(
             FixedUpdate,
@@ -146,16 +148,16 @@ fn setup(
     ));
 
     // Test dragon
-    commands.spawn((
-        Name::new("Dragon 0,0"),
-        PendingVxm(asset_server.load("dragon.vxm")),
-        Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)),
-        CameraTarget(Vec3::new(
-            128.0 * 0.5 * 0.02,
-            89.0 * 0.5  * 0.02,
-            57.0 * 0.5  * 0.02,
-        )),
-    ));
+    // commands.spawn((
+    //     Name::new("Dragon 0,0"),
+    //     PendingVxm(asset_server.load("dragon.vxm")),
+    //     Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)),
+    //     CameraTarget(Vec3::new(
+    //         128.0 * 0.5 * 0.02,
+    //         89.0 * 0.5 * 0.02,
+    //         57.0 * 0.5 * 0.02,
+    //     )),
+    // ));
     //
     // for x in -8..8 {
     //     for z in -8..8 {
