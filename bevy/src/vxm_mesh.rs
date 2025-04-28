@@ -9,6 +9,7 @@ use bevy::render::mesh::{Indices, PrimitiveTopology};
 use bevy::render::primitives::Aabb;
 use bevy::render::render_resource::{AsBindGroup, ShaderRef};
 use bevy::render::storage::ShaderStorageBuffer;
+use bevy::render::view::NoFrustumCulling;
 use rayon::prelude::*;
 use std::sync::Arc;
 
@@ -93,12 +94,6 @@ Total per face: 40 bytes
 // TODO: update this to use instancing
 pub fn create_mesh_from_voxels(_: &VxmAsset) -> Mesh {
     let indices = Vec::new();
-
-    // for voxel in &voxels.voxels {
-    //     for _ in 0..6 {
-    //         &indices.push(indices.len() as u32); // Increment index
-    //     }
-    // }
 
     let bytes = indices.len() * 4;
     let kb = bytes as f64 / 1024.0;
@@ -536,45 +531,50 @@ pub fn create_mesh_on_vxm_import_system(
                     end_time.as_micros() as f32 / 1000.0
                 );
 
+                let aabb = Aabb::from_min_max(
+                    Vec3::ZERO,
+                    Vec3::new(vxm.size[0] as f32, vxm.size[1] as f32, vxm.size[2] as f32),
+                );
+
                 commands.entity(entity).remove::<PendingVxm>();
                 commands
                     .entity(entity)
-                    .insert((
-                        InheritedVisibility::default(),
-                        Aabb::from_min_max(
-                            Vec3::ZERO,
-                            Vec3::new(vxm.size[0] as f32, vxm.size[1] as f32, vxm.size[2] as f32),
-                        ),
-                    ))
+                    .insert((InheritedVisibility::default(), aabb))
                     .with_child((
                         Name::new("Front face instance data"),
                         Mesh3d(front_quad),
                         InstanceMaterialData(Arc::new(front_instance_data.clone())),
+                        aabb,
                     ))
                     .with_child((
                         Name::new("Back face instance data"),
                         Mesh3d(back_quad),
                         InstanceMaterialData(Arc::new(back_instance_data.clone())),
+                        aabb,
                     ))
                     .with_child((
                         Name::new("Right face instance data"),
                         Mesh3d(right_quad),
                         InstanceMaterialData(Arc::new(right_instance_data.clone())),
+                        aabb,
                     ))
                     .with_child((
                         Name::new("Left face instance data"),
                         Mesh3d(left_quad),
                         InstanceMaterialData(Arc::new(left_instance_data.clone())),
+                        aabb,
                     ))
                     .with_child((
                         Name::new("Top face instance data"),
                         Mesh3d(top_quad),
                         InstanceMaterialData(Arc::new(top_instance_data.clone())),
+                        aabb,
                     ))
                     .with_child((
                         Name::new("Bottom face instance data"),
                         Mesh3d(bottom_quad),
                         InstanceMaterialData(Arc::new(bottom_instance_data.clone())),
+                        aabb,
                     ));
             }
             None => {}

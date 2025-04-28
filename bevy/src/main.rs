@@ -19,7 +19,7 @@ use crate::replace_body_part_meshes::{
 };
 use crate::vxm::{VxmAsset, VxmAssetLoader};
 use crate::vxm_mesh::{create_mesh_on_vxm_import_system, VxmMeshPlugin};
-use crate::vxm_terrain::create_vxm_from_noise;
+use crate::vxm_terrain::terrain_system;
 use bevy::core_pipeline::experimental::taa::TemporalAntiAliasPlugin;
 use bevy::pbr::{FogVolume, VolumetricFog};
 use bevy::render::render_resource::{Face, WgpuFeatures};
@@ -93,7 +93,7 @@ fn main() {
         ))
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
-        .add_systems(Startup, (setup, create_vxm_from_noise))
+        .add_systems(Startup, setup)
         .add_systems(Update, (exit_on_esc_system, toggle_fullscreen))
         .add_systems(
             FixedUpdate,
@@ -104,6 +104,7 @@ fn main() {
                 create_vxm_swap_targets_on_gltf_import_system,
                 create_mesh_on_vxm_import_system,
                 swap_vxm_meshes,
+                terrain_system,
             ),
         )
         .run();

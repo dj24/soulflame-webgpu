@@ -6,13 +6,24 @@ use crate::vxm::{PaletteColor, VxmAsset};
 use bevy::asset::Assets;
 use bevy::core::Name;
 use bevy::math::Vec3;
-use bevy::prelude::{Commands, ResMut, Transform};
+use bevy::prelude::{Commands, ResMut, Resource, Transform};
 use fastnoise2::SafeNode;
 
-pub fn create_vxm_from_noise(mut commands: Commands, mut vxm_assets: ResMut<Assets<VxmAsset>>) {
+#[derive(Resource)]
+pub struct ChunkQueue(Vec<(i32, i32, i32)>);
+
+// TODO: fix
+impl Default for ChunkQueue {
+    fn default() -> Self {
+        Self(vec![(0, 0, 0), (1, 0, 0), (0, 0, 1), (1, 0, 1)])
+    }
+}
+const TERRAIN_SIZE: i32 = 64;
+
+pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
     let start_time = std::time::Instant::now();
 
-    let (x_size, y_size, z_size) = (128, 128, 128);
+    let (x_size, y_size, z_size) = (TERRAIN_SIZE, 255, TERRAIN_SIZE);
     let encoded_node_tree = "EAAAAABAGQATAMP1KD8NAAQAAAAAACBACQAAZmYmPwAAAAA/AQQAAAAAAAAAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAArkdhPg==";
     let node = SafeNode::from_encoded_node_tree(encoded_node_tree).unwrap();
 
@@ -21,9 +32,9 @@ pub fn create_vxm_from_noise(mut commands: Commands, mut vxm_assets: ResMut<Asse
 
     node.gen_uniform_grid_3d(
         &mut noise_out,
-        0,   // x offset
-        -64, // y offset
-        0,
+        x_pos * x_size,                // x offset
+        (y_pos * y_size) - y_size / 2, // y offset
+        z_pos * z_size,
         x_size,
         y_size,
         z_size,
@@ -52,25 +63,48 @@ pub fn create_vxm_from_noise(mut commands: Commands, mut vxm_assets: ResMut<Asse
         }
     });
 
-    let vxm = VxmAsset {
+    println!("Terrain creation took {:?}", start_time.elapsed());
+
+    VxmAsset {
         vox_count: 1,
         size: [x_size as u8, y_size as u8, z_size as u8],
         palette,
         voxel_array,
-    };
+    }
+}
 
+pub fn terrain_system(
+    mut commands: Commands,
+    mut chunk_queue: ResMut<ChunkQueue>,
+    mut vxm_assets: ResMut<Assets<VxmAsset>>,
+) {
+    let (x_pos, y_pos, z_pos) = chunk_queue.0.pop().unwrap();
+    let vxm = create_vxm_from_noise(x_pos, y_pos, z_pos);
     let vxm_handle = vxm_assets.add(vxm);
-
-    commands.spawn((
-        Name::new("Terrain 0,0"),
-        PendingVxm(vxm_handle),
-        Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)),
-        CameraTarget(Vec3::new(
-            128.0 * 0.5 * 0.02,
-            128.0 * 0.5 * 0.02,
-            128.0 * 0.5 * 0.02,
-        )),
-    ));
-
-    println!("Terrain creation took {:?}", start_time.elapsed());
+    if x_pos == 0 && z_pos == 0 {
+        commands.spawn((
+            Name::new(format!("Terrain {} {}", x_pos, z_pos)),
+            PendingVxm(vxm_handle),
+            Transform::from_translation(Vec3::new(
+                (TERRAIN_SIZE * x_pos) as f32,
+                0.0,
+                (TERRAIN_SIZE * z_pos) as f32,
+            )),
+            CameraTarget(Vec3::new(
+                TERRAIN_SIZE as f32 * 0.5,
+                255. * 0.5,
+                TERRAIN_SIZE as f32 * 0.5,
+            )),
+        ));
+    } else {
+        commands.spawn((
+            Name::new(format!("Terrain {} {}", x_pos, z_pos)),
+            PendingVxm(vxm_handle),
+            Transform::from_translation(Vec3::new(
+                (TERRAIN_SIZE * x_pos) as f32,
+                0.0,
+                (TERRAIN_SIZE * z_pos) as f32,
+            )),
+        ));
+    }
 }
