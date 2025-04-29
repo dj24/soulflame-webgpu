@@ -19,7 +19,7 @@ use crate::replace_body_part_meshes::{
 };
 use crate::vxm::{VxmAsset, VxmAssetLoader};
 use crate::vxm_mesh::{create_mesh_on_vxm_import_system, VxmMeshPlugin};
-use crate::vxm_terrain::terrain_system;
+use crate::vxm_terrain::VoxelTerrainPlugin;
 use bevy::core_pipeline::experimental::taa::TemporalAntiAliasPlugin;
 use bevy::pbr::{FogVolume, VolumetricFog};
 use bevy::render::render_resource::{Face, WgpuFeatures};
@@ -90,6 +90,7 @@ fn main() {
             DrawAabbGizmosPlugin,
             // SetAnimationClipPlugin,
             InstancedMaterialPlugin,
+            VoxelTerrainPlugin,
         ))
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
@@ -104,7 +105,6 @@ fn main() {
                 create_vxm_swap_targets_on_gltf_import_system,
                 create_mesh_on_vxm_import_system,
                 swap_vxm_meshes,
-                terrain_system,
             ),
         )
         .run();

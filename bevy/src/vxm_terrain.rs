@@ -3,6 +3,7 @@
 use crate::camera::CameraTarget;
 use crate::dnd::PendingVxm;
 use crate::vxm::{PaletteColor, VxmAsset};
+use bevy::app::{App, FixedUpdate, Plugin};
 use bevy::asset::Assets;
 use bevy::core::Name;
 use bevy::math::Vec3;
@@ -15,10 +16,16 @@ pub struct ChunkQueue(Vec<(i32, i32, i32)>);
 // TODO: fix
 impl Default for ChunkQueue {
     fn default() -> Self {
-        Self(vec![(0, 0, 0), (1, 0, 0), (0, 0, 1), (1, 0, 1)])
+        let mut queue = vec![];
+        for x in -4..5 {
+            for z in -4..5 {
+                queue.push((x, 0, z));
+            }
+        }
+        Self(queue)
     }
 }
-const TERRAIN_SIZE: i32 = 64;
+const TERRAIN_SIZE: i32 = 32;
 
 pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
     let start_time = std::time::Instant::now();
@@ -38,7 +45,7 @@ pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
         x_size,
         y_size,
         z_size,
-        0.01, // frequency
+        0.005, // frequency
         1337, // seed
     );
 
@@ -73,11 +80,14 @@ pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
     }
 }
 
-pub fn terrain_system(
+fn terrain_system(
     mut commands: Commands,
     mut chunk_queue: ResMut<ChunkQueue>,
     mut vxm_assets: ResMut<Assets<VxmAsset>>,
 ) {
+    if chunk_queue.0.len() == 0 {
+        return;
+    }
     let (x_pos, y_pos, z_pos) = chunk_queue.0.pop().unwrap();
     let vxm = create_vxm_from_noise(x_pos, y_pos, z_pos);
     let vxm_handle = vxm_assets.add(vxm);
@@ -106,5 +116,14 @@ pub fn terrain_system(
                 (TERRAIN_SIZE * z_pos) as f32,
             )),
         ));
+    }
+}
+
+pub struct VoxelTerrainPlugin;
+
+impl Plugin for VoxelTerrainPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<ChunkQueue>();
+        app.add_systems(FixedUpdate, terrain_system);
     }
 }

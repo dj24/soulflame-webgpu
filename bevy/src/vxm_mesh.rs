@@ -91,7 +91,6 @@ Current per vertex
 Total per face: 40 bytes
 */
 
-// TODO: update this to use instancing
 pub fn create_mesh_from_voxels(_: &VxmAsset) -> Mesh {
     let indices = Vec::new();
 
@@ -530,6 +529,11 @@ pub fn create_mesh_on_vxm_import_system(
                     (size_of::<InstanceData>() * instance_count) / 1024,
                     end_time.as_micros() as f32 / 1000.0
                 );
+                
+                if instance_count == 0 {
+                    info!("No instances created, skipping mesh creation");
+                    return;
+                }
 
                 let aabb = Aabb::from_min_max(
                     Vec3::ZERO,
