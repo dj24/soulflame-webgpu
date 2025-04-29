@@ -1,2 +1,0 @@
-# Bevy Voxel Render
-

@@ -17,8 +17,8 @@ pub struct ChunkQueue(Vec<(i32, i32, i32)>);
 impl Default for ChunkQueue {
     fn default() -> Self {
         let mut queue = vec![];
-        for x in -4..5 {
-            for z in -4..5 {
+        for x in -8..9 {
+            for z in -8..9 {
                 queue.push((x, 0, z));
             }
         }
