@@ -27,6 +27,8 @@ impl Default for ChunkQueue {
 }
 const TERRAIN_SIZE: i32 = 32;
 
+const SCALE_FACTOR: i32 = 512;
+
 pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
     let start_time = std::time::Instant::now();
 
@@ -35,19 +37,31 @@ pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
     let node = SafeNode::from_encoded_node_tree(encoded_node_tree).unwrap();
 
     // Allocate a buffer of enough size to hold all output data.
-    let mut noise_out = vec![0.0; (x_size * y_size * z_size) as usize];
+    // let mut noise_out = vec![0.0; (x_size * y_size * z_size) as usize];
 
-    node.gen_uniform_grid_3d(
+    // node.gen_uniform_grid_3d(
+    //     &mut noise_out,
+    //     (x_pos * x_size),              // x offset
+    //     (y_pos * y_size) - y_size / 2, // y offset
+    //     (z_pos * z_size),
+    //     x_size,
+    //     y_size,
+    //     z_size,
+    //     1.0 / SCALE_FACTOR as f32, // frequency
+    //     1337,                         // seed
+    // );
+
+    let mut noise_out = vec![0.0; (x_size * z_size) as usize];
+
+    let min_max = node.gen_tileable_2d(
         &mut noise_out,
-        x_pos * x_size,                // x offset
-        (y_pos * y_size) - y_size / 2, // y offset
-        z_pos * z_size,
         x_size,
-        y_size,
         z_size,
-        0.005, // frequency
-        1337, // seed
+        1.0 / SCALE_FACTOR as f32, // frequency
+        1337,
     );
+    
+    println!("min: {}, max: {}", min_max.min, min_max.max);
 
     let palette = vec![PaletteColor {
         r: 255,
@@ -58,17 +72,29 @@ pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
     let mut voxel_array =
         vec![vec![vec![-1i16; z_size as usize]; y_size as usize]; x_size as usize];
 
-    noise_out.iter().enumerate().for_each(|(i, value)| {
-        let x = i as u32 / (y_size as u32 * z_size as u32);
-        // let z = scale[1] - ((i as u32 / scale[2]) % scale[1]);
-        // let y = i as u32 % scale[2];
-        let y = y_size as u32 - ((i as u32 / z_size as u32) % y_size as u32) - 1;
-        let z = i as u32 % z_size as u32;
-
-        if *value > 0.0 {
-            voxel_array[x as usize][y as usize][z as usize] = 0;
+    for x in 0..x_size {
+        for y in 0..y_size {
+            for z in 0..z_size {
+                let i = (x * z_size + z) as usize;
+                let value = noise_out[i];
+                if value > (y as f32 / y_size as f32) {
+                    voxel_array[x as usize][y_size as usize - 1][z as usize] = 0;
+                }
+            }
         }
-    });
+    }
+
+    // noise_out.iter().enumerate().for_each(|(i, value)| {
+    //     let x = i as u32 / (y_size as u32 * z_size as u32);
+    //     // let z = scale[1] - ((i as u32 / scale[2]) % scale[1]);
+    //     // let y = i as u32 % scale[2];
+    //     let y = y_size as u32 - ((i as u32 / z_size as u32) % y_size as u32) - 1;
+    //     let z = i as u32 % z_size as u32;
+    //
+    //     if *value > 0.0 {
+    //         voxel_array[x as usize][y as usize][z as usize] = 0;
+    //     }
+    // });
 
     println!("Terrain creation took {:?}", start_time.elapsed());
 

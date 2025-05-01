@@ -47,6 +47,7 @@ fn vertex(vertex: Vertex, instance: Instance) -> VertexOutput {
     var out: VertexOutput;
     out.clip_position = mesh_position_local_to_clip(model_matrix, vec4<f32>(local_position, 1.0));
     out.color = vec4(vertex.position, 1.0);
+//    out.color = vec4(vertext.normal, 1.0);
     return out;
 }
 
