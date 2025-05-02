@@ -8,7 +8,7 @@ use bevy::asset::Assets;
 use bevy::core::Name;
 use bevy::math::Vec3;
 use bevy::prelude::{Commands, ResMut, Resource, Transform};
-use fastnoise2::SafeNode;
+use fastnoise2::{generator::prelude::*, SafeNode};
 
 #[derive(Resource)]
 pub struct ChunkQueue(Vec<(i32, i32, i32)>);
@@ -29,38 +29,30 @@ const TERRAIN_SIZE: i32 = 32;
 
 const SCALE_FACTOR: i32 = 512;
 
+fn create_node() -> GeneratorWrapper<SafeNode> {
+    (opensimplex2().fbm(0.65, 0.5, 4, 2.5).domain_scale(0.66)
+        + position_output([0.0, 3.0, 0.0, 0.0], [0.0; 4]))
+    .domain_warp_gradient(0.2, 2.0)
+    .domain_warp_progressive(0.7, 0.5, 2, 2.5)
+    .build()
+}
+
 pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
     let start_time = std::time::Instant::now();
 
     let (x_size, y_size, z_size) = (TERRAIN_SIZE, 255, TERRAIN_SIZE);
-    let encoded_node_tree = "EAAAAABAGQATAMP1KD8NAAQAAAAAACBACQAAZmYmPwAAAAA/AQQAAAAAAAAAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAArkdhPg==";
-    let node = SafeNode::from_encoded_node_tree(encoded_node_tree).unwrap();
-
-    // Allocate a buffer of enough size to hold all output data.
-    // let mut noise_out = vec![0.0; (x_size * y_size * z_size) as usize];
-
-    // node.gen_uniform_grid_3d(
-    //     &mut noise_out,
-    //     (x_pos * x_size),              // x offset
-    //     (y_pos * y_size) - y_size / 2, // y offset
-    //     (z_pos * z_size),
-    //     x_size,
-    //     y_size,
-    //     z_size,
-    //     1.0 / SCALE_FACTOR as f32, // frequency
-    //     1337,                         // seed
-    // );
+    let node = create_node();
 
     let mut noise_out = vec![0.0; (x_size * z_size) as usize];
 
-    let min_max = node.gen_tileable_2d(
-        &mut noise_out,
-        x_size,
-        z_size,
-        1.0 / SCALE_FACTOR as f32, // frequency
-        1337,
-    );
-    
+    // let min_max = node.gen_tileable_2d(
+    //     &mut noise_out,
+    //     x_size,
+    //     z_size,
+    //     0.001, // frequency
+    //     1337,
+    // );
+
     println!("min: {}, max: {}", min_max.min, min_max.max);
 
     let palette = vec![PaletteColor {
@@ -76,25 +68,15 @@ pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
         for y in 0..y_size {
             for z in 0..z_size {
                 let i = (x * z_size + z) as usize;
-                let value = noise_out[i];
-                if value > (y as f32 / y_size as f32) {
-                    voxel_array[x as usize][y_size as usize - 1][z as usize] = 0;
+                // let value = node.gen_single_2d((x / SCALE_FACTOR) as ,y)
+                let normalized_value = (value + 1.0) * 0.5;
+                let normalized_y = y as f32 / y_size as f32;
+                if normalized_value > normalized_y {
+                    voxel_array[x as usize][y as usize][z as usize] = 0;
                 }
             }
         }
     }
-
-    // noise_out.iter().enumerate().for_each(|(i, value)| {
-    //     let x = i as u32 / (y_size as u32 * z_size as u32);
-    //     // let z = scale[1] - ((i as u32 / scale[2]) % scale[1]);
-    //     // let y = i as u32 % scale[2];
-    //     let y = y_size as u32 - ((i as u32 / z_size as u32) % y_size as u32) - 1;
-    //     let z = i as u32 % z_size as u32;
-    //
-    //     if *value > 0.0 {
-    //         voxel_array[x as usize][y as usize][z as usize] = 0;
-    //     }
-    // });
 
     println!("Terrain creation took {:?}", start_time.elapsed());
 
