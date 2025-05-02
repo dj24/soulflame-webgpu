@@ -30,11 +30,7 @@ const TERRAIN_SIZE: i32 = 32;
 const SCALE_FACTOR: i32 = 512;
 
 fn create_node() -> GeneratorWrapper<SafeNode> {
-    (opensimplex2().fbm(0.65, 0.5, 4, 2.5).domain_scale(0.66)
-        + position_output([0.0, 3.0, 0.0, 0.0], [0.0; 4]))
-    .domain_warp_gradient(0.2, 2.0)
-    .domain_warp_progressive(0.7, 0.5, 2, 2.5)
-    .build()
+    (opensimplex2().fbm(0.65, 0.5, 4, 2.5).domain_scale(0.66)).build()
 }
 
 pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
@@ -44,16 +40,6 @@ pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
     let node = create_node();
 
     let mut noise_out = vec![0.0; (x_size * z_size) as usize];
-
-    // let min_max = node.gen_tileable_2d(
-    //     &mut noise_out,
-    //     x_size,
-    //     z_size,
-    //     0.001, // frequency
-    //     1337,
-    // );
-
-    println!("min: {}, max: {}", min_max.min, min_max.max);
 
     let palette = vec![PaletteColor {
         r: 255,
@@ -65,11 +51,25 @@ pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
         vec![vec![vec![-1i16; z_size as usize]; y_size as usize]; x_size as usize];
 
     for x in 0..x_size {
+        for z in 0..z_size {
+            let i = (x * z_size + z) as usize;
+            let offset_x = x + x_pos * x_size;
+            let offset_z = z + z_pos * z_size;
+            let value = node.gen_single_2d(
+                (offset_x as f32 / SCALE_FACTOR as f32),
+                (offset_z as f32 / SCALE_FACTOR as f32),
+                1337,
+            );
+            noise_out[i] = value;
+        }
+    }
+
+    for x in 0..x_size {
         for y in 0..y_size {
             for z in 0..z_size {
                 let i = (x * z_size + z) as usize;
-                // let value = node.gen_single_2d((x / SCALE_FACTOR) as ,y)
-                let normalized_value = (value + 1.0) * 0.5;
+                let value = noise_out[i];
+                let normalized_value = (value * 0.5) + 0.5;
                 let normalized_y = y as f32 / y_size as f32;
                 if normalized_value > normalized_y {
                     voxel_array[x as usize][y as usize][z as usize] = 0;
