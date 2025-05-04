@@ -1,9 +1,10 @@
 //EAAAAABAGQATAMP1KD8NAAQAAAAAACBACQAAZmYmPwAAAAA/AQQAAAAAAAAAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAArkdhPg==
 
+use std::collections::VecDeque;
 use crate::camera::CameraTarget;
 use crate::dnd::PendingVxm;
 use crate::vxm::{PaletteColor, VxmAsset};
-use bevy::app::{App, FixedUpdate, Plugin};
+use bevy::app::{App, FixedUpdate, Plugin, PostUpdate};
 use bevy::asset::Assets;
 use bevy::core::Name;
 use bevy::math::Vec3;
@@ -11,15 +12,19 @@ use bevy::prelude::{Commands, ResMut, Resource, Transform};
 use fastnoise2::{generator::prelude::*, SafeNode};
 
 #[derive(Resource)]
-pub struct ChunkQueue(Vec<(i32, i32, i32)>);
+pub struct ChunkQueue(VecDeque<(i32, i32, i32)>);
 
 // TODO: fix
 impl Default for ChunkQueue {
     fn default() -> Self {
-        let mut queue = vec![];
-        for x in -8..9 {
-            for z in -8..9 {
-                queue.push((x, 0, z));
+        let mut queue = VecDeque::new();
+        for r in 0..20 {
+            for x in (-r)..(r+1){
+                for z in (-r)..(r+1){
+                    if !queue.contains(&(x, 0, z)) {
+                        queue.push_back((x, 0, z));
+                    }
+                }
             }
         }
         Self(queue)
@@ -96,7 +101,7 @@ fn terrain_system(
     if chunk_queue.0.len() == 0 {
         return;
     }
-    let (x_pos, y_pos, z_pos) = chunk_queue.0.pop().unwrap();
+    let (x_pos, y_pos, z_pos) = chunk_queue.0.pop_front().unwrap();
     let vxm = create_vxm_from_noise(x_pos, y_pos, z_pos);
     let vxm_handle = vxm_assets.add(vxm);
     if x_pos == 0 && z_pos == 0 {
