@@ -18,7 +18,7 @@ pub struct ChunkQueue(VecDeque<(i32, i32, i32)>);
 impl Default for ChunkQueue {
     fn default() -> Self {
         let mut queue = VecDeque::new();
-        for r in 0..20 {
+        for r in 0..12 {
             for x in (-r)..(r+1){
                 for z in (-r)..(r+1){
                     if !queue.contains(&(x, 0, z)) {
@@ -38,34 +38,47 @@ fn create_node() -> GeneratorWrapper<SafeNode> {
     (opensimplex2().fbm(0.65, 0.5, 4, 2.5).domain_scale(0.66)).build()
 }
 
+// creates a 15 bit quantisation of a colour, with the first bit being 1 to indicate solid voxel
+fn create_rgb555(r: f32, g: f32, b: f32) -> u16 {
+    let r5 = (r * 31.0) as u16;
+    let g5 = (g * 31.0) as u16;
+    let b5 = (b * 31.0) as u16;
+    (1 << 15) | (r5 << 10) | (g5 << 5) | (b5)
+}
+
+fn lerp(from: f32, to: f32, t: f32) -> f32 {
+    from + (to - from) * t
+}
+
 pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
     let start_time = std::time::Instant::now();
 
     let (x_size, y_size, z_size) = (TERRAIN_SIZE, 255, TERRAIN_SIZE);
     let node = create_node();
+    let terrain_colour_node = SafeNode::from_encoded_node_tree("BwA=").unwrap();
 
     let mut noise_out = vec![0.0; (x_size * z_size) as usize];
 
-    let palette = vec![PaletteColor {
-        r: 255,
-        g: 0,
-        b: 0,
-        a: 0,
-    }];
+    let mut colour_noise_out = vec![0.0; (x_size * z_size) as usize];
+
     let mut voxel_array =
-        vec![vec![vec![-1i16; z_size as usize]; y_size as usize]; x_size as usize];
+        vec![vec![vec![0u16; z_size as usize]; y_size as usize]; x_size as usize];
 
     for x in 0..x_size {
         for z in 0..z_size {
             let i = (x * z_size + z) as usize;
             let offset_x = x + x_pos * x_size;
             let offset_z = z + z_pos * z_size;
-            let value = node.gen_single_2d(
+            noise_out[i] = node.gen_single_2d(
                 (offset_x as f32 / SCALE_FACTOR as f32),
                 (offset_z as f32 / SCALE_FACTOR as f32),
                 1337,
             );
-            noise_out[i] = value;
+            colour_noise_out[i] = terrain_colour_node.gen_single_2d(
+                offset_x as f32 / 2.0,
+                offset_z as f32 / 2.0,
+                1337,
+            );
         }
     }
 
@@ -77,7 +90,11 @@ pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
                 let normalized_value = (value * 0.5) + 0.5;
                 let normalized_y = y as f32 / y_size as f32;
                 if normalized_value > normalized_y {
-                    voxel_array[x as usize][y as usize][z as usize] = 0;
+                    let colour_noise = (colour_noise_out[i] * 0.5) + 0.5;
+                    let r = 0.0f32;
+                    let g = 0.75 - colour_noise * 0.55;
+                    let b = 0.0f32;
+                    voxel_array[x as usize][y as usize][z as usize] = create_rgb555(r,g,b); // 100% green
                 }
             }
         }
@@ -86,9 +103,7 @@ pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
     println!("Terrain creation took {:?}", start_time.elapsed());
 
     VxmAsset {
-        vox_count: 1,
         size: [x_size as u8, y_size as u8, z_size as u8],
-        palette,
         voxel_array,
     }
 }

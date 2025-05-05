@@ -131,21 +131,20 @@ fn generate_instance_data_z(vxm: &VxmAsset, is_front_face: bool) -> Vec<Instance
 
                     // Check if face is hidden (different logic for front vs back)
                     let is_face_hidden = if is_front_face {
-                        z < (vxm.size[2] - 1) as usize && vxm.voxel_array[x][y][z + 1] != -1
+                        z < (vxm.size[2] - 1) as usize && is_solid_voxel(vxm.voxel_array[x][y][z + 1])
                     } else {
-                        z > 0 && vxm.voxel_array[x][y][z - 1] != -1
+                        z > 0 && is_solid_voxel(vxm.voxel_array[x][y][z - 1])
                     };
 
                     if is_face_hidden {
                         continue;
                     }
 
-                    let palette_index = vxm.voxel_array[x][y][z];
-                    if palette_index == -1 {
+                    let voxel = vxm.voxel_array[x][y][z];
+                    if !is_solid_voxel(voxel) {
                         continue;
                     }
 
-                    let color = &vxm.palette[palette_index as usize];
                     let mut x_extent = 1u8;
                     let mut y_extent = 1u8;
                     let max_extent_y = vxm.size[1] as usize - y;
@@ -154,13 +153,13 @@ fn generate_instance_data_z(vxm: &VxmAsset, is_front_face: bool) -> Vec<Instance
                     // Create a closure for checking voxels
                     let check_voxel = |x: usize, y: usize| {
                         let is_face_hidden = if is_front_face {
-                            z < (vxm.size[2] - 1) as usize && vxm.voxel_array[x][y][z + 1] != -1
+                            z < (vxm.size[2] - 1) as usize && is_solid_voxel(vxm.voxel_array[x][y][z + 1])
                         } else {
-                            z > 0 && vxm.voxel_array[x][y][z - 1] != -1
+                            z > 0 && is_solid_voxel(vxm.voxel_array[x][y][z - 1])
                         };
 
-                        vxm.voxel_array[x][y][z] == -1
-                            || vxm.voxel_array[x][y][z] != palette_index
+                        !is_solid_voxel(vxm.voxel_array[x][y][z])
+                            || vxm.voxel_array[x][y][z] != voxel
                             || visited_voxels[x][y]
                             || is_face_hidden
                     };
@@ -190,17 +189,26 @@ fn generate_instance_data_z(vxm: &VxmAsset, is_front_face: bool) -> Vec<Instance
                         row[y..y + y_extent as usize].fill(true);
                     }
 
+                    let r = (voxel & 0x7C00) >> 10;
+                    let g = (voxel & 0x03E0) >> 5;
+                    let b = voxel & 0x001F;
+
                     slice_instance_data.push(InstanceData {
                         position: [x as u8, y as u8, z as u8],
                         width: x_extent,
                         height: y_extent,
-                        color: [color.r, color.g, color.b],
+                        color: [r as u8, g as u8, b as u8],
                     });
                 }
             }
             slice_instance_data
         })
         .collect()
+}
+
+// Checks if 1st bit of 16 bit value is 1
+fn is_solid_voxel(voxel: u16) -> bool {
+    (voxel >> 15) & 0x01 == 1
 }
 
 fn generate_instance_data_x(vxm: &VxmAsset, is_right_face: bool) -> Vec<InstanceData> {
@@ -219,21 +227,21 @@ fn generate_instance_data_x(vxm: &VxmAsset, is_right_face: bool) -> Vec<Instance
 
                     // Check if face is hidden (different logic for front vs back)
                     let is_face_hidden = if is_right_face {
-                        x < (vxm.size[0] - 1) as usize && vxm.voxel_array[x + 1][y][z] != -1
+                        x < (vxm.size[0] - 1) as usize && is_solid_voxel(vxm.voxel_array[x + 1][y][z])
                     } else {
-                        x > 0 && vxm.voxel_array[x - 1][y][z] != -1
+                        x > 0 && is_solid_voxel(vxm.voxel_array[x - 1][y][z])
                     };
 
                     if is_face_hidden {
                         continue;
                     }
 
-                    let palette_index = vxm.voxel_array[x][y][z];
-                    if palette_index == -1 {
+                    let voxel = vxm.voxel_array[x][y][z];
+                    if !is_solid_voxel(voxel) {
                         continue;
                     }
 
-                    let color = &vxm.palette[palette_index as usize];
+
                     let mut z_extent = 1u8;
                     let mut y_extent = 1u8;
                     let max_extent_y = vxm.size[1] as usize - y;
@@ -242,13 +250,13 @@ fn generate_instance_data_x(vxm: &VxmAsset, is_right_face: bool) -> Vec<Instance
                     // Create a closure for checking voxels
                     let check_voxel = |z: usize, y: usize| {
                         let is_face_hidden = if is_right_face {
-                            x < (vxm.size[0] - 1) as usize && vxm.voxel_array[x + 1][y][z] != -1
+                            x < (vxm.size[0] - 1) as usize && is_solid_voxel(vxm.voxel_array[x + 1][y][z])
                         } else {
-                            x > 0 && vxm.voxel_array[x - 1][y][z] != -1
+                            x > 0 && is_solid_voxel(vxm.voxel_array[x - 1][y][z])
                         };
 
-                        vxm.voxel_array[x][y][z] == -1
-                            || vxm.voxel_array[x][y][z] != palette_index
+                        !is_solid_voxel(vxm.voxel_array[x][y][z])
+                            || vxm.voxel_array[x][y][z] != voxel
                             || visited_voxels[z][y]
                             || is_face_hidden
                     };
@@ -278,11 +286,15 @@ fn generate_instance_data_x(vxm: &VxmAsset, is_right_face: bool) -> Vec<Instance
                         row[y..y + y_extent as usize].fill(true);
                     }
 
+                    let r = (voxel & 0x7C00) >> 10;
+                    let g = (voxel & 0x03E0) >> 5;
+                    let b = voxel & 0x001F;
+
                     slice_instance_data.push(InstanceData {
                         position: [x as u8, y as u8, z as u8],
                         width: y_extent,
                         height: z_extent,
-                        color: [color.r, color.g, color.b],
+                        color: [r as u8, g as u8, b as u8],
                     });
                 }
             }
@@ -307,21 +319,20 @@ fn generate_instance_data_y(vxm: &VxmAsset, is_top_face: bool) -> Vec<InstanceDa
 
                     // Check if face is hidden (different logic for front vs back)
                     let is_face_hidden = if is_top_face {
-                        y < (vxm.size[1] - 1) as usize && vxm.voxel_array[x][y + 1][z] != -1
+                        y < (vxm.size[1] - 1) as usize && is_solid_voxel(vxm.voxel_array[x][y + 1][z])
                     } else {
-                        y > 0 && vxm.voxel_array[x][y - 1][z] != -1
+                        y > 0 && is_solid_voxel(vxm.voxel_array[x][y - 1][z])
                     };
 
                     if is_face_hidden {
                         continue;
                     }
 
-                    let palette_index = vxm.voxel_array[x][y][z];
-                    if palette_index == -1 {
+                    let voxel = vxm.voxel_array[x][y][z];
+                    if !is_solid_voxel(voxel) {
                         continue;
                     }
 
-                    let color = &vxm.palette[palette_index as usize];
                     let mut x_extent = 1u8;
                     let mut z_extent = 1u8;
                     let max_extent_z = vxm.size[2] as usize - z;
@@ -330,13 +341,13 @@ fn generate_instance_data_y(vxm: &VxmAsset, is_top_face: bool) -> Vec<InstanceDa
                     // Create a closure for checking voxels
                     let check_voxel = |x: usize, z: usize| {
                         let is_face_hidden = if is_top_face {
-                            y < (vxm.size[1] - 1) as usize && vxm.voxel_array[x][y + 1][z] != -1
+                            y < (vxm.size[1] - 1) as usize && is_solid_voxel(vxm.voxel_array[x][y + 1][z])
                         } else {
-                            y > 0 && vxm.voxel_array[x][y - 1][z] != -1
+                            y > 0 && is_solid_voxel(vxm.voxel_array[x][y - 1][z])
                         };
 
-                        vxm.voxel_array[x][y][z] == -1
-                            || vxm.voxel_array[x][y][z] != palette_index
+                        !is_solid_voxel(vxm.voxel_array[x][y][z])
+                            || vxm.voxel_array[x][y][z] != voxel
                             || visited_voxels[x][z]
                             || is_face_hidden
                     };
@@ -366,11 +377,15 @@ fn generate_instance_data_y(vxm: &VxmAsset, is_top_face: bool) -> Vec<InstanceDa
                         row[z..z + z_extent as usize].fill(true);
                     }
 
+                    let r = (voxel & 0x7C00) >> 10;
+                    let g = (voxel & 0x03E0) >> 5;
+                    let b = voxel & 0x001F;
+
                     slice_instance_data.push(InstanceData {
                         position: [x as u8, y as u8, z as u8],
                         width: x_extent,
                         height: z_extent,
-                        color: [color.r, color.g, color.b],
+                        color: [r as u8, g as u8, b as u8],
                     });
                 }
             }
@@ -529,7 +544,7 @@ pub fn create_mesh_on_vxm_import_system(
                     (size_of::<InstanceData>() * instance_count) / 1024,
                     end_time.as_micros() as f32 / 1000.0
                 );
-                
+
                 if instance_count == 0 {
                     info!("No instances created, skipping mesh creation");
                     return;

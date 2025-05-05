@@ -9,10 +9,9 @@ use thiserror::Error;
 
 #[derive(Asset, TypePath, Debug)]
 pub struct VxmAsset {
-    pub vox_count: usize,
     pub size: [u8; 3],
-    pub palette: Vec<PaletteColor>,
-    pub voxel_array: Vec<Vec<Vec<i16>>>,
+    /// first bit air/solid, r, g, b, 5 bits
+    pub voxel_array: Vec<Vec<Vec<u16>>>,
 }
 
 #[derive(Default)]
@@ -198,13 +197,20 @@ impl AssetLoader for VxmAssetLoader {
         let y_dim = size[1] as usize;
         let z_dim = size[2] as usize;
 
-        let mut voxel_array = vec![vec![vec![-1i16; z_dim]; y_dim]; x_dim];
+        let mut voxel_array = vec![vec![vec![0u16; z_dim]; y_dim]; x_dim];
 
         voxels.iter_mut().for_each(|voxel| {
             voxel.x -= bounds_min[0];
             voxel.y -= bounds_min[1];
             voxel.z -= bounds_min[2];
-            voxel_array[voxel.x as usize][voxel.y as usize][voxel.z as usize] = voxel.c as i16;
+            let colour = &palette[voxel.c as usize];
+            let r_downscaled = (colour.r >> 3) as u16;
+            let g_downscaled = (colour.g >> 3) as u16;
+            let b_downscaled = (colour.b >> 3) as u16;
+            let solid_and_rgb555 =
+                (1 << 15) | (r_downscaled << 10) | (g_downscaled << 5) | (b_downscaled);
+
+            voxel_array[voxel.x as usize][voxel.y as usize][voxel.z as usize] = solid_and_rgb555;
         });
 
         info!(
@@ -212,12 +218,7 @@ impl AssetLoader for VxmAssetLoader {
             start_time.elapsed().as_millis()
         );
 
-        Ok(VxmAsset {
-            vox_count: voxels.len(),
-            size,
-            palette,
-            voxel_array,
-        })
+        Ok(VxmAsset { size, voxel_array })
     }
 
     fn extensions(&self) -> &[&str] {
