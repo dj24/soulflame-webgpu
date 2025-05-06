@@ -1,15 +1,15 @@
 //EAAAAABAGQATAMP1KD8NAAQAAAAAACBACQAAZmYmPwAAAAA/AQQAAAAAAAAAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAArkdhPg==
 
-use std::collections::VecDeque;
 use crate::camera::CameraTarget;
 use crate::dnd::PendingVxm;
-use crate::vxm::{PaletteColor, VxmAsset};
-use bevy::app::{App, FixedUpdate, Plugin, PostUpdate};
+use crate::vxm::VxmAsset;
+use bevy::app::{App, FixedUpdate, Plugin};
 use bevy::asset::Assets;
 use bevy::core::Name;
 use bevy::math::Vec3;
 use bevy::prelude::{Commands, ResMut, Resource, Transform};
 use fastnoise2::{generator::prelude::*, SafeNode};
+use std::collections::VecDeque;
 
 #[derive(Resource)]
 pub struct ChunkQueue(VecDeque<(i32, i32, i32)>);
@@ -19,8 +19,8 @@ impl Default for ChunkQueue {
     fn default() -> Self {
         let mut queue = VecDeque::new();
         for r in 0..12 {
-            for x in (-r)..(r+1){
-                for z in (-r)..(r+1){
+            for x in (-r)..(r + 1) {
+                for z in (-r)..(r + 1) {
                     if !queue.contains(&(x, 0, z)) {
                         queue.push_back((x, 0, z));
                     }
@@ -30,12 +30,12 @@ impl Default for ChunkQueue {
         Self(queue)
     }
 }
-const TERRAIN_SIZE: i32 = 32;
+const TERRAIN_SIZE: i32 = 64;
 
-const SCALE_FACTOR: i32 = 512;
+const SCALE_FACTOR: i32 = 1024;
 
 fn create_node() -> GeneratorWrapper<SafeNode> {
-    (opensimplex2().fbm(0.65, 0.5, 4, 2.5).domain_scale(0.66)).build()
+    opensimplex2().fbm(0.65, 0.5, 5, 2.5).build()
 }
 
 // creates a 15 bit quantisation of a colour, with the first bit being 1 to indicate solid voxel
@@ -61,8 +61,7 @@ pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
 
     let mut colour_noise_out = vec![0.0; (x_size * z_size) as usize];
 
-    let mut voxel_array =
-        vec![vec![vec![0u16; z_size as usize]; y_size as usize]; x_size as usize];
+    let mut voxel_array = vec![vec![vec![0u16; z_size as usize]; y_size as usize]; x_size as usize];
 
     for x in 0..x_size {
         for z in 0..z_size {
@@ -91,10 +90,40 @@ pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
                 let normalized_y = y as f32 / y_size as f32;
                 if normalized_value > normalized_y {
                     let colour_noise = (colour_noise_out[i] * 0.5) + 0.5;
-                    let r = 0.0f32;
-                    let g = 0.75 - colour_noise * 0.55;
-                    let b = 0.0f32;
-                    voxel_array[x as usize][y as usize][z as usize] = create_rgb555(r,g,b); // 100% green
+                    let grass_r = 0.1 - colour_noise * 0.025;
+                    let grass_g = 0.5 - colour_noise * 0.15;
+                    let grass_b = 0.1 - colour_noise * 0.025;
+
+                    let stone_r = 0.2f32 + colour_noise * 0.05;
+                    let stone_g = 0.2f32 + colour_noise * 0.05;
+                    let stone_b = 0.2f32 + colour_noise * 0.05;
+
+                    let sand_r = 0.9f32 + colour_noise * 0.1;
+                    let sand_g = 0.8f32 + colour_noise * 0.1;
+                    let sand_b = 0.5f32 + colour_noise * 0.1;
+
+                    let snow_threshold = 0.85 - colour_noise * (32.0 / y_size as f32);
+                    let sand_threshold = 0.4 + colour_noise * (4.0 / y_size as f32);
+                    let water_threshold = 0.35;
+                    let is_top_block = normalized_value < normalized_y + (1.0 / y_size as f32);
+
+                    let is_snow = normalized_value > snow_threshold && is_top_block;
+                    let is_sand = normalized_value < sand_threshold;
+                    let is_stone = !is_top_block;
+                    let is_water = normalized_value < water_threshold;
+
+                    let snow = 0.9 - colour_noise * 0.1;
+
+                    let (r, g, b) = match (is_snow, is_sand, is_water, is_stone) {
+                        (true, _, _, _) => (snow, snow, snow),
+                        (_, _, true, _) => (0.0, 0.05, 0.5),
+                        (_, true, _, _) => (sand_r, sand_g, sand_b),
+                        (_, _, _, true) => (stone_r, stone_g, stone_b),
+                        _ => (grass_r, grass_g, grass_b),
+                    };
+
+                    voxel_array[x as usize][y as usize][z as usize] = create_rgb555(r, g, b);
+                    // 100% green
                 }
             }
         }
