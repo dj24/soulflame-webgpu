@@ -55,7 +55,7 @@ pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
 
     let (x_size, y_size, z_size) = (TERRAIN_SIZE, 255, TERRAIN_SIZE);
     let node = create_node();
-    let terrain_colour_node = SafeNode::from_encoded_node_tree("BwA=").unwrap();
+    let terrain_colour_node = SafeNode::from_encoded_node_tree("DwAEAAAAAAAAQAcAAAAAAD8AAAAAAA==").unwrap();
 
     let mut noise_out = vec![0.0; (x_size * z_size) as usize];
 
@@ -98,12 +98,12 @@ pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
                     let stone_g = 0.2f32 + colour_noise * 0.05;
                     let stone_b = 0.2f32 + colour_noise * 0.05;
 
-                    let sand_r = 0.9f32 + colour_noise * 0.1;
-                    let sand_g = 0.8f32 + colour_noise * 0.1;
-                    let sand_b = 0.5f32 + colour_noise * 0.1;
+                    let sand_r = 0.9f32 - colour_noise * 0.2;
+                    let sand_g = 0.8f32 - colour_noise * 0.1;
+                    let sand_b = 0.5f32 - colour_noise * 0.1;
 
-                    let snow_threshold = 0.85 - colour_noise * (32.0 / y_size as f32);
-                    let sand_threshold = 0.4 + colour_noise * (4.0 / y_size as f32);
+                    let snow_threshold = 0.75;
+                    let sand_threshold = 0.4;
                     let water_threshold = 0.35;
                     let is_top_block = normalized_value < normalized_y + (1.0 / y_size as f32);
 
