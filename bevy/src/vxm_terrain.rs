@@ -55,7 +55,8 @@ pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
 
     let (x_size, y_size, z_size) = (TERRAIN_SIZE, 255, TERRAIN_SIZE);
     let node = create_node();
-    let terrain_colour_node = SafeNode::from_encoded_node_tree("DwAEAAAAAAAAQAcAAAAAAD8AAAAAAA==").unwrap();
+    let terrain_colour_node =
+        SafeNode::from_encoded_node_tree("DwAEAAAAAAAAQAcAAAAAAD8AAAAAAA==").unwrap();
 
     let mut noise_out = vec![0.0; (x_size * z_size) as usize];
 
@@ -74,8 +75,8 @@ pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
                 1337,
             );
             colour_noise_out[i] = terrain_colour_node.gen_single_2d(
-                offset_x as f32 / 2.0,
-                offset_z as f32 / 2.0,
+                offset_x as f32 / 4.0,
+                offset_z as f32 / 4.0,
                 1337,
             );
         }
@@ -90,19 +91,23 @@ pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
                 let normalized_y = y as f32 / y_size as f32;
                 if normalized_value > normalized_y {
                     let colour_noise = (colour_noise_out[i] * 0.5) + 0.5;
-                    let grass_r = 0.1 - colour_noise * 0.025;
-                    let grass_g = 0.5 - colour_noise * 0.15;
-                    let grass_b = 0.1 - colour_noise * 0.025;
+                    let grass_r = 0.1 - colour_noise * (1.0 / 32.0);
+                    let grass_g = 0.5 - colour_noise * (4.0 / 32.0);
+                    let grass_b = 0.1 - colour_noise * (2.0 / 32.0);
 
-                    let stone_r = 0.2f32 + colour_noise * 0.05;
-                    let stone_g = 0.2f32 + colour_noise * 0.05;
-                    let stone_b = 0.2f32 + colour_noise * 0.05;
+                    let dirt_r = 0.3 - colour_noise * (1.0 / 32.0);
+                    let dirt_g = 0.2 - colour_noise * (1.0 / 32.0);
+                    let dirt_b = 0.1 - colour_noise * (1.0 / 32.0);
 
-                    let sand_r = 0.9f32 - colour_noise * 0.2;
-                    let sand_g = 0.8f32 - colour_noise * 0.1;
-                    let sand_b = 0.5f32 - colour_noise * 0.1;
+                    let stone_r = 0.2f32 - colour_noise * (1.0 / 32.0);
+                    let stone_g = 0.2f32 - colour_noise * (1.0 / 32.0);
+                    let stone_b = 0.2f32 - colour_noise * (1.0 / 32.0);
 
-                    let snow_threshold = 0.75;
+                    let sand_r = 0.9f32 - colour_noise * (4.0 / 32.0);
+                    let sand_g = 0.8f32 - colour_noise * (6.0 / 32.0);
+                    let sand_b = 0.5f32 - colour_noise * (3.0 / 32.0);
+
+                    let snow_threshold = 0.75 - colour_noise * (2.0 / 32.0);
                     let sand_threshold = 0.4;
                     let water_threshold = 0.35;
                     let is_top_block = normalized_value < normalized_y + (1.0 / y_size as f32);
@@ -114,16 +119,21 @@ pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
 
                     let snow = 0.9 - colour_noise * 0.1;
 
+                    let t = normalized_y;
+
                     let (r, g, b) = match (is_snow, is_sand, is_water, is_stone) {
                         (true, _, _, _) => (snow, snow, snow),
                         (_, _, true, _) => (0.0, 0.05, 0.5),
                         (_, true, _, _) => (sand_r, sand_g, sand_b),
                         (_, _, _, true) => (stone_r, stone_g, stone_b),
-                        _ => (grass_r, grass_g, grass_b),
+                        _ => (
+                            lerp(grass_r, dirt_r, t),
+                            lerp(grass_g, dirt_g, t),
+                            lerp(grass_b, dirt_b, t),
+                        ),
                     };
 
                     voxel_array[x as usize][y as usize][z as usize] = create_rgb555(r, g, b);
-                    // 100% green
                 }
             }
         }

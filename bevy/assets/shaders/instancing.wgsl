@@ -46,9 +46,11 @@ fn vertex(vertex: Vertex, instance: Instance) -> VertexOutput {
     let local_position = vertex.position * scale + vec3(x_pos,y_pos,z_pos);
     var out: VertexOutput;
     out.clip_position = mesh_position_local_to_clip(model_matrix, vec4<f32>(local_position, 1.0));
+    let n_dot_l = max(dot(vertex.normal, vec3(-0.5, 0.0, 0.5)), 0.0);
 //    out.color = vec4(vertex.position, 1.0);
 //    out.color = vec4(vertex.normal, 1.0);
     out.color = vec4(f32(unpacked_color_y_extent.r) / 31.0,f32(unpacked_color_y_extent.g) / 31.0,f32(unpacked_color_y_extent.b) / 31.0,1.0);
+    out.color = mix(out.color, out.color * n_dot_l, 0.9);
     return out;
 }
 
