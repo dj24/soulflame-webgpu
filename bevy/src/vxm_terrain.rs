@@ -5,9 +5,8 @@ use crate::dnd::PendingVxm;
 use crate::vxm::VxmAsset;
 use bevy::app::{App, FixedUpdate, Plugin};
 use bevy::asset::Assets;
-use bevy::core::Name;
 use bevy::math::Vec3;
-use bevy::prelude::{Commands, ResMut, Resource, Transform};
+use bevy::prelude::{Commands, Name, ResMut, Resource, Transform};
 use fastnoise2::{generator::prelude::*, SafeNode};
 use std::collections::VecDeque;
 

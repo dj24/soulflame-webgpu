@@ -1,5 +1,4 @@
 mod camera;
-mod custom_phase_item;
 mod custom_shader_instancing;
 mod dnd;
 mod draw_aabb_gizmos;
@@ -21,11 +20,11 @@ use crate::vxm::{VxmAsset, VxmAssetLoader};
 use crate::vxm_mesh::{create_mesh_on_vxm_import_system, VxmMeshPlugin};
 use crate::vxm_terrain::VoxelTerrainPlugin;
 use bevy::core_pipeline::experimental::taa::TemporalAntiAliasPlugin;
-use bevy::pbr::{FogVolume, VolumetricFog};
+use bevy::pbr::{Atmosphere, AtmosphereSettings, FogVolume, VolumetricFog};
 use bevy::render::render_resource::{Face, WgpuFeatures};
 use bevy::render::settings::{RenderCreation, WgpuSettings};
 use bevy::render::RenderPlugin;
-use bevy::window::{PresentMode, WindowMode, WindowResolution};
+use bevy::window::{PresentMode, WindowResolution};
 use bevy::{
     pbr::{
         CascadeShadowConfigBuilder, DefaultOpaqueRendererMethod, DirectionalLightShadowMap,
@@ -33,9 +32,9 @@ use bevy::{
     },
     prelude::*,
 };
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use iyes_perf_ui::prelude::PerfUiAllEntries;
-use iyes_perf_ui::PerfUiPlugin;
+
+use bevy::core_pipeline::bloom::Bloom;
+use bevy::render::camera::Exposure;
 use std::f32::consts::*;
 
 fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
@@ -44,25 +43,15 @@ fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: Event
     }
 }
 
-fn toggle_fullscreen(input: Res<ButtonInput<KeyCode>>, mut windows: Query<&mut Window>) {
-    if input.just_pressed(KeyCode::F11) {
-        let mut window = windows.single_mut();
-        window.mode = match window.mode {
-            WindowMode::Windowed => WindowMode::Fullscreen(MonitorSelection::Primary),
-            _ => WindowMode::Windowed,
-        };
-    }
-}
-
 fn main() {
     App::new()
         .insert_resource(DefaultOpaqueRendererMethod::deferred())
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
         .insert_resource(ClearColor(Color::srgb(0.0, 0.0, 0.0)))
-        .add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
+        .add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
         .add_plugins(bevy::diagnostic::EntityCountDiagnosticsPlugin)
         .add_plugins(bevy::diagnostic::SystemInformationDiagnosticsPlugin)
-        .add_plugins(PerfUiPlugin)
+        // .add_plugins(PerfUiPlugin)
         .add_plugins((
             DefaultPlugins
                 .set(WindowPlugin {
@@ -86,7 +75,7 @@ fn main() {
             ThirdPersonCameraPlugin,
             TemporalAntiAliasPlugin,
             VxmMeshPlugin,
-            WorldInspectorPlugin::new(),
+            // WorldInspectorPlugin,
             DrawAabbGizmosPlugin,
             // SetAnimationClipPlugin,
             InstancedMaterialPlugin,
@@ -95,7 +84,7 @@ fn main() {
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
         .add_systems(Startup, setup)
-        .add_systems(Update, (exit_on_esc_system, toggle_fullscreen))
+        .add_systems(Update, (exit_on_esc_system))
         .add_systems(
             FixedUpdate,
             (
@@ -117,7 +106,7 @@ fn setup(
     asset_server: Res<AssetServer>,
     // graphs: ResMut<Assets<AnimationGraph>>,
 ) {
-    commands.spawn(PerfUiAllEntries::default());
+    // commands.spawn(PerfUiAllEntries::default());
     // Camera
     commands.spawn((
         Camera3d::default(),
@@ -126,11 +115,20 @@ fn setup(
         //     samples: 4,
         // },
         Camera {
-            hdr: false,
+            hdr: true,
             ..default()
         },
         Transform::from_xyz(0.7, 0.7, 1.0).looking_at(Vec3::new(0.0, 0.3, 0.0), Vec3::Y),
         Msaa::Off,
+        Atmosphere::EARTH,
+        AtmosphereSettings {
+            aerial_view_lut_max_distance: 3.2e5,
+            scene_units_to_m: 1e+4,
+            ..Default::default()
+        },
+        Exposure::SUNLIGHT,
+        // Tonemapping::AcesFitted,
+        Bloom::NATURAL,
         // MotionVectorPrepass,
         // DeferredPrepass,
         // ScreenSpaceAmbientOcclusion::default(),

@@ -1,21 +1,18 @@
 use crate::vxm::VxmAsset;
 use crate::vxm_mesh;
+use crate::vxm_mesh::MyExtension;
 use bevy::asset::{AssetEvent, AssetServer, Assets, Handle};
-use bevy::core::Name;
-use bevy::hierarchy::Children;
 use bevy::log::{error, info};
 use bevy::math::Vec3;
+use bevy::pbr::wireframe::Wireframe;
 use bevy::pbr::{ExtendedMaterial, MeshMaterial3d, StandardMaterial};
 use bevy::prelude::{
-    Commands, Component, Entity, EventReader,
-    FromWorld, Gltf, HierarchyQueryExt, Mesh, Mesh3d, Parent, Query, Res, ResMut, Resource,
-    SceneRoot, Transform, World,
+    ChildOf, Children, Commands, Component, Entity, EventReader, FromWorld, Gltf, Mesh, Mesh3d,
+    Name, Query, Res, ResMut, Resource, SceneRoot, Transform, World,
 };
 use bevy::render::mesh::VertexAttributeValues;
-use std::env::current_dir;
-use bevy::pbr::wireframe::Wireframe;
 use bevy::render::storage::ShaderStorageBuffer;
-use crate::vxm_mesh::MyExtension;
+use std::env::current_dir;
 
 const ORC_HEAD_VXM_PATH: &str = "meshes/OrcHead.vxm";
 
@@ -135,24 +132,19 @@ impl FromWorld for PlayerBodyPartModels {
 
         let mut model_vec = vec![];
 
-        for(body_part_name, path) in body_base_paths {
+        for (body_part_name, path) in body_base_paths {
             let dir_clone = assets_dir.clone();
             let file = format!("{}{}", body_part_name, ".vxm");
             let file_path = dir_clone.join(path).join(file);
-            if file_path.is_file()
-            {
+            if file_path.is_file() {
                 let relative_path = file_path.strip_prefix(&assets_dir).unwrap();
-                info!(
-                    "Importing body piece {:?}",
-                    body_part_name
-                );
+                info!("Importing body piece {:?}", body_part_name);
                 model_vec.push(VxmMeshSwapTarget {
                     name: body_part_name.to_string(),
                     vxm_handle: asset_server.load(relative_path.to_str().unwrap()),
                     parent_name: None,
                 });
-            }
-            else {
+            } else {
                 error!("File not found: {:?}", file_path);
             }
         }
@@ -232,7 +224,7 @@ fn get_max_on_axis(mesh: &Mesh, axis: Axis) -> f32 {
 pub fn add_vxm_swap_targets(
     scene_root_query: Query<(Entity, &SceneRoot, &Children)>,
     children_query: Query<&Children>,
-    parent_query: Query<&Parent>,
+    parent_query: Query<&ChildOf>,
     name_query: Query<&Name>,
     material_query: Query<(&Mesh3d, &Name, &Transform)>,
     mut commands: Commands,
@@ -278,13 +270,11 @@ pub fn add_vxm_swap_targets(
                     continue;
                 }
 
-
                 if name.as_str().starts_with(swap_target.name.as_str()) {
                     commands.entity(child).insert(ReplaceWithVxm {
                         name: name.as_str().to_string(),
                         vxm_handle: swap_target.vxm_handle.clone(),
                     });
-
                 }
             }
         }
@@ -292,7 +282,6 @@ pub fn add_vxm_swap_targets(
         commands.remove_resource::<PlayerBodyPartModels>();
     }
 }
-
 
 pub fn swap_vxm_meshes(
     mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, MyExtension>>>,
@@ -303,7 +292,7 @@ pub fn swap_vxm_meshes(
     mesh3d_query: Query<&Mesh3d>,
     mut buffers: ResMut<Assets<ShaderStorageBuffer>>,
 ) {
-    for(entity, replace_with_vxm) in replace_with_vxm_query.iter() {
+    for (entity, replace_with_vxm) in replace_with_vxm_query.iter() {
         let voxels = vxm_assets.get(&replace_with_vxm.vxm_handle);
         if voxels.is_none() {
             info!("Vxm asset not found for {:?}", replace_with_vxm.name);
@@ -328,22 +317,19 @@ pub fn swap_vxm_meshes(
             .mul_transform(Transform::from_scale(Vec3::splat(1.001)));
 
         // Example data for the storage buffer
-        let color_data: Vec<[f32; 3]> = vec![
-            [1.0, 0.0, 0.0],
-        ];
+        let color_data: Vec<[f32; 3]> = vec![[1.0, 0.0, 0.0]];
 
-        let material_handle = materials.add(
-            ExtendedMaterial {
-                base: StandardMaterial {
-                    perceptual_roughness: 1.0,
-                    metallic: 0.0,
-                    cull_mode: None,
-                    ..Default::default()
-                },
-                extension: MyExtension {
-                    faces: buffers.add(ShaderStorageBuffer::from(color_data))
-                }
-            });
+        let material_handle = materials.add(ExtendedMaterial {
+            base: StandardMaterial {
+                perceptual_roughness: 1.0,
+                metallic: 0.0,
+                cull_mode: None,
+                ..Default::default()
+            },
+            extension: MyExtension {
+                faces: buffers.add(ShaderStorageBuffer::from(color_data)),
+            },
+        });
 
         // Remove the old mesh and material
         commands
@@ -357,6 +343,4 @@ pub fn swap_vxm_meshes(
             .insert(new_transform)
             .insert(Wireframe);
     }
-
 }
-

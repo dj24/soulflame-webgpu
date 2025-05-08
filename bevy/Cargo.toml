@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = { version = "0.15.0", features = ["bevy_dev_tools"] }
+bevy = { version = "0.16.0", features = ["bevy_dev_tools"] }
 thiserror = "1.0.69"
 bevy-inspector-egui = "0.28.1"
 bytemuck = "1.21.0"

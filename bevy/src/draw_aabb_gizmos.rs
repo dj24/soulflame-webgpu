@@ -3,10 +3,7 @@ use bevy::app::{App, Update};
 use bevy::color::Color;
 use bevy::input::ButtonInput;
 use bevy::math::Vec3;
-use bevy::prelude::{
-    in_state, AppExtStates, Gizmos, GlobalTransform, IntoSystemConfigs, KeyCode, NextState,
-    Plugin, Query, Res, ResMut, State, States, Transform,
-};
+use bevy::prelude::{in_state, AppExtStates, Gizmos, GlobalTransform, IntoScheduleConfigs, KeyCode, NextState, Plugin, Query, Res, ResMut, State, States, Transform};
 use bevy::render::primitives::Aabb;
 
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash)]
@@ -58,8 +55,8 @@ impl Plugin for DrawAabbGizmosPlugin {
             Update,
             (
                 update_gizmos_state,
-                draw_gizmos.run_if(in_state(GizmoState::Enabled)),
-            ),
+                draw_gizmos,
+            ).run_if(in_state(GizmoState::Enabled)),
         );
     }
 }
