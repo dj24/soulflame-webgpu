@@ -1,10 +1,13 @@
-use std::ops::{Add, Div, Mul};
 use bevy::app::{App, Update};
 use bevy::color::Color;
 use bevy::input::ButtonInput;
 use bevy::math::Vec3;
-use bevy::prelude::{in_state, AppExtStates, Gizmos, GlobalTransform, IntoScheduleConfigs, KeyCode, NextState, Plugin, Query, Res, ResMut, State, States, Transform};
+use bevy::prelude::{
+    in_state, AppExtStates, Gizmos, GlobalTransform, IntoScheduleConfigs, KeyCode, NextState,
+    Plugin, Query, Res, ResMut, State, States, Transform,
+};
 use bevy::render::primitives::Aabb;
+use std::ops::{Add, Div, Mul};
 
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash)]
 enum GizmoState {
@@ -31,7 +34,7 @@ pub fn update_gizmos_state(
     }
 }
 
-pub fn draw_gizmos(mut gizmos: Gizmos, mesh_query: Query<(&GlobalTransform,  &Aabb)>) {
+pub fn draw_gizmos(mut gizmos: Gizmos, mesh_query: Query<(&GlobalTransform, &Aabb)>) {
     for (transform, aabb) in mesh_query.iter() {
         let position = transform.translation();
         let scale = transform.scale();
@@ -51,12 +54,11 @@ pub struct DrawAabbGizmosPlugin;
 
 impl Plugin for DrawAabbGizmosPlugin {
     fn build(&self, app: &mut App) {
-        app.init_state::<GizmoState>().add_systems(
-            Update,
-            (
+        app.init_state::<GizmoState>()
+            .add_systems(Update, draw_gizmos.run_if(in_state(GizmoState::Enabled)))
+            .add_systems(
+                Update,
                 update_gizmos_state,
-                draw_gizmos,
-            ).run_if(in_state(GizmoState::Enabled)),
-        );
+            );
     }
 }

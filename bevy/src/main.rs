@@ -11,7 +11,7 @@ mod vxm_terrain;
 
 use crate::camera::ThirdPersonCameraPlugin;
 use crate::custom_shader_instancing::InstancedMaterialPlugin;
-use crate::dnd::file_drag_and_drop_system;
+use crate::dnd::{file_drag_and_drop_system, PendingVxm};
 use crate::draw_aabb_gizmos::DrawAabbGizmosPlugin;
 use crate::replace_body_part_meshes::{
     add_vxm_swap_targets, create_vxm_swap_targets_on_gltf_import_system, swap_vxm_meshes,
@@ -20,7 +20,9 @@ use crate::vxm::{VxmAsset, VxmAssetLoader};
 use crate::vxm_mesh::{create_mesh_on_vxm_import_system, VxmMeshPlugin};
 use crate::vxm_terrain::VoxelTerrainPlugin;
 use bevy::core_pipeline::experimental::taa::TemporalAntiAliasPlugin;
-use bevy::pbr::{Atmosphere, AtmosphereSettings, FogVolume, VolumetricFog};
+use bevy::pbr::{
+    Atmosphere, AtmosphereSettings, FogVolume, ScreenSpaceAmbientOcclusion, VolumetricFog,
+};
 use bevy::render::render_resource::{Face, WgpuFeatures};
 use bevy::render::settings::{RenderCreation, WgpuSettings};
 use bevy::render::RenderPlugin;
@@ -119,7 +121,7 @@ fn setup(
             ..default()
         },
         Transform::from_xyz(0.7, 0.7, 1.0).looking_at(Vec3::new(0.0, 0.3, 0.0), Vec3::Y),
-        Msaa::Off,
+        Msaa::Sample4,
         Atmosphere::EARTH,
         AtmosphereSettings {
             aerial_view_lut_max_distance: 3.2e5,
@@ -146,17 +148,11 @@ fn setup(
         },
     ));
 
-    // Test dragon
-    // commands.spawn((
-    //     Name::new("Dragon 0,0"),
-    //     PendingVxm(asset_server.load("dragon.vxm")),
-    //     Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)),
-    //     CameraTarget(Vec3::new(
-    //         128.0 * 0.5 * 0.02,
-    //         89.0 * 0.5 * 0.02,
-    //         57.0 * 0.5 * 0.02,
-    //     )),
-    // ));
+    commands.spawn((
+        Name::new("Dragon 0,0"),
+        PendingVxm(asset_server.load("dragon.vxm")),
+        Transform::from_translation(Vec3::new(0.0, 200.0, 0.0)),
+    ));
     //
     // for x in -8..8 {
     //     for z in -8..8 {

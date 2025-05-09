@@ -112,7 +112,8 @@ fn queue_custom(
     let draw_custom = transparent_3d_draw_functions.read().id::<DrawCustom>();
 
     for (view_entity, view, msaa) in &views {
-        let Some(transparent_phase) = transparent_render_phases.get_mut(&view.retained_view_entity) else {
+        let Some(transparent_phase) = transparent_render_phases.get_mut(&view.retained_view_entity)
+        else {
             continue;
         };
 

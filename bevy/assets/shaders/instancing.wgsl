@@ -1,4 +1,22 @@
 #import bevy_pbr::mesh_functions::{get_world_from_local, mesh_position_local_to_clip}
+#import bevy_pbr::{
+    pbr_functions::alpha_discard,
+    pbr_functions,
+    pbr_types,
+}
+
+#ifdef PREPASS_PIPELINE
+#import bevy_pbr::{
+    prepass_io::{VertexOutput, FragmentOutput},
+    pbr_deferred_functions::deferred_output,
+}
+#else
+#import bevy_pbr::{
+    forward_io::{VertexOutput, FragmentOutput},
+    pbr_functions::{apply_pbr_lighting, main_pass_post_lighting_processing},
+    pbr_types::STANDARD_MATERIAL_FLAGS_UNLIT_BIT,
+}
+#endif
 
 struct Vertex {
     @location(0) position: vec3<f32>,
@@ -9,12 +27,6 @@ struct Instance {
   @location(3) pos_x_extent: u32, // 5+5+5 
   @location(4) color_y_extent: u32,
 }
-
-struct VertexOutput {
-    @builtin(position) clip_position: vec4<f32>,
-    @location(0) color: vec4<f32>,
-};
-
 
 @group(2) @binding(0) var<uniform> model_matrix: mat4x4<f32>;
 
@@ -45,16 +57,51 @@ fn vertex(vertex: Vertex, instance: Instance) -> VertexOutput {
 
     let local_position = vertex.position * scale + vec3(x_pos,y_pos,z_pos);
     var out: VertexOutput;
-    out.clip_position = mesh_position_local_to_clip(model_matrix, vec4<f32>(local_position, 1.0));
-    let n_dot_l = max(dot(vertex.normal, vec3(-0.5, 0.0, 0.5)), 0.0);
-//    out.color = vec4(vertex.position, 1.0);
-//    out.color = vec4(vertex.normal, 1.0);
-    out.color = vec4(f32(unpacked_color_y_extent.r) / 31.0,f32(unpacked_color_y_extent.g) / 31.0,f32(unpacked_color_y_extent.b) / 31.0,1.0);
-    out.color = mix(out.color, out.color * n_dot_l, 0.9);
+    out.position = mesh_position_local_to_clip(model_matrix, vec4<f32>(local_position, 1.0));
+//    out.color = vec4(f32(unpacked_color_y_extent.r) / 31.0,f32(unpacked_color_y_extent.g) / 31.0,f32(unpacked_color_y_extent.b) / 31.0,1.0);
+    out.world_normal = vertex.normal;
+    out.world_position = model_matrix * vec4<f32>(local_position, 1.0);
     return out;
 }
 
 @fragment
-fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
-    return in.color;
+fn fragment(
+    in: VertexOutput,
+    @builtin(front_facing) is_front: bool,
+) -> FragmentOutput {
+    // generate a PbrInput struct from the StandardMaterial bindings
+    var pbr_input: pbr_types::PbrInput = pbr_types::pbr_input_new();
+
+      pbr_input.V = pbr_functions::calculate_view(in.world_position, pbr_input.is_orthographic);
+      pbr_input.frag_coord = in.position;
+      pbr_input.world_position = in.world_position;
+//    pbr_input.material.base_color = in.color;
+      pbr_input.world_normal = pbr_functions::prepare_world_normal(
+          in.world_normal,
+          false,
+          is_front,
+      );
+
+    // alpha discard
+    pbr_input.material.base_color = alpha_discard(pbr_input.material, pbr_input.material.base_color);
+
+#ifdef PREPASS_PIPELINE
+    // write the gbuffer, lighting pass id, and optionally normal and motion_vector textures
+    let out = deferred_output(in, pbr_input);
+#else
+    // in forward mode, we calculate the lit color immediately, and then apply some post-lighting effects here.
+    // in deferred mode the lit color and these effects will be calculated in the deferred lighting shader
+    var out: FragmentOutput;
+    if (pbr_input.material.flags & STANDARD_MATERIAL_FLAGS_UNLIT_BIT) == 0u {
+        out.color = apply_pbr_lighting(pbr_input);
+    } else {
+        out.color = pbr_input.material.base_color;
+    }
+
+    // apply in-shader post processing (fog, alpha-premultiply, and also tonemapping, debanding if the camera is non-hdr)
+    // note this does not include fullscreen postprocessing effects like bloom.
+    out.color = main_pass_post_lighting_processing(pbr_input, out.color);
+#endif
+
+    return out;
 }
