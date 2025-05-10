@@ -28,7 +28,7 @@ struct Instance {
   @location(4) color_y_extent: u32,
 }
 
-@group(2) @binding(0) var<uniform> model_matrix: mat4x4<f32>;
+@group(1) @binding(0) var<uniform> model_matrix: mat4x4<f32>;
 
 @vertex
 fn vertex(vertex: Vertex, instance: Instance) -> VertexOutput {
@@ -58,9 +58,9 @@ fn vertex(vertex: Vertex, instance: Instance) -> VertexOutput {
     let local_position = vertex.position * scale + vec3(x_pos,y_pos,z_pos);
     var out: VertexOutput;
     out.position = mesh_position_local_to_clip(model_matrix, vec4<f32>(local_position, 1.0));
-//    out.color = vec4(f32(unpacked_color_y_extent.r) / 31.0,f32(unpacked_color_y_extent.g) / 31.0,f32(unpacked_color_y_extent.b) / 31.0,1.0);
-    out.world_normal = vertex.normal;
-    out.color = vertex.normal;
+    out.color = vec4(f32(unpacked_color_y_extent.r) / 31.0,f32(unpacked_color_y_extent.g) / 31.0,f32(unpacked_color_y_extent.b) / 31.0,1.0);
+    // TODO: transform normal into world space
+    out.world_normal = normalize(vertex.normal);
     out.world_position = model_matrix * vec4<f32>(local_position, 1.0);
     return out;
 }
@@ -72,23 +72,25 @@ fn fragment(
 ) -> FragmentOutput {
     // generate a PbrInput struct from the StandardMaterial bindings
     var pbr_input: pbr_types::PbrInput = pbr_types::pbr_input_new();
-
-      pbr_input.V = pbr_functions::calculate_view(in.world_position, pbr_input.is_orthographic);
-      pbr_input.frag_coord = in.position;
-      pbr_input.world_position = in.world_position;
-//    pbr_input.material.base_color = in.color;
-//      pbr_input.world_normal = pbr_functions::prepare_world_normal(
-//          in.world_normal,
-//          false,
-//          is_front,
-//      );
-    pbr_input.world_normal = in.world_normal;
-
-    // alpha discard
+    pbr_input.material.perceptual_roughness = 1.0;
+    pbr_input.is_orthographic = false;
+    pbr_input.V = pbr_functions::calculate_view(in.world_position, pbr_input.is_orthographic);
+    pbr_input.frag_coord = in.position;
+    pbr_input.world_position = in.world_position;
+    pbr_input.material.base_color = in.color;
+    pbr_input.world_normal = pbr_functions::prepare_world_normal(
+      in.world_normal,
+      true,
+      is_front,
+    );
+    #ifdef LOAD_PREPASS_NORMALS
+        pbr_input.N = prepass_utils::prepass_normal(in.position, 0u);
+    #else
+        pbr_input.N = normalize(pbr_input.world_normal);
+    #endif
     pbr_input.material.base_color = alpha_discard(pbr_input.material, pbr_input.material.base_color);
 
 #ifdef PREPASS_PIPELINE
-    // write the gbuffer, lighting pass id, and optionally normal and motion_vector textures
     let out = deferred_output(in, pbr_input);
 #else
     // in forward mode, we calculate the lit color immediately, and then apply some post-lighting effects here.
@@ -105,6 +107,5 @@ fn fragment(
     out.color = main_pass_post_lighting_processing(pbr_input, out.color);
 #endif
 
-    out.color = in.color;
     return out;
 }

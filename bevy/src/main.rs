@@ -36,8 +36,11 @@ use bevy::{
 };
 
 use bevy::core_pipeline::bloom::Bloom;
+use bevy::core_pipeline::fxaa::Fxaa;
+use bevy::prelude::light_consts::lux;
 use bevy::render::camera::Exposure;
 use std::f32::consts::*;
+use bevy::core_pipeline::tonemapping::Tonemapping;
 
 fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
     if keyboard_input.just_pressed(KeyCode::Escape) {
@@ -49,7 +52,6 @@ fn main() {
     App::new()
         .insert_resource(DefaultOpaqueRendererMethod::deferred())
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
-        .insert_resource(ClearColor(Color::srgb(0.0, 0.0, 0.0)))
         .add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
         .add_plugins(bevy::diagnostic::EntityCountDiagnosticsPlugin)
         .add_plugins(bevy::diagnostic::SystemInformationDiagnosticsPlugin)
@@ -86,7 +88,7 @@ fn main() {
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
         .add_systems(Startup, setup)
-        .add_systems(Update, (exit_on_esc_system))
+        .add_systems(Update, (exit_on_esc_system, dynamic_scene))
         .add_systems(
             FixedUpdate,
             (
@@ -101,51 +103,66 @@ fn main() {
         .run();
 }
 
-fn setup(
-    mut commands: Commands,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    asset_server: Res<AssetServer>,
-    // graphs: ResMut<Assets<AnimationGraph>>,
-) {
+fn dynamic_scene(mut suns: Query<&mut Transform, With<DirectionalLight>>, time: Res<Time>) {
+    suns.iter_mut()
+        .for_each(|mut tf| tf.rotate_x(-time.delta_secs() * PI / 10.0));
+}
+
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    // Configure a properly scaled cascade shadow map for this scene (defaults are too large, mesh units are in km)
+    let cascade_shadow_config = CascadeShadowConfigBuilder {
+        first_cascade_far_bound: 0.3,
+        maximum_distance: 3.0,
+        ..default()
+    }
+    .build();
+
+    // Sun
+    commands.spawn((
+        DirectionalLight {
+            shadows_enabled: true,
+            // lux::RAW_SUNLIGHT is recommended for use with this feature, since
+            // other values approximate sunlight *post-scattering* in various
+            // conditions. RAW_SUNLIGHT in comparison is the illuminance of the
+            // sun unfiltered by the atmosphere, so it is the proper input for
+            // sunlight to be filtered by the atmosphere.
+            illuminance: lux::RAW_SUNLIGHT,
+            ..default()
+        },
+        Transform::from_xyz(1.0, -0.4, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
+        cascade_shadow_config,
+    ));
+
     // commands.spawn(PerfUiAllEntries::default());
     // Camera
     commands.spawn((
         Camera3d::default(),
-        // MotionBlur {
-        //     shutter_angle: 1.0,
-        //     samples: 4,
-        // },
+        // HDR is required for atmospheric scattering to be properly applied to the scene
         Camera {
             hdr: true,
             ..default()
         },
-        Transform::from_xyz(0.7, 0.7, 1.0).looking_at(Vec3::new(0.0, 0.3, 0.0), Vec3::Y),
-        Msaa::Sample4,
+        Transform::from_xyz(-1.2, 0.15, 0.0).looking_at(Vec3::Y * 0.1, Vec3::Y),
+        // This is the component that enables atmospheric scattering for a camera
         Atmosphere::EARTH,
+        // The scene is in units of 10km, so we need to scale up the
+        // aerial view lut distance and set the scene scale accordingly.
+        // Most usages of this feature will not need to adjust this.
         AtmosphereSettings {
-            aerial_view_lut_max_distance: 3.2e5,
-            scene_units_to_m: 1e+4,
+            // aerial_view_lut_max_distance: 3.2e5,
+            // scene_units_to_m: 1e+4,
             ..Default::default()
         },
+        // The directional light illuminance  used in this scene
+        // (the one recommended for use with this feature) is
+        // quite bright, so raising the exposure compensation helps
+        // bring the scene to a nicer brightness range.
         Exposure::SUNLIGHT,
-        // Tonemapping::AcesFitted,
+        // Tonemapper chosen just because it looked good with the scene, any
+        // tonemapper would be fine :)
+        Tonemapping::AcesFitted,
+        // Bloom gives the sun a much more natural look.
         Bloom::NATURAL,
-        // MotionVectorPrepass,
-        // DeferredPrepass,
-        // ScreenSpaceAmbientOcclusion::default(),
-        // TemporalAntiAliasing::default(),
-        EnvironmentMapLight {
-            intensity: 900.0,
-            diffuse_map: asset_server.load("environment_maps/pisa_diffuse_rgb9e5_zstd.ktx2"),
-            specular_map: asset_server.load("environment_maps/pisa_specular_rgb9e5_zstd.ktx2"),
-            ..default()
-        },
-        VolumetricFog {
-            // This value is explicitly set to 0 since we have no environment map light
-            ambient_intensity: 0.0,
-            ..default()
-        },
     ));
 
     commands.spawn((
@@ -153,71 +170,4 @@ fn setup(
         PendingVxm(asset_server.load("dragon.vxm")),
         Transform::from_translation(Vec3::new(0.0, 200.0, 0.0)),
     ));
-    //
-    // for x in -8..8 {
-    //     for z in -8..8 {
-    //         if x == 0 && z == 0 {
-    //             continue;
-    //         }
-    //         commands.spawn((
-    //             Name::new(format!("Dragon {:?},{:?}", x, z)),
-    //             PendingVxm(asset_server.load("big_cube.vxm")),
-    //             Transform::from_scale(Vec3::new(0.02, 0.02, 0.02)).with_translation(Vec3::new(
-    //                 x as f32 * 32.0 * 0.02 * 2.0,
-    //                 0.0,
-    //                 -z as f32 * 32.0 * 0.02 * 2.0,
-    //             )),
-    //         ));
-    //     }
-    // }
-
-    // Sun
-    commands.spawn((
-        DirectionalLight {
-            illuminance: 15_000.,
-            shadows_enabled: true,
-            ..default()
-        },
-        CascadeShadowConfigBuilder {
-            num_cascades: 4,
-            maximum_distance: 200.0,
-            ..default()
-        }
-        .build(),
-        Transform::from_rotation(Quat::from_euler(EulerRot::ZYX, 0.0, -FRAC_PI_4, -FRAC_PI_4)),
-    ));
-
-    // Add the fog volume.
-    commands.spawn((
-        FogVolume::default(),
-        Transform::from_scale(Vec3::splat(35.0)),
-    ));
-
-    let mut mat: StandardMaterial = Color::srgb(0.1, 0.2, 0.1).into();
-    mat.opaque_render_method = OpaqueRendererMethod::Deferred;
-    // let mat_h = materials.add(mat);
-
-    // Plane
-    // commands.spawn((
-    //     Mesh3d(meshes.add(Plane3d::default().mesh().size(50.0, 50.0))),
-    //     MeshMaterial3d(mat_h.clone()),
-    // ));
-
-    // sky
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(2.0, 1.0, 1.0))),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Srgba::hex("87CEEB").unwrap().into(),
-            unlit: true,
-            cull_mode: Some(Face::Back),
-            ..default()
-        })),
-        Transform::from_scale(Vec3::splat(1_000_000.0)),
-        NotShadowCaster,
-        NotShadowReceiver,
-    ));
-
-    // Player
-
-    //Chest
 }

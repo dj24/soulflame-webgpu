@@ -7,7 +7,7 @@
 //! implementation using bevy's low level rendering api.
 //! It's generally recommended to try the built-in instancing before going with this approach.
 
-use bevy::render::render_resource::binding_types::uniform_buffer;
+use bevy::core_pipeline::core_3d::{Opaque3d, Opaque3dBatchSetKey, Opaque3dBinKey};
 use bevy::{
     core_pipeline::core_3d::Transparent3d,
     ecs::{
@@ -37,6 +37,9 @@ use bevy::{
 };
 use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
+use bevy::ecs::component::Tick;
+use bevy::render::render_phase::{BinnedRenderPhaseType, InputUniformIndex, ViewBinnedRenderPhases};
+use bevy::render::render_resource::binding_types::uniform_buffer;
 
 /// This example uses a shader source file from the assets subdirectory
 const SHADER_ASSET_PATH: &str = "shaders/instancing.wgsl";
@@ -71,7 +74,7 @@ impl Plugin for InstancedMaterialPlugin {
         app.add_plugins(ExtractComponentPlugin::<InstanceMaterialData>::default());
         app.add_plugins(bevy::render::diagnostic::RenderDiagnosticsPlugin);
         app.sub_app_mut(RenderApp)
-            .add_render_command::<Transparent3d, DrawCustom>()
+            .add_render_command::<Opaque3d, DrawCustom>()
             .init_resource::<SpecializedMeshPipelines<CustomPipeline>>()
             .add_systems(
                 Render,
@@ -99,20 +102,21 @@ pub struct InstanceData {
 
 #[allow(clippy::too_many_arguments)]
 fn queue_custom(
-    transparent_3d_draw_functions: Res<DrawFunctions<Transparent3d>>,
+    opaque_3d_draw_functions: Res<DrawFunctions<Opaque3d>>,
     custom_pipeline: Res<CustomPipeline>,
     mut pipelines: ResMut<SpecializedMeshPipelines<CustomPipeline>>,
     pipeline_cache: Res<PipelineCache>,
     meshes: Res<RenderAssets<RenderMesh>>,
     render_mesh_instances: Res<RenderMeshInstances>,
     material_meshes: Query<(Entity, &MainEntity), With<InstanceMaterialData>>,
-    mut transparent_render_phases: ResMut<ViewSortedRenderPhases<Transparent3d>>,
+    mut opaque_render_phases: ResMut<ViewBinnedRenderPhases<Opaque3d>>,
     views: Query<(Entity, &ExtractedView, &Msaa)>,
+    mut next_tick: Local<Tick>,
 ) {
-    let draw_custom = transparent_3d_draw_functions.read().id::<DrawCustom>();
+    let draw_custom = opaque_3d_draw_functions.read().id::<DrawCustom>();
 
     for (view_entity, view, msaa) in &views {
-        let Some(transparent_phase) = transparent_render_phases.get_mut(&view.retained_view_entity)
+        let Some(opaque_phase) = opaque_render_phases.get_mut(&view.retained_view_entity)
         else {
             continue;
         };
@@ -134,15 +138,24 @@ fn queue_custom(
             let pipeline = pipelines
                 .specialize(&pipeline_cache, &custom_pipeline, key, &mesh.layout)
                 .unwrap();
-            transparent_phase.add(Transparent3d {
-                entity: (entity, *main_entity),
-                pipeline,
-                draw_function: draw_custom,
-                distance: rangefinder.distance_translation(&mesh_instance.translation),
-                batch_range: 0..1,
-                extra_index: PhaseItemExtraIndex::None,
-                indexed: true,
-            });
+
+            opaque_phase.add(
+                Opaque3dBatchSetKey {
+                    draw_function: draw_custom,
+                    pipeline,
+                    material_bind_group_index: None,
+                    lightmap_slab: None,
+                    vertex_slab: default(),
+                    index_slab: None,
+                },
+                Opaque3dBinKey {
+                    asset_id: AssetId::<Mesh>::invalid().untyped(),
+                },
+                (entity, *main_entity),
+                InputUniformIndex::default(),
+                BinnedRenderPhaseType::NonMesh,
+                *next_tick,
+            );
         }
     }
 }
@@ -322,6 +335,8 @@ impl SpecializedMeshPipeline for CustomPipeline {
     ) -> Result<RenderPipelineDescriptor, SpecializedMeshPipelineError> {
         let mut descriptor = self.mesh_pipeline.specialize(key, layout)?;
 
+        info!("{:?}", descriptor.depth_stencil);
+
         descriptor.vertex.shader = self.shader.clone();
         descriptor.vertex.buffers.push(VertexBufferLayout {
             array_stride: size_of::<InstanceData>() as u64,
@@ -349,7 +364,12 @@ impl SpecializedMeshPipeline for CustomPipeline {
             .shader_defs
             .push("VERTEX_COLORS".into());
 
-        // Add uniform buffer binding
+
+        // Replace the default mesh material layout with your transform layout at index 1
+        // Clear existing layout entries that would have been set by the mesh pipeline
+        descriptor.layout = vec![descriptor.layout[0].clone()]; // Keep view bind group only
+
+        // Add your transform bind group layout at index 1
         let transform_layout = self.render_device.create_bind_group_layout(
             "transforms",
             &BindGroupLayoutEntries::with_indices(
@@ -358,7 +378,9 @@ impl SpecializedMeshPipeline for CustomPipeline {
             ),
         );
         descriptor.layout.push(transform_layout);
+
         descriptor.fragment.as_mut().unwrap().shader = self.shader.clone();
+
         Ok(descriptor)
     }
 }
@@ -366,7 +388,7 @@ impl SpecializedMeshPipeline for CustomPipeline {
 type DrawCustom = (
     SetItemPipeline,
     SetMeshViewBindGroup<0>,
-    SetMeshBindGroup<1>,
+    // SetMeshBindGroup<1>,
     DrawMeshInstanced,
 );
 
@@ -427,7 +449,7 @@ impl<P: PhaseItem> RenderCommand<P> for DrawMeshInstanced {
             1,
             instance_buffer.buffer.slice(instance_start..instance_end),
         );
-        pass.set_bind_group(2, &transform_bind_group.bind_group, &[dynamic_offset.0]);
+        pass.set_bind_group(1, &transform_bind_group.bind_group, &[dynamic_offset.0]);
 
         match &gpu_mesh.buffer_info {
             RenderMeshBufferInfo::Indexed {
