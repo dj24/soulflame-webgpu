@@ -340,6 +340,15 @@ impl SpecializedMeshPipeline for CustomPipeline {
             ],
         });
 
+        // Allows for vertex colors to be passed to the shader
+        descriptor.vertex.shader_defs.push("VERTEX_COLORS".into());
+        descriptor
+            .fragment
+            .as_mut()
+            .unwrap()
+            .shader_defs
+            .push("VERTEX_COLORS".into());
+
         // Add uniform buffer binding
         let transform_layout = self.render_device.create_bind_group_layout(
             "transforms",

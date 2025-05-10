@@ -60,6 +60,7 @@ fn vertex(vertex: Vertex, instance: Instance) -> VertexOutput {
     out.position = mesh_position_local_to_clip(model_matrix, vec4<f32>(local_position, 1.0));
 //    out.color = vec4(f32(unpacked_color_y_extent.r) / 31.0,f32(unpacked_color_y_extent.g) / 31.0,f32(unpacked_color_y_extent.b) / 31.0,1.0);
     out.world_normal = vertex.normal;
+    out.color = vertex.normal;
     out.world_position = model_matrix * vec4<f32>(local_position, 1.0);
     return out;
 }
@@ -76,11 +77,12 @@ fn fragment(
       pbr_input.frag_coord = in.position;
       pbr_input.world_position = in.world_position;
 //    pbr_input.material.base_color = in.color;
-      pbr_input.world_normal = pbr_functions::prepare_world_normal(
-          in.world_normal,
-          false,
-          is_front,
-      );
+//      pbr_input.world_normal = pbr_functions::prepare_world_normal(
+//          in.world_normal,
+//          false,
+//          is_front,
+//      );
+    pbr_input.world_normal = in.world_normal;
 
     // alpha discard
     pbr_input.material.base_color = alpha_discard(pbr_input.material, pbr_input.material.base_color);
@@ -103,5 +105,6 @@ fn fragment(
     out.color = main_pass_post_lighting_processing(pbr_input, out.color);
 #endif
 
+    out.color = in.color;
     return out;
 }
