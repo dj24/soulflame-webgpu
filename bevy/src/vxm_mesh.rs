@@ -3,7 +3,7 @@ use crate::dnd::PendingVxm;
 use crate::vxm::VxmAsset;
 use bevy::asset::{Assets, RenderAssetUsages};
 use bevy::log::info;
-use bevy::pbr::{ExtendedMaterial, MaterialExtension};
+use bevy::pbr::{ExtendedMaterial, MaterialExtension, RenderMeshInstanceFlags};
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, PrimitiveTopology};
 use bevy::render::primitives::Aabb;

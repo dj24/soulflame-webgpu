@@ -17,7 +17,7 @@ pub struct ChunkQueue(VecDeque<(i32, i32, i32)>);
 impl Default for ChunkQueue {
     fn default() -> Self {
         let mut queue = VecDeque::new();
-        for r in 0..20 {
+        for r in 0..16 {
             for x in (-r)..(r + 1) {
                 for z in (-r)..(r + 1) {
                     if !queue.contains(&(x, 0, z)) {
@@ -31,10 +31,10 @@ impl Default for ChunkQueue {
 }
 const TERRAIN_SIZE: i32 = 64;
 
-const SCALE_FACTOR: i32 = 1024;
+const SCALE_FACTOR: i32 = 2048;
 
 fn create_node() -> GeneratorWrapper<SafeNode> {
-    opensimplex2().fbm(0.65, 0.5, 5, 2.5).build()
+    opensimplex2().fbm(0.65, 0.5, 6, 2.5).build()
 }
 
 // creates a 15 bit quantisation of a colour, with the first bit being 1 to indicate solid voxel

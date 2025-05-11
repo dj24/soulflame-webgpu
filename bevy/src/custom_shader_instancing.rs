@@ -38,6 +38,7 @@ use bevy::{
 use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
 use bevy::ecs::component::Tick;
+use bevy::pbr::{RenderMeshInstanceFlags, Shadow};
 use bevy::render::render_phase::{BinnedRenderPhaseType, InputUniformIndex, ViewBinnedRenderPhases};
 use bevy::render::render_resource::binding_types::uniform_buffer;
 
@@ -75,11 +76,13 @@ impl Plugin for InstancedMaterialPlugin {
         app.add_plugins(bevy::render::diagnostic::RenderDiagnosticsPlugin);
         app.sub_app_mut(RenderApp)
             .add_render_command::<Opaque3d, DrawCustom>()
+            .add_render_command::<Shadow, DrawCustom>() // Add shadow render command
             .init_resource::<SpecializedMeshPipelines<CustomPipeline>>()
             .add_systems(
                 Render,
                 (
                     queue_custom.in_set(RenderSet::QueueMeshes),
+                    // queue_shadows.in_set(RenderSet::QueueMeshes), // Add shadow queuing system
                     prepare_transforms_uniforms.in_set(RenderSet::PrepareResources),
                     prepare_instance_buffers.in_set(RenderSet::PrepareResources),
                 ),
@@ -107,7 +110,7 @@ fn queue_custom(
     mut pipelines: ResMut<SpecializedMeshPipelines<CustomPipeline>>,
     pipeline_cache: Res<PipelineCache>,
     meshes: Res<RenderAssets<RenderMesh>>,
-    render_mesh_instances: Res<RenderMeshInstances>,
+    mut render_mesh_instances: Res<RenderMeshInstances>,
     material_meshes: Query<(Entity, &MainEntity), With<InstanceMaterialData>>,
     mut opaque_render_phases: ResMut<ViewBinnedRenderPhases<Opaque3d>>,
     views: Query<(Entity, &ExtractedView, &Msaa)>,
@@ -116,6 +119,7 @@ fn queue_custom(
     let draw_custom = opaque_3d_draw_functions.read().id::<DrawCustom>();
 
     for (view_entity, view, msaa) in &views {
+
         let Some(opaque_phase) = opaque_render_phases.get_mut(&view.retained_view_entity)
         else {
             continue;
@@ -124,8 +128,10 @@ fn queue_custom(
         let msaa_key = MeshPipelineKey::from_msaa_samples(msaa.samples());
 
         let view_key = msaa_key | MeshPipelineKey::from_hdr(view.hdr);
-        let rangefinder = view.rangefinder3d();
+
         for (entity, main_entity) in &material_meshes {
+            // render_mesh_instances.insert_mesh_instance_flags(*main_entity, RenderMeshInstanceFlags::SHADOW_CASTER);
+
             let Some(mesh_instance) = render_mesh_instances.render_mesh_queue_data(*main_entity)
             else {
                 continue;
@@ -153,7 +159,7 @@ fn queue_custom(
                 },
                 (entity, *main_entity),
                 InputUniformIndex::default(),
-                BinnedRenderPhaseType::NonMesh,
+                BinnedRenderPhaseType::UnbatchableMesh,
                 *next_tick,
             );
         }

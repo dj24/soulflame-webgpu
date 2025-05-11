@@ -9,7 +9,7 @@ mod vxm;
 mod vxm_mesh;
 mod vxm_terrain;
 
-use crate::camera::ThirdPersonCameraPlugin;
+use crate::camera::{CameraTarget, ThirdPersonCameraPlugin};
 use crate::custom_shader_instancing::InstancedMaterialPlugin;
 use crate::dnd::{file_drag_and_drop_system, PendingVxm};
 use crate::draw_aabb_gizmos::DrawAabbGizmosPlugin;
@@ -35,12 +35,16 @@ use bevy::{
     prelude::*,
 };
 
+use bevy::color::palettes::basic::{GREEN, RED};
+use bevy::color::palettes::css::ORANGE_RED;
 use bevy::core_pipeline::bloom::Bloom;
+use bevy::core_pipeline::dof::DepthOfField;
 use bevy::core_pipeline::fxaa::Fxaa;
+use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::prelude::light_consts::lux;
 use bevy::render::camera::Exposure;
 use std::f32::consts::*;
-use bevy::core_pipeline::tonemapping::Tonemapping;
+use bevy::render::render_resource::TextureViewDimension::Cube;
 
 fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
     if keyboard_input.just_pressed(KeyCode::Escape) {
@@ -50,7 +54,7 @@ fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: Event
 
 fn main() {
     App::new()
-        .insert_resource(DefaultOpaqueRendererMethod::deferred())
+        // .insert_resource(DefaultOpaqueRendererMethod::deferred())
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
         .add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
         .add_plugins(bevy::diagnostic::EntityCountDiagnosticsPlugin)
@@ -77,17 +81,17 @@ fn main() {
                     ..default()
                 }),
             ThirdPersonCameraPlugin,
-            TemporalAntiAliasPlugin,
+            // TemporalAntiAliasPlugin,
             VxmMeshPlugin,
             // WorldInspectorPlugin,
             DrawAabbGizmosPlugin,
             // SetAnimationClipPlugin,
             InstancedMaterialPlugin,
-            VoxelTerrainPlugin,
+            // VoxelTerrainPlugin,
         ))
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
-        .add_systems(Startup, setup)
+        .add_systems(Startup, setup1)
         .add_systems(Update, (exit_on_esc_system, dynamic_scene))
         .add_systems(
             FixedUpdate,
@@ -108,14 +112,55 @@ fn dynamic_scene(mut suns: Query<&mut Transform, With<DirectionalLight>>, time: 
         .for_each(|mut tf| tf.rotate_x(-time.delta_secs() * PI / 10.0));
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+/// set up a simple 3D scene
+fn setup1(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
+) {
+    // circular base
+    commands.spawn((
+        Mesh3d(meshes.add(Circle::new(4.0))),
+        MeshMaterial3d(materials.add(Color::WHITE)),
+        Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
+    ));
+
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
+        MeshMaterial3d(materials.add(Color::srgb(0.0,1.0,0.0))),
+        Transform::from_xyz(1.0, 1.0, 0.0),
+    ));
+
+    commands.spawn((
+        Name::new("Dragon 0,0"),
+        PendingVxm(asset_server.load("dragon.vxm")),
+        Transform::from_scale(Vec3::splat(0.03)).with_translation(Vec3::new(-5.0, 0.0, 0.0)),
+    ));
+
+    // light
+    commands.spawn((
+        PointLight {
+            shadows_enabled: true,
+            color: ORANGE_RED.into(),
+            ..default()
+        },
+        Transform::from_xyz(4.0, 8.0, 4.0),
+    ));
+    // camera
+    commands.spawn((
+        Camera3d::default(),
+        Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
+    ));
+}
+
+fn setup(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
     // Configure a properly scaled cascade shadow map for this scene (defaults are too large, mesh units are in km)
-    let cascade_shadow_config = CascadeShadowConfigBuilder {
-        first_cascade_far_bound: 0.3,
-        maximum_distance: 3.0,
-        ..default()
-    }
-    .build();
+    let cascade_shadow_config = CascadeShadowConfigBuilder::default().build();
 
     // Sun
     commands.spawn((
@@ -133,41 +178,100 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         cascade_shadow_config,
     ));
 
-    // commands.spawn(PerfUiAllEntries::default());
-    // Camera
+    // red point light
+    // commands.spawn((
+    //     PointLight {
+    //         intensity: 100_000.0,
+    //         color: RED.into(),
+    //         shadows_enabled: true,
+    //         ..default()
+    //     },
+    //     Transform::from_xyz(0.0, 10.0, 0.0),
+    //     children![(
+    //         Mesh3d(meshes.add(Sphere::new(5.0).mesh().uv(32, 18))),
+    //         MeshMaterial3d(materials.add(StandardMaterial {
+    //             base_color: RED.into(),
+    //             emissive: LinearRgba::new(4.0, 0.0, 0.0, 0.0),
+    //             ..default()
+    //         })),
+    //     )],
+    // ));
+
     commands.spawn((
-        Camera3d::default(),
-        // HDR is required for atmospheric scattering to be properly applied to the scene
-        Camera {
-            hdr: true,
+        Mesh3d(meshes.add(Sphere::new(50.0).mesh().uv(32, 18))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: GREEN.into(),
             ..default()
-        },
-        Transform::from_xyz(-1.2, 0.15, 0.0).looking_at(Vec3::Y * 0.1, Vec3::Y),
-        // This is the component that enables atmospheric scattering for a camera
-        Atmosphere::EARTH,
-        // The scene is in units of 10km, so we need to scale up the
-        // aerial view lut distance and set the scene scale accordingly.
-        // Most usages of this feature will not need to adjust this.
-        AtmosphereSettings {
-            // aerial_view_lut_max_distance: 3.2e5,
-            // scene_units_to_m: 1e+4,
-            ..Default::default()
-        },
-        // The directional light illuminance  used in this scene
-        // (the one recommended for use with this feature) is
-        // quite bright, so raising the exposure compensation helps
-        // bring the scene to a nicer brightness range.
-        Exposure::SUNLIGHT,
-        // Tonemapper chosen just because it looked good with the scene, any
-        // tonemapper would be fine :)
-        Tonemapping::AcesFitted,
-        // Bloom gives the sun a much more natural look.
-        Bloom::NATURAL,
+        })),
+        Transform::from_xyz(0.0, 100.0, 0.0),
+        CameraTarget(Vec3::new(2.5, 2.5, 2.5)),
+    ));
+    commands.spawn((
+        Mesh3d(meshes.add(Sphere::new(50.0).mesh().uv(32, 18))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: GREEN.into(),
+            ..default()
+        })),
+        Transform::from_xyz(100.0, 75.0, 0.0),
     ));
 
     commands.spawn((
-        Name::new("Dragon 0,0"),
-        PendingVxm(asset_server.load("dragon.vxm")),
-        Transform::from_translation(Vec3::new(0.0, 200.0, 0.0)),
+        Camera3d::default(),
+        Transform::from_xyz(0.0, 0.15, 0.0).looking_at(Vec3::NEG_Z, Vec3::Y),
     ));
+
+    commands.spawn((
+        Mesh3d(meshes.add(Plane3d::new(Vec3::Y, Vec2::splat(1000.0)).mesh())),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(0.0, 0.0, 0.3),
+            ..default()
+        })),
+        Transform::from_xyz(0.0, -10.0, 0.0),
+    ));
+
+    // commands.spawn(PerfUiAllEntries::default());
+    // Camera
+    // commands.spawn((
+    //     Camera3d::default(),
+    //     // HDR is required for atmospheric scattering to be properly applied to the scene
+    //     Camera {
+    //         hdr: true,
+    //         ..default()
+    //     },
+    //     // DistanceFog {
+    //     //     color: Color::srgb(0.25, 0.25, 0.25),
+    //     //     falloff: FogFalloff::Linear {
+    //     //         start: 0.0,
+    //     //         end: 5.0,
+    //     //     },
+    //     //     ..default()
+    //     // },
+    //     Transform::from_xyz(-1.2, 0.15, 0.0).looking_at(Vec3::Y * 0.1, Vec3::Y),
+    //     // This is the component that enables atmospheric scattering for a camera
+    //     // Atmosphere::EARTH,
+    //     // The scene is in units of 10km, so we need to scale up the
+    //     // aerial view lut distance and set the scene scale accordingly.
+    //     // Most usages of this feature will not need to adjust this.
+    //     AtmosphereSettings {
+    //         aerial_view_lut_max_distance: 3.2e4,
+    //         scene_units_to_m: 1.0,
+    //         ..Default::default()
+    //     },
+    //     // The directional light illuminance  used in this scene
+    //     // (the one recommended for use with this feature) is
+    //     // quite bright, so raising the exposure compensation helps
+    //     // bring the scene to a nicer brightness range.
+    //     Exposure::SUNLIGHT,
+    //     // Tonemapper chosen just because it looked good with the scene, any
+    //     // tonemapper would be fine :)
+    //     Tonemapping::AcesFitted,
+    //     // Bloom gives the sun a much more natural look.
+    //     Bloom::NATURAL,
+    // ));
+
+    // commands.spawn((
+    //     Name::new("Dragon 0,0"),
+    //     PendingVxm(asset_server.load("dragon.vxm")),
+    //     Transform::from_scale(Vec3::splat(5.0)),
+    // ));
 }
