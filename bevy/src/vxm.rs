@@ -6,6 +6,7 @@ use bevy::{
 };
 use std::convert::TryInto;
 use thiserror::Error;
+use crate::color_conversion::{convert_8bit_to_n_bits, convert_rgb_to_hsl};
 
 #[derive(Asset, TypePath, Debug)]
 pub struct VxmAsset {
@@ -31,6 +32,7 @@ pub enum VxmAssetLoaderError {
     #[error("Could not convert bytes to voxels")]
     FromVxmError,
 }
+
 impl AssetLoader for VxmAssetLoader {
     type Asset = VxmAsset;
     type Settings = ();
@@ -204,11 +206,15 @@ impl AssetLoader for VxmAssetLoader {
             voxel.y -= bounds_min[1];
             voxel.z -= bounds_min[2];
             let colour = &palette[voxel.c as usize];
-            let r_downscaled = (colour.r >> 3) as u16;
-            let g_downscaled = (colour.g >> 3) as u16;
-            let b_downscaled = (colour.b >> 3) as u16;
+
+            let (h,s,l) = convert_rgb_to_hsl(colour.r, colour.g, colour.b);
+
+            let h_downscaled = convert_8bit_to_n_bits(h,5);
+            let s_downscaled = convert_8bit_to_n_bits(s,5);
+            let l_downscaled = convert_8bit_to_n_bits(l,5);
+
             let solid_and_rgb555 =
-                (1 << 15) | (r_downscaled << 10) | (g_downscaled << 5) | (b_downscaled);
+                (1 << 15) | (h_downscaled << 10) | (s_downscaled << 5) | (l_downscaled);
 
             voxel_array[voxel.x as usize][voxel.y as usize][voxel.z as usize] = solid_and_rgb555;
         });

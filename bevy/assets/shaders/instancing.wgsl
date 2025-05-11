@@ -30,6 +30,47 @@ struct Instance {
 
 @group(1) @binding(0) var<uniform> model_matrix: mat4x4<f32>;
 
+fn convert_n_bits_to_8bit(value: u32, n: u32) -> f32 {
+    let max_value = (1u << n) - 1u;
+    return f32(value) / f32(max_value);
+}
+
+fn hue_to_rgb(p: f32, q: f32, t: f32) -> f32 {
+    var t_mod = t;
+    if (t_mod < 0.0) {
+        t_mod += 1.0;
+    }
+    if (t_mod > 1.0) {
+        t_mod -= 1.0;
+    }
+    if (t_mod < 1.0 / 6.0) {
+        return p + (q - p) * 6.0 * t_mod;
+    }
+    if (t_mod < 1.0 / 2.0) {
+        return q;
+    }
+    if (t_mod < 2.0 / 3.0) {
+        return p + (q - p) * (2.0 / 3.0 - t_mod) * 6.0;
+    }
+    return p;
+}
+
+fn convert_hsl_to_rgb(h: f32, s: f32, l: f32) -> vec3<f32> {
+    if (s == 0.0) {
+        // Achromatic (gray)
+        return vec3<f32>(l, l, l);
+    }
+
+    let q = select( l + s - l * s , l * (1.0 + s), l < 0.5);
+    let p = 2.0 * l - q;
+
+    let r = hue_to_rgb(p, q, h + 1.0 / 3.0);
+    let g = hue_to_rgb(p, q, h);
+    let b = hue_to_rgb(p, q, h - 1.0 / 3.0);
+
+    return vec3<f32>(r, g, b);
+}
+
 @vertex
 fn vertex(vertex: Vertex, instance: Instance) -> VertexOutput {
     let unpacked_pos_x_extent = unpack4xU8(instance.pos_x_extent);
@@ -58,7 +99,12 @@ fn vertex(vertex: Vertex, instance: Instance) -> VertexOutput {
     let local_position = vertex.position * scale + vec3(x_pos,y_pos,z_pos);
     var out: VertexOutput;
     out.position = mesh_position_local_to_clip(model_matrix, vec4<f32>(local_position, 1.0));
-    out.color = vec4(f32(unpacked_color_y_extent.r) / 31.0,f32(unpacked_color_y_extent.g) / 31.0,f32(unpacked_color_y_extent.b) / 31.0,1.0);
+
+    let unpacked_h = convert_n_bits_to_8bit(unpacked_color_y_extent.r, 5);
+    let unpacked_s = convert_n_bits_to_8bit(unpacked_color_y_extent.g, 5);
+    let unpacked_l = convert_n_bits_to_8bit(unpacked_color_y_extent.b, 5);
+
+    out.color = vec4(convert_hsl_to_rgb(unpacked_h, unpacked_s, unpacked_l), 1.0);
     // TODO: transform normal into world space
     out.world_normal = normalize(vertex.normal);
     out.world_position = model_matrix * vec4<f32>(local_position, 1.0);
@@ -108,6 +154,7 @@ fn fragment(
     // note this does not include fullscreen postprocessing effects like bloom.
     out.color = main_pass_post_lighting_processing(pbr_input, out.color);
 #endif
+    out.color = in.color;
 //    return out.color = in.world_position;
     return out;
 }

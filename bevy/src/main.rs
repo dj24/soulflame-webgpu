@@ -8,6 +8,7 @@ mod spawn_player;
 mod vxm;
 mod vxm_mesh;
 mod vxm_terrain;
+mod color_conversion;
 
 use crate::camera::{CameraTarget, ThirdPersonCameraPlugin};
 use crate::custom_shader_instancing::InstancedMaterialPlugin;
@@ -87,11 +88,11 @@ fn main() {
             DrawAabbGizmosPlugin,
             // SetAnimationClipPlugin,
             InstancedMaterialPlugin,
-            // VoxelTerrainPlugin,
+            VoxelTerrainPlugin,
         ))
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
-        .add_systems(Startup, setup1)
+        .add_systems(Startup, setup)
         .add_systems(Update, (exit_on_esc_system, dynamic_scene))
         .add_systems(
             FixedUpdate,
@@ -198,36 +199,11 @@ fn setup(
     // ));
 
     commands.spawn((
-        Mesh3d(meshes.add(Sphere::new(50.0).mesh().uv(32, 18))),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: GREEN.into(),
-            ..default()
-        })),
-        Transform::from_xyz(0.0, 100.0, 0.0),
-        CameraTarget(Vec3::new(2.5, 2.5, 2.5)),
-    ));
-    commands.spawn((
-        Mesh3d(meshes.add(Sphere::new(50.0).mesh().uv(32, 18))),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: GREEN.into(),
-            ..default()
-        })),
-        Transform::from_xyz(100.0, 75.0, 0.0),
-    ));
-
-    commands.spawn((
         Camera3d::default(),
         Transform::from_xyz(0.0, 0.15, 0.0).looking_at(Vec3::NEG_Z, Vec3::Y),
     ));
 
-    commands.spawn((
-        Mesh3d(meshes.add(Plane3d::new(Vec3::Y, Vec2::splat(1000.0)).mesh())),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgb(0.0, 0.0, 0.3),
-            ..default()
-        })),
-        Transform::from_xyz(0.0, -10.0, 0.0),
-    ));
+
 
     // commands.spawn(PerfUiAllEntries::default());
     // Camera
