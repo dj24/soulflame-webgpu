@@ -1,3 +1,4 @@
+use crate::color_conversion::{convert_8bit_to_n_bits, convert_rgb_to_hsl_u8};
 use bevy::log::info;
 use bevy::prelude::*;
 use bevy::{
@@ -6,7 +7,6 @@ use bevy::{
 };
 use std::convert::TryInto;
 use thiserror::Error;
-use crate::color_conversion::{convert_8bit_to_n_bits, convert_rgb_to_hsl};
 
 #[derive(Asset, TypePath, Debug)]
 pub struct VxmAsset {
@@ -207,11 +207,11 @@ impl AssetLoader for VxmAssetLoader {
             voxel.z -= bounds_min[2];
             let colour = &palette[voxel.c as usize];
 
-            let (h,s,l) = convert_rgb_to_hsl(colour.r, colour.g, colour.b);
+            let (h, s, l) = convert_rgb_to_hsl_u8(colour.r, colour.g, colour.b);
 
-            let h_downscaled = convert_8bit_to_n_bits(h,5);
-            let s_downscaled = convert_8bit_to_n_bits(s,5);
-            let l_downscaled = convert_8bit_to_n_bits(l,5);
+            let h_downscaled = (h >> 3) as u16;
+            let s_downscaled = (s >> 3) as u16;
+            let l_downscaled = (l >> 3) as u16;
 
             let solid_and_rgb555 =
                 (1 << 15) | (h_downscaled << 10) | (s_downscaled << 5) | (l_downscaled);

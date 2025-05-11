@@ -9,6 +9,7 @@ use bevy::math::Vec3;
 use bevy::prelude::{Commands, Name, ResMut, Resource, Transform};
 use fastnoise2::{generator::prelude::*, SafeNode};
 use std::collections::VecDeque;
+use crate::color_conversion::{convert_8bit_to_n_bits, convert_rgb_to_hsl, convert_rgb_to_hsl_u8, create_hsl_voxel};
 
 #[derive(Resource)]
 pub struct ChunkQueue(VecDeque<(i32, i32, i32)>);
@@ -37,13 +38,6 @@ fn create_node() -> GeneratorWrapper<SafeNode> {
     opensimplex2().fbm(0.65, 0.5, 6, 2.5).build()
 }
 
-// creates a 15 bit quantisation of a colour, with the first bit being 1 to indicate solid voxel
-fn create_rgb555(r: f32, g: f32, b: f32) -> u16 {
-    let r5 = (r * 31.0) as u16;
-    let g5 = (g * 31.0) as u16;
-    let b5 = (b * 31.0) as u16;
-    (1 << 15) | (r5 << 10) | (g5 << 5) | (b5)
-}
 
 fn lerp(from: f32, to: f32, t: f32) -> f32 {
     from + (to - from) * t
@@ -132,7 +126,7 @@ pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
                         ),
                     };
 
-                    voxel_array[x as usize][y as usize][z as usize] = create_rgb555(r, g, b);
+                    voxel_array[x as usize][y as usize][z as usize] = create_hsl_voxel(r, g, b);
                 }
             }
         }

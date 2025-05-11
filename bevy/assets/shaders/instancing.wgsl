@@ -100,11 +100,11 @@ fn vertex(vertex: Vertex, instance: Instance) -> VertexOutput {
     var out: VertexOutput;
     out.position = mesh_position_local_to_clip(model_matrix, vec4<f32>(local_position, 1.0));
 
-    let unpacked_h = convert_n_bits_to_8bit(unpacked_color_y_extent.r, 5);
-    let unpacked_s = convert_n_bits_to_8bit(unpacked_color_y_extent.g, 5);
-    let unpacked_l = convert_n_bits_to_8bit(unpacked_color_y_extent.b, 5);
+    let unpacked_h = f32(unpacked_color_y_extent.r) / 63.0;
+    let unpacked_s = f32(unpacked_color_y_extent.g) / 31.0;
+    let unpacked_l = f32(unpacked_color_y_extent.b) / 15.0;
 
-    out.color = vec4(convert_hsl_to_rgb(unpacked_h, unpacked_s, unpacked_l), 1.0);
+    out.color = vec4(convert_hsl_to_rgb(unpacked_h,unpacked_s, unpacked_l), 1.0);
     // TODO: transform normal into world space
     out.world_normal = normalize(vertex.normal);
     out.world_position = model_matrix * vec4<f32>(local_position, 1.0);
