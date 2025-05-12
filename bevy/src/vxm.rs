@@ -1,4 +1,4 @@
-use crate::color_conversion::{convert_8bit_to_n_bits, convert_rgb_to_hsl_u8};
+use crate::color_conversion::{convert_8bit_to_n_bits, convert_rgb_to_hsl_u8, create_hsl_voxel};
 use bevy::log::info;
 use bevy::prelude::*;
 use bevy::{
@@ -206,21 +206,16 @@ impl AssetLoader for VxmAssetLoader {
             voxel.y -= bounds_min[1];
             voxel.z -= bounds_min[2];
             let colour = &palette[voxel.c as usize];
+            let r = colour.r as f32 / 255.0;
+            let g = colour.g as f32 / 255.0;
+            let b = colour.b as f32 / 255.0;
 
-            let (h, s, l) = convert_rgb_to_hsl_u8(colour.r, colour.g, colour.b);
-
-            let h_downscaled = (h >> 3) as u16;
-            let s_downscaled = (s >> 3) as u16;
-            let l_downscaled = (l >> 3) as u16;
-
-            let solid_and_rgb555 =
-                (1 << 15) | (h_downscaled << 10) | (s_downscaled << 5) | (l_downscaled);
-
-            voxel_array[voxel.x as usize][voxel.y as usize][voxel.z as usize] = solid_and_rgb555;
+            voxel_array[voxel.x as usize][voxel.y as usize][voxel.z as usize] = create_hsl_voxel(r, g, b);
         });
 
         info!(
-            "imported vxm asset in {:?}ms",
+            "imported {:?}x{:?}x{:?} vxm asset in {:?}ms",
+            size[0],size[1],size[2],
             start_time.elapsed().as_millis()
         );
 

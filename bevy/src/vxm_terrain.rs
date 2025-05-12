@@ -160,11 +160,11 @@ fn terrain_system(
                 0.0,
                 (TERRAIN_SIZE * z_pos) as f32,
             )),
-            CameraTarget(Vec3::new(
-                TERRAIN_SIZE as f32 * 0.5,
-                255. * 0.5,
-                TERRAIN_SIZE as f32 * 0.5,
-            )),
+            // CameraTarget(Vec3::new(
+            //     TERRAIN_SIZE as f32 * 0.5,
+            //     255. * 0.5,
+            //     TERRAIN_SIZE as f32 * 0.5,
+            // )),
         ));
     } else {
         commands.spawn((

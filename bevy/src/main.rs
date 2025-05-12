@@ -10,7 +10,7 @@ mod vxm_mesh;
 mod vxm_terrain;
 mod color_conversion;
 
-use crate::camera::{CameraTarget, ThirdPersonCameraPlugin};
+use crate::camera::{ ThirdPersonCameraPlugin};
 use crate::custom_shader_instancing::InstancedMaterialPlugin;
 use crate::dnd::{file_drag_and_drop_system, PendingVxm};
 use crate::draw_aabb_gizmos::DrawAabbGizmosPlugin;
@@ -20,32 +20,21 @@ use crate::replace_body_part_meshes::{
 use crate::vxm::{VxmAsset, VxmAssetLoader};
 use crate::vxm_mesh::{create_mesh_on_vxm_import_system, VxmMeshPlugin};
 use crate::vxm_terrain::VoxelTerrainPlugin;
-use bevy::core_pipeline::experimental::taa::TemporalAntiAliasPlugin;
-use bevy::pbr::{
-    Atmosphere, AtmosphereSettings, FogVolume, ScreenSpaceAmbientOcclusion, VolumetricFog,
-};
 use bevy::render::render_resource::{Face, WgpuFeatures};
 use bevy::render::settings::{RenderCreation, WgpuSettings};
 use bevy::render::RenderPlugin;
 use bevy::window::{PresentMode, WindowResolution};
 use bevy::{
     pbr::{
-        CascadeShadowConfigBuilder, DefaultOpaqueRendererMethod, DirectionalLightShadowMap,
-        NotShadowCaster, NotShadowReceiver, OpaqueRendererMethod,
+        CascadeShadowConfigBuilder, DirectionalLightShadowMap,
     },
     prelude::*,
 };
 
-use bevy::color::palettes::basic::{GREEN, RED};
 use bevy::color::palettes::css::ORANGE_RED;
-use bevy::core_pipeline::bloom::Bloom;
-use bevy::core_pipeline::dof::DepthOfField;
-use bevy::core_pipeline::fxaa::Fxaa;
-use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::prelude::light_consts::lux;
-use bevy::render::camera::Exposure;
 use std::f32::consts::*;
-use bevy::render::render_resource::TextureViewDimension::Cube;
+use crate::spawn_player::spawn_player;
 
 fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
     if keyboard_input.just_pressed(KeyCode::Escape) {
@@ -55,7 +44,6 @@ fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: Event
 
 fn main() {
     App::new()
-        // .insert_resource(DefaultOpaqueRendererMethod::deferred())
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
         .add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
         .add_plugins(bevy::diagnostic::EntityCountDiagnosticsPlugin)
@@ -88,11 +76,11 @@ fn main() {
             DrawAabbGizmosPlugin,
             // SetAnimationClipPlugin,
             InstancedMaterialPlugin,
-            VoxelTerrainPlugin,
+            // VoxelTerrainPlugin,
         ))
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
-        .add_systems(Startup, setup)
+        .add_systems(Startup, (setup, spawn_player))
         .add_systems(Update, (exit_on_esc_system, dynamic_scene))
         .add_systems(
             FixedUpdate,
@@ -159,6 +147,7 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
     // Configure a properly scaled cascade shadow map for this scene (defaults are too large, mesh units are in km)
     let cascade_shadow_config = CascadeShadowConfigBuilder::default().build();
@@ -167,11 +156,6 @@ fn setup(
     commands.spawn((
         DirectionalLight {
             shadows_enabled: true,
-            // lux::RAW_SUNLIGHT is recommended for use with this feature, since
-            // other values approximate sunlight *post-scattering* in various
-            // conditions. RAW_SUNLIGHT in comparison is the illuminance of the
-            // sun unfiltered by the atmosphere, so it is the proper input for
-            // sunlight to be filtered by the atmosphere.
             illuminance: lux::RAW_SUNLIGHT,
             ..default()
         },
@@ -179,75 +163,15 @@ fn setup(
         cascade_shadow_config,
     ));
 
-    // red point light
-    // commands.spawn((
-    //     PointLight {
-    //         intensity: 100_000.0,
-    //         color: RED.into(),
-    //         shadows_enabled: true,
-    //         ..default()
-    //     },
-    //     Transform::from_xyz(0.0, 10.0, 0.0),
-    //     children![(
-    //         Mesh3d(meshes.add(Sphere::new(5.0).mesh().uv(32, 18))),
-    //         MeshMaterial3d(materials.add(StandardMaterial {
-    //             base_color: RED.into(),
-    //             emissive: LinearRgba::new(4.0, 0.0, 0.0, 0.0),
-    //             ..default()
-    //         })),
-    //     )],
-    // ));
-
     commands.spawn((
         Camera3d::default(),
         Transform::from_xyz(0.0, 0.15, 0.0).looking_at(Vec3::NEG_Z, Vec3::Y),
     ));
 
 
-
-    // commands.spawn(PerfUiAllEntries::default());
-    // Camera
-    // commands.spawn((
-    //     Camera3d::default(),
-    //     // HDR is required for atmospheric scattering to be properly applied to the scene
-    //     Camera {
-    //         hdr: true,
-    //         ..default()
-    //     },
-    //     // DistanceFog {
-    //     //     color: Color::srgb(0.25, 0.25, 0.25),
-    //     //     falloff: FogFalloff::Linear {
-    //     //         start: 0.0,
-    //     //         end: 5.0,
-    //     //     },
-    //     //     ..default()
-    //     // },
-    //     Transform::from_xyz(-1.2, 0.15, 0.0).looking_at(Vec3::Y * 0.1, Vec3::Y),
-    //     // This is the component that enables atmospheric scattering for a camera
-    //     // Atmosphere::EARTH,
-    //     // The scene is in units of 10km, so we need to scale up the
-    //     // aerial view lut distance and set the scene scale accordingly.
-    //     // Most usages of this feature will not need to adjust this.
-    //     AtmosphereSettings {
-    //         aerial_view_lut_max_distance: 3.2e4,
-    //         scene_units_to_m: 1.0,
-    //         ..Default::default()
-    //     },
-    //     // The directional light illuminance  used in this scene
-    //     // (the one recommended for use with this feature) is
-    //     // quite bright, so raising the exposure compensation helps
-    //     // bring the scene to a nicer brightness range.
-    //     Exposure::SUNLIGHT,
-    //     // Tonemapper chosen just because it looked good with the scene, any
-    //     // tonemapper would be fine :)
-    //     Tonemapping::AcesFitted,
-    //     // Bloom gives the sun a much more natural look.
-    //     Bloom::NATURAL,
-    // ));
-
     // commands.spawn((
     //     Name::new("Dragon 0,0"),
-    //     PendingVxm(asset_server.load("dragon.vxm")),
-    //     Transform::from_scale(Vec3::splat(5.0)),
+    //     PendingVxm(asset_server.load("street-scene.vxm")),
+    //     Transform::from_scale(Vec3::splat(4.0)).with_translation(Vec3::new(0.0, 100.0, 0.0)),
     // ));
 }

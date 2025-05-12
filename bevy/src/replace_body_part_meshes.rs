@@ -1,20 +1,16 @@
 use crate::vxm::VxmAsset;
 use crate::vxm_mesh;
-use crate::vxm_mesh::MyExtension;
+use crate::vxm_mesh::{MeshedVoxels, MyExtension};
 use bevy::asset::{AssetEvent, AssetServer, Assets, Handle};
 use bevy::log::{error, info};
 use bevy::math::Vec3;
 use bevy::pbr::wireframe::Wireframe;
 use bevy::pbr::{ExtendedMaterial, MeshMaterial3d, StandardMaterial};
-use bevy::prelude::{
-    ChildOf, Children, Commands, Component, Entity, EventReader, FromWorld, Gltf, Mesh, Mesh3d,
-    Name, Query, Res, ResMut, Resource, SceneRoot, Transform, World,
-};
+use bevy::prelude::{ChildOf, Children, Commands, Component, Entity, EventReader, FromWorld, Gltf, Mesh, Mesh3d, Name, Query, Res, ResMut, Resource, SceneRoot, Transform, With, World};
 use bevy::render::mesh::VertexAttributeValues;
 use bevy::render::storage::ShaderStorageBuffer;
 use std::env::current_dir;
-
-const ORC_HEAD_VXM_PATH: &str = "meshes/OrcHead.vxm";
+use crate::dnd::PendingVxm;
 
 struct VxmMeshSwapTarget {
     name: String,
@@ -44,10 +40,7 @@ impl FromWorld for ChestModels {
 }
 
 #[derive(Component)]
-pub struct ReplaceWithVxm {
-    name: String,
-    vxm_handle: Handle<VxmAsset>,
-}
+pub struct AdjustVxmOrigin(pub Handle<VxmAsset>);
 
 pub fn create_vxm_swap_targets_on_gltf_import_system(mut events: EventReader<AssetEvent<Gltf>>) {
     for event in events.read() {
@@ -271,10 +264,10 @@ pub fn add_vxm_swap_targets(
                 }
 
                 if name.as_str().starts_with(swap_target.name.as_str()) {
-                    commands.entity(child).insert(ReplaceWithVxm {
-                        name: name.as_str().to_string(),
-                        vxm_handle: swap_target.vxm_handle.clone(),
-                    });
+                    // PendingVxm creates the mesh
+                    commands.entity(child).insert(PendingVxm(swap_target.vxm_handle.clone()));
+                    // AdjustVxmOrigin adjusts the mesh to the correct position
+                    commands.entity(child).insert(AdjustVxmOrigin(swap_target.vxm_handle.clone()));
                 }
             }
         }
@@ -283,64 +276,41 @@ pub fn add_vxm_swap_targets(
     }
 }
 
+/// Removes AdjustVxmOrigin to signify that the mesh has been adjusted
 pub fn swap_vxm_meshes(
-    mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, MyExtension>>>,
-    replace_with_vxm_query: Query<(Entity, &ReplaceWithVxm)>,
-    mut meshes: ResMut<Assets<Mesh>>,
+    replace_with_vxm_query: Query<(Entity, &AdjustVxmOrigin), With<MeshedVoxels>>,
     mut commands: Commands,
     vxm_assets: Res<Assets<VxmAsset>>,
-    mesh3d_query: Query<&Mesh3d>,
-    mut buffers: ResMut<Assets<ShaderStorageBuffer>>,
 ) {
     for (entity, replace_with_vxm) in replace_with_vxm_query.iter() {
-        let voxels = vxm_assets.get(&replace_with_vxm.vxm_handle);
+        let voxels = vxm_assets.get(&replace_with_vxm.0);
+        info!(
+            "Swapping mesh for entity {:?} with vxm {:?}",
+            entity, replace_with_vxm.0
+        );
         if voxels.is_none() {
-            info!("Vxm asset not found for {:?}", replace_with_vxm.name);
             continue;
         }
-        let replacement_mesh = vxm_mesh::create_mesh_from_voxels(voxels.unwrap());
-        let mesh_handle = meshes.add(replacement_mesh);
-        let replacement_max_axes = Vec3::new(
-            get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::X),
-            get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::Y),
-            get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::Z),
-        );
-        let mesh3d = mesh3d_query.get(entity).unwrap();
-        let mesh = meshes.get(mesh3d).unwrap();
-        let max_axes = Vec3::new(
-            get_max_on_axis(mesh, Axis::X),
-            get_max_on_axis(mesh, Axis::Y),
-            get_max_on_axis(mesh, Axis::Z),
-        );
-        let max_axes_difference = max_axes - replacement_max_axes;
-        let new_transform = Transform::from_translation(max_axes_difference)
-            .mul_transform(Transform::from_scale(Vec3::splat(1.001)));
 
-        // Example data for the storage buffer
-        let color_data: Vec<[f32; 3]> = vec![[1.0, 0.0, 0.0]];
-
-        let material_handle = materials.add(ExtendedMaterial {
-            base: StandardMaterial {
-                perceptual_roughness: 1.0,
-                metallic: 0.0,
-                cull_mode: None,
-                ..Default::default()
-            },
-            extension: MyExtension {
-                faces: buffers.add(ShaderStorageBuffer::from(color_data)),
-            },
-        });
+        // let replacement_max_axes = Vec3::new(
+        //     get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::X),
+        //     get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::Y),
+        //     get_max_on_axis(meshes.get(&mesh_handle).unwrap(), Axis::Z),
+        // );
+        // let max_axes = Vec3::new(
+        //     get_max_on_axis(mesh, Axis::X),
+        //     get_max_on_axis(mesh, Axis::Y),
+        //     get_max_on_axis(mesh, Axis::Z),
+        // );
+        // let max_axes_difference = max_axes - replacement_max_axes;
+        // let new_transform = Transform::from_translation(max_axes_difference)
+        //     .mul_transform(Transform::from_scale(Vec3::splat(1.001)));
 
         // Remove the old mesh and material
         commands
             .entity(entity)
-            .remove::<MeshMaterial3d<StandardMaterial>>()
-            .remove::<ReplaceWithVxm>()
-            .remove::<Mesh3d>()
-            .remove::<Transform>()
-            .insert(MeshMaterial3d(material_handle))
-            .insert(Mesh3d(mesh_handle))
-            .insert(new_transform)
-            .insert(Wireframe);
+            .remove::<AdjustVxmOrigin>();
+            // .remove::<Transform>();
+            // .insert(new_transform);
     }
 }

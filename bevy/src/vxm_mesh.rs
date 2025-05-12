@@ -396,6 +396,10 @@ fn generate_instance_data_y(vxm: &VxmAsset, is_top_face: bool) -> Vec<InstanceDa
         .collect()
 }
 
+#[derive(Component)]
+pub struct MeshedVoxels;
+
+/// Removes PendingVxm to signify that the mesh has been created
 pub fn create_mesh_on_vxm_import_system(
     pending_vxms: Query<(Entity, &PendingVxm, &Transform)>,
     vxm_assets: ResMut<Assets<VxmAsset>>,
@@ -540,7 +544,7 @@ pub fn create_mesh_on_vxm_import_system(
                 let end_time = start_time.elapsed();
 
                 info!(
-                    "{:?} size model created {:?} instances using {:?}kb in {:?}ms",
+                    "{:?} size mesh created {:?} instances using {:?}kb in {:?}ms",
                     vxm.size,
                     instance_count,
                     (size_of::<InstanceData>() * instance_count) / 1024,
@@ -560,7 +564,7 @@ pub fn create_mesh_on_vxm_import_system(
                 commands.entity(entity).remove::<PendingVxm>();
                 commands
                     .entity(entity)
-                    .insert((InheritedVisibility::default(), aabb))
+                    .insert((InheritedVisibility::default(), aabb,  MeshedVoxels))
                     .with_child((
                         Name::new("Front face instance data"),
                         Mesh3d(front_quad),
