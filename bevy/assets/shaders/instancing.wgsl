@@ -101,8 +101,8 @@ fn vertex(vertex: Vertex, instance: Instance) -> VertexOutput {
     out.position = mesh_position_local_to_clip(model_matrix, vec4<f32>(local_position, 1.0));
 
     let unpacked_h = f32(unpacked_color_y_extent.r) / 63.0;
-    let unpacked_s = f32(unpacked_color_y_extent.g) / 31.0;
-    let unpacked_l = f32(unpacked_color_y_extent.b) / 15.0;
+    let unpacked_s = f32(unpacked_color_y_extent.g) / 7.0;
+    let unpacked_l = f32(unpacked_color_y_extent.b) / 63.0;
 
     out.color = vec4(convert_hsl_to_rgb(unpacked_h,unpacked_s, unpacked_l), 1.0);
     // TODO: transform normal into world space

@@ -68,16 +68,16 @@ pub fn create_hsl_voxel(r: f32, g: f32, b: f32) -> u16 {
     let (h, s, l) = convert_rgb_to_hsl(r, g, b);
 
     let h5 = convert_8bit_to_n_bits((h * 255.0).round() as u8, 6);
-    let s5 = convert_8bit_to_n_bits((s * 255.0).round() as u8, 5);
-    let l5 = convert_8bit_to_n_bits((l * 255.0).round() as u8, 4);
+    let s5 = convert_8bit_to_n_bits((s * 255.0).round() as u8, 3);
+    let l5 = convert_8bit_to_n_bits((l * 255.0).round() as u8, 6);
 
-    (1 << 15) | (h5 << 9) | (s5 << 4) | (l5)
+    (1 << 15) | (h5 << 9) | (s5 << 6) | (l5)
 }
 
 pub fn get_hsl_voxel(voxel: u16) -> (u16, u16, u16) {
     let h = (voxel & 0b0111_1110_0000_0000) >> 9;
-    let s = (voxel & 0b0000_0001_1111_0000) >> 4;
-    let l = voxel & 0b0000_0000_0000_1111;
+    let s = (voxel & 0b0000_0001_1100_0000) >> 6;
+    let l = voxel & 0b0000_0000_0011_1111;
 
     (h, s, l)
 }
