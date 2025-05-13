@@ -1,15 +1,14 @@
-//EAAAAABAGQATAMP1KD8NAAQAAAAAACBACQAAZmYmPwAAAAA/AQQAAAAAAAAAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAArkdhPg==
-
-use crate::camera::CameraTarget;
+use crate::color_conversion::{
+     create_hsl_voxel,
+};
 use crate::dnd::PendingVxm;
 use crate::vxm::VxmAsset;
-use bevy::app::{App, FixedUpdate, Plugin};
+use bevy::app::{App, Update, Plugin};
 use bevy::asset::Assets;
 use bevy::math::Vec3;
 use bevy::prelude::{Commands, Name, ResMut, Resource, Transform};
 use fastnoise2::{generator::prelude::*, SafeNode};
 use std::collections::VecDeque;
-use crate::color_conversion::{convert_8bit_to_n_bits, convert_rgb_to_hsl, convert_rgb_to_hsl_u8, create_hsl_voxel};
 
 #[derive(Resource)]
 pub struct ChunkQueue(VecDeque<(i32, i32, i32)>);
@@ -37,7 +36,6 @@ const SCALE_FACTOR: i32 = 2048;
 fn create_node() -> GeneratorWrapper<SafeNode> {
     opensimplex2().fbm(0.65, 0.5, 6, 2.5).build()
 }
-
 
 fn lerp(from: f32, to: f32, t: f32) -> f32 {
     from + (to - from) * t
@@ -184,6 +182,6 @@ pub struct VoxelTerrainPlugin;
 impl Plugin for VoxelTerrainPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ChunkQueue>();
-        app.add_systems(FixedUpdate, terrain_system);
+        app.add_systems(Update, terrain_system);
     }
 }

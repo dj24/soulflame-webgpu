@@ -154,7 +154,7 @@ fn fragment(
     // note this does not include fullscreen postprocessing effects like bloom.
     out.color = main_pass_post_lighting_processing(pbr_input, out.color);
 #endif
-    out.color = in.color;
+//    out.color = in.color;
 //    return out.color = in.world_position;
     return out;
 }

@@ -9,7 +9,6 @@ use bevy::prelude::{
 };
 
 const PLAYER_GLB_PATH: &str = "meshes/BearRace.glb";
-const CHEST_GLB_PATH: &str = "meshes/ChestAnimations.glb";
 
 pub fn spawn_player(
     mut commands: Commands,
@@ -35,33 +34,8 @@ pub fn spawn_player(
     commands.init_resource::<PlayerBodyPartModels>();
     commands.spawn((
         SceneRoot(asset_server.load(GltfAssetLabel::Scene(0).from_asset(PLAYER_GLB_PATH))),
-        Transform::from_scale(Vec3::splat(0.2)),
+        Transform::from_scale(Vec3::splat(0.2)).with_translation(Vec3::new(0.0, 150.0, 0.0)),
         AnimationGraphHandle(player_graph_handle.clone()),
         CameraTarget(Vec3::new(0.0, 4.0, 0.0)),
-    ));
-}
-
-// TODO: fix race condition with two animations playing at once
-fn spawn_chest(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut graphs: ResMut<Assets<AnimationGraph>>,
-) {
-    let (chest_graph, chest_node_indices) = AnimationGraph::from_clips([
-        asset_server.load(GltfAssetLabel::Animation(0).from_asset(CHEST_GLB_PATH))
-    ]);
-    let chest_graph_handle = graphs.add(chest_graph);
-    commands.insert_resource(Animations {
-        animations: chest_node_indices,
-        graph: chest_graph_handle.clone(),
-    });
-
-    commands.init_resource::<ChestModels>();
-    commands.spawn((
-        SceneRoot(asset_server.load(GltfAssetLabel::Scene(0).from_asset(CHEST_GLB_PATH))),
-        Transform::from_scale(Vec3::splat(0.02))
-            .mul_transform(Transform::from_translation(Vec3::new(0.0, 16.0, 0.0))),
-        AnimationGraphHandle(chest_graph_handle.clone()),
-        CameraTarget(Vec3::new(0.0, 0.2, 0.0)),
     ));
 }

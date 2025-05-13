@@ -1,4 +1,5 @@
 mod camera;
+mod color_conversion;
 mod custom_shader_instancing;
 mod dnd;
 mod draw_aabb_gizmos;
@@ -8,9 +9,8 @@ mod spawn_player;
 mod vxm;
 mod vxm_mesh;
 mod vxm_terrain;
-mod color_conversion;
 
-use crate::camera::{ ThirdPersonCameraPlugin};
+use crate::camera::ThirdPersonCameraPlugin;
 use crate::custom_shader_instancing::InstancedMaterialPlugin;
 use crate::dnd::{file_drag_and_drop_system, PendingVxm};
 use crate::draw_aabb_gizmos::DrawAabbGizmosPlugin;
@@ -25,16 +25,19 @@ use bevy::render::settings::{RenderCreation, WgpuSettings};
 use bevy::render::RenderPlugin;
 use bevy::window::{PresentMode, WindowResolution};
 use bevy::{
-    pbr::{
-        CascadeShadowConfigBuilder, DirectionalLightShadowMap,
-    },
+    pbr::{CascadeShadowConfigBuilder, DirectionalLightShadowMap},
     prelude::*,
 };
 
-use bevy::color::palettes::css::ORANGE_RED;
-use bevy::prelude::light_consts::lux;
-use std::f32::consts::*;
 use crate::spawn_player::spawn_player;
+use bevy::color::palettes::css::{ORANGE_RED, WHITE};
+use bevy::core_pipeline::bloom::Bloom;
+use bevy::core_pipeline::smaa::{Smaa, SmaaPreset};
+use bevy::core_pipeline::tonemapping::Tonemapping;
+use bevy::pbr::{Atmosphere, AtmosphereSettings, FogVolume, ScreenSpaceAmbientOcclusion, VolumetricLight};
+use bevy::prelude::light_consts::lux;
+use bevy::render::camera::Exposure;
+use std::f32::consts::*;
 
 fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
     if keyboard_input.just_pressed(KeyCode::Escape) {
@@ -76,12 +79,12 @@ fn main() {
             DrawAabbGizmosPlugin,
             // SetAnimationClipPlugin,
             InstancedMaterialPlugin,
-            // VoxelTerrainPlugin,
+            VoxelTerrainPlugin,
         ))
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
         .add_systems(Startup, (setup, spawn_player))
-        .add_systems(Update, (exit_on_esc_system, dynamic_scene))
+        .add_systems(Update, (exit_on_esc_system))
         .add_systems(
             FixedUpdate,
             (
@@ -117,7 +120,7 @@ fn setup1(
 
     commands.spawn((
         Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
-        MeshMaterial3d(materials.add(Color::srgb(0.0,1.0,0.0))),
+        MeshMaterial3d(materials.add(Color::srgb(0.0, 1.0, 0.0))),
         Transform::from_xyz(1.0, 1.0, 0.0),
     ));
 
@@ -152,6 +155,13 @@ fn setup(
     // Configure a properly scaled cascade shadow map for this scene (defaults are too large, mesh units are in km)
     let cascade_shadow_config = CascadeShadowConfigBuilder::default().build();
 
+    // ambient light
+    commands.insert_resource(AmbientLight {
+        color: WHITE.into(),
+        brightness: lux::CLEAR_SUNRISE,
+        ..default()
+    });
+
     // Sun
     commands.spawn((
         DirectionalLight {
@@ -159,13 +169,31 @@ fn setup(
             illuminance: lux::RAW_SUNLIGHT,
             ..default()
         },
-        Transform::from_xyz(1.0, -0.4, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Transform::from_xyz(1.0, -0.4, 0.0).looking_at(Vec3::new(0.25,-0.75,0.0), Vec3::Y),
         cascade_shadow_config,
     ));
 
     commands.spawn((
         Camera3d::default(),
         Transform::from_xyz(0.0, 0.15, 0.0).looking_at(Vec3::NEG_Z, Vec3::Y),
+        // Smaa {
+        //     preset: SmaaPreset::Ultra,
+        // },
+        // ScreenSpaceAmbientOcclusion::default(),
+        Camera {
+            hdr: true,
+            ..default()
+        },
+        Msaa::Off,
+        Atmosphere::EARTH,
+        AtmosphereSettings {
+            aerial_view_lut_max_distance: 3.2e4,
+            scene_units_to_m: 1.0,
+            ..Default::default()
+        },
+        Exposure::SUNLIGHT,
+        Tonemapping::AcesFitted,
+        Bloom::NATURAL,
     ));
 
 

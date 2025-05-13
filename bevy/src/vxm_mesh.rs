@@ -116,8 +116,6 @@ pub fn create_mesh_from_voxels(_: &VxmAsset) -> Mesh {
     .with_inserted_indices(Indices::U32(indices))
 }
 
-
-
 fn generate_instance_data_z(vxm: &VxmAsset, is_front_face: bool) -> Vec<InstanceData> {
     (0..vxm.size[2] as usize)
         .into_par_iter()
