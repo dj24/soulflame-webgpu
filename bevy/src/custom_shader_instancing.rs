@@ -106,15 +106,17 @@ pub struct InstanceData {
 #[allow(clippy::too_many_arguments)]
 fn queue_custom(
     opaque_3d_draw_functions: Res<DrawFunctions<Opaque3d>>,
+    shadow_draw_functions: Res<DrawFunctions<Shadow>>,
     custom_pipeline: Res<CustomPipeline>,
     mut pipelines: ResMut<SpecializedMeshPipelines<CustomPipeline>>,
     pipeline_cache: Res<PipelineCache>,
     meshes: Res<RenderAssets<RenderMesh>>,
-    mut render_mesh_instances: Res<RenderMeshInstances>,
+    render_mesh_instances: Res<RenderMeshInstances>,
     material_meshes: Query<(Entity, &MainEntity), With<InstanceMaterialData>>,
     mut opaque_render_phases: ResMut<ViewBinnedRenderPhases<Opaque3d>>,
+    mut shadow_render_phases: ResMut<ViewBinnedRenderPhases<Shadow>>,
     views: Query<(Entity, &ExtractedView, &Msaa)>,
-    mut next_tick: Local<Tick>,
+    next_tick: Local<Tick>,
 ) {
     let draw_custom = opaque_3d_draw_functions.read().id::<DrawCustom>();
 
