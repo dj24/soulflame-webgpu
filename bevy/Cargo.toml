@@ -4,13 +4,49 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = { version = "0.16.0", features = ["bevy_dev_tools"] }
 thiserror = "1.0.69"
-bevy-inspector-egui = "0.28.1"
 bytemuck = "1.21.0"
 rayon = "1.10.0"
-iyes_perf_ui = "0.4.0"
 fastnoise2 = "0.3.1"
+pollster = "0.4"
+wgpu = "25.0.0"
+winit = { version = "0.30.8", features = ["android-native-activity"] }
+bevy = { version = "0.16.0", default-features = false, features = [
+    # These are the default features:
+    # (re-enable whichever you like)
+
+    # Parts of Bevy:
+    "animation", # Enable animation for everything that supports it
+    "bevy_asset", # Asset management
+    "bevy_audio", # Audio support
+    "bevy_color", # Color management
+    "bevy_gilrs", # Gamepad/controller support
+    "bevy_log", # Logging to console
+    "bevy_mesh_picking_backend", # 3D mesh picking (selection by cursor)
+    "bevy_picking", # Picking (selection of objects by cursor)
+    "bevy_scene", # ECS Scenes
+    "bevy_state", # App state management
+
+    # Low-level tunables
+    "std", # Use the Rust standard library (important!)
+    "async_executor", # Enable the Async Executor (Bevy task pools)
+    "multi_threaded", # Enable CPU multithreading
+    "sysinfo_plugin", # Support CPU and RAM usage diagnostics
+
+    # Asset File Format Support
+    "bevy_gltf", # GLTF 3D asset support
+    "png", # PNG image format for simple 2D images
+    "hdr", # HDR image format
+    "ktx2", # KTX2 format for GPU texture data
+    "zstd", # ZSTD compression support in KTX2 files
+
+    # Development features
+    "asset_processor", # Enable asset processing support
+    "bevy_dev_tools", # Extra dev functionality (like FPS overlay)
+    "file_watcher", # Asset hot-reloading
+    "trace", # Enable tracing
+    "trace_chrome", # Enable tracing using the Chrome backend
+] }
 
 [profile.dev]
 opt-level = 1

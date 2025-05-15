@@ -2,28 +2,23 @@ mod camera;
 mod color_conversion;
 mod custom_shader_instancing;
 mod dnd;
-mod draw_aabb_gizmos;
 mod replace_body_part_meshes;
 mod set_animation_clip_keyboard;
 mod spawn_player;
 mod vxm;
 mod vxm_mesh;
 mod vxm_terrain;
+mod render;
 
 use crate::camera::ThirdPersonCameraPlugin;
 use crate::custom_shader_instancing::InstancedMaterialPlugin;
-use crate::dnd::{file_drag_and_drop_system, PendingVxm};
-use crate::draw_aabb_gizmos::DrawAabbGizmosPlugin;
+use crate::dnd::{PendingVxm};
 use crate::replace_body_part_meshes::{
     add_vxm_swap_targets, create_vxm_swap_targets_on_gltf_import_system, swap_vxm_meshes,
 };
 use crate::vxm::{VxmAsset, VxmAssetLoader};
 use crate::vxm_mesh::{create_mesh_on_vxm_import_system, VxmMeshPlugin};
 use crate::vxm_terrain::VoxelTerrainPlugin;
-use bevy::render::render_resource::{Face, WgpuFeatures};
-use bevy::render::settings::{RenderCreation, WgpuSettings};
-use bevy::render::RenderPlugin;
-use bevy::window::{PresentMode, WindowResolution};
 use bevy::{
     pbr::{CascadeShadowConfigBuilder, DirectionalLightShadowMap},
     prelude::*,
@@ -32,12 +27,12 @@ use bevy::{
 use crate::spawn_player::spawn_player;
 use bevy::color::palettes::css::{ORANGE_RED, WHITE};
 use bevy::core_pipeline::bloom::Bloom;
-use bevy::core_pipeline::smaa::{Smaa, SmaaPreset};
 use bevy::core_pipeline::tonemapping::Tonemapping;
-use bevy::pbr::{Atmosphere, AtmosphereSettings, FogVolume, ScreenSpaceAmbientOcclusion, VolumetricLight};
+use bevy::pbr::{Atmosphere, AtmosphereSettings};
 use bevy::prelude::light_consts::lux;
 use bevy::render::camera::Exposure;
 use std::f32::consts::*;
+use crate::render::main::VoxelRenderPlugin;
 
 fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
     if keyboard_input.just_pressed(KeyCode::Escape) {
@@ -47,56 +42,9 @@ fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: Event
 
 fn main() {
     App::new()
-        .insert_resource(DirectionalLightShadowMap { size: 4096 })
-        .add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
-        .add_plugins(bevy::diagnostic::EntityCountDiagnosticsPlugin)
-        .add_plugins(bevy::diagnostic::SystemInformationDiagnosticsPlugin)
-        // .add_plugins(PerfUiPlugin)
-        .add_plugins((
-            DefaultPlugins
-                .set(WindowPlugin {
-                    primary_window: Some(Window {
-                        title: "Soulflame".to_string(),
-                        resolution: WindowResolution::new(1920., 1080.),
-                        focused: true,
-                        present_mode: PresentMode::AutoVsync,
-                        ..default()
-                    }),
-                    ..default()
-                })
-                .set(RenderPlugin {
-                    render_creation: RenderCreation::Automatic(WgpuSettings {
-                        // WARN this is a native only feature. It will not work with webgl or webgpu
-                        features: WgpuFeatures::POLYGON_MODE_LINE,
-                        ..default()
-                    }),
-                    ..default()
-                }),
-            ThirdPersonCameraPlugin,
-            // TemporalAntiAliasPlugin,
-            VxmMeshPlugin,
-            // WorldInspectorPlugin,
-            DrawAabbGizmosPlugin,
-            // SetAnimationClipPlugin,
-            InstancedMaterialPlugin,
-            VoxelTerrainPlugin,
-        ))
-        .init_asset::<VxmAsset>()
-        .init_asset_loader::<VxmAssetLoader>()
-        .add_systems(Startup, (setup, spawn_player))
-        .add_systems(Update, (exit_on_esc_system))
-        .add_systems(
-            FixedUpdate,
-            (
-                file_drag_and_drop_system,
-                // setup_scene_once_loaded,
-                add_vxm_swap_targets,
-                create_vxm_swap_targets_on_gltf_import_system,
-                create_mesh_on_vxm_import_system,
-                swap_vxm_meshes,
-            ),
-        )
-        .run();
+        .add_plugins(VoxelRenderPlugin)
+        .add_plugins(DefaultPlugins)
+        .add_systems(Update, exit_on_esc_system).run();
 }
 
 fn dynamic_scene(mut suns: Query<&mut Transform, With<DirectionalLight>>, time: Res<Time>) {
