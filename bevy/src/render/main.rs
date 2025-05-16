@@ -1,5 +1,6 @@
 use std::sync::Arc;
-use bevy::prelude::{App, Plugin, PreStartup, Startup, World};
+use bevy::asset::AssetServer;
+use bevy::prelude::{App, Commands, Plugin, PostUpdate, PreStartup, ResMut, Resource, Startup, World};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -120,7 +121,7 @@ impl RenderState {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Resource)]
 struct VoxelRenderApp {
     state: Option<RenderState>,
 }
@@ -162,13 +163,13 @@ impl ApplicationHandler for VoxelRenderApp {
     }
 }
 
-fn setup(world: &mut World) {
-    match (EventLoop::new()){
+// TODO: create resources for the event loop and window
+
+fn setup(mut commands: Commands) {
+    match EventLoop::new() {
         Ok(event_loop) => {
             println!("Event loop created successfully");
-            event_loop.set_control_flow(ControlFlow::Poll);
-            let mut app = VoxelRenderApp::default();
-            event_loop.run_app(&mut app).unwrap();
+            commands.insert_resource(event_loop);
         }
         Err(e) => {
             eprintln!("Failed to create event loop: {}", e);
@@ -177,10 +178,16 @@ fn setup(world: &mut World) {
     }
 }
 
+fn sync(world: &mut World) {
+
+}
+
 pub struct VoxelRenderPlugin;
 
 impl Plugin for VoxelRenderPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(PreStartup, setup);
+        app.init_resource::<VoxelRenderApp>()
+            .add_systems(Startup, setup)
+            .add_systems(PostUpdate, sync);
     }
 }
