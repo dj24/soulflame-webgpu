@@ -3,13 +3,9 @@ use crate::dnd::PendingVxm;
 use crate::vxm::VxmAsset;
 use bevy::asset::{Assets, RenderAssetUsages};
 use bevy::log::info;
-use bevy::pbr::{ExtendedMaterial, MaterialExtension, RenderMeshInstanceFlags};
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, PrimitiveTopology};
 use bevy::render::primitives::Aabb;
-use bevy::render::render_resource::{AsBindGroup, ShaderRef};
-use bevy::render::storage::ShaderStorageBuffer;
-use bevy::render::view::NoFrustumCulling;
 use rayon::prelude::*;
 use std::sync::Arc;
 use crate::color_conversion::get_hsl_voxel;
@@ -602,36 +598,5 @@ pub fn create_mesh_on_vxm_import_system(
             }
             None => {}
         }
-    }
-}
-
-/// This example uses a shader source file from the assets subdirectory
-const SHADER_ASSET_PATH: &str = "shaders/custom_material.wgsl";
-
-#[derive(Asset, AsBindGroup, Reflect, Debug, Clone)]
-pub struct MyExtension {
-    // We need to ensure that the bindings of the base material and the extension do not conflict,
-    // so we start from binding slot 100, leaving slots 0-99 for the base material.
-    #[storage(100, read_only)]
-    pub faces: Handle<ShaderStorageBuffer>,
-}
-
-impl MaterialExtension for MyExtension {
-    fn deferred_vertex_shader() -> ShaderRef {
-        SHADER_ASSET_PATH.into()
-    }
-
-    fn deferred_fragment_shader() -> ShaderRef {
-        SHADER_ASSET_PATH.into()
-    }
-}
-
-pub struct VxmMeshPlugin;
-
-impl Plugin for VxmMeshPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_plugins(MaterialPlugin::<
-            ExtendedMaterial<StandardMaterial, MyExtension>,
-        >::default());
     }
 }

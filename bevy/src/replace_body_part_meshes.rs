@@ -1,6 +1,6 @@
 use crate::vxm::VxmAsset;
 use crate::vxm_mesh;
-use crate::vxm_mesh::{MeshedVoxels, MyExtension};
+use crate::vxm_mesh::{MeshedVoxels};
 use bevy::asset::{AssetEvent, AssetServer, Assets, Handle};
 use bevy::log::{error, info};
 use bevy::math::Vec3;

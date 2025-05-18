@@ -1,12 +1,17 @@
+use bevy::app::{AppLabel, PluginsState};
+use bevy::prelude::{error, App, AppExit, Camera, Camera3d, Commands, Event, GlobalTransform, Mut, Plugin, PostUpdate, PreStartup, ResMut, Resource, Startup, SubApp, Update, World};
 use std::sync::Arc;
-use bevy::asset::AssetServer;
-use bevy::prelude::{App, Commands, Plugin, PostUpdate, PreStartup, ResMut, Resource, Startup, World};
+use async_channel::{Receiver, Sender};
+use bevy::ecs::schedule::MainThreadExecutor;
+use bevy::log::info;
+use bevy::tasks::ComputeTaskPool;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     window::{Window, WindowId},
 };
+use winit::error::EventLoopError;
 
 struct RenderState {
     window: Arc<Window>,
@@ -163,31 +168,150 @@ impl ApplicationHandler for VoxelRenderApp {
     }
 }
 
-// TODO: create resources for the event loop and window
-
-fn setup(mut commands: Commands) {
+fn init_event_loop() -> Result<(), EventLoopError> {
     match EventLoop::new() {
         Ok(event_loop) => {
+            event_loop.set_control_flow(ControlFlow::Poll);
             println!("Event loop created successfully");
-            commands.insert_resource(event_loop);
+            let mut app = VoxelRenderApp::default();
+            event_loop.run_app(&mut app)?;
+            Ok(())
         }
         Err(e) => {
             eprintln!("Failed to create event loop: {}", e);
-            return;
+            Err(e)
         }
     }
 }
 
-fn sync(world: &mut World) {
 
+/// Channels used by the main app to send and receive the render app.
+#[derive(Resource)]
+pub struct RenderAppChannels {
+    app_to_render_sender: Sender<SubApp>,
+    render_to_app_receiver: Receiver<SubApp>,
+    render_app_in_render_thread: bool,
 }
+
+impl RenderAppChannels {
+    /// Create a `RenderAppChannels` from a [`async_channel::Receiver`] and [`async_channel::Sender`]
+    pub fn new(
+        app_to_render_sender: Sender<SubApp>,
+        render_to_app_receiver: Receiver<SubApp>,
+    ) -> Self {
+        Self {
+            app_to_render_sender,
+            render_to_app_receiver,
+            render_app_in_render_thread: false,
+        }
+    }
+
+    /// Send the `render_app` to the rendering thread.
+    pub fn send_blocking(&mut self, render_app: SubApp) {
+        self.app_to_render_sender.send_blocking(render_app).unwrap();
+        self.render_app_in_render_thread = true;
+    }
+
+    /// Receive the `render_app` from the rendering thread.
+    /// Return `None` if the render thread has panicked.
+    pub async fn recv(&mut self) -> Option<SubApp> {
+        let render_app = self.render_to_app_receiver.recv().await.ok()?;
+        self.render_app_in_render_thread = false;
+        Some(render_app)
+    }
+}
+
+impl Drop for RenderAppChannels {
+    fn drop(&mut self) {
+        if self.render_app_in_render_thread {
+            // Any non-send data in the render world was initialized on the main thread.
+            // So on dropping the main world and ending the app, we block and wait for
+            // the render world to return to drop it. Which allows the non-send data
+            // drop methods to run on the correct thread.
+            self.render_to_app_receiver.recv_blocking().ok();
+        }
+    }
+}
+
+
+// This function waits for the rendering world to be received,
+// runs extract, and then sends the rendering world back to the render thread.
+fn renderer_extract(app_world: &mut World, _world: &mut World) {
+    app_world.resource_scope(|world, main_thread_executor: Mut<MainThreadExecutor>| {
+        world.resource_scope(|world, mut render_channels: Mut<RenderAppChannels>| {
+            // we use a scope here to run any main thread tasks that the render world still needs to run
+            // while we wait for the render world to be received.
+            if let Some(mut render_app) = ComputeTaskPool::get()
+                .scope_with_executor(true, Some(&*main_thread_executor.0), |s| {
+                    s.spawn(async { render_channels.recv().await });
+                })
+                .pop()
+                .unwrap()
+            {
+                render_app.extract(world);
+
+                render_channels.send_blocking(render_app);
+            } else {
+                // Renderer thread panicked
+                world.send_event(AppExit::error());
+            }
+        });
+    });
+}
+
+fn hello_world() {
+    info!("Hello world!");
+}
+
+pub fn winit_runner(mut app: App) -> AppExit {
+    let event_loop  = EventLoop::new().unwrap();
+
+    if app.plugins_state() == PluginsState::Ready {
+        app.finish();
+        app.cleanup();
+    }
+    //
+    // app.world_mut()
+    //     .insert_resource(EventLoopProxyWrapper(event_loop.create_proxy()));
+
+    let mut app = VoxelRenderApp::default();
+    event_loop.run_app(&mut app);
+
+    AppExit::Success
+}
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, AppLabel)]
+struct VoxelRenderAppLabel;
 
 pub struct VoxelRenderPlugin;
 
 impl Plugin for VoxelRenderPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<VoxelRenderApp>()
-            .add_systems(Startup, setup)
-            .add_systems(PostUpdate, sync);
+        app.set_runner(|app| winit_runner(app));
+        app.add_systems(Update, hello_world);
+        app.insert_resource(MainThreadExecutor::new());
+        let mut sub_app = SubApp::new();
+        sub_app.set_extract(renderer_extract);
+        app.insert_sub_app(VoxelRenderAppLabel, sub_app);
+    }
+
+    // Sets up the render thread and inserts resources into the main app used for controlling the render thread.
+    fn cleanup(&self, app: &mut App) {
+        match app.get_sub_app_mut(VoxelRenderAppLabel) {
+            Some(sub_app) => {
+                let (app_to_render_sender, app_to_render_receiver) = async_channel::bounded::<SubApp>(1);
+                let (render_to_app_sender, render_to_app_receiver) = async_channel::bounded::<SubApp>(1);
+
+                app.insert_resource(RenderAppChannels::new(
+                    app_to_render_sender,
+                    render_to_app_receiver,
+                ));
+
+                // init_event_loop();
+            }
+            None => return,
+        }
+
+
     }
 }

@@ -22,8 +22,6 @@ bevy = { version = "0.16.0", default-features = false, features = [
     "bevy_color", # Color management
     "bevy_gilrs", # Gamepad/controller support
     "bevy_log", # Logging to console
-    "bevy_mesh_picking_backend", # 3D mesh picking (selection by cursor)
-    "bevy_picking", # Picking (selection of objects by cursor)
     "bevy_scene", # ECS Scenes
     "bevy_state", # App state management
 
@@ -35,18 +33,13 @@ bevy = { version = "0.16.0", default-features = false, features = [
 
     # Asset File Format Support
     "bevy_gltf", # GLTF 3D asset support
-    "png", # PNG image format for simple 2D images
-    "hdr", # HDR image format
-    "ktx2", # KTX2 format for GPU texture data
-    "zstd", # ZSTD compression support in KTX2 files
 
     # Development features
     "asset_processor", # Enable asset processing support
     "bevy_dev_tools", # Extra dev functionality (like FPS overlay)
     "file_watcher", # Asset hot-reloading
-    "trace", # Enable tracing
-    "trace_chrome", # Enable tracing using the Chrome backend
 ] }
+async-channel = "2.3.1"
 
 [profile.dev]
 opt-level = 1
