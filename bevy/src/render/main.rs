@@ -60,10 +60,6 @@ impl RenderState {
         state
     }
 
-    fn set_update_app(&mut self, update_fn: fn()) {
-        self.update_app = Some(update_fn);
-    }
-
     fn get_window(&self) -> &Window {
         &self.window
     }
@@ -138,6 +134,16 @@ impl RenderState {
 #[derive(Default)]
 struct VoxelRenderApp {
     state: Option<RenderState>,
+    app: App
+}
+
+impl VoxelRenderApp {
+    fn new(app: App) -> Self {
+        Self {
+            state: None,
+            app,
+        }
+    }
 }
 
 impl ApplicationHandler for VoxelRenderApp {
@@ -163,6 +169,7 @@ impl ApplicationHandler for VoxelRenderApp {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
+                self.app.update();
                 state.render();
                 // Emits a new redraw requested event.
                 state.get_window().request_redraw();
@@ -250,9 +257,6 @@ fn renderer_extract(app_world: &mut World, _world: &mut World) {
     });
 }
 
-fn hello_world() {
-    info!("Hello world!");
-}
 
 pub fn winit_runner(mut app: App) -> AppExit {
     let event_loop = EventLoop::new().unwrap();
@@ -262,9 +266,8 @@ pub fn winit_runner(mut app: App) -> AppExit {
         app.cleanup();
     }
 
-    let mut render_app = VoxelRenderApp::default();
-    let update = || app.update();
-    render_app.state.unwrap().set_update_app(update);
+    let mut render_app = VoxelRenderApp::new(app);
+
     event_loop
         .run_app(&mut render_app)
         .expect("Event loop panicked");
@@ -282,7 +285,6 @@ pub struct VoxelRenderPlugin;
 impl Plugin for VoxelRenderPlugin {
     fn build(&self, app: &mut App) {
         app.set_runner(|app| winit_runner(app));
-        app.add_systems(Update, hello_world);
         app.insert_resource(MainThreadExecutor::new());
         let mut sub_app = SubApp::new();
         sub_app.set_extract(renderer_extract);
