@@ -1,17 +1,20 @@
-use bevy::app::{AppLabel, PluginsState};
-use bevy::prelude::{error, App, AppExit, Camera, Camera3d, Commands, Event, GlobalTransform, Mut, Plugin, PostUpdate, PreStartup, ResMut, Resource, Startup, SubApp, Update, World};
-use std::sync::Arc;
 use async_channel::{Receiver, Sender};
+use bevy::app::{AppLabel, PluginsState};
 use bevy::ecs::schedule::MainThreadExecutor;
 use bevy::log::info;
+use bevy::prelude::{
+    error, App, AppExit, Camera, Camera3d, Commands, Event, GlobalTransform, Mut, Plugin,
+    PostUpdate, PreStartup, ResMut, Resource, Startup, SubApp, Update, World,
+};
 use bevy::tasks::ComputeTaskPool;
+use std::sync::Arc;
+use winit::error::EventLoopError;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     window::{Window, WindowId},
 };
-use winit::error::EventLoopError;
 
 struct RenderState {
     window: Arc<Window>,
@@ -20,6 +23,7 @@ struct RenderState {
     size: winit::dpi::PhysicalSize<u32>,
     surface: wgpu::Surface<'static>,
     surface_format: wgpu::TextureFormat,
+    update_app: Option<fn()>, // TODO: figure out type
 }
 
 impl RenderState {
@@ -47,12 +51,17 @@ impl RenderState {
             size,
             surface,
             surface_format,
+            update_app: None,
         };
 
         // Configure surface for the first time
         state.configure_surface();
 
         state
+    }
+
+    fn set_update_app(&mut self, update_fn: fn()) {
+        self.update_app = Some(update_fn);
     }
 
     fn get_window(&self) -> &Window {
@@ -126,7 +135,7 @@ impl RenderState {
     }
 }
 
-#[derive(Default, Resource)]
+#[derive(Default)]
 struct VoxelRenderApp {
     state: Option<RenderState>,
 }
@@ -167,23 +176,6 @@ impl ApplicationHandler for VoxelRenderApp {
         }
     }
 }
-
-fn init_event_loop() -> Result<(), EventLoopError> {
-    match EventLoop::new() {
-        Ok(event_loop) => {
-            event_loop.set_control_flow(ControlFlow::Poll);
-            println!("Event loop created successfully");
-            let mut app = VoxelRenderApp::default();
-            event_loop.run_app(&mut app)?;
-            Ok(())
-        }
-        Err(e) => {
-            eprintln!("Failed to create event loop: {}", e);
-            Err(e)
-        }
-    }
-}
-
 
 /// Channels used by the main app to send and receive the render app.
 #[derive(Resource)]
@@ -233,7 +225,6 @@ impl Drop for RenderAppChannels {
     }
 }
 
-
 // This function waits for the rendering world to be received,
 // runs extract, and then sends the rendering world back to the render thread.
 fn renderer_extract(app_world: &mut World, _world: &mut World) {
@@ -264,18 +255,21 @@ fn hello_world() {
 }
 
 pub fn winit_runner(mut app: App) -> AppExit {
-    let event_loop  = EventLoop::new().unwrap();
+    let event_loop = EventLoop::new().unwrap();
 
     if app.plugins_state() == PluginsState::Ready {
         app.finish();
         app.cleanup();
     }
-    //
-    // app.world_mut()
-    //     .insert_resource(EventLoopProxyWrapper(event_loop.create_proxy()));
 
-    let mut app = VoxelRenderApp::default();
-    event_loop.run_app(&mut app);
+    let mut render_app = VoxelRenderApp::default();
+    let update = || app.update();
+    render_app.state.unwrap().set_update_app(update);
+    event_loop
+        .run_app(&mut render_app)
+        .expect("Event loop panicked");
+
+    info!("Render app exited");
 
     AppExit::Success
 }
@@ -299,8 +293,10 @@ impl Plugin for VoxelRenderPlugin {
     fn cleanup(&self, app: &mut App) {
         match app.get_sub_app_mut(VoxelRenderAppLabel) {
             Some(sub_app) => {
-                let (app_to_render_sender, app_to_render_receiver) = async_channel::bounded::<SubApp>(1);
-                let (render_to_app_sender, render_to_app_receiver) = async_channel::bounded::<SubApp>(1);
+                let (app_to_render_sender, app_to_render_receiver) =
+                    async_channel::bounded::<SubApp>(1);
+                let (render_to_app_sender, render_to_app_receiver) =
+                    async_channel::bounded::<SubApp>(1);
 
                 app.insert_resource(RenderAppChannels::new(
                     app_to_render_sender,
@@ -311,7 +307,5 @@ impl Plugin for VoxelRenderPlugin {
             }
             None => return,
         }
-
-
     }
 }
