@@ -13,15 +13,11 @@ mod vxm_terrain;
 use crate::dnd::PendingVxm;
 use crate::render::main::VoxelRenderPlugin;
 use crate::vxm::{VxmAsset, VxmAssetLoader};
-use bevy::app::ScheduleRunnerPlugin;
 use bevy::color::palettes::css::WHITE;
-use bevy::ecs::error::info;
-use bevy::input::InputPlugin;
 use bevy::prelude::light_consts::lux;
 use bevy::prelude::*;
 use bevy::state::app::StatesPlugin;
-use std::time::Duration;
-use bevy::diagnostic::{FrameCount, FrameCountPlugin};
+use bevy::diagnostic::{FrameCountPlugin};
 use bevy::log::LogPlugin;
 use bevy::time::TimePlugin;
 
