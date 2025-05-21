@@ -3,8 +3,10 @@ use bevy::app::{AppLabel, PluginsState};
 use bevy::ecs::schedule::MainThreadExecutor;
 use bevy::log::info;
 use bevy::prelude::*;
+use bevy::render::render_resource::PipelineDescriptor::RenderPipelineDescriptor;
 use bevy::tasks::ComputeTaskPool;
 use std::sync::Arc;
+use wgpu::{ColorTargetState, Device, Queue, RenderPipeline, Surface, TextureFormat};
 use winit::error::EventLoopError;
 use winit::{
     application::ApplicationHandler,
@@ -15,11 +17,12 @@ use winit::{
 
 struct RenderState {
     window: Arc<Window>,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
+    device: Device,
+    queue: Queue,
     size: winit::dpi::PhysicalSize<u32>,
-    surface: wgpu::Surface<'static>,
-    surface_format: wgpu::TextureFormat,
+    surface: Surface<'static>,
+    surface_format: TextureFormat,
+    render_pipeline: RenderPipeline,
 }
 
 impl RenderState {
@@ -40,6 +43,42 @@ impl RenderState {
         let cap = surface.get_capabilities(&adapter);
         let surface_format = cap.formats[0];
 
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: None,
+            bind_group_layouts: &[],
+            push_constant_ranges: &[],
+        });
+
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Vertex Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
+        });
+
+        let swapchain_capabilities = surface.get_capabilities(&adapter);
+        let swapchain_format = swapchain_capabilities.formats[0];
+
+        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline"),
+            layout:  Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                compilation_options: Default::default(),
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                compilation_options: Default::default(),
+                targets: &[Some(swapchain_format.into())],
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        });
+
         let state = RenderState {
             window,
             device,
@@ -47,6 +86,7 @@ impl RenderState {
             size,
             surface,
             surface_format,
+            render_pipeline,
         };
 
         // Configure surface for the first time
@@ -129,15 +169,12 @@ impl RenderState {
 #[derive(Default)]
 struct VoxelRenderApp {
     state: Option<RenderState>,
-    app: App
+    app: App,
 }
 
 impl VoxelRenderApp {
     fn new(app: App) -> Self {
-        Self {
-            state: None,
-            app,
-        }
+        Self { state: None, app }
     }
 }
 
@@ -187,7 +224,6 @@ impl ApplicationHandler for VoxelRenderApp {
     }
 }
 
-
 pub fn winit_runner(mut app: App) -> AppExit {
     let event_loop = EventLoop::new().unwrap();
 
@@ -206,7 +242,6 @@ pub fn winit_runner(mut app: App) -> AppExit {
 
     AppExit::Success
 }
-
 
 pub struct VoxelRenderPlugin;
 
