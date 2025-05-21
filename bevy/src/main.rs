@@ -10,15 +10,16 @@ mod vxm;
 mod vxm_mesh;
 mod vxm_terrain;
 
+use crate::camera::{CameraTarget, ThirdPersonCameraPlugin};
 use crate::dnd::PendingVxm;
 use crate::render::main::VoxelRenderPlugin;
 use crate::vxm::{VxmAsset, VxmAssetLoader};
 use bevy::color::palettes::css::WHITE;
+use bevy::diagnostic::FrameCountPlugin;
+use bevy::log::LogPlugin;
 use bevy::prelude::light_consts::lux;
 use bevy::prelude::*;
 use bevy::state::app::StatesPlugin;
-use bevy::diagnostic::{FrameCountPlugin};
-use bevy::log::LogPlugin;
 use bevy::time::TimePlugin;
 
 fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
@@ -28,23 +29,25 @@ fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: Event
     }
 }
 
-fn my_runner(mut app: App) -> AppExit {
-    info!("Setting up runner");
-    app.finish();
-    app.cleanup();
-    loop {
-        info_once!("In main loop");
-        app.update();
-        if let Some(exit) = app.should_exit() {
-            return exit;
-        }
+fn rotate_camera_around_origin_over_time(
+    time: Res<Time>,
+    mut camera_query: Query<(&Camera, &mut Transform), With<Camera>>,
+) {
+    for (_camera, mut transform) in camera_query.iter_mut() {
+        let t = time.elapsed_secs();
+        let radius = 2.0;
+        let angle = t * 0.00005; // radians per second
+        let x = radius * angle.cos();
+        let z = radius * angle.sin();
+        transform.translation = Vec3::new(x, 0.0, z);
+        transform.look_at(Vec3::ZERO, Vec3::Y);
     }
 }
 
 fn main() {
     App::new()
-        .set_runner(my_runner)
         .add_plugins((
+            TransformPlugin,
             LogPlugin::default(),
             TimePlugin,
             FrameCountPlugin,
@@ -56,13 +59,13 @@ fn main() {
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
         .add_systems(Startup, setup) // Add your setup function
+        // .add_systems(Update, rotate_camera_around_origin_over_time)
         .run();
 }
 
-fn setup(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>
-) {
+
+
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // ambient light
     commands.insert_resource(AmbientLight {
         color: WHITE.into(),
@@ -92,6 +95,6 @@ fn setup(
     commands.spawn((
         Name::new("Dragon 0,0"),
         PendingVxm(asset_server.load("street-scene.vxm")),
-        Transform::from_scale(Vec3::splat(4.0)).with_translation(Vec3::new(0.0, 100.0, 0.0)),
+        Transform::from_scale(Vec3::splat(4.0)).with_translation(Vec3::new(0.0, 0.0, 0.0)),
     ));
 }
