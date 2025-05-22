@@ -6,6 +6,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::PipelineDescriptor::RenderPipelineDescriptor;
 use bevy::tasks::ComputeTaskPool;
 use std::sync::Arc;
+use bevy::render::camera::CameraProjection;
 use wgpu::{BindGroup, BindGroupLayout, Buffer, ColorTargetState, Device, Queue, RenderPipeline, Surface, TextureFormat};
 use winit::error::EventLoopError;
 use winit::{
@@ -106,7 +107,10 @@ impl RenderState {
                 compilation_options: Default::default(),
                 targets: &[Some(swapchain_format.into())],
             }),
-            primitive: wgpu::PrimitiveState::default(),
+            primitive: wgpu::PrimitiveState {
+                cull_mode: None,
+                ..default()
+            },
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
@@ -246,19 +250,19 @@ impl ApplicationHandler for VoxelRenderApp {
             WindowEvent::RedrawRequested => {
                 self.app.update();
                 let world = self.app.world_mut();
-                let mut camera = world.query::<(&Camera, &GlobalTransform)>();
+                let mut camera = world.query::<( &Projection, &GlobalTransform)>();
 
                 info_once!("camera count = {:?}", camera.iter(world).count());
 
-                let (camera_camera, camera_transform) = camera.iter(world).next().unwrap();
-                let world_from_camera_matrix = camera_transform.compute_matrix();
-                let projection_matrix = camera_camera.clip_from_view();
+                let (projection, transform) = camera.iter(world).next().unwrap();
+                let view_matrix = transform.compute_matrix();
+                let projection_matrix = projection.get_clip_from_view();
 
-                info_once!("World from camera: {:?}", &world_from_camera_matrix);
+                info_once!("World from camera: {:?}", &view_matrix);
                 info_once!("Projection matrix: {:?}", &projection_matrix);
-                info_once!("Position: {:?}", &camera_transform.translation());
+                info_once!("Position: {:?}", &transform.translation());
 
-                let view_proj = projection_matrix * world_from_camera_matrix;
+                let view_proj = view_matrix * projection_matrix;
 
                 state.render(&view_proj);
                 // Emits a new redraw requested event.

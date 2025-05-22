@@ -19,6 +19,7 @@ use bevy::diagnostic::FrameCountPlugin;
 use bevy::log::LogPlugin;
 use bevy::prelude::light_consts::lux;
 use bevy::prelude::*;
+use bevy::render::camera::CameraProjectionPlugin;
 use bevy::state::app::StatesPlugin;
 use bevy::time::TimePlugin;
 
@@ -56,6 +57,18 @@ fn camera_y_bob_over_time(
     }
 }
 
+fn camera_z_bob_over_time(
+    time: Res<Time>,
+    mut camera_query: Query<(&Camera, &mut Transform), With<Camera>>,
+) {
+    for (_camera, mut transform) in camera_query.iter_mut() {
+        let t = time.elapsed_secs();
+        let bob_height = 0.1;
+        let bob_speed = 2.0;
+        transform.translation.z = bob_height * (t * bob_speed).sin();
+    }
+}
+
 fn main() {
     App::new()
         .add_plugins((
@@ -71,7 +84,7 @@ fn main() {
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
         .add_systems(Startup, setup) // Add your setup function
-        .add_systems(Update, camera_y_bob_over_time)
+        // .add_systems(Update, camera_z_bob_over_time)
         .run();
 }
 
@@ -97,12 +110,13 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     ));
 
     commands.spawn((
-        Camera3d::default(),
-        Transform::from_xyz(0.0, 0.15, 0.0).looking_at(Vec3::NEG_Z, Vec3::Y),
-        Camera {
-            hdr: true,
-            ..default()
-        },
+        Transform::from_xyz(0.0, 0.0, 1.0).looking_at(Vec3::NEG_Z, Vec3::Y),
+        Projection::Perspective(PerspectiveProjection {
+            fov: 60.0_f32.to_radians(),
+            near: 0.1,
+            far: 1000.0,
+            aspect_ratio: 1.0,
+        }),
     ));
 
     commands.spawn((
