@@ -247,18 +247,18 @@ impl ApplicationHandler for VoxelRenderApp {
                 self.app.update();
                 let world = self.app.world_mut();
                 let mut camera = world.query::<(&Camera, &GlobalTransform)>();
-                
+
                 info_once!("camera count = {:?}", camera.iter(world).count());
-                
+
                 let (camera_camera, camera_transform) = camera.iter(world).next().unwrap();
                 let world_from_camera_matrix = camera_transform.compute_matrix();
                 let projection_matrix = camera_camera.clip_from_view();
-                
+
                 info_once!("World from camera: {:?}", &world_from_camera_matrix);
                 info_once!("Projection matrix: {:?}", &projection_matrix);
-                info!("Position: {:?}", &camera_transform.translation());
-                
-                let view_proj = world_from_camera_matrix * projection_matrix;
+                info_once!("Position: {:?}", &camera_transform.translation());
+
+                let view_proj = projection_matrix * world_from_camera_matrix;
 
                 state.render(&view_proj);
                 // Emits a new redraw requested event.

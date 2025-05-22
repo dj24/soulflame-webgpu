@@ -44,6 +44,18 @@ fn rotate_camera_around_origin_over_time(
     }
 }
 
+fn camera_y_bob_over_time(
+    time: Res<Time>,
+    mut camera_query: Query<(&Camera, &mut Transform), With<Camera>>,
+) {
+    for (_camera, mut transform) in camera_query.iter_mut() {
+        let t = time.elapsed_secs();
+        let bob_height = 0.1;
+        let bob_speed = 2.0;
+        transform.translation.y = bob_height * (t * bob_speed).sin();
+    }
+}
+
 fn main() {
     App::new()
         .add_plugins((
@@ -59,9 +71,10 @@ fn main() {
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
         .add_systems(Startup, setup) // Add your setup function
-        // .add_systems(Update, rotate_camera_around_origin_over_time)
+        .add_systems(Update, camera_y_bob_over_time)
         .run();
 }
+
 
 
 
