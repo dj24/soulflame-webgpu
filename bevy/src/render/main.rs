@@ -6,6 +6,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::PipelineDescriptor::RenderPipelineDescriptor;
 use bevy::tasks::ComputeTaskPool;
 use std::sync::Arc;
+use bevy::ecs::error::panic;
 use bevy::render::camera::CameraProjection;
 use wgpu::{BindGroup, BindGroupLayout, Buffer, ColorTargetState, Device, Queue, RenderPipeline, Surface, TextureFormat};
 use winit::error::EventLoopError;
@@ -201,7 +202,7 @@ impl RenderState {
         });
         renderpass.set_pipeline(&self.render_pipeline);
         renderpass.set_bind_group(0, &self.bind_group, &[]);
-        renderpass.draw(0..3, 0..1);
+        renderpass.draw(0..4, 0..1);
 
         // End the renderpass.
         drop(renderpass);
@@ -250,19 +251,24 @@ impl ApplicationHandler for VoxelRenderApp {
             WindowEvent::RedrawRequested => {
                 self.app.update();
                 let world = self.app.world_mut();
-                let mut camera = world.query::<( &Projection, &GlobalTransform)>();
+                let mut camera = world.query::<(&mut Projection, &GlobalTransform)>();
 
-                info_once!("camera count = {:?}", camera.iter(world).count());
-
-                let (projection, transform) = camera.iter(world).next().unwrap();
-                let view_matrix = transform.compute_matrix();
+                let (mut projection, transform) = camera.iter_mut(world).next().unwrap();
+                match &mut *projection  {
+                    Projection::Perspective(perspective) => {
+                        perspective.update(state.size.width as f32, state.size.height as f32);
+                    }
+                    Projection::Orthographic(p) => {
+                        panic!("Orthographic projection not supported");
+                    }
+                    Projection::Custom(p) => {
+                        panic!("Custom projection not supported");
+                    }
+                }
+                let view_matrix = transform.compute_matrix().inverse();
                 let projection_matrix = projection.get_clip_from_view();
 
-                info_once!("World from camera: {:?}", &view_matrix);
-                info_once!("Projection matrix: {:?}", &projection_matrix);
-                info_once!("Position: {:?}", &transform.translation());
-
-                let view_proj = view_matrix * projection_matrix;
+                let view_proj =  projection_matrix * view_matrix;
 
                 state.render(&view_proj);
                 // Emits a new redraw requested event.
@@ -291,8 +297,6 @@ pub fn winit_runner(mut app: App) -> AppExit {
     event_loop
         .run_app(&mut render_app)
         .expect("Event loop panicked");
-
-    info!("Render app exited");
 
     AppExit::Success
 }

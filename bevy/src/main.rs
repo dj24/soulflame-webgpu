@@ -47,9 +47,9 @@ fn rotate_camera_around_origin_over_time(
 
 fn camera_y_bob_over_time(
     time: Res<Time>,
-    mut camera_query: Query<(&Camera, &mut Transform), With<Camera>>,
+    mut camera_query: Query<(&mut Transform), With<Projection>>,
 ) {
-    for (_camera, mut transform) in camera_query.iter_mut() {
+    for mut transform in camera_query.iter_mut() {
         let t = time.elapsed_secs();
         let bob_height = 0.1;
         let bob_speed = 2.0;
@@ -59,15 +59,17 @@ fn camera_y_bob_over_time(
 
 fn camera_z_bob_over_time(
     time: Res<Time>,
-    mut camera_query: Query<(&Camera, &mut Transform), With<Camera>>,
+    mut camera_query: Query<(&mut Transform), With<Projection>>,
 ) {
-    for (_camera, mut transform) in camera_query.iter_mut() {
+    for mut transform in camera_query.iter_mut() {
         let t = time.elapsed_secs();
         let bob_height = 0.1;
         let bob_speed = 2.0;
-        transform.translation.z = bob_height * (t * bob_speed).sin();
+        transform.translation.z = 1.0 - bob_height * (t * bob_speed).sin();
     }
 }
+
+
 
 fn main() {
     App::new()
@@ -84,11 +86,9 @@ fn main() {
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
         .add_systems(Startup, setup) // Add your setup function
-        // .add_systems(Update, camera_z_bob_over_time)
+        .add_systems(Update, camera_z_bob_over_time)
         .run();
 }
-
-
 
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
