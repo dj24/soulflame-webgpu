@@ -247,6 +247,9 @@ struct CustomByteReader {
     bytes: Vec<u8>,
     index: usize,
 }
+                                                            
+#[derive(Component)]
+pub struct PendingVxm(pub Handle<VxmAsset>);
 
 impl CustomByteReader {
     fn new(bytes: Vec<u8>) -> Self {

@@ -11,9 +11,8 @@ mod vxm_mesh;
 mod vxm_terrain;
 
 use crate::camera::{CameraTarget, ThirdPersonCameraPlugin};
-use crate::dnd::PendingVxm;
 use crate::render::main::VoxelRenderPlugin;
-use crate::vxm::{VxmAsset, VxmAssetLoader};
+use crate::vxm::{PendingVxm, VxmAsset, VxmAssetLoader};
 use bevy::color::palettes::css::WHITE;
 use bevy::diagnostic::FrameCountPlugin;
 use bevy::log::LogPlugin;
@@ -22,6 +21,7 @@ use bevy::prelude::*;
 use bevy::render::camera::CameraProjectionPlugin;
 use bevy::state::app::StatesPlugin;
 use bevy::time::TimePlugin;
+use crate::vxm_mesh::create_mesh_on_vxm_import_system;
 
 fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
     info!("Exit on ESC system");
@@ -86,7 +86,7 @@ fn main() {
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
         .add_systems(Startup, setup) // Add your setup function
-        .add_systems(Update, camera_z_bob_over_time)
+        .add_systems(Update, (camera_z_bob_over_time, create_mesh_on_vxm_import_system))
         .run();
 }
 

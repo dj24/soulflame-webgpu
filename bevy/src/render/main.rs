@@ -1,19 +1,19 @@
-use async_channel::{Receiver, Sender};
-use bevy::app::{AppLabel, PluginsState};
+use crate::custom_shader_instancing::{InstanceData, InstanceMaterialData};
+use crate::vxm_mesh::MeshedVoxelsFace;
+use bevy::app::PluginsState;
+use bevy::ecs::query::QueryIter;
 use bevy::ecs::schedule::MainThreadExecutor;
-use bevy::log::info;
 use bevy::prelude::*;
-use bevy::render::render_resource::PipelineDescriptor::RenderPipelineDescriptor;
-use bevy::tasks::ComputeTaskPool;
-use std::sync::Arc;
-use bevy::ecs::error::panic;
 use bevy::render::camera::CameraProjection;
-use wgpu::{BindGroup, BindGroupLayout, Buffer, ColorTargetState, Device, Queue, RenderPipeline, Surface, TextureFormat};
-use winit::error::EventLoopError;
+use std::sync::Arc;
+use wgpu::{
+    BindGroup, Buffer, Device, Queue, RenderPipeline, Surface, TextureFormat, VertexAttribute,
+    VertexStepMode,
+};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
-    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
+    event_loop::{ActiveEventLoop, EventLoop},
     window::{Window, WindowId},
 };
 
@@ -26,7 +26,8 @@ struct RenderState {
     surface_format: TextureFormat,
     render_pipeline: RenderPipeline,
     uniform_buffer: Buffer,
-    bind_group: BindGroup
+    instance_buffer: Buffer,
+    bind_group: BindGroup,
 }
 
 impl RenderState {
@@ -49,18 +50,24 @@ impl RenderState {
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Bind Group Layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
                 },
-            ],
+                count: None,
+            }],
+        });
+
+        // Resize in render
+        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("instance data buffer"),
+            size: (size_of::<InstanceData>()) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
         });
 
         let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -95,12 +102,27 @@ impl RenderState {
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
-            layout:  Some(&pipeline_layout),
+            layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
                 compilation_options: Default::default(),
-                buffers: &[],
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: size_of::<InstanceData>() as u64,
+                    step_mode: VertexStepMode::Instance,
+                    attributes: &[
+                        VertexAttribute {
+                            format: wgpu::VertexFormat::Uint32,
+                            offset: 0,
+                            shader_location: 3, // shader locations 0-2 are taken up by Position, Normal and UV attributes
+                        },
+                        VertexAttribute {
+                            format: wgpu::VertexFormat::Uint32,
+                            offset: wgpu::VertexFormat::Uint32.size(),
+                            shader_location: 4,
+                        },
+                    ],
+                }],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -110,6 +132,7 @@ impl RenderState {
             }),
             primitive: wgpu::PrimitiveState {
                 cull_mode: None,
+                topology: wgpu::PrimitiveTopology::TriangleStrip,
                 ..default()
             },
             depth_stencil: None,
@@ -127,7 +150,8 @@ impl RenderState {
             surface_format,
             render_pipeline,
             uniform_buffer,
-            bind_group
+            bind_group,
+            instance_buffer,
         };
 
         // Configure surface for the first time
@@ -162,13 +186,58 @@ impl RenderState {
         self.configure_surface();
     }
 
-    fn render(&mut self, view_proj: &Mat4) {
-        info_once!("{:?}", &view_proj.to_cols_array_2d());
+    fn render(&mut self, mut world: &mut World) {
+        let mut camera = world.query::<(&mut Projection, &GlobalTransform)>();
+        let (mut projection, transform) = camera.iter_mut(&mut world).next().unwrap();
+        match &mut *projection {
+            Projection::Perspective(perspective) => {
+                perspective.update(self.size.width as f32, self.size.height as f32);
+            }
+            Projection::Orthographic(p) => {
+                panic!("Orthographic projection not supported");
+            }
+            Projection::Custom(p) => {
+                panic!("Custom projection not supported");
+            }
+        }
+        let view_matrix = transform.compute_matrix().inverse();
+        let projection_matrix = projection.get_clip_from_view();
+        let view_proj = projection_matrix * view_matrix;
+
         // Update the uniform buffer with the new view projection matrix
         self.queue.write_buffer(
             &self.uniform_buffer,
             0,
             bytemuck::cast_slice(&view_proj.to_cols_array_2d()),
+        );
+
+        // Create CPU buffer for instance data
+        let mut all_instance_data: Vec<InstanceData> = Vec::new();
+        for (face, instance_data, transform) in world
+            .query::<(&MeshedVoxelsFace, &InstanceMaterialData, &GlobalTransform)>()
+            .iter(&mut world)
+        {
+            all_instance_data.extend_from_slice(instance_data.as_slice());
+        }
+
+        let mut new_size = all_instance_data.len() * size_of::<InstanceData>();
+        new_size = new_size.max(size_of::<InstanceData>()); // Ensure at least element to avoid zero-sized buffer
+
+        // Resize the instance buffer if necessary
+        if new_size as u64 != self.instance_buffer.size() {
+            self.instance_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("instance data buffer"),
+                size: new_size as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+
+        // Write instance data to the GPU buffer
+        self.queue.write_buffer(
+            &self.instance_buffer,
+            0,
+            bytemuck::cast_slice(&all_instance_data),
         );
 
         // Create texture view
@@ -202,6 +271,7 @@ impl RenderState {
         });
         renderpass.set_pipeline(&self.render_pipeline);
         renderpass.set_bind_group(0, &self.bind_group, &[]);
+        renderpass.set_vertex_buffer(0, self.instance_buffer.slice(..));
         renderpass.draw(0..4, 0..1);
 
         // End the renderpass.
@@ -250,27 +320,8 @@ impl ApplicationHandler for VoxelRenderApp {
             }
             WindowEvent::RedrawRequested => {
                 self.app.update();
-                let world = self.app.world_mut();
-                let mut camera = world.query::<(&mut Projection, &GlobalTransform)>();
-
-                let (mut projection, transform) = camera.iter_mut(world).next().unwrap();
-                match &mut *projection  {
-                    Projection::Perspective(perspective) => {
-                        perspective.update(state.size.width as f32, state.size.height as f32);
-                    }
-                    Projection::Orthographic(p) => {
-                        panic!("Orthographic projection not supported");
-                    }
-                    Projection::Custom(p) => {
-                        panic!("Custom projection not supported");
-                    }
-                }
-                let view_matrix = transform.compute_matrix().inverse();
-                let projection_matrix = projection.get_clip_from_view();
-
-                let view_proj =  projection_matrix * view_matrix;
-
-                state.render(&view_proj);
+                let mut world = self.app.world_mut();
+                state.render(world);
                 // Emits a new redraw requested event.
                 state.get_window().request_redraw();
             }

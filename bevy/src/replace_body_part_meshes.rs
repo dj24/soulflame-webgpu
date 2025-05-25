@@ -1,4 +1,4 @@
-use crate::vxm::VxmAsset;
+use crate::vxm::{PendingVxm, VxmAsset};
 use crate::vxm_mesh;
 use crate::vxm_mesh::{MeshedVoxels};
 use bevy::asset::{AssetEvent, AssetServer, Assets, Handle};
@@ -10,7 +10,6 @@ use bevy::prelude::{ChildOf, Children, Commands, Component, Entity, EventReader,
 use bevy::render::mesh::VertexAttributeValues;
 use bevy::render::storage::ShaderStorageBuffer;
 use std::env::current_dir;
-use crate::dnd::PendingVxm;
 
 struct VxmMeshSwapTarget {
     name: String,

@@ -1,8 +1,7 @@
 use crate::color_conversion::{
      create_hsl_voxel,
 };
-use crate::dnd::PendingVxm;
-use crate::vxm::VxmAsset;
+use crate::vxm::{PendingVxm, VxmAsset};
 use bevy::app::{App, Update, Plugin};
 use bevy::asset::Assets;
 use bevy::math::Vec3;

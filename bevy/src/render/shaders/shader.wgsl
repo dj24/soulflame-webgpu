@@ -6,17 +6,16 @@ struct VertexOutput {
     @location(0) color: vec4<f32>,
 };
 
+const positions = array<vec3<f32>, 4>(
+    vec3<f32>(-1.0, -1.0, -1.0),
+    vec3<f32>(1.0, -1.0, -1.0),
+    vec3<f32>(-1.0, 1.0,-1.0),
+    vec3<f32>(1.0, 1.0, -1.0)
+);
+
 @vertex
 fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
-    // Object-space triangle: roughly 1x1 in size, facing -Z
-    var positions = array<vec3<f32>, 4>(
-        vec3<f32>(-1.0, -1.0, -1.0),
-        vec3<f32>(1.0, -1.0, -1.0),
-        vec3<f32>(-1.0, 1.0,-1.0),
-        vec3<f32>(1.0, 1.0, -1.0)
-    );
     let pos = positions[in_vertex_index];  // Object-space position
-
     var output: VertexOutput;
     output.position = model_view_proj * vec4<f32>(pos, 1.0);  // Transform to clip space
     output.color = vec4<f32>(pos.x * 0.5 + 0.5 , pos.y * 0.5 + 0.5, 0.0, 1.0);  // Red for testing

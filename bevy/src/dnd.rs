@@ -1,8 +1,4 @@
-use crate::vxm::VxmAsset;
 use bevy::prelude::*;
-
-#[derive(Component)]
-pub struct PendingVxm(pub Handle<VxmAsset>);
 
 #[derive(Resource)]
 pub struct Animations {
