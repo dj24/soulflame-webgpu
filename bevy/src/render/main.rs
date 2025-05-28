@@ -133,15 +133,17 @@ impl RenderState {
             primitive: wgpu::PrimitiveState {
                 cull_mode: Some(wgpu::Face::Back),
                 topology: wgpu::PrimitiveTopology::TriangleStrip,
+                front_face: wgpu::FrontFace::Ccw,
                 ..default()
             },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: TextureFormat::Depth24PlusStencil8,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilState::default(), // 2.
-                bias: wgpu::DepthBiasState::default(),
-            }),
+            depth_stencil: None,
+            // depth_stencil: Some(wgpu::DepthStencilState {
+            //     format: TextureFormat::Depth32Float,
+            //     depth_write_enabled: true,
+            //     depth_compare: wgpu::CompareFunction::Less,
+            //     stencil: wgpu::StencilState::default(), // 2.
+            //     bias: wgpu::DepthBiasState::default(),
+            // }),
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
             cache: None,
@@ -213,13 +215,24 @@ impl RenderState {
 
         // Create CPU buffer for instance data
         let mut all_instance_data: Vec<InstanceData> = Vec::new();
-        for (face, instance_data, transform) in world
-            .query::<(&MeshedVoxelsFace, &InstanceMaterialData, &GlobalTransform)>()
-            .iter(&mut world)
-        {
-            all_instance_data.extend_from_slice(instance_data.as_slice());
-            // TODO: add this at the correct index in a storage buffer
-            model_view_proj = view_proj * transform.compute_matrix();
+        let mut query = world.query::<(&MeshedVoxelsFace, &InstanceMaterialData, &GlobalTransform)>();
+
+
+        // TODO: create mesh for each face and reuse everywhere
+        for (face, instance_data, transform) in query.iter(&mut world) {
+            // TODO: Handle different faces and instance data
+            match face {
+                MeshedVoxelsFace::Front => {
+                    all_instance_data.extend_from_slice(instance_data.as_slice());
+                    // TODO: add this at the correct index in a storage buffer
+                    model_view_proj = view_proj * transform.compute_matrix();
+                }
+                _ => {
+                    // For other faces, we can skip or handle differently if needed
+                    continue;
+                }
+            }
+
         }
 
         // Update the uniform buffer with the new view projection matrix
@@ -267,23 +280,6 @@ impl RenderState {
                     ..Default::default()
                 });
 
-            let depth_texture = self.device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("Depth Texture"),
-                size: wgpu::Extent3d {
-                    width: self.size.width,
-                    height: self.size.height,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: TextureFormat::Depth24PlusStencil8,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                view_formats: &[TextureFormat::Depth24PlusStencil8],
-            });
-
-            let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
-
             let mut encoder = self.device.create_command_encoder(&Default::default());
             let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
@@ -295,14 +291,7 @@ impl RenderState {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &depth_view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
+                depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
@@ -310,11 +299,7 @@ impl RenderState {
             renderpass.set_bind_group(0, &self.bind_group, &[]);
             renderpass.set_vertex_buffer(0, self.instance_buffer.slice(..));
             renderpass.draw(0..4, 0..instance_count);
-
-            // End the renderpass.
             drop(renderpass);
-
-            // Submit the command in the queue to execute
             self.queue.submit([encoder.finish()]);
         }
 
@@ -340,7 +325,7 @@ impl ApplicationHandler for VoxelRenderApp {
         // Create window object
         let window = Arc::new(
             event_loop
-                .create_window(Window::default_attributes())
+                .create_window(Window::default_attributes().with_maximized(true))
                 .unwrap(),
         );
 

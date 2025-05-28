@@ -31,56 +31,6 @@ fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: Event
     }
 }
 
-fn rotate_camera_around_origin_over_time(
-    time: Res<Time>,
-    mut camera_query: Query<(&Camera, &mut Transform), With<Camera>>,
-) {
-    for (_camera, mut transform) in camera_query.iter_mut() {
-        let t = time.elapsed_secs();
-        let radius = 2.0;
-        let angle = t * 0.00005; // radians per second
-        let x = radius * angle.cos();
-        let z = radius * angle.sin();
-        transform.translation = Vec3::new(x, 0.0, z);
-        transform.look_at(Vec3::ZERO, Vec3::Y);
-    }
-}
-
-fn camera_y_bob_over_time(
-    time: Res<Time>,
-    mut camera_query: Query<(&mut Transform), With<Projection>>,
-) {
-    for mut transform in camera_query.iter_mut() {
-        let t = time.elapsed_secs();
-        let bob_height = 0.1;
-        let bob_speed = 2.0;
-        transform.translation.y = bob_height * (t * bob_speed).sin();
-    }
-}
-
-fn camera_z_bob_over_time(
-    time: Res<Time>,
-    mut camera_query: Query<(&mut Transform), With<Projection>>,
-) {
-    for mut transform in camera_query.iter_mut() {
-        let t = time.elapsed_secs();
-        let bob_height = 0.1;
-        let bob_speed = 2.0;
-        transform.translation.z = 1.0 - bob_height * (t * bob_speed).sin();
-    }
-}
-
-fn rotate_tranforms_over_time_around_center(
-    time: Res<Time>,
-    mut query: Query<&mut Transform, With<MeshedVoxels>>,
-) {
-    for mut transform in query.iter_mut() {
-        let t = time.elapsed_secs();
-        let angle = t * 0.00005; // radians per second
-        let rotation = Quat::from_rotation_y(angle);
-        transform.rotation = rotation * transform.rotation;
-    }
-}
 
 fn camera_oribit_target_over_time(
     time: Res<Time>,
@@ -152,7 +102,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     commands.spawn((
         Name::new("Dragon 0,0"),
-        PendingVxm(asset_server.load("Dragon.vxm")),
+        PendingVxm(asset_server.load("street-scene.vxm")),
         CameraTarget(Vec3::new(126.0 / 2.0, 89.0 / 2.0, 57.0 / 2.0)),
         Transform::default(),
     ));

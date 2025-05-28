@@ -213,9 +213,13 @@ impl AssetLoader for VxmAssetLoader {
             voxel_array[voxel.x as usize][voxel.y as usize][voxel.z as usize] = create_hsl_voxel(r, g, b);
         });
 
+        let size_bytes = size.iter().map(|&s| s as usize).product::<usize>() * 2; // 2 bytes per voxel
+        let size_mb = size_bytes as f32 / 1024.0 / 1024.0;
+
         info!(
-            "imported {:?}x{:?}x{:?} vxm asset in {:?}ms",
+            "imported {:?}x{:?}x{:?} {:?}mb vxm asset in {:?}ms",
             size[0],size[1],size[2],
+            size_mb,
             start_time.elapsed().as_millis()
         );
 
