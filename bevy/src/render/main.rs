@@ -1,7 +1,6 @@
 use crate::custom_shader_instancing::{InstanceData, InstanceMaterialData};
 use crate::vxm_mesh::MeshedVoxelsFace;
 use bevy::app::PluginsState;
-use bevy::ecs::query::QueryIter;
 use bevy::ecs::schedule::MainThreadExecutor;
 use bevy::prelude::*;
 use bevy::render::camera::CameraProjection;
@@ -195,6 +194,38 @@ impl RenderState {
     }
 
     fn render(&mut self, mut world: &mut World) {
+        // Create texture view
+        let surface_texture = self
+            .surface
+            .get_current_texture()
+            .expect("failed to acquire next swapchain texture");
+
+        let texture_view = surface_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor {
+                // Without add_srgb_suffix() the image we will be working with
+                // might not be "gamma correct".
+                format: Some(self.surface_format.add_srgb_suffix()),
+                ..Default::default()
+            });
+
+        let mut encoder = self.device.create_command_encoder(&Default::default());
+        let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: None,
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &texture_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+        renderpass.set_pipeline(&self.render_pipeline);
+
         let mut camera = world.query::<(&mut Projection, &GlobalTransform)>();
         let (mut projection, transform) = camera.iter_mut(&mut world).next().unwrap();
         match &mut *projection {
@@ -211,97 +242,49 @@ impl RenderState {
         let view_matrix = transform.compute_matrix().inverse();
         let projection_matrix = projection.get_clip_from_view();
         let view_proj = projection_matrix * view_matrix;
-        let mut model_view_proj = Mat4::IDENTITY;
 
-        // Create CPU buffer for instance data
-        let mut all_instance_data: Vec<InstanceData> = Vec::new();
-        let mut query = world.query::<(&MeshedVoxelsFace, &InstanceMaterialData, &GlobalTransform)>();
+        let mut query =
+            world.query::<(&MeshedVoxelsFace, &InstanceMaterialData, &GlobalTransform)>();
 
-
-        // TODO: create mesh for each face and reuse everywhere
         for (face, instance_data, transform) in query.iter(&mut world) {
-            // TODO: Handle different faces and instance data
+            let model_view_proj = view_proj * transform.compute_matrix();
+            self.queue.write_buffer(
+                &self.uniform_buffer,
+                0,
+                bytemuck::cast_slice(&model_view_proj.to_cols_array_2d()),
+            );
+            let instance_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("instance data buffer"),
+                size: (instance_data.len() * size_of::<InstanceData>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+
+            // Write instance data to the GPU buffer
+            self.queue
+                .write_buffer(&instance_buffer, 0, bytemuck::cast_slice(&instance_data));
+
+            renderpass.set_bind_group(0, &self.bind_group, &[]);
+            renderpass.set_vertex_buffer(0, instance_buffer.slice(..));
+            
+            let instance_count = instance_data.len() as u32;
+
             match face {
+                MeshedVoxelsFace::Back => {
+                    renderpass.draw(0..4, 0..instance_count);
+                }
                 MeshedVoxelsFace::Front => {
-                    all_instance_data.extend_from_slice(instance_data.as_slice());
-                    // TODO: add this at the correct index in a storage buffer
-                    model_view_proj = view_proj * transform.compute_matrix();
+                    renderpass.draw(4..8, 0..instance_count);
                 }
                 _ => {
                     // For other faces, we can skip or handle differently if needed
                     continue;
                 }
             }
-
         }
 
-        // Update the uniform buffer with the new view projection matrix
-        self.queue.write_buffer(
-            &self.uniform_buffer,
-            0,
-            bytemuck::cast_slice(&model_view_proj.to_cols_array_2d()),
-        );
-
-        let mut new_size = all_instance_data.len() * size_of::<InstanceData>();
-        new_size = new_size.max(size_of::<InstanceData>()); // Ensure at least element to avoid zero-sized buffer
-
-        // Resize the instance buffer if necessary
-        if new_size as u64 != self.instance_buffer.size() {
-            self.instance_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("instance data buffer"),
-                size: new_size as u64,
-                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-        }
-
-        // Write instance data to the GPU buffer
-        self.queue.write_buffer(
-            &self.instance_buffer,
-            0,
-            bytemuck::cast_slice(&all_instance_data),
-        );
-
-        // Create texture view
-        let surface_texture = self
-            .surface
-            .get_current_texture()
-            .expect("failed to acquire next swapchain texture");
-
-        let instance_count = all_instance_data.len() as u32;
-
-        if instance_count > 0 {
-            let texture_view = surface_texture
-                .texture
-                .create_view(&wgpu::TextureViewDescriptor {
-                    // Without add_srgb_suffix() the image we will be working with
-                    // might not be "gamma correct".
-                    format: Some(self.surface_format.add_srgb_suffix()),
-                    ..Default::default()
-                });
-
-            let mut encoder = self.device.create_command_encoder(&Default::default());
-            let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &texture_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            renderpass.set_pipeline(&self.render_pipeline);
-            renderpass.set_bind_group(0, &self.bind_group, &[]);
-            renderpass.set_vertex_buffer(0, self.instance_buffer.slice(..));
-            renderpass.draw(0..4, 0..instance_count);
-            drop(renderpass);
-            self.queue.submit([encoder.finish()]);
-        }
+        drop(renderpass);
+        self.queue.submit([encoder.finish()]);
 
         self.window.pre_present_notify();
         surface_texture.present();

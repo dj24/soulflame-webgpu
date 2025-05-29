@@ -11,11 +11,17 @@ struct Instance {
   @location(1) color_y_extent: u32,
 }
 
-const positions = array<vec3<f32>, 4>(
+const positions = array<vec3<f32>, 8>(
+    // Back
     vec3<f32>(0.0, 0.0, 0.0),  // 0: bottom-left
     vec3<f32>(1.0, 0.0, 0.0),  // 1: bottom-right
     vec3<f32>(0.0, 1.0, 0.0),  // 2: top-left
-    vec3<f32>(1.0, 1.0, 0.0)   // 3: top-right
+    vec3<f32>(1.0, 1.0, 0.0),   // 3: top-right
+    // Front
+    vec3<f32>(0.0, 0.0, 1.0),  // 0: bottom-left
+    vec3<f32>(0.0, 1.0, 1.0),  // 2: top-left
+    vec3<f32>(1.0, 0.0, 1.0),  // 1: bottom-right
+    vec3<f32>(1.0, 1.0, 1.0)   // 3: top-right
 );
 
 fn hue_to_rgb(p: f32, q: f32, t: f32) -> f32 {
