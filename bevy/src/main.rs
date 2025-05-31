@@ -13,6 +13,7 @@ mod vxm_terrain;
 use crate::camera::{CameraTarget, ThirdPersonCameraPlugin};
 use crate::render::main::VoxelRenderPlugin;
 use crate::vxm::{PendingVxm, VxmAsset, VxmAssetLoader};
+use crate::vxm_mesh::{create_mesh_on_vxm_import_system, MeshedVoxels};
 use bevy::color::palettes::css::WHITE;
 use bevy::diagnostic::FrameCountPlugin;
 use bevy::ecs::error::info;
@@ -22,7 +23,6 @@ use bevy::prelude::*;
 use bevy::render::camera::CameraProjectionPlugin;
 use bevy::state::app::StatesPlugin;
 use bevy::time::TimePlugin;
-use crate::vxm_mesh::{create_mesh_on_vxm_import_system, MeshedVoxels};
 
 fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
     info!("Exit on ESC system");
@@ -30,7 +30,6 @@ fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: Event
         exit.send(AppExit::Success);
     }
 }
-
 
 fn camera_oribit_target_over_time(
     time: Res<Time>,
@@ -43,14 +42,13 @@ fn camera_oribit_target_over_time(
     let target_position = target_transform.translation + camera_target_offset;
 
     let t = time.elapsed_secs();
-    let radius = 150.0;
+    let radius = 70.0;
     let angle = t * 0.5; // radians per second
     let x = radius * angle.cos();
     let z = radius * angle.sin();
     camera_transform.translation = target_position + Vec3::new(x, 0.0, z);
     camera_transform.look_at(target_position, Vec3::Y);
 }
-
 
 fn main() {
     App::new()
@@ -67,10 +65,15 @@ fn main() {
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
         .add_systems(Startup, setup) // Add your setup function
-        .add_systems(Update, (create_mesh_on_vxm_import_system, camera_oribit_target_over_time))
+        .add_systems(
+            Update,
+            (
+                create_mesh_on_vxm_import_system,
+                camera_oribit_target_over_time,
+            ),
+        )
         .run();
 }
-
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // ambient light
@@ -91,7 +94,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     ));
 
     commands.spawn((
-        Transform::from_xyz(126.0 / 2.0, 89.0 / 2.0, 200.0).looking_at(Vec3::NEG_Z, Vec3::Y),
+        Transform::from_xyz(32.0 / 2.0, 32.0 / 2.0, 200.0).looking_at(Vec3::NEG_Z, Vec3::Y),
         Projection::Perspective(PerspectiveProjection {
             fov: 60.0_f32.to_radians(),
             near: 0.1,
@@ -102,8 +105,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     commands.spawn((
         Name::new("Dragon 0,0"),
-        PendingVxm(asset_server.load("street-scene.vxm")),
-        CameraTarget(Vec3::new(126.0 / 2.0, 89.0 / 2.0, 57.0 / 2.0)),
+        PendingVxm(asset_server.load("big_cube.vxm")),
+        CameraTarget(Vec3::new(32.0 / 2.0, (32.0 / 2.0) + 4.0, 32.0 / 2.0)),
         Transform::default(),
     ));
 }

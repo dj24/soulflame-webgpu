@@ -276,9 +276,17 @@ impl RenderState {
                 MeshedVoxelsFace::Front => {
                     renderpass.draw(4..8, 0..instance_count);
                 }
-                _ => {
-                    // For other faces, we can skip or handle differently if needed
-                    continue;
+                MeshedVoxelsFace::Left => {
+                    renderpass.draw(8..12, 0..instance_count);
+                }
+                MeshedVoxelsFace::Right => {
+                    renderpass.draw(12..16, 0..instance_count);
+                }
+                MeshedVoxelsFace::Bottom => {
+                    renderpass.draw(16..20, 0..instance_count);
+                }
+                MeshedVoxelsFace::Top => {
+                    renderpass.draw(20..24, 0..instance_count);
                 }
             }
         }

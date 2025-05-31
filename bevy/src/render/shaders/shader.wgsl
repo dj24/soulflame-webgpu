@@ -11,17 +11,38 @@ struct Instance {
   @location(1) color_y_extent: u32,
 }
 
-const positions = array<vec3<f32>, 8>(
+const positions = array<vec3<f32>, 24>(
     // Back
-    vec3<f32>(0.0, 0.0, 0.0),  // 0: bottom-left
-    vec3<f32>(1.0, 0.0, 0.0),  // 1: bottom-right
-    vec3<f32>(0.0, 1.0, 0.0),  // 2: top-left
-    vec3<f32>(1.0, 1.0, 0.0),   // 3: top-right
+    vec3<f32>(1.0, 0.0, 0.0),  // 0: bottom-left
+    vec3<f32>(0.0, 0.0, 0.0),  // 2: top-left
+    vec3<f32>(1.0, 1.0, 0.0),  // 1: bottom-right
+    vec3<f32>(0.0, 1.0, 0.0),   // 3: top-right
     // Front
     vec3<f32>(0.0, 0.0, 1.0),  // 0: bottom-left
-    vec3<f32>(0.0, 1.0, 1.0),  // 2: top-left
     vec3<f32>(1.0, 0.0, 1.0),  // 1: bottom-right
-    vec3<f32>(1.0, 1.0, 1.0)   // 3: top-right
+    vec3<f32>(0.0, 1.0, 1.0),  // 2: top-left
+    vec3<f32>(1.0, 1.0, 1.0),   // 3: top-right
+    // Left
+     vec3<f32>(0.0, 0.0, 0.0),  // 0: bottom-left
+     vec3<f32>(0.0, 0.0, 1.0),  // 4: bottom-left
+     vec3<f32>(0.0, 1.0, 0.0),  // 2: top-left
+     vec3<f32>(0.0, 1.0, 1.0),   // 6: top-right
+     // Right
+     // TODO: check mesh generation to see if x is correct
+     vec3<f32>(1.0, 0.0, 1.0),  // 1: bottom-right
+     vec3<f32>(1.0, 0.0, 0.0),  // 3: top-right
+     vec3<f32>(1.0, 1.0, 1.0),  // 5: bottom-right
+     vec3<f32>(1.0, 1.0, 1.0),   // 7: top-right
+      // Botttom
+     vec3<f32>(0.0, 0.0, 0.0),  // 0: bottom-left
+     vec3<f32>(1.0, 0.0, 0.0),  // 3: top-right
+     vec3<f32>(0.0, 0.0, 1.0),  // 3: top-right
+     vec3<f32>(1.0, 0.0, 1.0),
+     // Top
+     vec3<f32>(1.0, 1.0, 0.0),
+     vec3<f32>(1.0, 1.0, 0.0),
+     vec3<f32>(1.0, 1.0, 1.0),
+     vec3<f32>(0.0, 1.0, 1.0),
 );
 
 fn hue_to_rgb(p: f32, q: f32, t: f32) -> f32 {
@@ -77,6 +98,20 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
     let unpacked_l = f32(unpacked_color_y_extent.b) / 63.0;
 
     var scale = vec3(x_scale, y_scale, 1.0);
+    
+    // TODO
+//     var scale = vec3(0.0);
+//        // Use the normal to determine how to apply the scale
+//        if (abs(vertex.normal.x) > 0.5) {
+//            // For faces pointing in X direction (left/right), scale Y and Z
+//            scale = vec3(1.0, x_scale, y_scale);
+//        } else if (abs(vertex.normal.y) > 0.5) {
+//            // For faces pointing in Y direction (top/bottom), scale X and Z
+//            scale = vec3(x_scale, 1.0, y_scale);
+//        } else {
+//            // For faces pointing in Z direction (front/back), scale X and Y
+//            scale = vec3(x_scale, y_scale, 1.0);
+//        }
 
     let local_pos = positions[in_vertex_index];
     let pos = local_pos * scale + vec3<f32>(x_pos, y_pos, z_pos);
@@ -84,7 +119,8 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
 
     var output: VertexOutput;
     output.position = projected_pos;  // Transform to clip space
-    output.color = vec4(convert_hsl_to_rgb(unpacked_h,unpacked_s, unpacked_l), 1.0);
+//    output.color = vec4(convert_hsl_to_rgb(unpacked_h,unpacked_s, unpacked_l), 1.0);
+    output.color = vec4<f32>(local_pos.x , local_pos.y, 0.0, 1.0);  // Red for testing
     return output;
 }
 
