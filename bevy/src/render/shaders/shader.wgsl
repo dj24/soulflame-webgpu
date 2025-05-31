@@ -97,21 +97,20 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
     let unpacked_s = f32(unpacked_color_y_extent.g) / 7.0;
     let unpacked_l = f32(unpacked_color_y_extent.b) / 63.0;
 
-    var scale = vec3(x_scale, y_scale, 1.0);
+    let face_index = in_vertex_index / 4u; // Each face has 4 vertices
     
-    // TODO
-//     var scale = vec3(0.0);
-//        // Use the normal to determine how to apply the scale
-//        if (abs(vertex.normal.x) > 0.5) {
-//            // For faces pointing in X direction (left/right), scale Y and Z
-//            scale = vec3(1.0, x_scale, y_scale);
-//        } else if (abs(vertex.normal.y) > 0.5) {
-//            // For faces pointing in Y direction (top/bottom), scale X and Z
-//            scale = vec3(x_scale, 1.0, y_scale);
-//        } else {
-//            // For faces pointing in Z direction (front/back), scale X and Y
-//            scale = vec3(x_scale, y_scale, 1.0);
-//        }
+    var scale = vec3(0.0);
+    // Use the normal to determine how to apply the scale
+    if (face_index / 2 == 0) {
+        // For faces pointing in X direction (left/right), scale Y and Z
+        scale = vec3(1.0, x_scale, y_scale);
+    } else if (face_index / 2 == 1) {
+        // For faces pointing in Y direction (top/bottom), scale X and Z
+        scale = vec3(x_scale, 1.0, y_scale);
+    } else {
+        // For faces pointing in Z direction (front/back), scale X and Y
+        scale = vec3(x_scale, y_scale, 1.0);
+    }
 
     let local_pos = positions[in_vertex_index];
     let pos = local_pos * scale + vec3<f32>(x_pos, y_pos, z_pos);
