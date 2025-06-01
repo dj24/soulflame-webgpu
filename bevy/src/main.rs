@@ -105,8 +105,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     commands.spawn((
         Name::new("Dragon 0,0"),
-        PendingVxm(asset_server.load("big_cube.vxm")),
-        CameraTarget(Vec3::new(32.0 / 2.0, (32.0 / 2.0) + 4.0, 32.0 / 2.0)),
+        PendingVxm(asset_server.load("street-scene.vxm")),
+        CameraTarget(Vec3::new(126.0 / 2.0, 89.0 / 2.0, 57.0 / 2.0)),
         Transform::default(),
     ));
 }

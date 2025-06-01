@@ -32,7 +32,7 @@ const positions = array<vec3<f32>, 24>(
      vec3<f32>(1.0, 0.0, 1.0),  // 1: bottom-right
      vec3<f32>(1.0, 0.0, 0.0),  // 3: top-right
      vec3<f32>(1.0, 1.0, 1.0),  // 5: bottom-right
-     vec3<f32>(1.0, 1.0, 1.0),   // 7: top-right
+     vec3<f32>(1.0, 1.0, 0.0),   // 7: top-right
       // Botttom
      vec3<f32>(0.0, 0.0, 0.0),  // 0: bottom-left
      vec3<f32>(1.0, 0.0, 0.0),  // 3: top-right
@@ -40,7 +40,7 @@ const positions = array<vec3<f32>, 24>(
      vec3<f32>(1.0, 0.0, 1.0),
      // Top
      vec3<f32>(1.0, 1.0, 0.0),
-     vec3<f32>(1.0, 1.0, 0.0),
+     vec3<f32>(0.0, 1.0, 0.0),
      vec3<f32>(1.0, 1.0, 1.0),
      vec3<f32>(0.0, 1.0, 1.0),
 );
@@ -97,14 +97,16 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
     let unpacked_s = f32(unpacked_color_y_extent.g) / 7.0;
     let unpacked_l = f32(unpacked_color_y_extent.b) / 63.0;
 
-    let face_index = in_vertex_index / 4u; // Each face has 4 vertices
-    
+    let is_z_face = in_vertex_index < 8u; // First 8 vertices are for the front and back faces
+    let is_x_face = in_vertex_index >= 8u && in_vertex_index < 16u; // Next 8 vertices are for the left and right faces
+    let is_y_face = in_vertex_index >= 16u; // Last 8 vertices are for the top and bottom faces
+
     var scale = vec3(0.0);
     // Use the normal to determine how to apply the scale
-    if (face_index / 2 == 0) {
+    if (is_x_face) {
         // For faces pointing in X direction (left/right), scale Y and Z
         scale = vec3(1.0, x_scale, y_scale);
-    } else if (face_index / 2 == 1) {
+    } else if (is_y_face) {
         // For faces pointing in Y direction (top/bottom), scale X and Z
         scale = vec3(x_scale, 1.0, y_scale);
     } else {
