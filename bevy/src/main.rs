@@ -14,6 +14,7 @@ use crate::camera::{CameraTarget, ThirdPersonCameraPlugin};
 use crate::render::main::VoxelRenderPlugin;
 use crate::vxm::{PendingVxm, VxmAsset, VxmAssetLoader};
 use crate::vxm_mesh::{create_mesh_on_vxm_import_system, MeshedVoxels};
+use crate::vxm_terrain::VoxelTerrainPlugin;
 use bevy::color::palettes::css::WHITE;
 use bevy::diagnostic::FrameCountPlugin;
 use bevy::ecs::error::info;
@@ -36,13 +37,17 @@ fn camera_oribit_target_over_time(
     mut camera_query: Query<&mut Transform, With<Projection>>,
     target: Query<(&CameraTarget, &Transform), Without<Projection>>,
 ) {
+    if target.is_empty() {
+        info!("No target found for camera orbiting.");
+        return;
+    }
     let (target, target_transform) = target.single().unwrap();
     let mut camera_transform = camera_query.single_mut().unwrap();
     let camera_target_offset = target.0;
     let target_position = target_transform.translation + camera_target_offset;
 
     let t = time.elapsed_secs();
-    let radius = 70.0;
+    let radius = 150.0;
     let angle = t * 0.5; // radians per second
     let x = radius * angle.cos();
     let z = radius * angle.sin();
@@ -61,6 +66,7 @@ fn main() {
             StatesPlugin::default(),
             AssetPlugin::default(),
             VoxelRenderPlugin,
+            VoxelTerrainPlugin,
         ))
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
@@ -103,10 +109,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         }),
     ));
 
-    commands.spawn((
-        Name::new("Dragon 0,0"),
-        PendingVxm(asset_server.load("street-scene.vxm")),
-        CameraTarget(Vec3::new(126.0 / 2.0, 89.0 / 2.0, 57.0 / 2.0)),
-        Transform::default(),
-    ));
+    // commands.spawn((
+    //     Name::new("Dragon 0,0"),
+    //     PendingVxm(asset_server.load("street-scene.vxm")),
+    //     CameraTarget(Vec3::new(126.0 / 2.0, 89.0 / 2.0, 57.0 / 2.0)),
+    //     Transform::default(),
+    // ));
 }

@@ -1,8 +1,7 @@
-use crate::color_conversion::{
-     create_hsl_voxel,
-};
+use crate::camera::CameraTarget;
+use crate::color_conversion::create_hsl_voxel;
 use crate::vxm::{PendingVxm, VxmAsset};
-use bevy::app::{App, Update, Plugin};
+use bevy::app::{App, Plugin, Update};
 use bevy::asset::Assets;
 use bevy::math::Vec3;
 use bevy::prelude::{Commands, Name, ResMut, Resource, Transform};
@@ -16,7 +15,7 @@ pub struct ChunkQueue(VecDeque<(i32, i32, i32)>);
 impl Default for ChunkQueue {
     fn default() -> Self {
         let mut queue = VecDeque::new();
-        for r in 0..16 {
+        for r in 0..2 {
             for x in (-r)..(r + 1) {
                 for z in (-r)..(r + 1) {
                     if !queue.contains(&(x, 0, z)) {
@@ -157,11 +156,11 @@ fn terrain_system(
                 0.0,
                 (TERRAIN_SIZE * z_pos) as f32,
             )),
-            // CameraTarget(Vec3::new(
-            //     TERRAIN_SIZE as f32 * 0.5,
-            //     255. * 0.5,
-            //     TERRAIN_SIZE as f32 * 0.5,
-            // )),
+            CameraTarget(Vec3::new(
+                TERRAIN_SIZE as f32 * 0.5,
+                160.0,
+                TERRAIN_SIZE as f32 * 0.5,
+            )),
         ));
     } else {
         commands.spawn((

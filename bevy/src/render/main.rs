@@ -54,6 +54,10 @@ impl RenderState {
         });
 
         let swapchain_capabilities = surface.get_capabilities(&adapter);
+        let supports_ray_query = adapter
+            .features()
+            .contains(wgpu::Features::EXPERIMENTAL_RAY_QUERY);
+        println!("Ray Query Support: {}", supports_ray_query);
         let swapchain_format = swapchain_capabilities.formats[0];
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -142,9 +146,9 @@ impl RenderState {
                 ..default()
             },
             depth_stencil: Some(wgpu::DepthStencilState {
-                format: TextureFormat::Depth32Float,
+                format: TextureFormat::Depth24Plus,
                 depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
+                depth_compare: wgpu::CompareFunction::Greater,
                 stencil: wgpu::StencilState::default(), // 2.
                 bias: wgpu::DepthBiasState::default(),
             }),
@@ -234,14 +238,14 @@ impl RenderState {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth32Float,
+            format: wgpu::TextureFormat::Depth24Plus,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
 
         let depth_texture_view = depth_texture.create_view(&wgpu::TextureViewDescriptor {
             label: Some("Depth Texture View"),
-            format: Some(wgpu::TextureFormat::Depth32Float),
+            format: Some(wgpu::TextureFormat::Depth24Plus),
             dimension: Some(wgpu::TextureViewDimension::D2),
             aspect: wgpu::TextureAspect::All,
             ..Default::default()
@@ -368,7 +372,7 @@ impl RenderState {
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.depth_texture_view,
                 depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
+                    load: wgpu::LoadOp::Clear(0.0),
                     store: wgpu::StoreOp::Store,
                 }),
                 stencil_ops: None,
@@ -382,6 +386,8 @@ impl RenderState {
             world.query::<(&MeshedVoxelsFace, &InstanceMaterialData, &GlobalTransform)>();
         let view_proj = self.get_view_projection_matrix(world);
 
+        // TODO: batch each face type, and store transforms in a storage buffer
+        // Store vertex offset start and end, using push constants as the storage buffer offset
         for (face, instance_data, transform) in query.iter(&mut world) {
             let model_view_proj = view_proj * transform.compute_matrix();
             self.queue.write_buffer(
@@ -427,10 +433,9 @@ impl RenderState {
             }
         }
         drop(renderpass);
-        self.queue.submit([encoder.finish()]);
 
-        let mut encoder = self.device.create_command_encoder(&Default::default());
-        let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let mut encoder2 = self.device.create_command_encoder(&Default::default());
+        let mut renderpass = encoder2.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &texture_view,
@@ -448,8 +453,8 @@ impl RenderState {
         renderpass.set_bind_group(0, &self.debug_quad_bind_group, &[]);
         renderpass.draw(0..4, 0..1); // Draw the debug quad
         drop(renderpass);
-        self.queue.submit([encoder.finish()]);
 
+        self.queue.submit([encoder.finish(), encoder2.finish()]);
         self.window.pre_present_notify();
         surface_texture.present();
     }

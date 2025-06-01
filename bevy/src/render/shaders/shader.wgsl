@@ -81,6 +81,7 @@ fn convert_hsl_to_rgb(h: f32, s: f32, l: f32) -> vec3<f32> {
     return vec3<f32>(r, g, b);
 }
 
+
 @vertex
 fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> VertexOutput {
     let unpacked_pos_x_extent = unpack4xU8(instance.pos_x_extent);
@@ -114,14 +115,41 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
         scale = vec3(x_scale, y_scale, 1.0);
     }
 
+    var normal = vec3(0.0);
+
+    let is_plus_z_face = in_vertex_index < 4u; // First 4 vertices are for the front face
+    let is_minus_z_face = in_vertex_index >= 4u && in_vertex_index < 8u; // Last 4 vertices are for the back face
+    let is_plus_x_face = in_vertex_index >= 8u && in_vertex_index < 12u; // First 4 vertices are for the right face
+    let is_minus_x_face = in_vertex_index >= 12u && in_vertex_index < 16u; // Last 4 vertices are for the left face
+    let is_plus_y_face = in_vertex_index >= 16u && in_vertex_index < 20u; // First 4 vertices are for the top face
+    let is_minus_y_face = in_vertex_index >= 20u; // Last 4 vertices are for the bottom face
+
+    if (is_plus_z_face) {
+        normal = vec3(0.0, 0.0, 1.0);
+    } else if (is_minus_z_face) {
+        normal = vec3(0.0, 0.0, -1.0);
+    } else if (is_plus_x_face) {
+        normal = vec3(1.0, 0.0, 0.0);
+    } else if (is_minus_x_face) {
+        normal = vec3(-1.0, 0.0, 0.0);
+    } else if (is_plus_y_face) {
+        normal = vec3(0.0, 1.0, 0.0);
+    } else if (is_minus_y_face) {
+        normal = vec3(0.0, -1.0, 0.0);
+    }
+
     let local_pos = positions[in_vertex_index];
     let pos = local_pos * scale + vec3<f32>(x_pos, y_pos, z_pos);
     var projected_pos = model_view_proj * vec4<f32>(pos, 1.0);
 
+    let albedo = convert_hsl_to_rgb(unpacked_h,unpacked_s, unpacked_l);
+
+    let light_dir = vec3<f32>(0.577, 0.577, 0.577); // Example light direction
+    let n_dot_l = max(dot(normal, light_dir), 0.0);
+
     var output: VertexOutput;
     output.position = projected_pos;  // Transform to clip space
-//    output.color = vec4(convert_hsl_to_rgb(unpacked_h,unpacked_s, unpacked_l), 1.0);
-    output.color = vec4<f32>(local_pos.x , local_pos.y, 0.0, 1.0);  // Red for testing
+    output.color = vec4(mix(albedo * n_dot_l, albedo, 0.1), 1.0);
     return output;
 }
 
