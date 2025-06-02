@@ -1,9 +1,9 @@
-use crate::custom_shader_instancing::{InstanceData, InstanceMaterialData};
-use crate::vxm_mesh::MeshedVoxelsFace;
+use crate::vxm_mesh::{MeshedVoxels, MeshedVoxelsFace};
 use bevy::app::PluginsState;
 use bevy::ecs::schedule::MainThreadExecutor;
 use bevy::prelude::*;
 use bevy::render::camera::CameraProjection;
+use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
 use wgpu::{
     BindGroup, Buffer, Device, Queue, RenderPipeline, Surface, SurfaceTexture, TextureFormat,
@@ -15,6 +15,22 @@ use winit::{
     event_loop::{ActiveEventLoop, EventLoop},
     window::{Window, WindowId},
 };
+
+#[derive(Clone, Copy, Pod, Zeroable)]
+#[repr(C)]
+pub struct InstanceData {
+    pub(crate) position: [u8; 3],
+    pub(crate) width: u8,
+    pub(crate) color: [u8; 3],
+    pub(crate) height: u8,
+}
+
+struct DrawData {
+    pub model_view_proj: Mat4,
+}
+
+#[derive(Component, Deref)]
+pub struct InstanceMaterialData(pub Arc<Vec<InstanceData>>);
 
 struct RenderState {
     window: Arc<Window>,
@@ -58,6 +74,12 @@ impl RenderState {
             .features()
             .contains(wgpu::Features::EXPERIMENTAL_RAY_QUERY);
         println!("Ray Query Support: {}", supports_ray_query);
+
+        let supports_multi_draw = adapter
+            .features()
+            .contains(wgpu::Features::MULTI_DRAW_INDIRECT);
+
+        println!("Multi Draw Support: {}", supports_multi_draw);
         let swapchain_format = swapchain_capabilities.formats[0];
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -382,53 +404,81 @@ impl RenderState {
         });
         renderpass.set_pipeline(&self.render_pipeline);
 
-        let mut query =
-            world.query::<(&MeshedVoxelsFace, &InstanceMaterialData, &GlobalTransform)>();
+        let mut query = world.query::<(&Children, &Transform, &MeshedVoxels)>();
+
+        let mut child_query = world.query::<(&MeshedVoxelsFace, &InstanceMaterialData)>();
+
         let view_proj = self.get_view_projection_matrix(world);
 
+        let mut first_instance = 0;
+
         // TODO: batch each face type, and store transforms in a storage buffer
-        // Store vertex offset start and end, using push constants as the storage buffer offset
-        for (face, instance_data, transform) in query.iter(&mut world) {
+        for (index, (children, transform, _)) in query.iter(world).enumerate() {
             let model_view_proj = view_proj * transform.compute_matrix();
             self.queue.write_buffer(
                 &self.uniform_buffer,
                 0,
                 bytemuck::cast_slice(&model_view_proj.to_cols_array_2d()),
             );
-            let instance_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("instance data buffer"),
-                size: (instance_data.len() * size_of::<InstanceData>()) as u64,
-                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
 
-            // Write instance data to the GPU buffer
-            self.queue
-                .write_buffer(&instance_buffer, 0, bytemuck::cast_slice(&instance_data));
+            for child in children.iter() {
+                let (face, instance_data) = child_query.get(world, child).unwrap();
 
-            renderpass.set_bind_group(0, &self.bind_group, &[]);
-            renderpass.set_vertex_buffer(0, instance_buffer.slice(..));
+                let face_offset = match face {
+                    MeshedVoxelsFace::Back => 0,
+                    MeshedVoxelsFace::Front => 1,
+                    MeshedVoxelsFace::Left => 2,
+                    MeshedVoxelsFace::Right => 3,
+                    MeshedVoxelsFace::Bottom => 4,
+                    MeshedVoxelsFace::Top => 5,
+                };
 
-            let instance_count = instance_data.len() as u32;
+                let first_vertex = face_offset * 4;
 
-            match face {
-                MeshedVoxelsFace::Back => {
-                    renderpass.draw(0..4, 0..instance_count);
-                }
-                MeshedVoxelsFace::Front => {
-                    renderpass.draw(4..8, 0..instance_count);
-                }
-                MeshedVoxelsFace::Left => {
-                    renderpass.draw(8..12, 0..instance_count);
-                }
-                MeshedVoxelsFace::Right => {
-                    renderpass.draw(12..16, 0..instance_count);
-                }
-                MeshedVoxelsFace::Bottom => {
-                    renderpass.draw(16..20, 0..instance_count);
-                }
-                MeshedVoxelsFace::Top => {
-                    renderpass.draw(20..24, 0..instance_count);
+                let instance_count = instance_data.len() as u32;
+
+                let draw_indirect_args = wgpu::util::DrawIndirectArgs {
+                    vertex_count: 4, // Each face has 4 vertices
+                    instance_count,
+                    first_vertex,
+                    first_instance,
+                };
+
+                first_instance += instance_count;
+
+                let instance_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("instance data buffer"),
+                    size: (instance_data.len() * size_of::<InstanceData>()) as u64,
+                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+
+                // Write instance data to the GPU buffer
+                self.queue
+                    .write_buffer(&instance_buffer, 0, bytemuck::cast_slice(&instance_data));
+
+                renderpass.set_bind_group(0, &self.bind_group, &[]);
+                renderpass.set_vertex_buffer(0, instance_buffer.slice(..));
+
+                match face {
+                    MeshedVoxelsFace::Back => {
+                        renderpass.draw(0..4, 0..instance_count);
+                    }
+                    MeshedVoxelsFace::Front => {
+                        renderpass.draw(4..8, 0..instance_count);
+                    }
+                    MeshedVoxelsFace::Left => {
+                        renderpass.draw(8..12, 0..instance_count);
+                    }
+                    MeshedVoxelsFace::Right => {
+                        renderpass.draw(12..16, 0..instance_count);
+                    }
+                    MeshedVoxelsFace::Bottom => {
+                        renderpass.draw(16..20, 0..instance_count);
+                    }
+                    MeshedVoxelsFace::Top => {
+                        renderpass.draw(20..24, 0..instance_count);
+                    }
                 }
             }
         }

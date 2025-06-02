@@ -1,4 +1,5 @@
-use crate::custom_shader_instancing::{InstanceData, InstanceMaterialData};
+use crate::color_conversion::get_hsl_voxel;
+use crate::render::main::{InstanceData, InstanceMaterialData};
 use crate::vxm::{PendingVxm, VxmAsset};
 use bevy::asset::{Assets, RenderAssetUsages};
 use bevy::log::info;
@@ -7,7 +8,6 @@ use bevy::render::mesh::{Indices, PrimitiveTopology};
 use bevy::render::primitives::Aabb;
 use rayon::prelude::*;
 use std::sync::Arc;
-use crate::color_conversion::get_hsl_voxel;
 
 enum CubeFace {
     Front,
@@ -441,7 +441,6 @@ pub fn create_mesh_on_vxm_import_system(
                 let (right_instance_data, left_instance_data) = x_data;
                 let (top_instance_data, bottom_instance_data) = z_data;
 
-
                 let instance_count = front_instance_data.len()
                     + back_instance_data.len()
                     + left_instance_data.len()
@@ -471,48 +470,48 @@ pub fn create_mesh_on_vxm_import_system(
                 commands.entity(entity).remove::<PendingVxm>();
                 commands
                     .entity(entity)
-                    .insert((InheritedVisibility::default(), aabb,  MeshedVoxels))
+                    .insert((InheritedVisibility::default(), aabb, MeshedVoxels))
                     .with_child((
                         Name::new("Front face instance data"),
                         MeshedVoxelsFace::Front,
                         InstanceMaterialData(Arc::new(front_instance_data.clone())),
                         aabb,
-                        Transform::from_xyz(0.0,0.0,0.0)
+                        Transform::from_xyz(0.0, 0.0, 0.0),
                     ))
                     .with_child((
                         Name::new("Back face instance data"),
                         MeshedVoxelsFace::Back,
                         InstanceMaterialData(Arc::new(back_instance_data.clone())),
                         aabb,
-                        Transform::from_xyz(0.0,0.0,0.0)
+                        Transform::from_xyz(0.0, 0.0, 0.0),
                     ))
                     .with_child((
                         Name::new("Right face instance data"),
                         MeshedVoxelsFace::Right,
                         InstanceMaterialData(Arc::new(right_instance_data.clone())),
                         aabb,
-                        Transform::from_xyz(0.0,0.0,0.0)
+                        Transform::from_xyz(0.0, 0.0, 0.0),
                     ))
                     .with_child((
                         Name::new("Left face instance data"),
                         MeshedVoxelsFace::Left,
                         InstanceMaterialData(Arc::new(left_instance_data.clone())),
                         aabb,
-                        Transform::from_xyz(0.0,0.0,0.0)
+                        Transform::from_xyz(0.0, 0.0, 0.0),
                     ))
                     .with_child((
                         Name::new("Top face instance data"),
                         MeshedVoxelsFace::Top,
                         InstanceMaterialData(Arc::new(top_instance_data.clone())),
                         aabb,
-                        Transform::from_xyz(0.0,0.0,0.0)
+                        Transform::from_xyz(0.0, 0.0, 0.0),
                     ))
                     .with_child((
                         Name::new("Bottom face instance data"),
                         MeshedVoxelsFace::Bottom,
                         InstanceMaterialData(Arc::new(bottom_instance_data.clone())),
                         aabb,
-                        Transform::from_xyz(0.0,0.0,0.0)
+                        Transform::from_xyz(0.0, 0.0, 0.0),
                     ));
             }
             None => {}

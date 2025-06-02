@@ -1,6 +1,5 @@
 mod camera;
 mod color_conversion;
-mod custom_shader_instancing;
 mod dnd;
 mod render;
 mod replace_body_part_meshes;
