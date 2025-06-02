@@ -1,5 +1,5 @@
-@group(0) @binding(0)
-var<uniform> model_view_proj: mat4x4<f32>;
+@group(0) @binding(0) var<storage, read> mvp_buffer: array<mat4x4<f32>>;
+
 
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
@@ -7,8 +7,9 @@ struct VertexOutput {
 };
 
 struct Instance {
-  @location(0) pos_x_extent: u32, // 5+5+5
+  @location(0) pos_x_extent: u32,// 5+5+5
   @location(1) color_y_extent: u32,
+  @location(2) model_index: u32, // The index of the vertex in the vertex buffer
 }
 
 const positions = array<vec3<f32>, 24>(
@@ -140,6 +141,7 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
 
     let local_pos = positions[in_vertex_index];
     let pos = local_pos * scale + vec3<f32>(x_pos, y_pos, z_pos);
+    let model_view_proj = mvp_buffer[0];
     var projected_pos = model_view_proj * vec4<f32>(pos, 1.0);
 
     let albedo = convert_hsl_to_rgb(unpacked_h,unpacked_s, unpacked_l);

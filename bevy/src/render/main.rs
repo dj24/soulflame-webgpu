@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use bevy::render::camera::CameraProjection;
 use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use wgpu::{
     BindGroup, Buffer, Device, Queue, RenderPipeline, Surface, SurfaceTexture, TextureFormat,
     VertexAttribute, VertexStepMode,
@@ -25,10 +26,6 @@ pub struct InstanceData {
     pub(crate) height: u8,
 }
 
-struct DrawData {
-    pub model_view_proj: Mat4,
-}
-
 #[derive(Component, Deref)]
 pub struct InstanceMaterialData(pub Arc<Vec<InstanceData>>);
 
@@ -41,13 +38,43 @@ struct RenderState {
     surface_format: TextureFormat,
     render_pipeline: RenderPipeline,
     debug_quad_render_pipeline: RenderPipeline,
-    uniform_buffer: Buffer,
+    mvp_buffer: Buffer,
     instance_buffer: Buffer,
     bind_group: BindGroup,
     debug_quad_bind_group: BindGroup,
     depth_texture: wgpu::Texture,
     depth_texture_view: wgpu::TextureView,
 }
+
+const BIND_GROUP_LAYOUT_DESCRIPTOR: &wgpu::BindGroupLayoutDescriptor =
+    &wgpu::BindGroupLayoutDescriptor {
+        label: Some("Bind Group Layout"),
+        entries: &[wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            visibility: wgpu::ShaderStages::VERTEX,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        }],
+    };
+
+const DEBUG_DEPTH_BIND_GROUP_LAYOUT_DESCRIPTOR: &wgpu::BindGroupLayoutDescriptor =
+    &wgpu::BindGroupLayoutDescriptor {
+        label: Some("Debug Quad Bind Group Layout"),
+        entries: &[wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Texture {
+                sample_type: wgpu::TextureSampleType::Depth,
+                view_dimension: wgpu::TextureViewDimension::D2,
+                multisampled: false,
+            },
+            count: None,
+        }],
+    };
 
 impl RenderState {
     fn get_debug_quad_render_pipeline(
@@ -138,22 +165,35 @@ impl RenderState {
                 module: &shader,
                 entry_point: Some("vs_main"),
                 compilation_options: Default::default(),
-                buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: size_of::<InstanceData>() as u64,
-                    step_mode: VertexStepMode::Instance,
-                    attributes: &[
-                        VertexAttribute {
-                            format: wgpu::VertexFormat::Uint32,
-                            offset: 0,
-                            shader_location: 0, // shader locations 0-2 are taken up by Position, Normal and UV attributes
-                        },
-                        VertexAttribute {
-                            format: wgpu::VertexFormat::Uint32,
-                            offset: wgpu::VertexFormat::Uint32.size(),
-                            shader_location: 1,
-                        },
-                    ],
-                }],
+                buffers: &[
+                    wgpu::VertexBufferLayout {
+                        array_stride: size_of::<InstanceData>() as u64,
+                        step_mode: VertexStepMode::Instance,
+                        attributes: &[
+                            VertexAttribute {
+                                format: wgpu::VertexFormat::Uint32,
+                                offset: 0,
+                                shader_location: 0,
+                            },
+                            VertexAttribute {
+                                format: wgpu::VertexFormat::Uint32,
+                                offset: wgpu::VertexFormat::Uint32.size(),
+                                shader_location: 1,
+                            },
+                        ],
+                    },
+                    wgpu::VertexBufferLayout {
+                        array_stride: std::mem::size_of::<u32>() as u64, // vec3<f32>
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &[
+                            wgpu::VertexAttribute {
+                                format: wgpu::VertexFormat::Uint32,
+                                offset: 0,
+                                shader_location: 2, // position in shader
+                            },
+                        ],
+                    }
+                ],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -198,34 +238,8 @@ impl RenderState {
         let cap = surface.get_capabilities(&adapter);
         let surface_format = cap.formats[0];
 
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("Bind Group Layout"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-        });
-
         let debug_quad_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("Debug Quad Bind Group Layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Depth,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                }],
-            });
+            device.create_bind_group_layout(DEBUG_DEPTH_BIND_GROUP_LAYOUT_DESCRIPTOR);
 
         let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("instance data buffer"),
@@ -234,19 +248,21 @@ impl RenderState {
             mapped_at_creation: false,
         });
 
-        let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Uniform Buffer"),
-            size: size_of::<Mat4>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        let mvp_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("MVP Buffer"),
+            size: size_of::<Mat4>() as u64, // 2 matrices for model and view projection
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+
+        let bind_group_layout = device.create_bind_group_layout(BIND_GROUP_LAYOUT_DESCRIPTOR);
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Bind Group"),
             layout: &bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
+                resource: mvp_buffer.as_entire_binding(),
             }],
         });
 
@@ -302,9 +318,9 @@ impl RenderState {
             render_pipeline,
             debug_quad_render_pipeline,
             debug_quad_bind_group,
-            uniform_buffer,
             bind_group,
             instance_buffer,
+            mvp_buffer,
             depth_texture,
             depth_texture_view,
         };
@@ -380,6 +396,79 @@ impl RenderState {
         let surface_texture = self.get_surface_texture();
         let texture_view = self.get_texture_view(&surface_texture);
 
+        // Get each voxel entity
+        let mut query = world.query::<(&Children, &Transform, &MeshedVoxels)>();
+
+        // Get face data for each voxel entity
+        let mut child_query = world.query::<(&MeshedVoxelsFace, &InstanceMaterialData)>();
+
+        let view_proj = self.get_view_projection_matrix(world);
+
+        let mut first_instance = 0;
+
+        let voxel_object_count = query.iter(world).count();
+        let new_buffer_size = (voxel_object_count * size_of::<Mat4>()) as u64;
+
+        // If storage buffer is too small, resize it
+        if self.mvp_buffer.size() < new_buffer_size {
+            info!("Resizing MVP buffer from {} to {}", self.mvp_buffer.size(), new_buffer_size);
+            self.mvp_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("MVP Buffer"),
+                size: new_buffer_size,
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+
+        // Vertex buffer used to store model indices
+        let vertex_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Vertex Buffer"),
+            size: (size_of::<u32>() * 24 * voxel_object_count).max(size_of::<u32>() * 24) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+
+        let mut total_instance_buffer_size = 0;
+
+        // Write the model-view-projection matrices to the buffer
+        for (index, (children, transform, _)) in query.iter(world).enumerate() {
+            let model_view_proj = view_proj * transform.compute_matrix();
+            let offset = (index * size_of::<Mat4>()) as u64;
+            self.queue.write_buffer(
+                &self.mvp_buffer,
+                offset,
+                bytemuck::cast_slice(&model_view_proj.to_cols_array_2d()),
+            );
+
+            // Store model index in the vertex data
+            let vertex_data = (0..24)
+                .map(|_| index as u32)
+                .collect::<Vec<u32>>();
+
+            info!("Writing vertex data for index {}, offset: {:?}, data: {:?}", index, size_of::<u32>() * 24 * index, vertex_data);
+
+            // Write vertex data to the GPU buffer
+            self.queue.write_buffer(
+                &vertex_buffer,
+                (size_of::<u32>() * 24 * index) as u64,
+                bytemuck::cast_slice(&vertex_data),
+            );
+
+            for child in children.iter() {
+                let (_, instance_data) = child_query.get(world, child).unwrap();
+                let instance_count = instance_data.len() as u32;
+                total_instance_buffer_size += instance_count * size_of::<InstanceData>() as u32;
+            }
+        }
+
+        let instance_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("instance data buffer"),
+            size: total_instance_buffer_size as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         let mut encoder = self.device.create_command_encoder(&Default::default());
         let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
@@ -402,25 +491,24 @@ impl RenderState {
             timestamp_writes: None,
             occlusion_query_set: None,
         });
+
         renderpass.set_pipeline(&self.render_pipeline);
+        renderpass.set_vertex_buffer(1, vertex_buffer.slice(..));
 
-        let mut query = world.query::<(&Children, &Transform, &MeshedVoxels)>();
+        // Create bind group with the updated MVP buffer
+        self.bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Bind Group"),
+            layout: &self.device.create_bind_group_layout(BIND_GROUP_LAYOUT_DESCRIPTOR),
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: self.mvp_buffer.as_entire_binding(),
+            }],
+        });
 
-        let mut child_query = world.query::<(&MeshedVoxelsFace, &InstanceMaterialData)>();
-
-        let view_proj = self.get_view_projection_matrix(world);
-
-        let mut first_instance = 0;
-
-        // TODO: batch each face type, and store transforms in a storage buffer
         for (index, (children, transform, _)) in query.iter(world).enumerate() {
-            let model_view_proj = view_proj * transform.compute_matrix();
-            self.queue.write_buffer(
-                &self.uniform_buffer,
-                0,
-                bytemuck::cast_slice(&model_view_proj.to_cols_array_2d()),
-            );
-
+            // if index != 1 {
+            //     continue; // Skip all but the first voxel for now
+            // }
             for child in children.iter() {
                 let (face, instance_data) = child_query.get(world, child).unwrap();
 
@@ -433,7 +521,7 @@ impl RenderState {
                     MeshedVoxelsFace::Top => 5,
                 };
 
-                let first_vertex = face_offset * 4;
+                let first_vertex = index as u32 * 24 + face_offset * 4;
 
                 let instance_count = instance_data.len() as u32;
 
@@ -444,46 +532,23 @@ impl RenderState {
                     first_instance,
                 };
 
-                first_instance += instance_count;
-
-                let instance_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("instance data buffer"),
-                    size: (instance_data.len() * size_of::<InstanceData>()) as u64,
-                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                    mapped_at_creation: false,
-                });
-
                 // Write instance data to the GPU buffer
                 self.queue
-                    .write_buffer(&instance_buffer, 0, bytemuck::cast_slice(&instance_data));
+                    .write_buffer(&instance_buffer, (first_instance * size_of::<InstanceData>() as u32) as u64, bytemuck::cast_slice(&instance_data));
+
+                let instance_start_bytes = (first_instance * size_of::<InstanceData>() as u32) as u64;
+                let instance_end_bytes = instance_start_bytes + (instance_count as u64 * size_of::<InstanceData>() as u64);
+
+                first_instance += instance_count;
 
                 renderpass.set_bind_group(0, &self.bind_group, &[]);
-                renderpass.set_vertex_buffer(0, instance_buffer.slice(..));
-
-                match face {
-                    MeshedVoxelsFace::Back => {
-                        renderpass.draw(0..4, 0..instance_count);
-                    }
-                    MeshedVoxelsFace::Front => {
-                        renderpass.draw(4..8, 0..instance_count);
-                    }
-                    MeshedVoxelsFace::Left => {
-                        renderpass.draw(8..12, 0..instance_count);
-                    }
-                    MeshedVoxelsFace::Right => {
-                        renderpass.draw(12..16, 0..instance_count);
-                    }
-                    MeshedVoxelsFace::Bottom => {
-                        renderpass.draw(16..20, 0..instance_count);
-                    }
-                    MeshedVoxelsFace::Top => {
-                        renderpass.draw(20..24, 0..instance_count);
-                    }
-                }
+                renderpass.set_vertex_buffer(0, instance_buffer.slice(instance_start_bytes..instance_end_bytes));
+                renderpass.draw(first_vertex..(first_vertex + 4), 0..instance_count);
             }
         }
         drop(renderpass);
 
+        // Debug depth
         let mut encoder2 = self.device.create_command_encoder(&Default::default());
         let mut renderpass = encoder2.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
@@ -514,11 +579,19 @@ impl RenderState {
 struct VoxelRenderApp {
     state: Option<RenderState>,
     app: App,
+    // FPS tracking fields
+    last_fps_instant: Option<Instant>,
+    frame_count: u32,
 }
 
 impl VoxelRenderApp {
     fn new(app: App) -> Self {
-        Self { state: None, app }
+        Self {
+            state: None,
+            app,
+            last_fps_instant: Some(Instant::now()),
+            frame_count: 0,
+        }
     }
 }
 
@@ -548,6 +621,20 @@ impl ApplicationHandler for VoxelRenderApp {
                 self.app.update();
                 let mut world = self.app.world_mut();
                 state.render(world);
+
+                // FPS tracking logic
+                self.frame_count += 1;
+                let now = Instant::now();
+                if let Some(last) = self.last_fps_instant {
+                    if now.duration_since(last) >= Duration::from_secs(1) {
+                        println!("FPS: {}", self.frame_count);
+                        self.frame_count = 0;
+                        self.last_fps_instant = Some(now);
+                    }
+                } else {
+                    self.last_fps_instant = Some(now);
+                }
+
                 // Emits a new redraw requested event.
                 state.get_window().request_redraw();
             }
