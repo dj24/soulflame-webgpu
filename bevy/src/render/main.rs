@@ -185,14 +185,12 @@ impl RenderState {
                     wgpu::VertexBufferLayout {
                         array_stride: std::mem::size_of::<u32>() as u64, // vec3<f32>
                         step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &[
-                            wgpu::VertexAttribute {
-                                format: wgpu::VertexFormat::Uint32,
-                                offset: 0,
-                                shader_location: 2, // position in shader
-                            },
-                        ],
-                    }
+                        attributes: &[wgpu::VertexAttribute {
+                            format: wgpu::VertexFormat::Uint32,
+                            offset: 0,
+                            shader_location: 2, // position in shader
+                        }],
+                    },
                 ],
             },
             fragment: Some(wgpu::FragmentState {
@@ -202,7 +200,7 @@ impl RenderState {
                 targets: &[Some(swapchain_format.into())],
             }),
             primitive: wgpu::PrimitiveState {
-                cull_mode: Some(wgpu::Face::Back),
+                cull_mode: None,
                 topology: wgpu::PrimitiveTopology::TriangleStrip,
                 front_face: wgpu::FrontFace::Ccw,
                 ..default()
@@ -411,7 +409,11 @@ impl RenderState {
 
         // If storage buffer is too small, resize it
         if self.mvp_buffer.size() < new_buffer_size {
-            info!("Resizing MVP buffer from {} to {}", self.mvp_buffer.size(), new_buffer_size);
+            info!(
+                "Resizing MVP buffer from {} to {}",
+                self.mvp_buffer.size(),
+                new_buffer_size
+            );
             self.mvp_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("MVP Buffer"),
                 size: new_buffer_size,
@@ -428,7 +430,6 @@ impl RenderState {
             mapped_at_creation: false,
         });
 
-
         let mut total_instance_buffer_size = 0;
 
         // Write the model-view-projection matrices to the buffer
@@ -442,11 +443,7 @@ impl RenderState {
             );
 
             // Store model index in the vertex data
-            let vertex_data = (0..24)
-                .map(|_| index as u32)
-                .collect::<Vec<u32>>();
-
-            info!("Writing vertex data for index {}, offset: {:?}, data: {:?}", index, size_of::<u32>() * 24 * index, vertex_data);
+            let vertex_data = (0..24).map(|_| index as u32).collect::<Vec<u32>>();
 
             // Write vertex data to the GPU buffer
             self.queue.write_buffer(
@@ -465,7 +462,9 @@ impl RenderState {
         let instance_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("instance data buffer"),
             size: total_instance_buffer_size as u64,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::VERTEX
+                | wgpu::BufferUsages::COPY_DST
+                | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
 
@@ -493,12 +492,13 @@ impl RenderState {
         });
 
         renderpass.set_pipeline(&self.render_pipeline);
-        renderpass.set_vertex_buffer(1, vertex_buffer.slice(..));
 
         // Create bind group with the updated MVP buffer
         self.bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Bind Group"),
-            layout: &self.device.create_bind_group_layout(BIND_GROUP_LAYOUT_DESCRIPTOR),
+            layout: &self
+                .device
+                .create_bind_group_layout(BIND_GROUP_LAYOUT_DESCRIPTOR),
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: self.mvp_buffer.as_entire_binding(),
@@ -506,9 +506,6 @@ impl RenderState {
         });
 
         for (index, (children, transform, _)) in query.iter(world).enumerate() {
-            // if index != 1 {
-            //     continue; // Skip all but the first voxel for now
-            // }
             for child in children.iter() {
                 let (face, instance_data) = child_query.get(world, child).unwrap();
 
@@ -532,25 +529,41 @@ impl RenderState {
                     first_instance,
                 };
 
-                // Write instance data to the GPU buffer
-                self.queue
-                    .write_buffer(&instance_buffer, (first_instance * size_of::<InstanceData>() as u32) as u64, bytemuck::cast_slice(&instance_data));
+                let instance_start_bytes =
+                    (first_instance * size_of::<InstanceData>() as u32) as u64;
+                let instance_end_bytes = instance_start_bytes
+                    + (instance_count as u64 * size_of::<InstanceData>() as u64);
 
-                let instance_start_bytes = (first_instance * size_of::<InstanceData>() as u32) as u64;
-                let instance_end_bytes = instance_start_bytes + (instance_count as u64 * size_of::<InstanceData>() as u64);
+                // Write instance data to the GPU buffer
+                self.queue.write_buffer(
+                    &instance_buffer,
+                    instance_start_bytes,
+                    bytemuck::cast_slice(&instance_data),
+                );
+
+                let vertex_start_bytes = (first_vertex * size_of::<u32>() as u32) as u64;
+                let vertex_end_bytes = vertex_start_bytes + (4 * size_of::<u32>() as u64);
 
                 first_instance += instance_count;
 
                 renderpass.set_bind_group(0, &self.bind_group, &[]);
-                renderpass.set_vertex_buffer(0, instance_buffer.slice(instance_start_bytes..instance_end_bytes));
-                renderpass.draw(first_vertex..(first_vertex + 4), 0..instance_count);
+                renderpass.set_vertex_buffer(
+                    0,
+                    instance_buffer.slice(instance_start_bytes..instance_end_bytes),
+                );
+                renderpass.set_vertex_buffer(
+                    1,
+                    vertex_buffer.slice(vertex_start_bytes..vertex_end_bytes),
+                );
+
+                renderpass.draw(0..4, 0..instance_count);
             }
         }
         drop(renderpass);
 
         // Debug depth
-        let mut encoder2 = self.device.create_command_encoder(&Default::default());
-        let mut renderpass = encoder2.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let mut depth_debug_encoder = self.device.create_command_encoder(&Default::default());
+        let mut renderpass = depth_debug_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &texture_view,
@@ -569,7 +582,8 @@ impl RenderState {
         renderpass.draw(0..4, 0..1); // Draw the debug quad
         drop(renderpass);
 
-        self.queue.submit([encoder.finish(), encoder2.finish()]);
+        self.queue
+            .submit([encoder.finish(), depth_debug_encoder.finish()]);
         self.window.pre_present_notify();
         surface_texture.present();
     }

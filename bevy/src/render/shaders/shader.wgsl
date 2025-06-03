@@ -99,9 +99,11 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
     let unpacked_s = f32(unpacked_color_y_extent.g) / 7.0;
     let unpacked_l = f32(unpacked_color_y_extent.b) / 63.0;
 
-    let is_z_face = in_vertex_index < 8u; // First 8 vertices are for the front and back faces
-    let is_x_face = in_vertex_index >= 8u && in_vertex_index < 16u; // Next 8 vertices are for the left and right faces
-    let is_y_face = in_vertex_index >= 16u; // Last 8 vertices are for the top and bottom faces
+    let local_vertex_index = in_vertex_index % 24u; // Ensure the index is within the bounds of the positions array
+
+    let is_z_face = local_vertex_index < 8u; // First 8 vertices are for the front and back faces
+    let is_x_face = local_vertex_index >= 8u && local_vertex_index < 16u; // Next 8 vertices are for the left and right faces
+    let is_y_face = local_vertex_index >= 16u; // Last 8 vertices are for the top and bottom faces
 
     var scale = vec3(0.0);
     // Use the normal to determine how to apply the scale
@@ -118,12 +120,12 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
 
     var normal = vec3(0.0);
 
-    let is_plus_z_face = in_vertex_index < 4u; // First 4 vertices are for the front face
-    let is_minus_z_face = in_vertex_index >= 4u && in_vertex_index < 8u; // Last 4 vertices are for the back face
-    let is_plus_x_face = in_vertex_index >= 8u && in_vertex_index < 12u; // First 4 vertices are for the right face
-    let is_minus_x_face = in_vertex_index >= 12u && in_vertex_index < 16u; // Last 4 vertices are for the left face
-    let is_plus_y_face = in_vertex_index >= 16u && in_vertex_index < 20u; // First 4 vertices are for the top face
-    let is_minus_y_face = in_vertex_index >= 20u; // Last 4 vertices are for the bottom face
+    let is_plus_z_face = local_vertex_index < 4u; // First 4 vertices are for the front face
+    let is_minus_z_face = local_vertex_index >= 4u && local_vertex_index < 8u; // Last 4 vertices are for the back face
+    let is_plus_x_face = local_vertex_index >= 8u && local_vertex_index < 12u; // First 4 vertices are for the right face
+    let is_minus_x_face = local_vertex_index >= 12u && local_vertex_index < 16u; // Last 4 vertices are for the left face
+    let is_plus_y_face = local_vertex_index >= 16u && local_vertex_index < 20u; // First 4 vertices are for the top face
+    let is_minus_y_face = local_vertex_index >= 20u; // Last 4 vertices are for the bottom face
 
     if (is_plus_z_face) {
         normal = vec3(0.0, 0.0, 1.0);
@@ -141,7 +143,7 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
 
     let local_pos = positions[in_vertex_index];
     let pos = local_pos * scale + vec3<f32>(x_pos, y_pos, z_pos);
-    let model_view_proj = mvp_buffer[0];
+    let model_view_proj = mvp_buffer[instance.model_index];
     var projected_pos = model_view_proj * vec4<f32>(pos, 1.0);
 
     let albedo = convert_hsl_to_rgb(unpacked_h,unpacked_s, unpacked_l);
