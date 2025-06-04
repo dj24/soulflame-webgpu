@@ -416,15 +416,32 @@ impl RenderState {
 
         let mut all_vertex_data: Vec<u32> = Vec::with_capacity(24 * voxel_object_count);
         let mut all_mvp_data: Vec<Mat4> = Vec::with_capacity(voxel_object_count);
+        let mut all_indirect_data: Vec<wgpu::util::DrawIndirectArgs> =
+            Vec::with_capacity(total_instances as usize);
 
         // Populate MVP matrices and vertex data for each voxel entity, and count total instances
         for (index, (children, transform, _)) in query.iter(world).enumerate() {
             all_mvp_data.push(view_proj * transform.compute_matrix());
             all_vertex_data.extend((0..24).map(|_| index as u32).collect::<Vec<u32>>());
+            let first_vertex = index as u32 * 24;
 
-            for child in children.iter() {
-                let (_, instance_data) = child_query.get(world, child).unwrap();
+            for (_, child) in children.iter().enumerate() {
+                let (face, instance_data) = child_query.get(world, child).unwrap();
+                let face_index: u32 = match face {
+                    MeshedVoxelsFace::Back => 0,
+                    MeshedVoxelsFace::Front => 1,
+                    MeshedVoxelsFace::Left => 2,
+                    MeshedVoxelsFace::Right => 3,
+                    MeshedVoxelsFace::Bottom => 4,
+                    MeshedVoxelsFace::Top => 5,
+                };
                 let instance_count = instance_data.len() as u32;
+                all_indirect_data.push(wgpu::util::DrawIndirectArgs {
+                    vertex_count: 4, // Each face has 4 vertices
+                    instance_count,
+                    first_vertex: first_vertex + face_index * 4,
+                    first_instance: total_instances,
+                });
                 total_instances += instance_count;
             }
         }
@@ -451,21 +468,39 @@ impl RenderState {
             timestamp_writes: None,
             occlusion_query_set: None,
         });
+
+        let voxel_object_count = query.iter(world).count();
+        let indirect_buffer_size =
+            (size_of::<wgpu::util::DrawIndirectArgs>() * 6 * voxel_object_count) as u64;
+
+        let indirect_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Indirect Draw Buffer"),
+            size: indirect_buffer_size,
+            usage: wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         
+        // Write all indirect data to the GPU buffer
+        {
+            self.queue.write_buffer(
+                &indirect_buffer,
+                0,
+                bytemuck::cast_slice(&all_indirect_data),
+            );
+        }
+
         // Write all vertex data to the GPU buffer
         {
             // Vertex buffer used to store model indices
             let vertex_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Vertex Buffer"),
-                size: (size_of::<u32>() * 24 * voxel_object_count).max(size_of::<u32>() * 24) as u64,
+                size: (size_of::<u32>() * 24 * voxel_object_count).max(size_of::<u32>() * 24)
+                    as u64,
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
-            self.queue.write_buffer(
-                &vertex_buffer,
-                0,
-                bytemuck::cast_slice(&all_vertex_data),
-            );
+            self.queue
+                .write_buffer(&vertex_buffer, 0, bytemuck::cast_slice(&all_vertex_data));
             renderpass.set_vertex_buffer(1, vertex_buffer.slice(..));
         }
 
@@ -488,7 +523,7 @@ impl RenderState {
             self.queue
                 .write_buffer(&self.mvp_buffer, 0, bytemuck::cast_slice(&all_mvp_data));
         }
-        
+
         // Collect all instance data from the children of each voxel entity
         {
             let total_instance_buffer_size =
@@ -537,56 +572,7 @@ impl RenderState {
             renderpass.set_bind_group(0, &self.bind_group, &[]);
         }
 
-
-        let voxel_object_count = query.iter(world).count();
-        let indirect_buffer_size =
-            (size_of::<wgpu::util::DrawIndirectArgs>() * 6 * voxel_object_count) as u64;
-
-        let indirect_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Indirect Draw Buffer"),
-            size: indirect_buffer_size,
-            usage: wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        for (index, (children, transform, _)) in query.iter(world).enumerate() {
-            let first_vertex = index as u32 * 24;
-
-            for child in children.iter() {
-                let (face, instance_data) = child_query.get(world, child).unwrap();
-
-                let instance_count = instance_data.len() as u32;
-
-                let face_index: u32 = match face {
-                    MeshedVoxelsFace::Back => 0,
-                    MeshedVoxelsFace::Front => 1,
-                    MeshedVoxelsFace::Left => 2,
-                    MeshedVoxelsFace::Right => 3,
-                    MeshedVoxelsFace::Bottom => 4,
-                    MeshedVoxelsFace::Top => 5,
-                };
-
-                let indirect_offset = index as u64 * 6 + face_index as u64;
-                let indirect_offset_bytes =
-                    indirect_offset * size_of::<wgpu::util::DrawIndirectArgs>() as u64;
-
-                // Create an indirect draw buffer
-                {
-                    self.queue.write_buffer(
-                        &indirect_buffer,
-                        indirect_offset_bytes,
-                        bytemuck::bytes_of(&wgpu::util::DrawIndirectArgs {
-                            vertex_count: 4, // Each face has 4 vertices
-                            instance_count,
-                            first_vertex: first_vertex + face_index * 4,
-                            first_instance,
-                        }),
-                    );
-                }
-
-                first_instance += instance_count;
-            }
-
+        for (index, (_, _, _)) in query.iter(world).enumerate() {
             renderpass.multi_draw_indirect(
                 &indirect_buffer,
                 index as u64 * 6 * size_of::<wgpu::util::DrawIndirectArgs>() as u64,
