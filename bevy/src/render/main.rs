@@ -435,7 +435,7 @@ impl RenderState {
             mapped_at_creation: false,
         });
 
-        let mut total_instance_buffer_size = 0;
+        let mut total_instances = 0;
 
         // Write the model-view-projection matrices to the buffer
         for (index, (children, transform, _)) in query.iter(world).enumerate() {
@@ -460,18 +460,9 @@ impl RenderState {
             for child in children.iter() {
                 let (_, instance_data) = child_query.get(world, child).unwrap();
                 let instance_count = instance_data.len() as u32;
-                total_instance_buffer_size += instance_count * size_of::<InstanceData>() as u32;
+                total_instances += instance_count;
             }
         }
-
-        let instance_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("instance data buffer"),
-            size: total_instance_buffer_size.max(size_of::<InstanceData>() as u32) as u64,
-            usage: wgpu::BufferUsages::VERTEX
-                | wgpu::BufferUsages::COPY_DST
-                | wgpu::BufferUsages::COPY_SRC,
-            mapped_at_creation: false,
-        });
 
         let mut encoder = self.device.create_command_encoder(&Default::default());
         let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -496,6 +487,37 @@ impl RenderState {
             occlusion_query_set: None,
         });
 
+        
+        // Collect all instance data from the children of each voxel entity
+        {
+            let total_instance_buffer_size =
+                (total_instances * size_of::<InstanceData>() as u32) as u64;
+            let mut all_instance_data: Vec<InstanceData> = Vec::with_capacity(total_instances as usize);
+
+            let instance_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("instance data buffer"),
+                size: total_instance_buffer_size.max(size_of::<InstanceData>() as u64),
+                usage: wgpu::BufferUsages::VERTEX
+                    | wgpu::BufferUsages::COPY_DST
+                    | wgpu::BufferUsages::COPY_SRC,
+                mapped_at_creation: false,
+            });
+
+            for (_, (children, _, _)) in query.iter(world).enumerate() {
+                for child in children.iter() {
+                    let (_, instance_data) = child_query.get(world, child).unwrap();
+                    all_instance_data.extend(instance_data.iter());
+                }
+            }
+            // Write all instance data to the GPU buffer
+            self.queue.write_buffer(
+                &instance_buffer,
+                0,
+                bytemuck::cast_slice(&all_instance_data),
+            );
+            renderpass.set_vertex_buffer(0, instance_buffer.slice(..));
+        }
+
         renderpass.set_pipeline(&self.render_pipeline);
 
         // Create bind group with the updated MVP buffer
@@ -514,7 +536,6 @@ impl RenderState {
 
         renderpass.set_bind_group(0, &self.bind_group, &[]);
         renderpass.set_vertex_buffer(1, vertex_buffer.slice(..));
-        renderpass.set_vertex_buffer(0, instance_buffer.slice(..));
 
         let voxel_object_count = query.iter(world).count();
         let indirect_buffer_size =
@@ -534,18 +555,6 @@ impl RenderState {
                 let (face, instance_data) = child_query.get(world, child).unwrap();
 
                 let instance_count = instance_data.len() as u32;
-
-                let instance_start_bytes =
-                    (first_instance * size_of::<InstanceData>() as u32) as u64;
-
-                // Write instance data to the GPU buffer
-                {
-                    self.queue.write_buffer(
-                        &instance_buffer,
-                        instance_start_bytes,
-                        bytemuck::cast_slice(&instance_data),
-                    );
-                }
 
                 let face_index: u32 = match face {
                     MeshedVoxelsFace::Back => 0,
