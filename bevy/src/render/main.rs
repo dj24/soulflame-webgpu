@@ -412,60 +412,21 @@ impl RenderState {
         let voxel_object_count = query.iter(world).count();
         let new_buffer_size = (voxel_object_count * size_of::<Mat4>()) as u64;
 
-        // Vertex buffer used to store model indices
-        let vertex_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Vertex Buffer"),
-            size: (size_of::<u32>() * 24 * voxel_object_count).max(size_of::<u32>() * 24) as u64,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
         let mut total_instances = 0;
 
         let mut all_vertex_data: Vec<u32> = Vec::with_capacity(24 * voxel_object_count);
         let mut all_mvp_data: Vec<Mat4> = Vec::with_capacity(voxel_object_count);
 
-        // Write the model-view-projection matrices to the buffer
+        // Populate MVP matrices and vertex data for each voxel entity, and count total instances
         for (index, (children, transform, _)) in query.iter(world).enumerate() {
-            let model_view_proj = view_proj * transform.compute_matrix();
-            let offset = (index * size_of::<Mat4>()) as u64;
-            all_mvp_data.push(model_view_proj);
-
-            // Store model index in the vertex data
-            let vertex_data = (0..24).map(|_| index as u32).collect::<Vec<u32>>();
-
-            // Write vertex data to the GPU buffer
-            self.queue.write_buffer(
-                &vertex_buffer,
-                (size_of::<u32>() * 24 * index) as u64,
-                bytemuck::cast_slice(&vertex_data),
-            );
+            all_mvp_data.push(view_proj * transform.compute_matrix());
+            all_vertex_data.extend((0..24).map(|_| index as u32).collect::<Vec<u32>>());
 
             for child in children.iter() {
                 let (_, instance_data) = child_query.get(world, child).unwrap();
                 let instance_count = instance_data.len() as u32;
                 total_instances += instance_count;
             }
-        }
-
-        // Write all MVP matrices to the GPU buffer
-        {
-            // If storage buffer is too small, resize it
-            if self.mvp_buffer.size() < new_buffer_size {
-                info!(
-                    "Resizing MVP buffer from {} to {}",
-                    self.mvp_buffer.size(),
-                    new_buffer_size
-                );
-                self.mvp_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("MVP Buffer"),
-                    size: new_buffer_size,
-                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                    mapped_at_creation: false,
-                });
-            }
-            self.queue
-                .write_buffer(&self.mvp_buffer, 0, bytemuck::cast_slice(&all_mvp_data));
         }
 
         let mut encoder = self.device.create_command_encoder(&Default::default());
@@ -490,7 +451,44 @@ impl RenderState {
             timestamp_writes: None,
             occlusion_query_set: None,
         });
+        
+        // Write all vertex data to the GPU buffer
+        {
+            // Vertex buffer used to store model indices
+            let vertex_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Vertex Buffer"),
+                size: (size_of::<u32>() * 24 * voxel_object_count).max(size_of::<u32>() * 24) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            self.queue.write_buffer(
+                &vertex_buffer,
+                0,
+                bytemuck::cast_slice(&all_vertex_data),
+            );
+            renderpass.set_vertex_buffer(1, vertex_buffer.slice(..));
+        }
 
+        // Write all MVP matrices to the GPU buffer
+        {
+            // If storage buffer is too small, resize it
+            if self.mvp_buffer.size() < new_buffer_size {
+                info!(
+                    "Resizing MVP buffer from {} to {}",
+                    self.mvp_buffer.size(),
+                    new_buffer_size
+                );
+                self.mvp_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("MVP Buffer"),
+                    size: new_buffer_size,
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+            }
+            self.queue
+                .write_buffer(&self.mvp_buffer, 0, bytemuck::cast_slice(&all_mvp_data));
+        }
+        
         // Collect all instance data from the children of each voxel entity
         {
             let total_instance_buffer_size =
@@ -539,7 +537,6 @@ impl RenderState {
             renderpass.set_bind_group(0, &self.bind_group, &[]);
         }
 
-        renderpass.set_vertex_buffer(1, vertex_buffer.slice(..));
 
         let voxel_object_count = query.iter(world).count();
         let indirect_buffer_size =
