@@ -6,6 +6,7 @@ use bevy::render::camera::CameraProjection;
 use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use wgpu::util::DeviceExt;
 use wgpu::{
     BindGroup, Buffer, Device, Queue, RenderPipeline, Surface, SurfaceTexture, TextureFormat,
     VertexAttribute, VertexStepMode,
@@ -509,10 +510,8 @@ impl RenderState {
             let first_vertex = index as u32 * 24;
             let vertex_start_bytes = (first_vertex * size_of::<u32>() as u32) as u64;
             let vertex_end_bytes = vertex_start_bytes + (24 * size_of::<u32>() as u64);
-            renderpass.set_vertex_buffer(
-                1,
-                vertex_buffer.slice(vertex_start_bytes..vertex_end_bytes),
-            );
+            renderpass
+                .set_vertex_buffer(1, vertex_buffer.slice(vertex_start_bytes..vertex_end_bytes));
             for child in children.iter() {
                 let (face, instance_data) = child_query.get(world, child).unwrap();
 
@@ -529,24 +528,19 @@ impl RenderState {
 
                 let instance_count = instance_data.len() as u32;
 
-                let draw_indirect_args = wgpu::util::DrawIndirectArgs {
-                    vertex_count: 4, // Each face has 4 vertices
-                    instance_count,
-                    first_vertex,
-                    first_instance,
-                };
-
                 let instance_start_bytes =
                     (first_instance * size_of::<InstanceData>() as u32) as u64;
                 let instance_end_bytes = instance_start_bytes
                     + (instance_count as u64 * size_of::<InstanceData>() as u64);
 
                 // Write instance data to the GPU buffer
-                self.queue.write_buffer(
-                    &instance_buffer,
-                    instance_start_bytes,
-                    bytemuck::cast_slice(&instance_data),
-                );
+                {
+                    self.queue.write_buffer(
+                        &instance_buffer,
+                        instance_start_bytes,
+                        bytemuck::cast_slice(&instance_data),
+                    );
+                }
 
                 first_instance += instance_count;
 
@@ -556,9 +550,26 @@ impl RenderState {
                     instance_buffer.slice(instance_start_bytes..instance_end_bytes),
                 );
 
-                let local_first_vertex = face_offset * 4;
-                let last_vertex = local_first_vertex + 4;
-                renderpass.draw(local_first_vertex..last_vertex, 0..instance_count);
+                // let local_first_vertex = face_offset * 4;
+                // let last_vertex = local_first_vertex + 4;
+                // renderpass.draw(local_first_vertex..last_vertex, 0..instance_count);
+
+                // Create an indirect draw buffer
+                {
+                    let indirect_buffer =
+                        self.device
+                            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                label: Some("Indirect Draw Buffer"),
+                                contents: bytemuck::bytes_of(&wgpu::util::DrawIndirectArgs {
+                                    vertex_count: 4, // Each face has 4 vertices
+                                    instance_count,
+                                    first_vertex: face_offset * 4,
+                                    first_instance: 0,
+                                }),
+                                usage: wgpu::BufferUsages::INDIRECT,
+                            });
+                    renderpass.draw_indirect(&indirect_buffer, 0);
+                }
             }
         }
         drop(renderpass);
