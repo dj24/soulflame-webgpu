@@ -412,21 +412,6 @@ impl RenderState {
         let voxel_object_count = query.iter(world).count();
         let new_buffer_size = (voxel_object_count * size_of::<Mat4>()) as u64;
 
-        // If storage buffer is too small, resize it
-        if self.mvp_buffer.size() < new_buffer_size {
-            info!(
-                "Resizing MVP buffer from {} to {}",
-                self.mvp_buffer.size(),
-                new_buffer_size
-            );
-            self.mvp_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("MVP Buffer"),
-                size: new_buffer_size,
-                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-        }
-
         // Vertex buffer used to store model indices
         let vertex_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Vertex Buffer"),
@@ -437,15 +422,14 @@ impl RenderState {
 
         let mut total_instances = 0;
 
+        let mut all_vertex_data: Vec<u32> = Vec::with_capacity(24 * voxel_object_count);
+        let mut all_mvp_data: Vec<Mat4> = Vec::with_capacity(voxel_object_count);
+
         // Write the model-view-projection matrices to the buffer
         for (index, (children, transform, _)) in query.iter(world).enumerate() {
             let model_view_proj = view_proj * transform.compute_matrix();
             let offset = (index * size_of::<Mat4>()) as u64;
-            self.queue.write_buffer(
-                &self.mvp_buffer,
-                offset,
-                bytemuck::cast_slice(&model_view_proj.to_cols_array_2d()),
-            );
+            all_mvp_data.push(model_view_proj);
 
             // Store model index in the vertex data
             let vertex_data = (0..24).map(|_| index as u32).collect::<Vec<u32>>();
@@ -462,6 +446,26 @@ impl RenderState {
                 let instance_count = instance_data.len() as u32;
                 total_instances += instance_count;
             }
+        }
+
+        // Write all MVP matrices to the GPU buffer
+        {
+            // If storage buffer is too small, resize it
+            if self.mvp_buffer.size() < new_buffer_size {
+                info!(
+                    "Resizing MVP buffer from {} to {}",
+                    self.mvp_buffer.size(),
+                    new_buffer_size
+                );
+                self.mvp_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("MVP Buffer"),
+                    size: new_buffer_size,
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+            }
+            self.queue
+                .write_buffer(&self.mvp_buffer, 0, bytemuck::cast_slice(&all_mvp_data));
         }
 
         let mut encoder = self.device.create_command_encoder(&Default::default());
@@ -487,12 +491,12 @@ impl RenderState {
             occlusion_query_set: None,
         });
 
-        
         // Collect all instance data from the children of each voxel entity
         {
             let total_instance_buffer_size =
                 (total_instances * size_of::<InstanceData>() as u32) as u64;
-            let mut all_instance_data: Vec<InstanceData> = Vec::with_capacity(total_instances as usize);
+            let mut all_instance_data: Vec<InstanceData> =
+                Vec::with_capacity(total_instances as usize);
 
             let instance_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("instance data buffer"),
@@ -520,7 +524,7 @@ impl RenderState {
 
         renderpass.set_pipeline(&self.render_pipeline);
 
-        // Create bind group with the updated MVP buffer
+        // Create and set bind group with the updated MVP buffer
         {
             self.bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("Bind Group"),
@@ -532,9 +536,9 @@ impl RenderState {
                     resource: self.mvp_buffer.as_entire_binding(),
                 }],
             });
+            renderpass.set_bind_group(0, &self.bind_group, &[]);
         }
 
-        renderpass.set_bind_group(0, &self.bind_group, &[]);
         renderpass.set_vertex_buffer(1, vertex_buffer.slice(..));
 
         let voxel_object_count = query.iter(world).count();
