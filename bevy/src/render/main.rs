@@ -228,7 +228,8 @@ impl RenderState {
             .unwrap();
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
-                required_features: wgpu::Features::INDIRECT_FIRST_INSTANCE,
+                required_features: wgpu::Features::INDIRECT_FIRST_INSTANCE
+                    | wgpu::Features::MULTI_DRAW_INDIRECT,
                 ..default()
             })
             .await
@@ -515,14 +516,20 @@ impl RenderState {
         renderpass.set_vertex_buffer(1, vertex_buffer.slice(..));
         renderpass.set_vertex_buffer(0, instance_buffer.slice(..));
 
+        let voxel_object_count = query.iter(world).count();
+        let indirect_buffer_size =
+            (size_of::<wgpu::util::DrawIndirectArgs>() * 6 * voxel_object_count) as u64;
+
+        let indirect_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Indirect Draw Buffer"),
+            size: indirect_buffer_size,
+            usage: wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         for (index, (children, transform, _)) in query.iter(world).enumerate() {
             let first_vertex = index as u32 * 24;
-            let indirect_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("Indirect Draw Buffer"),
-                size: (size_of::<wgpu::util::DrawIndirectArgs>() * 6) as u64,
-                usage: wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
+
             for child in children.iter() {
                 let (face, instance_data) = child_query.get(world, child).unwrap();
 
@@ -549,13 +556,15 @@ impl RenderState {
                     MeshedVoxelsFace::Top => 5,
                 };
 
+                let indirect_offset = index as u64 * 6 + face_index as u64;
+                let indirect_offset_bytes =
+                    indirect_offset * size_of::<wgpu::util::DrawIndirectArgs>() as u64;
+
                 // Create an indirect draw buffer
                 {
-                    let indirect_offset =
-                        (face_index * size_of::<wgpu::util::DrawIndirectArgs>() as u32) as u64;
                     self.queue.write_buffer(
                         &indirect_buffer,
-                        indirect_offset,
+                        indirect_offset_bytes,
                         bytemuck::bytes_of(&wgpu::util::DrawIndirectArgs {
                             vertex_count: 4, // Each face has 4 vertices
                             instance_count,
@@ -563,12 +572,16 @@ impl RenderState {
                             first_instance,
                         }),
                     );
-
-                    renderpass.draw_indirect(&indirect_buffer, indirect_offset);
                 }
 
                 first_instance += instance_count;
             }
+
+            renderpass.multi_draw_indirect(
+                &indirect_buffer,
+                index as u64 * 6 * size_of::<wgpu::util::DrawIndirectArgs>() as u64,
+                6,
+            );
         }
         drop(renderpass);
 
