@@ -227,7 +227,10 @@ impl RenderState {
             .await
             .unwrap();
         let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor::default())
+            .request_device(&wgpu::DeviceDescriptor {
+                required_features: wgpu::Features::INDIRECT_FIRST_INSTANCE,
+                ..default()
+            })
             .await
             .unwrap();
 
@@ -542,13 +545,8 @@ impl RenderState {
                     );
                 }
 
-                first_instance += instance_count;
-
                 renderpass.set_bind_group(0, &self.bind_group, &[]);
-                renderpass.set_vertex_buffer(
-                    0,
-                    instance_buffer.slice(instance_start_bytes..instance_end_bytes),
-                );
+                renderpass.set_vertex_buffer(0, instance_buffer.slice(..));
 
                 // let local_first_vertex = face_offset * 4;
                 // let last_vertex = local_first_vertex + 4;
@@ -564,12 +562,14 @@ impl RenderState {
                                     vertex_count: 4, // Each face has 4 vertices
                                     instance_count,
                                     first_vertex: face_offset * 4,
-                                    first_instance: 0,
+                                    first_instance,
                                 }),
                                 usage: wgpu::BufferUsages::INDIRECT,
                             });
                     renderpass.draw_indirect(&indirect_buffer, 0);
                 }
+
+                first_instance += instance_count;
             }
         }
         drop(renderpass);
