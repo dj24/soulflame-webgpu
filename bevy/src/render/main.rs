@@ -498,16 +498,18 @@ impl RenderState {
         renderpass.set_pipeline(&self.render_pipeline);
 
         // Create bind group with the updated MVP buffer
-        self.bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Bind Group"),
-            layout: &self
-                .device
-                .create_bind_group_layout(BIND_GROUP_LAYOUT_DESCRIPTOR),
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: self.mvp_buffer.as_entire_binding(),
-            }],
-        });
+        {
+            self.bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Bind Group"),
+                layout: &self
+                    .device
+                    .create_bind_group_layout(BIND_GROUP_LAYOUT_DESCRIPTOR),
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: self.mvp_buffer.as_entire_binding(),
+                }],
+            });
+        }
 
         renderpass.set_bind_group(0, &self.bind_group, &[]);
         renderpass.set_vertex_buffer(1, vertex_buffer.slice(..));
@@ -515,6 +517,12 @@ impl RenderState {
 
         for (index, (children, transform, _)) in query.iter(world).enumerate() {
             let first_vertex = index as u32 * 24;
+            let indirect_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Indirect Draw Buffer"),
+                size: (size_of::<wgpu::util::DrawIndirectArgs>() * 6) as u64,
+                usage: wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
             for child in children.iter() {
                 let (face, instance_data) = child_query.get(world, child).unwrap();
 
@@ -532,7 +540,7 @@ impl RenderState {
                     );
                 }
 
-                let face_offset = match face {
+                let face_index: u32 = match face {
                     MeshedVoxelsFace::Back => 0,
                     MeshedVoxelsFace::Front => 1,
                     MeshedVoxelsFace::Left => 2,
@@ -543,19 +551,20 @@ impl RenderState {
 
                 // Create an indirect draw buffer
                 {
-                    let indirect_buffer =
-                        self.device
-                            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                                label: Some("Indirect Draw Buffer"),
-                                contents: bytemuck::bytes_of(&wgpu::util::DrawIndirectArgs {
-                                    vertex_count: 4, // Each face has 4 vertices
-                                    instance_count,
-                                    first_vertex: first_vertex + face_offset * 4,
-                                    first_instance,
-                                }),
-                                usage: wgpu::BufferUsages::INDIRECT,
-                            });
-                    renderpass.draw_indirect(&indirect_buffer, 0);
+                    let indirect_offset =
+                        (face_index * size_of::<wgpu::util::DrawIndirectArgs>() as u32) as u64;
+                    self.queue.write_buffer(
+                        &indirect_buffer,
+                        indirect_offset,
+                        bytemuck::bytes_of(&wgpu::util::DrawIndirectArgs {
+                            vertex_count: 4, // Each face has 4 vertices
+                            instance_count,
+                            first_vertex: first_vertex + face_index * 4,
+                            first_instance,
+                        }),
+                    );
+
+                    renderpass.draw_indirect(&indirect_buffer, indirect_offset);
                 }
 
                 first_instance += instance_count;
