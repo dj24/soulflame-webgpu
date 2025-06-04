@@ -11,7 +11,6 @@ use std::collections::VecDeque;
 #[derive(Resource)]
 pub struct ChunkQueue(VecDeque<(i32, i32, i32)>);
 
-// TODO: fix
 impl Default for ChunkQueue {
     fn default() -> Self {
         let mut queue = VecDeque::new();

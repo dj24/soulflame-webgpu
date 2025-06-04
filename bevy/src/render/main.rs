@@ -45,6 +45,7 @@ struct RenderState {
     debug_quad_bind_group: BindGroup,
     depth_texture: wgpu::Texture,
     depth_texture_view: wgpu::TextureView,
+    indirect_buffer: Buffer,
 }
 
 const BIND_GROUP_LAYOUT_DESCRIPTOR: &wgpu::BindGroupLayoutDescriptor =
@@ -251,6 +252,13 @@ impl RenderState {
             mapped_at_creation: false,
         });
 
+        let indirect_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Indirect Draw Buffer"),
+            size: (size_of::<wgpu::util::DrawIndirectArgs>() * 6) as u64, // 6 faces per voxel
+            usage: wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         let mvp_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("MVP Buffer"),
             size: size_of::<Mat4>() as u64, // 2 matrices for model and view projection
@@ -326,6 +334,7 @@ impl RenderState {
             mvp_buffer,
             depth_texture,
             depth_texture_view,
+            indirect_buffer,
         };
 
         // Configure surface for the first time
@@ -348,7 +357,7 @@ impl RenderState {
             width: self.size.width,
             height: self.size.height,
             desired_maximum_frame_latency: 2,
-            present_mode: wgpu::PresentMode::AutoVsync,
+            present_mode: wgpu::PresentMode::Immediate,
         };
         self.surface.configure(&self.device, &surface_config);
     }
@@ -406,8 +415,6 @@ impl RenderState {
         let mut child_query = world.query::<(&MeshedVoxelsFace, &InstanceMaterialData)>();
 
         let view_proj = self.get_view_projection_matrix(world);
-
-        let mut first_instance = 0;
 
         let voxel_object_count = query.iter(world).count();
         let new_buffer_size = (voxel_object_count * size_of::<Mat4>()) as u64;
@@ -470,20 +477,22 @@ impl RenderState {
         });
 
         let voxel_object_count = query.iter(world).count();
-        let indirect_buffer_size =
-            (size_of::<wgpu::util::DrawIndirectArgs>() * 6 * voxel_object_count) as u64;
 
-        let indirect_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Indirect Draw Buffer"),
-            size: indirect_buffer_size,
-            usage: wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        
         // Write all indirect data to the GPU buffer
         {
+            let indirect_buffer_size =
+                (size_of::<wgpu::util::DrawIndirectArgs>() * 6 * voxel_object_count) as u64;
+            // If indirect buffer is too small, resize it
+            if self.indirect_buffer.size() != indirect_buffer_size {
+                self.indirect_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("Indirect Draw Buffer"),
+                    size: indirect_buffer_size,
+                    usage: wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+            }
             self.queue.write_buffer(
-                &indirect_buffer,
+                &self.indirect_buffer,
                 0,
                 bytemuck::cast_slice(&all_indirect_data),
             );
@@ -528,31 +537,35 @@ impl RenderState {
         {
             let total_instance_buffer_size =
                 (total_instances * size_of::<InstanceData>() as u32) as u64;
-            let mut all_instance_data: Vec<InstanceData> =
-                Vec::with_capacity(total_instances as usize);
 
-            let instance_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("instance data buffer"),
-                size: total_instance_buffer_size.max(size_of::<InstanceData>() as u64),
-                usage: wgpu::BufferUsages::VERTEX
-                    | wgpu::BufferUsages::COPY_DST
-                    | wgpu::BufferUsages::COPY_SRC,
-                mapped_at_creation: false,
-            });
+            // Only update the instance buffer if its size has changed
+            if self.instance_buffer.size() != total_instance_buffer_size {
+                let mut all_instance_data: Vec<InstanceData> =
+                    Vec::with_capacity(total_instances as usize);
+                self.instance_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("instance data buffer"),
+                    size: total_instance_buffer_size.max(size_of::<InstanceData>() as u64),
+                    usage: wgpu::BufferUsages::VERTEX
+                        | wgpu::BufferUsages::COPY_DST
+                        | wgpu::BufferUsages::COPY_SRC,
+                    mapped_at_creation: false,
+                });
 
-            for (_, (children, _, _)) in query.iter(world).enumerate() {
-                for child in children.iter() {
-                    let (_, instance_data) = child_query.get(world, child).unwrap();
-                    all_instance_data.extend(instance_data.iter());
+                for (_, (children, _, _)) in query.iter(world).enumerate() {
+                    for child in children.iter() {
+                        let (_, instance_data) = child_query.get(world, child).unwrap();
+                        all_instance_data.extend(instance_data.iter());
+                    }
                 }
+                // Write all instance data to the GPU buffer
+                self.queue.write_buffer(
+                    &self.instance_buffer,
+                    0,
+                    bytemuck::cast_slice(&all_instance_data),
+                );
             }
-            // Write all instance data to the GPU buffer
-            self.queue.write_buffer(
-                &instance_buffer,
-                0,
-                bytemuck::cast_slice(&all_instance_data),
-            );
-            renderpass.set_vertex_buffer(0, instance_buffer.slice(..));
+
+            renderpass.set_vertex_buffer(0, self.instance_buffer.slice(..));
         }
 
         renderpass.set_pipeline(&self.render_pipeline);
@@ -572,13 +585,20 @@ impl RenderState {
             renderpass.set_bind_group(0, &self.bind_group, &[]);
         }
 
-        for (index, (_, _, _)) in query.iter(world).enumerate() {
+        let entity_count = query.iter(world).count();
+
+        if entity_count > 0 {
+            // Calculate total number of draw commands (6 faces per entity)
+            let total_draws = entity_count * 6;
+
+            // Single multi_draw_indirect call for all entities
             renderpass.multi_draw_indirect(
-                &indirect_buffer,
-                index as u64 * 6 * size_of::<wgpu::util::DrawIndirectArgs>() as u64,
-                6,
+                &self.indirect_buffer,
+                0, // Start at beginning of buffer
+                total_draws as u32,
             );
         }
+
         drop(renderpass);
 
         // Debug depth
@@ -634,7 +654,10 @@ impl ApplicationHandler for VoxelRenderApp {
         // Create window object
         let window = Arc::new(
             event_loop
-                .create_window(Window::default_attributes())
+                .create_window(
+                    Window::default_attributes()
+                        .with_inner_size(winit::dpi::PhysicalSize::new(2560, 1440)),
+                )
                 .unwrap(),
         );
 
