@@ -125,7 +125,7 @@ impl RenderState {
                 targets: &[Some(swapchain_format.into())],
             }),
             primitive: wgpu::PrimitiveState {
-                cull_mode: Some(wgpu::Face::Back),
+                cull_mode: None,
                 topology: wgpu::PrimitiveTopology::TriangleStrip,
                 front_face: wgpu::FrontFace::Ccw,
                 ..default()
@@ -506,6 +506,13 @@ impl RenderState {
         });
 
         for (index, (children, transform, _)) in query.iter(world).enumerate() {
+            let first_vertex = index as u32 * 24;
+            let vertex_start_bytes = (first_vertex * size_of::<u32>() as u32) as u64;
+            let vertex_end_bytes = vertex_start_bytes + (24 * size_of::<u32>() as u64);
+            renderpass.set_vertex_buffer(
+                1,
+                vertex_buffer.slice(vertex_start_bytes..vertex_end_bytes),
+            );
             for child in children.iter() {
                 let (face, instance_data) = child_query.get(world, child).unwrap();
 
@@ -541,9 +548,6 @@ impl RenderState {
                     bytemuck::cast_slice(&instance_data),
                 );
 
-                let vertex_start_bytes = (first_vertex * size_of::<u32>() as u32) as u64;
-                let vertex_end_bytes = vertex_start_bytes + (4 * size_of::<u32>() as u64);
-
                 first_instance += instance_count;
 
                 renderpass.set_bind_group(0, &self.bind_group, &[]);
@@ -551,12 +555,10 @@ impl RenderState {
                     0,
                     instance_buffer.slice(instance_start_bytes..instance_end_bytes),
                 );
-                renderpass.set_vertex_buffer(
-                    1,
-                    vertex_buffer.slice(vertex_start_bytes..vertex_end_bytes),
-                );
 
-                renderpass.draw(0..4, 0..instance_count);
+                let local_first_vertex = face_offset * 4;
+                let last_vertex = local_first_vertex + 4;
+                renderpass.draw(local_first_vertex..last_vertex, 0..instance_count);
             }
         }
         drop(renderpass);
@@ -614,7 +616,7 @@ impl ApplicationHandler for VoxelRenderApp {
         // Create window object
         let window = Arc::new(
             event_loop
-                .create_window(Window::default_attributes().with_maximized(true))
+                .create_window(Window::default_attributes())
                 .unwrap(),
         );
 

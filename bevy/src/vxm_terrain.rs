@@ -15,7 +15,7 @@ pub struct ChunkQueue(VecDeque<(i32, i32, i32)>);
 impl Default for ChunkQueue {
     fn default() -> Self {
         let mut queue = VecDeque::new();
-        for r in 0..2 {
+        for r in 0..8 {
             for x in (-r)..(r + 1) {
                 for z in (-r)..(r + 1) {
                     if !queue.contains(&(x, 0, z)) {
@@ -158,7 +158,7 @@ fn terrain_system(
             )),
             CameraTarget(Vec3::new(
                 TERRAIN_SIZE as f32 * 0.5,
-                160.0,
+                200.0,
                 TERRAIN_SIZE as f32 * 0.5,
             )),
         ));
