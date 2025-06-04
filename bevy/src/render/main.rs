@@ -465,7 +465,7 @@ impl RenderState {
 
         let instance_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("instance data buffer"),
-            size: total_instance_buffer_size as u64,
+            size: total_instance_buffer_size.max(size_of::<InstanceData>() as u32) as u64,
             usage: wgpu::BufferUsages::VERTEX
                 | wgpu::BufferUsages::COPY_DST
                 | wgpu::BufferUsages::COPY_SRC,
@@ -509,32 +509,19 @@ impl RenderState {
             }],
         });
 
+        renderpass.set_bind_group(0, &self.bind_group, &[]);
+        renderpass.set_vertex_buffer(1, vertex_buffer.slice(..));
+        renderpass.set_vertex_buffer(0, instance_buffer.slice(..));
+
         for (index, (children, transform, _)) in query.iter(world).enumerate() {
             let first_vertex = index as u32 * 24;
-            let vertex_start_bytes = (first_vertex * size_of::<u32>() as u32) as u64;
-            let vertex_end_bytes = vertex_start_bytes + (24 * size_of::<u32>() as u64);
-            renderpass
-                .set_vertex_buffer(1, vertex_buffer.slice(vertex_start_bytes..vertex_end_bytes));
             for child in children.iter() {
                 let (face, instance_data) = child_query.get(world, child).unwrap();
-
-                let face_offset = match face {
-                    MeshedVoxelsFace::Back => 0,
-                    MeshedVoxelsFace::Front => 1,
-                    MeshedVoxelsFace::Left => 2,
-                    MeshedVoxelsFace::Right => 3,
-                    MeshedVoxelsFace::Bottom => 4,
-                    MeshedVoxelsFace::Top => 5,
-                };
-
-                let first_vertex = index as u32 * 24 + face_offset * 4;
 
                 let instance_count = instance_data.len() as u32;
 
                 let instance_start_bytes =
                     (first_instance * size_of::<InstanceData>() as u32) as u64;
-                let instance_end_bytes = instance_start_bytes
-                    + (instance_count as u64 * size_of::<InstanceData>() as u64);
 
                 // Write instance data to the GPU buffer
                 {
@@ -545,12 +532,14 @@ impl RenderState {
                     );
                 }
 
-                renderpass.set_bind_group(0, &self.bind_group, &[]);
-                renderpass.set_vertex_buffer(0, instance_buffer.slice(..));
-
-                // let local_first_vertex = face_offset * 4;
-                // let last_vertex = local_first_vertex + 4;
-                // renderpass.draw(local_first_vertex..last_vertex, 0..instance_count);
+                let face_offset = match face {
+                    MeshedVoxelsFace::Back => 0,
+                    MeshedVoxelsFace::Front => 1,
+                    MeshedVoxelsFace::Left => 2,
+                    MeshedVoxelsFace::Right => 3,
+                    MeshedVoxelsFace::Bottom => 4,
+                    MeshedVoxelsFace::Top => 5,
+                };
 
                 // Create an indirect draw buffer
                 {
@@ -561,7 +550,7 @@ impl RenderState {
                                 contents: bytemuck::bytes_of(&wgpu::util::DrawIndirectArgs {
                                     vertex_count: 4, // Each face has 4 vertices
                                     instance_count,
-                                    first_vertex: face_offset * 4,
+                                    first_vertex: first_vertex + face_offset * 4,
                                     first_instance,
                                 }),
                                 usage: wgpu::BufferUsages::INDIRECT,

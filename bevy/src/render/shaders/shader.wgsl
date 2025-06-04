@@ -141,7 +141,7 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
         normal = vec3(0.0, -1.0, 0.0);
     }
 
-    let local_pos = positions[in_vertex_index];
+    let local_pos = positions[local_vertex_index];
     let pos = local_pos * scale + vec3<f32>(x_pos, y_pos, z_pos);
     let model_view_proj = mvp_buffer[instance.model_index];
     var projected_pos = model_view_proj * vec4<f32>(pos, 1.0);
