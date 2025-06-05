@@ -4,7 +4,7 @@ use bevy::ecs::schedule::MainThreadExecutor;
 use bevy::prelude::*;
 use bevy::render::camera::CameraProjection;
 use bytemuck::{Pod, Zeroable};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use wgpu::util::DeviceExt;
 use wgpu::{
@@ -384,37 +384,16 @@ impl RenderState {
             })
     }
 
-    fn get_view_projection_matrix(&mut self, mut world: &mut World) -> Mat4 {
-        let mut camera = world.query::<(&mut Projection, &GlobalTransform)>();
-        let (mut projection, transform) = camera.iter_mut(&mut world).next().unwrap();
-        match &mut *projection {
-            Projection::Perspective(perspective) => {
-                perspective.update(self.size.width as f32, self.size.height as f32);
-            }
-            Projection::Orthographic(p) => {
-                panic!("Orthographic projection not supported");
-            }
-            Projection::Custom(p) => {
-                panic!("Custom projection not supported");
-            }
-        }
-
-        let view_matrix = transform.compute_matrix().inverse();
-        let projection_matrix = projection.get_clip_from_view();
-        projection_matrix * view_matrix
-    }
-
-    fn render(&mut self, mut world: &mut World) {
+    fn render(
+        &mut self,
+        world: &World,
+        view_proj: Mat4,
+        mut query: QueryState<(&Children, &Transform, &MeshedVoxels)>,
+        mut child_query: QueryState<(&MeshedVoxelsFace, &InstanceMaterialData)>,
+    ) {
+        let render_span = info_span!("Voxel render").entered();
         let surface_texture = self.get_surface_texture();
         let texture_view = self.get_texture_view(&surface_texture);
-
-        // Get each voxel entity
-        let mut query = world.query::<(&Children, &Transform, &MeshedVoxels)>();
-
-        // Get face data for each voxel entity
-        let mut child_query = world.query::<(&MeshedVoxelsFace, &InstanceMaterialData)>();
-
-        let view_proj = self.get_view_projection_matrix(world);
 
         let voxel_object_count = query.iter(world).count();
         let new_buffer_size = (voxel_object_count * size_of::<Mat4>()) as u64;
@@ -626,6 +605,7 @@ impl RenderState {
             .submit([encoder.finish(), depth_debug_encoder.finish()]);
         self.window.pre_present_notify();
         surface_texture.present();
+        render_span.exit();
     }
 }
 
@@ -647,6 +627,12 @@ impl VoxelRenderApp {
             frame_count: 0,
         }
     }
+}
+
+fn get_view_projection_matrix(projection: &Projection, transform: &GlobalTransform) -> Mat4 {
+    let view_matrix = transform.compute_matrix().inverse();
+    let projection_matrix = projection.get_clip_from_view();
+    projection_matrix * view_matrix
 }
 
 impl ApplicationHandler for VoxelRenderApp {
@@ -675,9 +661,34 @@ impl ApplicationHandler for VoxelRenderApp {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
+                let world = self.app.world_mut();
+                let mut camera = world.query::<(&mut Projection, &GlobalTransform)>();
+                let (mut projection, global_transform) = camera.iter_mut(world).next().unwrap();
+
+                // Update the projection matrix based on the current size
+                match &mut *projection {
+                    Projection::Perspective(perspective) => {
+                        perspective.update(state.size.width as f32, state.size.height as f32);
+                    }
+                    Projection::Orthographic(p) => {
+                        panic!("Orthographic projection not supported");
+                    }
+                    Projection::Custom(p) => {
+                        panic!("Custom projection not supported");
+                    }
+                }
+
+                let view_proj = get_view_projection_matrix(&projection, global_transform);
+
+                // Get each voxel entity
+                let query = world.query::<(&Children, &Transform, &MeshedVoxels)>();
+
+                // Get face data for each voxel entity
+                let child_query = world.query::<(&MeshedVoxelsFace, &InstanceMaterialData)>();
+
+                // TODO: parallelize this render call
+                state.render(self.app.world(), view_proj, query, child_query);
                 self.app.update();
-                let mut world = self.app.world_mut();
-                state.render(world);
 
                 // FPS tracking logic
                 self.frame_count += 1;
@@ -712,6 +723,9 @@ pub fn winit_runner(mut app: App) -> AppExit {
         app.finish();
         app.cleanup();
     }
+
+    // Update must be called once before the event loop starts
+    app.update();
 
     let mut render_app = VoxelRenderApp::new(app);
 
