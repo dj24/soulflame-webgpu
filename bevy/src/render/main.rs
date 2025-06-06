@@ -417,7 +417,7 @@ impl RenderState {
         let mut first_vertex = 0;
         for (index, (face, instance_data, transform)) in voxel_planes {
             // Each voxel entity has 6 faces, so we store one transform for each 6
-            if (index % 6) != 0 {
+            if (index % 6) == 0 {
                 let mvp_index = index / 6;
                 all_mvp_data.push(view_proj * transform.compute_matrix());
                 all_vertex_data.extend((0..24).map(|_| mvp_index as u32).collect::<Vec<u32>>());
