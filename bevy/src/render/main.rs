@@ -1,9 +1,11 @@
 use crate::vxm_mesh::{MeshedVoxels, MeshedVoxelsFace};
 use bevy::app::PluginsState;
+use bevy::ecs::query::QueryIter;
 use bevy::ecs::schedule::MainThreadExecutor;
 use bevy::prelude::*;
 use bevy::render::camera::CameraProjection;
 use bytemuck::{Pod, Zeroable};
+use std::iter::Enumerate;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use wgpu::util::DeviceExt;
@@ -386,50 +388,59 @@ impl RenderState {
 
     fn render(
         &mut self,
-        world: &World,
         view_proj: Mat4,
-        mut query: QueryState<(&Children, &Transform, &MeshedVoxels)>,
-        mut child_query: QueryState<(&MeshedVoxelsFace, &InstanceMaterialData)>,
+        voxel_planes: Enumerate<
+            QueryIter<(&MeshedVoxelsFace, &InstanceMaterialData, &GlobalTransform), ()>,
+        >,
     ) {
         let render_span = info_span!("Voxel render").entered();
         let surface_texture = self.get_surface_texture();
         let texture_view = self.get_texture_view(&surface_texture);
 
-        let voxel_object_count = query.iter(world).count();
+        let voxel_object_count = voxel_planes.len() / 6;
         let new_buffer_size = (voxel_object_count * size_of::<Mat4>()) as u64;
 
         let mut total_instances = 0;
+
+        info!(
+            "Rendering {} voxel objects with {} total instances",
+            voxel_object_count, total_instances
+        );
 
         let mut all_vertex_data: Vec<u32> = Vec::with_capacity(24 * voxel_object_count);
         let mut all_mvp_data: Vec<Mat4> = Vec::with_capacity(voxel_object_count);
         let mut all_indirect_data: Vec<wgpu::util::DrawIndirectArgs> =
             Vec::with_capacity(total_instances as usize);
+        let mut all_instance_data: Vec<InstanceData> = Vec::new();
 
         // Populate MVP matrices and vertex data for each voxel entity, and count total instances
-        for (index, (children, transform, _)) in query.iter(world).enumerate() {
-            all_mvp_data.push(view_proj * transform.compute_matrix());
-            all_vertex_data.extend((0..24).map(|_| index as u32).collect::<Vec<u32>>());
-            let first_vertex = index as u32 * 24;
-
-            for (_, child) in children.iter().enumerate() {
-                let (face, instance_data) = child_query.get(world, child).unwrap();
-                let face_index: u32 = match face {
-                    MeshedVoxelsFace::Back => 0,
-                    MeshedVoxelsFace::Front => 1,
-                    MeshedVoxelsFace::Left => 2,
-                    MeshedVoxelsFace::Right => 3,
-                    MeshedVoxelsFace::Bottom => 4,
-                    MeshedVoxelsFace::Top => 5,
-                };
-                let instance_count = instance_data.len() as u32;
-                all_indirect_data.push(wgpu::util::DrawIndirectArgs {
-                    vertex_count: 4, // Each face has 4 vertices
-                    instance_count,
-                    first_vertex: first_vertex + face_index * 4,
-                    first_instance: total_instances,
-                });
-                total_instances += instance_count;
+        let mut first_vertex = 0;
+        for (index, (face, instance_data, transform)) in voxel_planes {
+            // Each voxel entity has 6 faces, so we store one transform for each 6
+            if (index % 6) != 0 {
+                let mvp_index = index / 6;
+                all_mvp_data.push(view_proj * transform.compute_matrix());
+                all_vertex_data.extend((0..24).map(|_| mvp_index as u32).collect::<Vec<u32>>());
+                first_vertex = mvp_index as u32 * 24;
             }
+
+            let face_index: u32 = match face {
+                MeshedVoxelsFace::Back => 0,
+                MeshedVoxelsFace::Front => 1,
+                MeshedVoxelsFace::Left => 2,
+                MeshedVoxelsFace::Right => 3,
+                MeshedVoxelsFace::Bottom => 4,
+                MeshedVoxelsFace::Top => 5,
+            };
+            let instance_count = instance_data.len() as u32;
+            all_indirect_data.push(wgpu::util::DrawIndirectArgs {
+                vertex_count: 4, // Each face has 4 vertices
+                instance_count,
+                first_vertex: first_vertex + face_index * 4,
+                first_instance: total_instances,
+            });
+            all_instance_data.extend(instance_data.iter());
+            total_instances += instance_count;
         }
 
         let mut encoder = self.device.create_command_encoder(&Default::default());
@@ -454,8 +465,6 @@ impl RenderState {
             timestamp_writes: None,
             occlusion_query_set: None,
         });
-
-        let voxel_object_count = query.iter(world).count();
 
         // Write all indirect data to the GPU buffer
         {
@@ -515,12 +524,10 @@ impl RenderState {
         // Collect all instance data from the children of each voxel entity
         {
             let total_instance_buffer_size =
-                (total_instances * size_of::<InstanceData>() as u32) as u64;
+                (all_instance_data.len() * size_of::<InstanceData>()) as u64;
 
             // Only update the instance buffer if its size has changed
             if self.instance_buffer.size() != total_instance_buffer_size {
-                let mut all_instance_data: Vec<InstanceData> =
-                    Vec::with_capacity(total_instances as usize);
                 self.instance_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
                     label: Some("instance data buffer"),
                     size: total_instance_buffer_size.max(size_of::<InstanceData>() as u64),
@@ -530,12 +537,6 @@ impl RenderState {
                     mapped_at_creation: false,
                 });
 
-                for (_, (children, _, _)) in query.iter(world).enumerate() {
-                    for child in children.iter() {
-                        let (_, instance_data) = child_query.get(world, child).unwrap();
-                        all_instance_data.extend(instance_data.iter());
-                    }
-                }
                 // Write all instance data to the GPU buffer
                 self.queue.write_buffer(
                     &self.instance_buffer,
@@ -564,11 +565,9 @@ impl RenderState {
             renderpass.set_bind_group(0, &self.bind_group, &[]);
         }
 
-        let entity_count = query.iter(world).count();
-
-        if entity_count > 0 {
+        if voxel_object_count > 0 {
             // Calculate total number of draw commands (6 faces per entity)
-            let total_draws = entity_count * 6;
+            let total_draws = voxel_object_count * 6;
 
             // Single multi_draw_indirect call for all entities
             renderpass.multi_draw_indirect(
@@ -681,13 +680,12 @@ impl ApplicationHandler for VoxelRenderApp {
                 let view_proj = get_view_projection_matrix(&projection, global_transform);
 
                 // Get each voxel entity
-                let query = world.query::<(&Children, &Transform, &MeshedVoxels)>();
-
-                // Get face data for each voxel entity
-                let child_query = world.query::<(&MeshedVoxelsFace, &InstanceMaterialData)>();
+                let mut query =
+                    world.query::<(&MeshedVoxelsFace, &InstanceMaterialData, &GlobalTransform)>();
+                let foo = query.iter(world).enumerate();
 
                 // TODO: parallelize this render call
-                state.render(self.app.world(), view_proj, query, child_query);
+                state.render(view_proj, foo);
                 self.app.update();
 
                 // FPS tracking logic
