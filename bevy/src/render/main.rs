@@ -7,6 +7,8 @@ use bevy::render::camera::CameraProjection;
 use bytemuck::{Pod, Zeroable};
 use std::iter::Enumerate;
 use std::sync::{Arc, RwLock};
+use std::sync::mpsc::Receiver;
+use std::thread;
 use std::time::{Duration, Instant};
 use wgpu::util::DeviceExt;
 use wgpu::{
@@ -364,10 +366,43 @@ impl RenderState {
         self.surface.configure(&self.device, &surface_config);
     }
 
+    fn configure_depth_texture(&mut self) {
+        self.depth_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Depth Texture"),
+            size: wgpu::Extent3d {
+                width: self.size.width,
+                height: self.size.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth24Plus,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+
+        self.depth_texture_view = self.depth_texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("Depth Texture View"),
+            format: Some(wgpu::TextureFormat::Depth24Plus),
+            dimension: Some(wgpu::TextureViewDimension::D2),
+            aspect: wgpu::TextureAspect::All,
+            ..Default::default()
+        });
+
+        self.debug_quad_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Debug Quad Bind Group"),
+            layout: &self.device.create_bind_group_layout(DEBUG_DEPTH_BIND_GROUP_LAYOUT_DESCRIPTOR),
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&self.depth_texture_view),
+            }],
+        });
+    }
+
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         self.size = new_size;
-
-        // reconfigure the surface
+        self.configure_depth_texture();
         self.configure_surface();
     }
 
@@ -396,16 +431,9 @@ impl RenderState {
         let render_span = info_span!("Voxel render").entered();
         let surface_texture = self.get_surface_texture();
         let texture_view = self.get_texture_view(&surface_texture);
-
         let voxel_object_count = voxel_planes.len() / 6;
         let new_buffer_size = (voxel_object_count * size_of::<Mat4>()) as u64;
-
         let mut total_instances = 0;
-
-        info!(
-            "Rendering {} voxel objects with {} total instances",
-            voxel_object_count, total_instances
-        );
 
         let mut all_vertex_data: Vec<u32> = Vec::with_capacity(24 * voxel_object_count);
         let mut all_mvp_data: Vec<Mat4> = Vec::with_capacity(voxel_object_count);
@@ -608,19 +636,20 @@ impl RenderState {
     }
 }
 
-#[derive(Default)]
 struct VoxelRenderApp {
     state: Option<RenderState>,
     app: App,
     // FPS tracking fields
     last_fps_instant: Option<Instant>,
     frame_count: u32,
+    message_reciever: Receiver<String>,
 }
 
 impl VoxelRenderApp {
-    fn new(app: App) -> Self {
+    fn new(app: App, message_reciever: Receiver<String>) -> Self {
         Self {
             state: None,
+            message_reciever,
             app,
             last_fps_instant: Some(Instant::now()),
             frame_count: 0,
@@ -641,7 +670,7 @@ impl ApplicationHandler for VoxelRenderApp {
             event_loop
                 .create_window(
                     Window::default_attributes()
-                        .with_inner_size(winit::dpi::PhysicalSize::new(2560, 1440)),
+                        .with_inner_size(winit::dpi::PhysicalSize::new(1920, 1080)),
                 )
                 .unwrap(),
         );
@@ -660,23 +689,14 @@ impl ApplicationHandler for VoxelRenderApp {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                let world = self.app.world_mut();
-                let mut camera = world.query::<(&mut Projection, &GlobalTransform)>();
-                let (mut projection, global_transform) = camera.iter_mut(world).next().unwrap();
-
-                // Update the projection matrix based on the current size
-                match &mut *projection {
-                    Projection::Perspective(perspective) => {
-                        perspective.update(state.size.width as f32, state.size.height as f32);
-                    }
-                    Projection::Orthographic(p) => {
-                        panic!("Orthographic projection not supported");
-                    }
-                    Projection::Custom(p) => {
-                        panic!("Custom projection not supported");
-                    }
+                for message in self.message_reciever.try_iter() {
+                    println!("Received message: {}", message);
                 }
 
+
+                let world = self.app.world_mut();
+                let mut camera = world.query::<(&mut Projection, &GlobalTransform)>();
+                let (projection, global_transform) = camera.iter_mut(world).next().unwrap();
                 let view_proj = get_view_projection_matrix(&projection, global_transform);
 
                 // Get each voxel entity
@@ -704,9 +724,21 @@ impl ApplicationHandler for VoxelRenderApp {
                 // Emits a new redraw requested event.
                 state.get_window().request_redraw();
             }
+            // Reconfigures the size of the surface. We do not re-render
+            // here as this event is always followed up by redraw request.
             WindowEvent::Resized(size) => {
-                // Reconfigures the size of the surface. We do not re-render
-                // here as this event is always followed up by redraw request.
+                let world = self.app.world_mut();
+                let mut camera = world.query::<(&mut Projection, &GlobalTransform)>();
+                let (mut projection, _) = camera.iter_mut(world).next().unwrap();
+                // Update the projection matrix based on the current size
+                match &mut *projection {
+                    Projection::Perspective(perspective) => {
+                        perspective.update(state.size.width as f32, state.size.height as f32);
+                    }
+                    _ => {
+                        panic!("Only perspective projection is supported");
+                    }
+                }
                 state.resize(size);
             }
             _ => (),
@@ -725,7 +757,19 @@ pub fn winit_runner(mut app: App) -> AppExit {
     // Update must be called once before the event loop starts
     app.update();
 
-    let mut render_app = VoxelRenderApp::new(app);
+    let (tx, rx) = std::sync::mpsc::channel::<String>();
+
+    let mut render_app = VoxelRenderApp::new(app, rx);
+
+    // Create test thread that sends a message every second
+    thread::spawn(move || {
+        loop {
+            thread::sleep(Duration::from_secs(1));
+            if tx.send("Hello from thread".parse().unwrap()).is_err() {
+                break; // Exit if the receiver is dropped
+            }
+        }
+    });
 
     event_loop
         .run_app(&mut render_app)
