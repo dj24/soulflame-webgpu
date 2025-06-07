@@ -752,20 +752,30 @@ pub fn winit_runner(mut app: App) -> AppExit {
     let (projection_update_sender, projection_update_receiver) =
         std::sync::mpsc::channel::<(f32, f32)>();
 
-    
+    let mut render_app = VoxelRenderApp::new(world_message_receiver, projection_update_sender);
+
     let render_thread = thread::spawn(|| {
+        let (world_message_sender, world_message_receiver) = std::sync::mpsc::channel::<(
+            Mat4,
+            Vec<(MeshedVoxelsFace, InstanceMaterialData, GlobalTransform)>,
+        )>();
+        let (projection_update_sender, projection_update_receiver) =
+            std::sync::mpsc::channel::<(f32, f32)>();
         let mut render_app = VoxelRenderApp::new(world_message_receiver, projection_update_sender);
         loop {
             thread::sleep(Duration::from_millis(200));
-            match render_app.state {
-                Some(ref mut state) => {
-                    // TODO: only allow redraw if there is new data
-                    state.render();
-                }
-                None => break, // Exit if the render state is not initialized
-            }
+            info!("Redrawing render app");
+            // match render_app.state {
+            //     Some(ref mut state) => {
+            //         // TODO: only allow redraw if there is new data
+            //         // state.render();
+            //     }
+            //     None => break, // Exit if the render state is not initialized
+            // }
         }
     });
+
+    // render_thread.join().unwrap();
 
     // TODO: create extract app
     // thread::spawn(move || {
@@ -775,7 +785,7 @@ pub fn winit_runner(mut app: App) -> AppExit {
     //         let mut camera = world.query::<(&mut Projection, &GlobalTransform)>();
     //         let (projection, global_transform) = camera.iter_mut(world).next().unwrap();
     //         let view_proj = get_view_projection_matrix(&projection, global_transform);
-    // 
+    //
     //         // Get each voxel entity, cloning to avoid borrowing issues
     //         let voxel_entities = world
     //             .query::<(&MeshedVoxelsFace, &InstanceMaterialData, &GlobalTransform)>()
@@ -785,7 +795,7 @@ pub fn winit_runner(mut app: App) -> AppExit {
     //                 cloned_components
     //             })
     //             .collect::<Vec<_>>();
-    // 
+    //
     //         thread::sleep(Duration::from_millis(200));
     //         if world_message_sender
     //             .send((view_proj, voxel_entities))
@@ -809,7 +819,6 @@ pub fn winit_runner(mut app: App) -> AppExit {
     //         }
     //     }
     // });
-    
 
     event_loop
         .run_app(&mut render_app)
