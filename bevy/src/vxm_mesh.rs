@@ -18,7 +18,7 @@ enum CubeFace {
     Right,
 }
 
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub enum MeshedVoxelsFace {
     Front,
     Back,
