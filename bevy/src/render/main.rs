@@ -225,18 +225,17 @@ impl RenderState {
         render_pipeline
     }
 
-    async fn new(
+    fn new(
         window: Arc<Window>,
         surface: Arc<Surface<'static>>,
         adapter: Arc<wgpu::Adapter>,
     ) -> RenderState {
-        let (device, queue) = adapter
+        let (device, queue) = pollster::block_on(adapter
             .request_device(&wgpu::DeviceDescriptor {
                 required_features: wgpu::Features::INDIRECT_FIRST_INSTANCE
                     | wgpu::Features::MULTI_DRAW_INDIRECT,
                 ..default()
-            })
-            .await
+            }))
             .unwrap();
 
         let size = window.inner_size();
@@ -648,6 +647,7 @@ struct VoxelExtractApp {
     )>,
     app: App,
     window: Arc<Window>,
+    render_finished_receiver: Receiver<()>,
 }
 
 impl VoxelExtractApp {
@@ -658,18 +658,20 @@ impl VoxelExtractApp {
         )>,
         app: App,
         window: Arc<Window>,
+        render_finished_receiver: Receiver<()>,
     ) -> Self {
         Self {
             world_message_sender,
             app,
             window,
+            render_finished_receiver,
         }
     }
 }
 
 impl ApplicationHandler for VoxelExtractApp {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        &self.window.request_redraw();
+        let _ = &self.window.request_redraw();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -679,7 +681,8 @@ impl ApplicationHandler for VoxelExtractApp {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                info!("Redrawing extract app");
+                self.render_finished_receiver.recv();
+                self.app.update();
 
                 // Get camera view projection matrix
                 let world = self.app.world_mut();
@@ -698,27 +701,24 @@ impl ApplicationHandler for VoxelExtractApp {
                     })
                     .collect::<Vec<_>>();
 
-                thread::sleep(Duration::from_millis(200));
-                // if self.world_message_sender
-                //     .send((view_proj, voxel_entities))
-                //     .is_err()
-                // {
-                //     panic!("Can't send world message");
-                // }
-                // if let Ok((width, height)) = projection_update_receiver.try_recv() {
-                //     let world = app.world_mut();
-                //     let mut camera = world.query::<(&mut Projection, &GlobalTransform)>();
-                //     let (mut projection, _) = camera.iter_mut(world).next().unwrap();
-                //     // Update the projection matrix based on the current size
-                //     match &mut *projection {
-                //         Projection::Perspective(perspective) => {
-                //             perspective.update(width, height);
-                //         }
-                //         _ => {
-                //             panic!("Only perspective projection is supported");
-                //         }
-                //     }
-                // }
+                self.world_message_sender.send(
+                    (view_proj, voxel_entities),
+                ).expect("Error sending voxel data to render thread");
+
+                let size = self.window.inner_size();
+                let world = self.app.world_mut();
+                let mut camera = world.query::<(&mut Projection, &GlobalTransform)>();
+                let (mut projection, _) = camera.iter_mut(world).next().unwrap();
+                // Update the projection matrix based on the current size
+                match &mut *projection {
+                    Projection::Perspective(perspective) => {
+                        perspective.update(size.width as f32, size.height as f32);
+                    }
+                    _ => {
+                        panic!("Only perspective projection is supported");
+                    }
+                }
+
 
                 // Emits a new redraw requested event.
                 &self.window.request_redraw();
@@ -730,10 +730,13 @@ impl ApplicationHandler for VoxelExtractApp {
 
 pub fn winit_runner(
     mut app: App,
-    surface: Arc<Surface>,
-    adapter: Arc<Adapter>,
     window: Arc<Window>,
     event_loop: EventLoop<()>,
+    world_message_sender: Sender<(
+        Mat4,
+        Vec<(MeshedVoxelsFace, InstanceMaterialData, GlobalTransform)>,
+    )>,
+    render_finished_receiver: Receiver<()>,
 ) -> AppExit {
     if app.plugins_state() == PluginsState::Ready {
         app.finish();
@@ -743,14 +746,7 @@ pub fn winit_runner(
     // Update must be called once before the event loop starts
     app.update();
 
-    let (world_message_sender, world_message_receiver) = std::sync::mpsc::channel::<(
-        Mat4,
-        Vec<(MeshedVoxelsFace, InstanceMaterialData, GlobalTransform)>,
-    )>();
-    let (projection_update_sender, projection_update_receiver) =
-        std::sync::mpsc::channel::<(f32, f32)>();
-
-    let mut extract_app = VoxelExtractApp::new(world_message_sender, app, window.clone());
+    let mut extract_app = VoxelExtractApp::new(world_message_sender, app, window.clone(), render_finished_receiver);
 
     event_loop
         .run_app(&mut extract_app)
@@ -778,32 +774,42 @@ impl Plugin for VoxelRenderPlugin {
                 .unwrap(),
         );
 
+        let (world_message_sender, world_message_receiver) = std::sync::mpsc::channel::<(
+            Mat4,
+            Vec<(MeshedVoxelsFace, InstanceMaterialData, GlobalTransform)>,
+        )>();
+
+        let (render_finished_sender, render_finished_receiver) =
+            std::sync::mpsc::channel::<()>();
+
         let surface = Arc::new(instance.create_surface(window.clone()).unwrap());
 
         let winit_window = window.clone();
-        let winit_surface = surface.clone();
-        let winit_adapter = adapter.clone();
+
+        render_finished_sender.send(()).expect("Error sending initial render finished signal");
 
         app.set_runner(|app| {
-            winit_runner(app, winit_surface, winit_adapter, winit_window, event_loop)
+            winit_runner(app, winit_window, event_loop, world_message_sender, render_finished_receiver)
         });
 
         let render_window = window.clone();
         let render_surface = surface.clone();
         let render_adapter = adapter.clone();
 
-        let render_thread = thread::spawn(move || {
+        let render_thread = thread::Builder::new().name("Render Thread".to_string()).spawn(move || {
             let mut render_state = RenderState::new(render_window, render_surface, render_adapter);
             loop {
-                thread::sleep(Duration::from_millis(200));
-                info!("Redrawing render app");
-                // match render_app.state {
-                //     Some(ref mut state) => {
-                //         // TODO: only allow redraw if there is new data
-                //         // state.render();
-                //     }
-                //     None => break, // Exit if the render state is not initialized
-                // }
+                // Block until a message is received
+                if let Ok((view_proj, voxel_planes)) = world_message_receiver.recv() {
+                    // Send a signal that the next update can begin
+                    render_finished_sender.send(()).expect("Failed to send render finished signal");
+                    let span = info_span!("Voxel Render").entered();
+                    render_state.render(view_proj, voxel_planes);
+                    span.exit();
+                } else {
+                    // Channel closed, exit thread
+                    break;
+                }
             }
         });
     }
