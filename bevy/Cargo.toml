@@ -38,7 +38,7 @@ bevy = { version = "0.16.0", default-features = false, features = [
     "asset_processor", # Enable asset processing support
     "bevy_dev_tools", # Extra dev functionality (like FPS overlay)
     "file_watcher", # Asset hot-reloading
-    "trace_chrome"
+    #    "trace_chrome"
 ] }
 
 [profile.dev]
