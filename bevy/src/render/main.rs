@@ -427,6 +427,7 @@ impl RenderState {
         voxel_planes: Vec<(MeshedVoxelsFace, InstanceMaterialData, GlobalTransform)>,
     ) {
         let render_span = info_span!("Voxel render").entered();
+        let render_setup_span = info_span!("Variable prep").entered();
         let surface_texture = self.get_surface_texture();
         let texture_view = self.get_texture_view(&surface_texture);
         let voxel_object_count = voxel_planes.len() / 6;
@@ -439,25 +440,38 @@ impl RenderState {
             Vec::with_capacity(total_instances as usize);
         let mut all_instance_data: Vec<InstanceData> = Vec::new();
 
+        // Pre-allocate memory based on input size
+        let face_count = voxel_planes.len();
+        let voxel_count = (face_count + 5) / 6; // Ceiling division by 6
+
+        // Pre-allocate all vectors with appropriate capacity
+        all_mvp_data.reserve(voxel_count);
+        all_vertex_data.reserve(voxel_count * 24);
+        all_indirect_data.reserve(face_count);
+
+        // Estimate total instance count to avoid reallocations
+        let est_total_instances = voxel_planes.iter()
+            .map(|(_, data, _)| data.len())
+            .sum::<usize>();
+        all_instance_data.reserve(est_total_instances);
+
         // Populate MVP matrices and vertex data for each voxel entity, and count total instances
         let mut first_vertex = 0;
+        render_setup_span.exit();
+
+        let populate_buffers_span = info_span!("Populate buffers").entered();
         for (index, (face, instance_data, transform)) in voxel_planes.into_iter().enumerate() {
             // Each voxel entity has 6 faces, so we store one transform for each 6
             if (index % 6) == 0 {
                 let mvp_index = index / 6;
                 all_mvp_data.push(view_proj * transform.compute_matrix());
-                all_vertex_data.extend((0..24).map(|_| mvp_index as u32).collect::<Vec<u32>>());
+                for _ in 0..24 {
+                    all_vertex_data.push(mvp_index as u32);
+                }
                 first_vertex = mvp_index as u32 * 24;
             }
 
-            let face_index: u32 = match face {
-                MeshedVoxelsFace::Back => 0,
-                MeshedVoxelsFace::Front => 1,
-                MeshedVoxelsFace::Left => 2,
-                MeshedVoxelsFace::Right => 3,
-                MeshedVoxelsFace::Bottom => 4,
-                MeshedVoxelsFace::Top => 5,
-            };
+            let face_index = face as u32;
             let instance_count = instance_data.len() as u32;
             all_indirect_data.push(wgpu::util::DrawIndirectArgs {
                 vertex_count: 4, // Each face has 4 vertices
@@ -468,6 +482,7 @@ impl RenderState {
             all_instance_data.extend(instance_data.iter());
             total_instances += instance_count;
         }
+        populate_buffers_span.exit();
 
         let mut encoder = self.device.create_command_encoder(&Default::default());
         let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -491,6 +506,8 @@ impl RenderState {
             timestamp_writes: None,
             occlusion_query_set: None,
         });
+
+        let gpu_upload_span = info_span!("GPU Upload").entered();
 
         // Write all indirect data to the GPU buffer
         {
@@ -574,6 +591,8 @@ impl RenderState {
             renderpass.set_vertex_buffer(0, self.instance_buffer.slice(..));
         }
 
+        gpu_upload_span.exit();
+
         renderpass.set_pipeline(&self.render_pipeline);
 
         // Create and set bind group with the updated MVP buffer
@@ -591,6 +610,7 @@ impl RenderState {
             renderpass.set_bind_group(0, &self.bind_group, &[]);
         }
 
+        let draw_span = info_span!("Draw Commands").entered();
         if voxel_object_count > 0 {
             // Calculate total number of draw commands (6 faces per entity)
             let total_draws = voxel_object_count * 6;
@@ -602,9 +622,10 @@ impl RenderState {
                 total_draws as u32,
             );
         }
-
         drop(renderpass);
+        draw_span.exit();
 
+        let depth_span = info_span!("Depth Debug").entered();
         // Debug depth
         let mut depth_debug_encoder = self.device.create_command_encoder(&Default::default());
         let mut renderpass = depth_debug_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -625,11 +646,14 @@ impl RenderState {
         renderpass.set_bind_group(0, &self.debug_quad_bind_group, &[]);
         renderpass.draw(0..4, 0..1); // Draw the debug quad
         drop(renderpass);
+        depth_span.exit();
 
+        let submit_span = info_span!("Submit Commands").entered();
         self.queue
             .submit([encoder.finish(), depth_debug_encoder.finish()]);
         self.window.pre_present_notify();
         surface_texture.present();
+        submit_span.exit();
         render_span.exit();
     }
 }
@@ -803,9 +827,7 @@ impl Plugin for VoxelRenderPlugin {
                 if let Ok((view_proj, voxel_planes)) = world_message_receiver.recv() {
                     // Send a signal that the next update can begin
                     render_finished_sender.send(()).expect("Failed to send render finished signal");
-                    let span = info_span!("Voxel Render").entered();
                     render_state.render(view_proj, voxel_planes);
-                    span.exit();
                 } else {
                     // Channel closed, exit thread
                     break;

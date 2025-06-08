@@ -9,116 +9,14 @@ use bevy::render::primitives::Aabb;
 use rayon::prelude::*;
 use std::sync::Arc;
 
-enum CubeFace {
-    Front,
-    Back,
-    Top,
-    Bottom,
-    Left,
-    Right,
-}
-
 #[derive(Component, Clone)]
 pub enum MeshedVoxelsFace {
-    Front,
-    Back,
-    Top,
-    Bottom,
-    Left,
-    Right,
-}
-
-fn get_cube_face_vertex_positions(cube_face: CubeFace) -> Vec<[f32; 3]> {
-    match cube_face {
-        CubeFace::Back => vec![
-            [1.0, 0.0, 0.0], // Bottom-right
-            [0.0, 0.0, 0.0], // Bottom-left
-            [1.0, 1.0, 0.0], // Top-right
-            [0.0, 1.0, 0.0], // Top-left
-        ],
-        CubeFace::Front => vec![
-            [0.0, 0.0, 1.0], // Bottom-left
-            [1.0, 0.0, 1.0], // Bottom-right
-            [0.0, 1.0, 1.0], // Top-left
-            [1.0, 1.0, 1.0], // Top-right
-        ],
-        CubeFace::Top => vec![
-            [1.0, 1.0, 0.0], // Back-right
-            [0.0, 1.0, 0.0], // Back-left
-            [1.0, 1.0, 1.0], // Front-right
-            [0.0, 1.0, 1.0], // Front-left
-        ],
-        CubeFace::Bottom => vec![
-            [0.0, 0.0, 0.0], // Back-left
-            [1.0, 0.0, 0.0], // Back-right
-            [0.0, 0.0, 1.0], // Front-left
-            [1.0, 0.0, 1.0], // Front-right
-        ],
-        CubeFace::Left => vec![
-            [0.0, 0.0, 0.0], // Back-bottom
-            [0.0, 0.0, 1.0], // Front-bottom
-            [0.0, 1.0, 0.0], // Back-top
-            [0.0, 1.0, 1.0], // Front-top
-        ],
-        CubeFace::Right => vec![
-            [1.0, 0.0, 1.0], // Front-bottom
-            [1.0, 0.0, 0.0], // Back-bottom
-            [1.0, 1.0, 1.0], // Front-top
-            [1.0, 1.0, 0.0], // Back-top
-        ],
-    }
-}
-
-fn get_cube_face_normals(cube_face: CubeFace) -> Vec<[f32; 3]> {
-    match cube_face {
-        CubeFace::Back => vec![[0.0, 0.0, -1.0]].repeat(4),
-        CubeFace::Front => vec![[0.0, 0.0, 1.0]].repeat(4),
-        CubeFace::Top => vec![[0.0, 1.0, 0.0]].repeat(4),
-        CubeFace::Bottom => vec![[0.0, -1.0, 0.0]].repeat(4),
-        CubeFace::Left => vec![[-1.0, 0.0, 0.0]].repeat(4),
-        CubeFace::Right => vec![[1.0, 0.0, 0.0]].repeat(4),
-    }
-}
-
-/**
-Ideal data layout per face:
-32bit: position + palette index + side
-x: 7bits
-y: 7bits
-z: 7bits
-palette index: 8bits
-side: 3bits
-
-Current per vertex
-32bitx3: position
-32bitx3: normal
-32bitx4: colour
-
-Total per face: 40 bytes
-*/
-
-pub fn create_mesh_from_voxels(_: &VxmAsset) -> Mesh {
-    let indices = Vec::new();
-
-    let bytes = indices.len() * 4;
-    let kb = bytes as f64 / 1024.0;
-    let mb = kb / 1024.0;
-
-    if mb > 0.5 {
-        info!("Memory usage {:?}mb", format!("{:.1}", mb));
-    } else {
-        info!("Memory usage {:?}kb", format!("{:.1}", kb));
-    }
-
-    info!("index count / 6 {:?}", indices.len() / 6);
-
-    Mesh::new(
-        PrimitiveTopology::TriangleList,
-        RenderAssetUsages::default(),
-    )
-    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, vec![[0.0, 0.0, 0.0]])
-    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 0.0, 0.0]])
-    .with_inserted_indices(Indices::U32(indices))
+    Back = 0,
+    Front = 1,
+    Left = 2,
+    Right = 3,
+    Bottom = 4,
+    Top = 5,
 }
 
 fn generate_instance_data_z(vxm: &VxmAsset, is_front_face: bool) -> Vec<InstanceData> {
@@ -405,7 +303,7 @@ pub struct MeshedVoxels;
 /// Removes PendingVxm to signify that the mesh has been created
 pub fn create_mesh_on_vxm_import_system(
     pending_vxms: Query<(Entity, &PendingVxm, &Transform)>,
-    vxm_assets: ResMut<Assets<VxmAsset>>,
+    vxm_assets: Res<Assets<VxmAsset>>,
     mut commands: Commands,
 ) {
     for (entity, pending_vxm, _) in pending_vxms.iter() {
@@ -413,33 +311,12 @@ pub fn create_mesh_on_vxm_import_system(
             Some(vxm) => {
                 let start_time = std::time::Instant::now();
 
-                let create_y_data = || {
-                    rayon::join(
-                        || generate_instance_data_z(vxm, true),
-                        || generate_instance_data_z(vxm, false),
-                    )
-                };
-
-                let create_x_data = || {
-                    rayon::join(
-                        || generate_instance_data_x(vxm, true),
-                        || generate_instance_data_x(vxm, false),
-                    )
-                };
-
-                let create_z_data = || {
-                    rayon::join(
-                        || generate_instance_data_y(vxm, true),
-                        || generate_instance_data_y(vxm, false),
-                    )
-                };
-
-                let ((x_data, z_data), y_data) =
-                    rayon::join(|| rayon::join(create_x_data, create_z_data), create_y_data);
-
-                let (front_instance_data, back_instance_data) = y_data;
-                let (right_instance_data, left_instance_data) = x_data;
-                let (top_instance_data, bottom_instance_data) = z_data;
+                let back_instance_data = generate_instance_data_z(vxm, false);
+                let front_instance_data = generate_instance_data_z(vxm, true);
+                let left_instance_data = generate_instance_data_x(vxm, false);
+                let right_instance_data = generate_instance_data_x(vxm, true);
+                let top_instance_data = generate_instance_data_y(vxm, true);
+                let bottom_instance_data = generate_instance_data_y(vxm, false);
 
                 let instance_count = front_instance_data.len()
                     + back_instance_data.len()
