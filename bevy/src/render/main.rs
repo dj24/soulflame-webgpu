@@ -477,7 +477,7 @@ impl RenderState {
                 first_vertex: first_vertex + face_index * 4,
                 first_instance: total_instances,
             });
-            all_instance_data.extend(instance_data.iter());
+            all_instance_data.extend_from_slice(&instance_data);
             total_instances += instance_count;
         }
         populate_buffers_span.exit();
