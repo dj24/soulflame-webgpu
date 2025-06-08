@@ -1,3 +1,4 @@
+use crate::render;
 use crate::vxm_mesh::MeshedVoxelsFace;
 use bevy::app::PluginsState;
 use bevy::ecs::query::QueryIter;
@@ -11,8 +12,8 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 use wgpu::{
-    BindGroup, Buffer, Device, Queue, RenderPipeline, Surface, SurfaceTexture, TextureFormat,
-    VertexAttribute, VertexStepMode,
+    Adapter, BindGroup, Buffer, Device, Queue, RenderPipeline, Surface, SurfaceTexture,
+    TextureFormat, VertexAttribute, VertexStepMode,
 };
 use winit::{
     application::ApplicationHandler,
@@ -20,7 +21,6 @@ use winit::{
     event_loop::{ActiveEventLoop, EventLoop},
     window::{Window, WindowId},
 };
-use crate::render;
 
 #[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
@@ -39,7 +39,7 @@ struct RenderState {
     device: Device,
     queue: Queue,
     size: winit::dpi::PhysicalSize<u32>,
-    surface: Surface<'static>,
+    surface: Arc<Surface<'static>>,
     surface_format: TextureFormat,
     render_pipeline: RenderPipeline,
     debug_quad_render_pipeline: RenderPipeline,
@@ -225,12 +225,11 @@ impl RenderState {
         render_pipeline
     }
 
-    async fn new(window: Arc<Window>) -> RenderState {
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions::default())
-            .await
-            .unwrap();
+    async fn new(
+        window: Arc<Window>,
+        surface: Arc<Surface<'static>>,
+        adapter: Arc<wgpu::Adapter>,
+    ) -> RenderState {
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 required_features: wgpu::Features::INDIRECT_FIRST_INSTANCE
@@ -241,8 +240,6 @@ impl RenderState {
             .unwrap();
 
         let size = window.inner_size();
-
-        let surface = instance.create_surface(window.clone()).unwrap();
         let cap = surface.get_capabilities(&adapter);
         let surface_format = cap.formats[0];
 
@@ -638,105 +635,106 @@ impl RenderState {
     }
 }
 
-struct VoxelRenderApp {
-    state: Option<RenderState>,
-    // FPS tracking fields
-    last_fps_instant: Option<Instant>,
-    frame_count: u32,
-    message_receiver: Receiver<(
-        Mat4,
-        Vec<(MeshedVoxelsFace, InstanceMaterialData, GlobalTransform)>,
-    )>,
-    projection_message_sender: Sender<(f32, f32)>,
-}
-
-impl VoxelRenderApp {
-    fn new(
-        message_reciever: Receiver<(
-            Mat4,
-            Vec<(MeshedVoxelsFace, InstanceMaterialData, GlobalTransform)>,
-        )>,
-        projection_message_sender: Sender<(f32, f32)>,
-    ) -> Self {
-        Self {
-            state: None,
-            message_receiver: message_reciever,
-            projection_message_sender,
-            last_fps_instant: Some(Instant::now()),
-            frame_count: 0,
-        }
-    }
-}
-
 fn get_view_projection_matrix(projection: &Projection, transform: &GlobalTransform) -> Mat4 {
     let view_matrix = transform.compute_matrix().inverse();
     let projection_matrix = projection.get_clip_from_view();
     projection_matrix * view_matrix
 }
 
-impl ApplicationHandler for VoxelRenderApp {
+struct VoxelExtractApp {
+    world_message_sender: Sender<(
+        Mat4,
+        Vec<(MeshedVoxelsFace, InstanceMaterialData, GlobalTransform)>,
+    )>,
+    app: App,
+    window: Arc<Window>,
+}
+
+impl VoxelExtractApp {
+    fn new(
+        world_message_sender: Sender<(
+            Mat4,
+            Vec<(MeshedVoxelsFace, InstanceMaterialData, GlobalTransform)>,
+        )>,
+        app: App,
+        window: Arc<Window>,
+    ) -> Self {
+        Self {
+            world_message_sender,
+            app,
+            window,
+        }
+    }
+}
+
+impl ApplicationHandler for VoxelExtractApp {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        // Create window object
-        let window = Arc::new(
-            event_loop
-                .create_window(
-                    Window::default_attributes()
-                        .with_inner_size(winit::dpi::PhysicalSize::new(1920, 1080)),
-                )
-                .unwrap(),
-        );
-
-        let state = pollster::block_on(RenderState::new(window.clone()));
-        self.state = Some(state);
-
-        window.request_redraw();
+        &self.window.request_redraw();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        let state = self.state.as_mut().unwrap();
         match event {
             WindowEvent::CloseRequested => {
                 println!("The close button was pressed; stopping");
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                let (view_proj, voxel_planes) = match self.message_receiver.try_recv() {
-                    Ok((view_proj, voxel_planes)) => (view_proj, voxel_planes),
-                    Err(_) => return, // No new data to render
-                };
+                info!("Redrawing extract app");
 
-                state.render(view_proj, voxel_planes);
+                // Get camera view projection matrix
+                let world = self.app.world_mut();
+                let mut camera = world.query::<(&mut Projection, &GlobalTransform)>();
+                let (projection, global_transform) = camera.iter_mut(world).next().unwrap();
+                let view_proj = get_view_projection_matrix(&projection, global_transform);
 
-                // FPS tracking logic
-                self.frame_count += 1;
-                let now = Instant::now();
-                if let Some(last) = self.last_fps_instant {
-                    if now.duration_since(last) >= Duration::from_secs(1) {
-                        println!("FPS: {}", self.frame_count);
-                        self.frame_count = 0;
-                        self.last_fps_instant = Some(now);
-                    }
-                } else {
-                    self.last_fps_instant = Some(now);
-                }
+                // Get each voxel entity, cloning to avoid borrowing issues
+                let voxel_entities = world
+                    .query::<(&MeshedVoxelsFace, &InstanceMaterialData, &GlobalTransform)>()
+                    .iter_mut(world)
+                    .map(|(face, instance_data, transform)| {
+                        let cloned_components =
+                            (face.clone(), instance_data.clone(), transform.clone());
+                        cloned_components
+                    })
+                    .collect::<Vec<_>>();
+
+                thread::sleep(Duration::from_millis(200));
+                // if self.world_message_sender
+                //     .send((view_proj, voxel_entities))
+                //     .is_err()
+                // {
+                //     panic!("Can't send world message");
+                // }
+                // if let Ok((width, height)) = projection_update_receiver.try_recv() {
+                //     let world = app.world_mut();
+                //     let mut camera = world.query::<(&mut Projection, &GlobalTransform)>();
+                //     let (mut projection, _) = camera.iter_mut(world).next().unwrap();
+                //     // Update the projection matrix based on the current size
+                //     match &mut *projection {
+                //         Projection::Perspective(perspective) => {
+                //             perspective.update(width, height);
+                //         }
+                //         _ => {
+                //             panic!("Only perspective projection is supported");
+                //         }
+                //     }
+                // }
 
                 // Emits a new redraw requested event.
-                state.get_window().request_redraw();
-            }
-            WindowEvent::Resized(size) => {
-                self.projection_message_sender
-                    .send((state.size.width as f32, state.size.height as f32))
-                    .expect("Error sending projection update");
-                state.resize(size);
+                &self.window.request_redraw();
             }
             _ => (),
         }
     }
 }
 
-pub fn winit_runner(mut app: App) -> AppExit {
-    let event_loop = EventLoop::new().unwrap();
-
+pub fn winit_runner(
+    mut app: App,
+    surface: Arc<Surface>,
+    adapter: Arc<Adapter>,
+    window: Arc<Window>,
+    event_loop: EventLoop<()>,
+) -> AppExit {
     if app.plugins_state() == PluginsState::Ready {
         app.finish();
         app.cleanup();
@@ -752,76 +750,10 @@ pub fn winit_runner(mut app: App) -> AppExit {
     let (projection_update_sender, projection_update_receiver) =
         std::sync::mpsc::channel::<(f32, f32)>();
 
-    let mut render_app = VoxelRenderApp::new(world_message_receiver, projection_update_sender);
-
-    let render_thread = thread::spawn(|| {
-        let (world_message_sender, world_message_receiver) = std::sync::mpsc::channel::<(
-            Mat4,
-            Vec<(MeshedVoxelsFace, InstanceMaterialData, GlobalTransform)>,
-        )>();
-        let (projection_update_sender, projection_update_receiver) =
-            std::sync::mpsc::channel::<(f32, f32)>();
-        let mut render_app = VoxelRenderApp::new(world_message_receiver, projection_update_sender);
-        loop {
-            thread::sleep(Duration::from_millis(200));
-            info!("Redrawing render app");
-            // match render_app.state {
-            //     Some(ref mut state) => {
-            //         // TODO: only allow redraw if there is new data
-            //         // state.render();
-            //     }
-            //     None => break, // Exit if the render state is not initialized
-            // }
-        }
-    });
-
-    // render_thread.join().unwrap();
-
-    // TODO: create extract app
-    // thread::spawn(move || {
-    //     loop {
-    //         // Get camera view projection matrix
-    //         let world = app.world_mut();
-    //         let mut camera = world.query::<(&mut Projection, &GlobalTransform)>();
-    //         let (projection, global_transform) = camera.iter_mut(world).next().unwrap();
-    //         let view_proj = get_view_projection_matrix(&projection, global_transform);
-    //
-    //         // Get each voxel entity, cloning to avoid borrowing issues
-    //         let voxel_entities = world
-    //             .query::<(&MeshedVoxelsFace, &InstanceMaterialData, &GlobalTransform)>()
-    //             .iter_mut(world)
-    //             .map(|(face, instance_data, transform)| {
-    //                 let cloned_components = (face.clone(), instance_data.clone(), transform.clone());
-    //                 cloned_components
-    //             })
-    //             .collect::<Vec<_>>();
-    //
-    //         thread::sleep(Duration::from_millis(200));
-    //         if world_message_sender
-    //             .send((view_proj, voxel_entities))
-    //             .is_err()
-    //         {
-    //             break; // Exit if the receiver is dropped
-    //         }
-    //         if let Ok((width, height)) = projection_update_receiver.try_recv() {
-    //             let world = app.world_mut();
-    //             let mut camera = world.query::<(&mut Projection, &GlobalTransform)>();
-    //             let (mut projection, _) = camera.iter_mut(world).next().unwrap();
-    //             // Update the projection matrix based on the current size
-    //             match &mut *projection {
-    //                 Projection::Perspective(perspective) => {
-    //                     perspective.update(width, height);
-    //                 }
-    //                 _ => {
-    //                     panic!("Only perspective projection is supported");
-    //                 }
-    //             }
-    //         }
-    //     }
-    // });
+    let mut extract_app = VoxelExtractApp::new(world_message_sender, app, window.clone());
 
     event_loop
-        .run_app(&mut render_app)
+        .run_app(&mut extract_app)
         .expect("Event loop panicked");
 
     AppExit::Success
@@ -831,6 +763,48 @@ pub struct VoxelRenderPlugin;
 
 impl Plugin for VoxelRenderPlugin {
     fn build(&self, app: &mut App) {
-        app.set_runner(|app| winit_runner(app));
+        let event_loop = EventLoop::new().unwrap();
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+        let adapter = Arc::new(
+            pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
+                .unwrap(),
+        );
+        let window = Arc::new(
+            event_loop
+                .create_window(
+                    Window::default_attributes()
+                        .with_inner_size(winit::dpi::PhysicalSize::new(1920, 1080)),
+                )
+                .unwrap(),
+        );
+
+        let surface = Arc::new(instance.create_surface(window.clone()).unwrap());
+
+        let winit_window = window.clone();
+        let winit_surface = surface.clone();
+        let winit_adapter = adapter.clone();
+
+        app.set_runner(|app| {
+            winit_runner(app, winit_surface, winit_adapter, winit_window, event_loop)
+        });
+
+        let render_window = window.clone();
+        let render_surface = surface.clone();
+        let render_adapter = adapter.clone();
+
+        let render_thread = thread::spawn(move || {
+            let mut render_state = RenderState::new(render_window, render_surface, render_adapter);
+            loop {
+                thread::sleep(Duration::from_millis(200));
+                info!("Redrawing render app");
+                // match render_app.state {
+                //     Some(ref mut state) => {
+                //         // TODO: only allow redraw if there is new data
+                //         // state.render();
+                //     }
+                //     None => break, // Exit if the render state is not initialized
+                // }
+            }
+        });
     }
 }
