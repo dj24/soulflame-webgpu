@@ -8,7 +8,7 @@ use bevy::render::camera::CameraProjection;
 use bytemuck::{Pod, Zeroable};
 use std::iter::Enumerate;
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::Arc;
+use std::sync::{mpsc, Arc};
 use std::thread;
 use std::time::{Duration, Instant};
 use wgpu::{
@@ -230,13 +230,12 @@ impl RenderState {
         surface: Arc<Surface<'static>>,
         adapter: Arc<wgpu::Adapter>,
     ) -> RenderState {
-        let (device, queue) = pollster::block_on(adapter
-            .request_device(&wgpu::DeviceDescriptor {
-                required_features: wgpu::Features::INDIRECT_FIRST_INSTANCE
-                    | wgpu::Features::MULTI_DRAW_INDIRECT,
-                ..default()
-            }))
-            .unwrap();
+        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+            required_features: wgpu::Features::INDIRECT_FIRST_INSTANCE
+                | wgpu::Features::MULTI_DRAW_INDIRECT,
+            ..default()
+        }))
+        .unwrap();
 
         let size = window.inner_size();
         let cap = surface.get_capabilities(&adapter);
@@ -427,7 +426,6 @@ impl RenderState {
         voxel_planes: Vec<(MeshedVoxelsFace, InstanceMaterialData, GlobalTransform)>,
     ) {
         let render_span = info_span!("Voxel render").entered();
-        let render_setup_span = info_span!("Variable prep").entered();
         let surface_texture = self.get_surface_texture();
         let texture_view = self.get_texture_view(&surface_texture);
         let voxel_object_count = voxel_planes.len() / 6;
@@ -450,14 +448,14 @@ impl RenderState {
         all_indirect_data.reserve(face_count);
 
         // Estimate total instance count to avoid reallocations
-        let est_total_instances = voxel_planes.iter()
+        let est_total_instances = voxel_planes
+            .iter()
             .map(|(_, data, _)| data.len())
             .sum::<usize>();
         all_instance_data.reserve(est_total_instances);
 
         // Populate MVP matrices and vertex data for each voxel entity, and count total instances
         let mut first_vertex = 0;
-        render_setup_span.exit();
 
         let populate_buffers_span = info_span!("Populate buffers").entered();
         for (index, (face, instance_data, transform)) in voxel_planes.into_iter().enumerate() {
@@ -700,52 +698,66 @@ impl ApplicationHandler for VoxelExtractApp {
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
+            WindowEvent::Destroyed => {
+                println!("Window destroyed; stopping");
+                event_loop.exit();
+            }
             WindowEvent::CloseRequested => {
                 println!("The close button was pressed; stopping");
                 event_loop.exit();
             }
+            WindowEvent::Resized(size) => {
+                info!("Resizing to {:?}", size);
+            }
             WindowEvent::RedrawRequested => {
-                self.render_finished_receiver.recv();
-                self.app.update();
+                // self.render_finished_receiver.recv();
+                match self.render_finished_receiver.try_recv() {
+                    Ok(message) => {
+                        self.app.update();
 
-                // Get camera view projection matrix
-                let world = self.app.world_mut();
-                let mut camera = world.query::<(&mut Projection, &GlobalTransform)>();
-                let (projection, global_transform) = camera.iter_mut(world).next().unwrap();
-                let view_proj = get_view_projection_matrix(&projection, global_transform);
+                        // Get camera view projection matrix
+                        let world = self.app.world_mut();
+                        let mut camera = world.query::<(&mut Projection, &GlobalTransform)>();
+                        let (projection, global_transform) = camera.iter_mut(world).next().unwrap();
+                        let view_proj = get_view_projection_matrix(&projection, global_transform);
 
-                // Get each voxel entity, cloning to avoid borrowing issues
-                let voxel_entities = world
-                    .query::<(&MeshedVoxelsFace, &InstanceMaterialData, &GlobalTransform)>()
-                    .iter_mut(world)
-                    .map(|(face, instance_data, transform)| {
-                        let cloned_components =
-                            (face.clone(), instance_data.clone(), transform.clone());
-                        cloned_components
-                    })
-                    .collect::<Vec<_>>();
+                        // Get each voxel entity, cloning to avoid borrowing issues
+                        let voxel_entities = world
+                            .query::<(&MeshedVoxelsFace, &InstanceMaterialData, &GlobalTransform)>()
+                            .iter_mut(world)
+                            .map(|(face, instance_data, transform)| {
+                                let cloned_components =
+                                    (face.clone(), instance_data.clone(), transform.clone());
+                                cloned_components
+                            })
+                            .collect::<Vec<_>>();
 
-                self.world_message_sender.send(
-                    (view_proj, voxel_entities),
-                ).expect("Error sending voxel data to render thread");
+                        self.world_message_sender
+                            .send((view_proj, voxel_entities))
+                            .expect("Error sending voxel data to render thread");
 
-                let size = self.window.inner_size();
-                let world = self.app.world_mut();
-                let mut camera = world.query::<(&mut Projection, &GlobalTransform)>();
-                let (mut projection, _) = camera.iter_mut(world).next().unwrap();
-                // Update the projection matrix based on the current size
-                match &mut *projection {
-                    Projection::Perspective(perspective) => {
-                        perspective.update(size.width as f32, size.height as f32);
+                        let size = self.window.inner_size();
+                        let world = self.app.world_mut();
+                        let mut camera = world.query::<(&mut Projection, &GlobalTransform)>();
+                        let (mut projection, _) = camera.iter_mut(world).next().unwrap();
+                        // Update the projection matrix based on the current size
+                        match &mut *projection {
+                            Projection::Perspective(perspective) => {
+                                perspective.update(size.width as f32, size.height as f32);
+                            }
+                            _ => {
+                                panic!("Only perspective projection is supported");
+                            }
+                        }
                     }
-                    _ => {
-                        panic!("Only perspective projection is supported");
+                    Err(mpsc::TryRecvError::Empty) => {}
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        event_loop.exit();
                     }
                 }
 
-
                 // Emits a new redraw requested event.
-                &self.window.request_redraw();
+                let _ = &self.window.request_redraw();
             }
             _ => (),
         }
@@ -770,7 +782,12 @@ pub fn winit_runner(
     // Update must be called once before the event loop starts
     app.update();
 
-    let mut extract_app = VoxelExtractApp::new(world_message_sender, app, window.clone(), render_finished_receiver);
+    let mut extract_app = VoxelExtractApp::new(
+        world_message_sender,
+        app,
+        window.clone(),
+        render_finished_receiver,
+    );
 
     event_loop
         .run_app(&mut extract_app)
@@ -783,6 +800,16 @@ pub struct VoxelRenderPlugin;
 
 impl Plugin for VoxelRenderPlugin {
     fn build(&self, app: &mut App) {
+        app.insert_resource(MainThreadExecutor::new());
+        let (world_message_sender, world_message_receiver) = std::sync::mpsc::channel::<(
+            Mat4,
+            Vec<(MeshedVoxelsFace, InstanceMaterialData, GlobalTransform)>,
+        )>();
+        let (render_finished_sender, render_finished_receiver) = std::sync::mpsc::channel::<()>();
+        render_finished_sender
+            .send(())
+            .expect("Error sending initial render finished signal");
+
         let event_loop = EventLoop::new().unwrap();
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
         let adapter = Arc::new(
@@ -798,41 +825,43 @@ impl Plugin for VoxelRenderPlugin {
                 .unwrap(),
         );
 
-        let (world_message_sender, world_message_receiver) = std::sync::mpsc::channel::<(
-            Mat4,
-            Vec<(MeshedVoxelsFace, InstanceMaterialData, GlobalTransform)>,
-        )>();
-
-        let (render_finished_sender, render_finished_receiver) =
-            std::sync::mpsc::channel::<()>();
-
         let surface = Arc::new(instance.create_surface(window.clone()).unwrap());
 
         let winit_window = window.clone();
 
-        render_finished_sender.send(()).expect("Error sending initial render finished signal");
-
         app.set_runner(|app| {
-            winit_runner(app, winit_window, event_loop, world_message_sender, render_finished_receiver)
+            winit_runner(
+                app,
+                winit_window,
+                event_loop,
+                world_message_sender,
+                render_finished_receiver,
+            )
         });
 
         let render_window = window.clone();
         let render_surface = surface.clone();
         let render_adapter = adapter.clone();
 
-        let render_thread = thread::Builder::new().name("Render Thread".to_string()).spawn(move || {
+        let render_loop = move || {
             let mut render_state = RenderState::new(render_window, render_surface, render_adapter);
             loop {
                 // Block until a message is received
                 if let Ok((view_proj, voxel_planes)) = world_message_receiver.recv() {
                     // Send a signal that the next update can begin
-                    render_finished_sender.send(()).expect("Failed to send render finished signal");
+                    render_finished_sender
+                        .send(())
+                        .expect("Failed to send render finished signal");
                     render_state.render(view_proj, voxel_planes);
                 } else {
                     // Channel closed, exit thread
                     break;
                 }
             }
-        });
+        };
+
+        thread::Builder::new()
+            .name("Render Thread".to_string())
+            .spawn(render_loop);
     }
 }
