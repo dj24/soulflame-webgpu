@@ -1,18 +1,14 @@
-use crate::render;
 use crate::vxm_mesh::MeshedVoxelsFace;
 use bevy::app::PluginsState;
-use bevy::ecs::query::QueryIter;
 use bevy::ecs::schedule::MainThreadExecutor;
 use bevy::prelude::*;
 use bevy::render::camera::CameraProjection;
 use bytemuck::{Pod, Zeroable};
-use std::iter::Enumerate;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc};
 use std::thread;
-use std::time::{Duration, Instant};
 use wgpu::{
-    Adapter, BindGroup, Buffer, Device, Queue, RenderPipeline, Surface, SurfaceTexture,
+    BindGroup, Buffer, Device, Queue, RenderPipeline, Surface, SurfaceTexture,
     TextureFormat, VertexAttribute, VertexStepMode,
 };
 use winit::{
@@ -21,6 +17,7 @@ use winit::{
     event_loop::{ActiveEventLoop, EventLoop},
     window::{Window, WindowId},
 };
+use winit::keyboard::Key;
 
 #[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
@@ -702,6 +699,13 @@ impl ApplicationHandler for VoxelExtractApp {
                 println!("Window destroyed; stopping");
                 event_loop.exit();
             }
+            WindowEvent::KeyboardInput { event, .. } => {
+                if let Key::Named(winit::keyboard::NamedKey::Escape) = event.logical_key {
+                    if event.state.is_pressed() {
+                        event_loop.exit();
+                    }
+                }
+            }
             WindowEvent::CloseRequested => {
                 println!("The close button was pressed; stopping");
                 event_loop.exit();
@@ -862,6 +866,6 @@ impl Plugin for VoxelRenderPlugin {
 
         thread::Builder::new()
             .name("Render Thread".to_string())
-            .spawn(render_loop);
+            .spawn(render_loop).expect("TODO: panic message");
     }
 }

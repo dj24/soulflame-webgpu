@@ -108,10 +108,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         }),
     ));
 
-    // commands.spawn((
-    //     Name::new("Dragon 0,0"),
-    //     PendingVxm(asset_server.load("street-scene.vxm")),
-    //     CameraTarget(Vec3::new(126.0 / 2.0, 89.0 / 2.0, 57.0 / 2.0)),
-    //     Transform::default(),
-    // ));
+    commands.spawn((
+        Name::new("Dragon 0,0"),
+        PendingVxm(asset_server.load("street-scene.vxm")),
+        Transform::default().with_translation(Vec3::new(0.0, 150.0, 0.0)),
+    ));
 }
