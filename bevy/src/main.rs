@@ -20,7 +20,9 @@ use bevy::ecs::error::info;
 use bevy::log::LogPlugin;
 use bevy::prelude::light_consts::lux;
 use bevy::prelude::*;
-use bevy::render::camera::CameraProjectionPlugin;
+use bevy::render::camera::Camera;
+use bevy::render::primitives::Frustum;
+use bevy::render::view::{VisibilityPlugin, VisibilitySystems, VisibleEntities};
 use bevy::state::app::StatesPlugin;
 use bevy::time::TimePlugin;
 
@@ -66,9 +68,11 @@ fn main() {
             AssetPlugin::default(),
             VoxelRenderPlugin,
             VoxelTerrainPlugin,
+            VisibilityPlugin,
         ))
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
+        .init_resource::<Assets<Mesh>>() // Used to allow frustum culling
         .add_systems(Startup, setup) // Add your setup function
         .add_systems(
             Update,
@@ -99,6 +103,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     ));
 
     commands.spawn((
+        Camera::default(),
+        VisibleEntities::default(),
+        Frustum::default(),
         Transform::from_xyz(32.0 / 2.0, 32.0 / 2.0, 200.0).looking_at(Vec3::NEG_Z, Vec3::Y),
         Projection::Perspective(PerspectiveProjection {
             fov: 60.0_f32.to_radians(),
@@ -106,6 +113,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             far: 1000.0,
             aspect_ratio: 1.0,
         }),
+        Visibility::Visible,
+        InheritedVisibility::VISIBLE,
+        ViewVisibility::HIDDEN,
     ));
 
     commands.spawn((

@@ -446,7 +446,12 @@ impl RenderState {
     fn enqueue_main_pass(
         &mut self,
         texture_view: TextureView,
-        voxel_planes: Vec<(MeshedVoxelsFace, InstanceMaterialData, GlobalTransform)>,
+        voxel_planes: Vec<(
+            MeshedVoxelsFace,
+            InstanceMaterialData,
+            GlobalTransform,
+            ViewVisibility,
+        )>,
         view_proj: Mat4,
     ) -> wgpu::CommandBuffer {
         let voxel_object_count = voxel_planes.len() / 6;
@@ -471,7 +476,7 @@ impl RenderState {
         // Estimate total instance count to avoid reallocations
         let est_total_instances = voxel_planes
             .iter()
-            .map(|(_, data, _)| data.len())
+            .map(|(_, data, _, _)| data.len())
             .sum::<usize>();
         all_instance_data.reserve(est_total_instances);
 
@@ -479,7 +484,16 @@ impl RenderState {
         let mut first_vertex = 0;
 
         let populate_buffers_span = info_span!("Populate buffers").entered();
-        for (index, (face, instance_data, transform)) in voxel_planes.into_iter().enumerate() {
+        for (index, (face, instance_data, transform, visibility)) in
+            voxel_planes.into_iter().enumerate()
+        {
+            if index == 0 {
+                info!("ViewVisibility: {:?}", visibility);
+            }
+            // if !visibility.get() {
+            //     // Skip invisible entities
+            //     continue;
+            // }
             // Each voxel entity has 6 faces, so we store one transform for each 6
             if (index % 6) == 0 {
                 let mvp_index = index / 6;
@@ -649,12 +663,18 @@ impl RenderState {
     fn render(
         &mut self,
         view_proj: Mat4,
-        voxel_planes: Vec<(MeshedVoxelsFace, InstanceMaterialData, GlobalTransform)>,
+        voxel_planes: Vec<(
+            MeshedVoxelsFace,
+            InstanceMaterialData,
+            GlobalTransform,
+            ViewVisibility,
+        )>,
     ) {
         let render_span = info_span!("Voxel render").entered();
         let surface_texture = self.get_surface_texture();
         let texture_view = self.get_texture_view(&surface_texture);
-        let main_pass_command_buffer = self.enqueue_main_pass(texture_view, voxel_planes, view_proj);
+        let main_pass_command_buffer =
+            self.enqueue_main_pass(texture_view, voxel_planes, view_proj);
 
         let texture_view = self.get_texture_view(&surface_texture);
         let depth_debug_command_buffer = self.enqueue_depth_debug_pass(texture_view);
@@ -678,7 +698,12 @@ fn get_view_projection_matrix(projection: &Projection, transform: &GlobalTransfo
 struct VoxelExtractApp {
     world_message_sender: Sender<(
         Mat4,
-        Vec<(MeshedVoxelsFace, InstanceMaterialData, GlobalTransform)>,
+        Vec<(
+            MeshedVoxelsFace,
+            InstanceMaterialData,
+            GlobalTransform,
+            ViewVisibility,
+        )>,
     )>,
     app: App,
     window: Arc<Window>,
@@ -689,7 +714,12 @@ impl VoxelExtractApp {
     fn new(
         world_message_sender: Sender<(
             Mat4,
-            Vec<(MeshedVoxelsFace, InstanceMaterialData, GlobalTransform)>,
+            Vec<(
+                MeshedVoxelsFace,
+                InstanceMaterialData,
+                GlobalTransform,
+                ViewVisibility,
+            )>,
         )>,
         app: App,
         window: Arc<Window>,
@@ -743,11 +773,20 @@ impl ApplicationHandler for VoxelExtractApp {
 
                         // Get each voxel entity, cloning to avoid borrowing issues
                         let voxel_entities = world
-                            .query::<(&MeshedVoxelsFace, &InstanceMaterialData, &GlobalTransform)>()
+                            .query::<(
+                                &MeshedVoxelsFace,
+                                &InstanceMaterialData,
+                                &GlobalTransform,
+                                &ViewVisibility,
+                            )>()
                             .iter_mut(world)
-                            .map(|(face, instance_data, transform)| {
-                                let cloned_components =
-                                    (face.clone(), instance_data.clone(), transform.clone());
+                            .map(|(face, instance_data, transform, visibility)| {
+                                let cloned_components = (
+                                    face.clone(),
+                                    instance_data.clone(),
+                                    transform.clone(),
+                                    visibility.clone(),
+                                );
                                 cloned_components
                             })
                             .collect::<Vec<_>>();
@@ -790,7 +829,12 @@ pub fn winit_runner(
     event_loop: EventLoop<()>,
     world_message_sender: Sender<(
         Mat4,
-        Vec<(MeshedVoxelsFace, InstanceMaterialData, GlobalTransform)>,
+        Vec<(
+            MeshedVoxelsFace,
+            InstanceMaterialData,
+            GlobalTransform,
+            ViewVisibility,
+        )>,
     )>,
     render_finished_receiver: Receiver<()>,
 ) -> AppExit {
@@ -823,7 +867,12 @@ impl Plugin for VoxelRenderPlugin {
         app.insert_resource(MainThreadExecutor::new());
         let (world_message_sender, world_message_receiver) = std::sync::mpsc::channel::<(
             Mat4,
-            Vec<(MeshedVoxelsFace, InstanceMaterialData, GlobalTransform)>,
+            Vec<(
+                MeshedVoxelsFace,
+                InstanceMaterialData,
+                GlobalTransform,
+                ViewVisibility,
+            )>,
         )>();
         let (render_finished_sender, render_finished_receiver) = std::sync::mpsc::channel::<()>();
         render_finished_sender

@@ -6,10 +6,12 @@ use bevy::log::info;
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, PrimitiveTopology};
 use bevy::render::primitives::Aabb;
+use bevy::render::view::VisibilityClass;
 use rayon::prelude::*;
 use std::sync::Arc;
 
 #[derive(Component, Clone)]
+#[component(on_add = bevy::render::view::visibility::add_visibility_class::<MeshedVoxelsFace>)]
 pub enum MeshedVoxelsFace {
     Back = 0,
     Front = 1,
@@ -298,6 +300,7 @@ fn generate_instance_data_y(vxm: &VxmAsset, is_top_face: bool) -> Vec<InstanceDa
 }
 
 #[derive(Component)]
+#[component(on_add = bevy::render::view::visibility::add_visibility_class::<MeshedVoxels>)]
 pub struct MeshedVoxels;
 
 /// Removes PendingVxm to signify that the mesh has been created
@@ -344,51 +347,71 @@ pub fn create_mesh_on_vxm_import_system(
                     Vec3::new(vxm.size[0] as f32, vxm.size[1] as f32, vxm.size[2] as f32),
                 );
 
+                info!("AABB: {:?}", aabb);
+
                 commands.entity(entity).remove::<PendingVxm>();
                 commands
                     .entity(entity)
-                    .insert((InheritedVisibility::default(), aabb, MeshedVoxels))
+                    .insert((
+                        aabb,
+                        MeshedVoxels,
+                        Visibility::Visible,
+                        InheritedVisibility::VISIBLE,
+                        ViewVisibility::default(),
+                    ))
                     .with_child((
                         Name::new("Front face instance data"),
                         MeshedVoxelsFace::Front,
                         InstanceMaterialData(Arc::new(front_instance_data.clone())),
-                        aabb,
                         Transform::from_xyz(0.0, 0.0, 0.0),
+                        Visibility::Inherited,
+                        InheritedVisibility::VISIBLE,
+                        ViewVisibility::default(),
                     ))
                     .with_child((
                         Name::new("Back face instance data"),
                         MeshedVoxelsFace::Back,
                         InstanceMaterialData(Arc::new(back_instance_data.clone())),
-                        aabb,
                         Transform::from_xyz(0.0, 0.0, 0.0),
+                        Visibility::Inherited,
+                        InheritedVisibility::VISIBLE,
+                        ViewVisibility::default(),
                     ))
                     .with_child((
                         Name::new("Right face instance data"),
                         MeshedVoxelsFace::Right,
                         InstanceMaterialData(Arc::new(right_instance_data.clone())),
-                        aabb,
                         Transform::from_xyz(0.0, 0.0, 0.0),
+                        Visibility::Inherited,
+                        InheritedVisibility::VISIBLE,
+                        ViewVisibility::default(),
                     ))
                     .with_child((
                         Name::new("Left face instance data"),
                         MeshedVoxelsFace::Left,
                         InstanceMaterialData(Arc::new(left_instance_data.clone())),
-                        aabb,
                         Transform::from_xyz(0.0, 0.0, 0.0),
+                        Visibility::Inherited,
+                        InheritedVisibility::VISIBLE,
+                        ViewVisibility::default(),
                     ))
                     .with_child((
                         Name::new("Top face instance data"),
                         MeshedVoxelsFace::Top,
                         InstanceMaterialData(Arc::new(top_instance_data.clone())),
-                        aabb,
                         Transform::from_xyz(0.0, 0.0, 0.0),
+                        Visibility::Inherited,
+                        InheritedVisibility::VISIBLE,
+                        ViewVisibility::default(),
                     ))
                     .with_child((
                         Name::new("Bottom face instance data"),
                         MeshedVoxelsFace::Bottom,
                         InstanceMaterialData(Arc::new(bottom_instance_data.clone())),
-                        aabb,
                         Transform::from_xyz(0.0, 0.0, 0.0),
+                        Visibility::Inherited,
+                        InheritedVisibility::VISIBLE,
+                        ViewVisibility::default(),
                     ));
             }
             None => {}

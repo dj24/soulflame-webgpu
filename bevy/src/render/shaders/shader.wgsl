@@ -148,7 +148,7 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
 
     let albedo = convert_hsl_to_rgb(unpacked_h,unpacked_s, unpacked_l);
 
-    let light_dir = vec3<f32>(0.577, 0.577, 0.577); // Example light direction
+    let light_dir = vec3<f32>(0.577, -0.577, 0.577); // Example light direction
     let n_dot_l = max(dot(normal, light_dir), 0.0);
 
     var output: VertexOutput;
