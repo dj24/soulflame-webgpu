@@ -8,16 +8,16 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc};
 use std::thread;
 use wgpu::{
-    BindGroup, Buffer, Device, Queue, RenderPipeline, Surface, SurfaceTexture,
-    TextureFormat, VertexAttribute, VertexStepMode,
+    BindGroup, Buffer, Device, Queue, RenderPipeline, Surface, SurfaceTexture, TextureFormat,
+    TextureView, VertexAttribute, VertexStepMode,
 };
+use winit::keyboard::Key;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, EventLoop},
     window::{Window, WindowId},
 };
-use winit::keyboard::Key;
 
 #[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
@@ -417,14 +417,38 @@ impl RenderState {
             })
     }
 
-    fn render(
+    fn enqueue_depth_debug_pass(&mut self, texture_view: TextureView) -> wgpu::CommandBuffer {
+        let depth_span = info_span!("Depth Debug").entered();
+        // Debug depth
+        let mut depth_debug_encoder = self.device.create_command_encoder(&Default::default());
+        let mut renderpass = depth_debug_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: None,
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &texture_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+        renderpass.set_pipeline(&self.debug_quad_render_pipeline);
+        renderpass.set_bind_group(0, &self.debug_quad_bind_group, &[]);
+        renderpass.draw(0..4, 0..1); // Draw the debug quad
+        drop(renderpass);
+        depth_span.exit();
+        depth_debug_encoder.finish()
+    }
+
+    fn enqueue_main_pass(
         &mut self,
-        view_proj: Mat4,
+        texture_view: TextureView,
         voxel_planes: Vec<(MeshedVoxelsFace, InstanceMaterialData, GlobalTransform)>,
-    ) {
-        let render_span = info_span!("Voxel render").entered();
-        let surface_texture = self.get_surface_texture();
-        let texture_view = self.get_texture_view(&surface_texture);
+        view_proj: Mat4,
+    ) -> wgpu::CommandBuffer {
         let voxel_object_count = voxel_planes.len() / 6;
         let new_buffer_size = (voxel_object_count * size_of::<Mat4>()) as u64;
         let mut total_instances = 0;
@@ -619,33 +643,25 @@ impl RenderState {
         }
         drop(renderpass);
         draw_span.exit();
+        encoder.finish()
+    }
 
-        let depth_span = info_span!("Depth Debug").entered();
-        // Debug depth
-        let mut depth_debug_encoder = self.device.create_command_encoder(&Default::default());
-        let mut renderpass = depth_debug_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: None,
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &texture_view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
-        renderpass.set_pipeline(&self.debug_quad_render_pipeline);
-        renderpass.set_bind_group(0, &self.debug_quad_bind_group, &[]);
-        renderpass.draw(0..4, 0..1); // Draw the debug quad
-        drop(renderpass);
-        depth_span.exit();
+    fn render(
+        &mut self,
+        view_proj: Mat4,
+        voxel_planes: Vec<(MeshedVoxelsFace, InstanceMaterialData, GlobalTransform)>,
+    ) {
+        let render_span = info_span!("Voxel render").entered();
+        let surface_texture = self.get_surface_texture();
+        let texture_view = self.get_texture_view(&surface_texture);
+        let main_pass_command_buffer = self.enqueue_main_pass(texture_view, voxel_planes, view_proj);
+
+        let texture_view = self.get_texture_view(&surface_texture);
+        let depth_debug_command_buffer = self.enqueue_depth_debug_pass(texture_view);
 
         let submit_span = info_span!("Submit Commands").entered();
         self.queue
-            .submit([encoder.finish(), depth_debug_encoder.finish()]);
+            .submit([main_pass_command_buffer, depth_debug_command_buffer]);
         self.window.pre_present_notify();
         surface_texture.present();
         submit_span.exit();
@@ -824,7 +840,7 @@ impl Plugin for VoxelRenderPlugin {
             event_loop
                 .create_window(
                     Window::default_attributes()
-                        .with_inner_size(winit::dpi::PhysicalSize::new(1920, 1080)),
+                        .with_inner_size(winit::dpi::LogicalSize::new(1920, 1080)),
                 )
                 .unwrap(),
         );
@@ -866,6 +882,7 @@ impl Plugin for VoxelRenderPlugin {
 
         thread::Builder::new()
             .name("Render Thread".to_string())
-            .spawn(render_loop).expect("TODO: panic message");
+            .spawn(render_loop)
+            .expect("TODO: panic message");
     }
 }
