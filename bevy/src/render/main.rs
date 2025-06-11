@@ -1,5 +1,6 @@
 use crate::vxm_mesh::MeshedVoxelsFace;
 use bevy::app::PluginsState;
+use bevy::asset::io::memory::Dir;
 use bevy::ecs::schedule::MainThreadExecutor;
 use bevy::prelude::*;
 use bevy::render::camera::CameraProjection;
@@ -44,9 +45,10 @@ struct RenderState {
     instance_buffer: Buffer,
     bind_group: BindGroup,
     debug_quad_bind_group: BindGroup,
-    depth_texture: wgpu::Texture,
     depth_texture_view: wgpu::TextureView,
     indirect_buffer: Buffer,
+    shadow_map_texture_view: wgpu::TextureView,
+    vertex_buffer: Buffer,
 }
 
 const BIND_GROUP_LAYOUT_DESCRIPTOR: &wgpu::BindGroupLayoutDescriptor =
@@ -288,6 +290,29 @@ impl RenderState {
             view_formats: &[],
         });
 
+        let shadow_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Shadow Map Texture"),
+            size: wgpu::Extent3d {
+                width: 4096,
+                height: 4096,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth24Plus,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+
+        let shadow_map_texture_view = shadow_texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("Shadow Map Texture View"),
+            format: Some(wgpu::TextureFormat::Depth24Plus),
+            dimension: Some(wgpu::TextureViewDimension::D2),
+            aspect: wgpu::TextureAspect::All,
+            ..Default::default()
+        });
+
         let depth_texture_view = depth_texture.create_view(&wgpu::TextureViewDescriptor {
             label: Some("Depth Texture View"),
             format: Some(wgpu::TextureFormat::Depth24Plus),
@@ -301,7 +326,7 @@ impl RenderState {
             layout: &debug_quad_bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
-                resource: wgpu::BindingResource::TextureView(&depth_texture_view),
+                resource: wgpu::BindingResource::TextureView(&shadow_map_texture_view),
             }],
         });
 
@@ -314,6 +339,13 @@ impl RenderState {
             &adapter,
             &debug_quad_bind_group_layout,
         );
+
+        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Vertex Buffer"),
+            size: (size_of::<u32>() * 24) as u64, // 6 faces * 4 vertices per face
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
 
         let state = RenderState {
             window,
@@ -328,9 +360,10 @@ impl RenderState {
             bind_group,
             instance_buffer,
             mvp_buffer,
-            depth_texture,
             depth_texture_view,
             indirect_buffer,
+            shadow_map_texture_view,
+            vertex_buffer,
         };
 
         // Configure surface for the first time
@@ -359,7 +392,7 @@ impl RenderState {
     }
 
     fn configure_depth_texture(&mut self) {
-        self.depth_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+        let depth_texture = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Depth Texture"),
             size: wgpu::Extent3d {
                 width: self.size.width,
@@ -374,25 +407,12 @@ impl RenderState {
             view_formats: &[],
         });
 
-        self.depth_texture_view = self
-            .depth_texture
-            .create_view(&wgpu::TextureViewDescriptor {
-                label: Some("Depth Texture View"),
-                format: Some(wgpu::TextureFormat::Depth24Plus),
-                dimension: Some(wgpu::TextureViewDimension::D2),
-                aspect: wgpu::TextureAspect::All,
-                ..Default::default()
-            });
-
-        self.debug_quad_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Debug Quad Bind Group"),
-            layout: &self
-                .device
-                .create_bind_group_layout(DEBUG_DEPTH_BIND_GROUP_LAYOUT_DESCRIPTOR),
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: wgpu::BindingResource::TextureView(&self.depth_texture_view),
-            }],
+        self.depth_texture_view = depth_texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("Depth Texture View"),
+            format: Some(wgpu::TextureFormat::Depth24Plus),
+            dimension: Some(wgpu::TextureViewDimension::D2),
+            aspect: wgpu::TextureAspect::All,
+            ..Default::default()
         });
     }
 
@@ -443,17 +463,7 @@ impl RenderState {
         depth_debug_encoder.finish()
     }
 
-    fn enqueue_main_pass(
-        &mut self,
-        texture_view: TextureView,
-        voxel_planes: Vec<(
-            MeshedVoxelsFace,
-            InstanceMaterialData,
-            GlobalTransform,
-            ViewVisibility,
-        )>,
-        view_proj: Mat4,
-    ) -> wgpu::CommandBuffer {
+    fn prepare_buffers(&mut self, voxel_planes: VoxelPlanesData, view_proj: Mat4) {
         let voxel_object_count = voxel_planes.len() / 6;
         let new_buffer_size = (voxel_object_count * size_of::<Mat4>()) as u64;
         let mut total_instances = 0;
@@ -487,9 +497,6 @@ impl RenderState {
         for (index, (face, instance_data, transform, visibility)) in
             voxel_planes.into_iter().enumerate()
         {
-            if index == 0 {
-                info!("ViewVisibility: {:?}", visibility);
-            }
             // if !visibility.get() {
             //     // Skip invisible entities
             //     continue;
@@ -517,29 +524,6 @@ impl RenderState {
         }
         populate_buffers_span.exit();
 
-        let mut encoder = self.device.create_command_encoder(&Default::default());
-        let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: None,
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &texture_view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.depth_texture_view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(0.0),
-                    store: wgpu::StoreOp::Store,
-                }),
-                stencil_ops: None,
-            }),
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
-
         let gpu_upload_span = info_span!("GPU Upload").entered();
 
         // Write all indirect data to the GPU buffer
@@ -565,16 +549,18 @@ impl RenderState {
         // Write all vertex data to the GPU buffer
         {
             // Vertex buffer used to store model indices
-            let vertex_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            self.vertex_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Vertex Buffer"),
                 size: (size_of::<u32>() * 24 * voxel_object_count).max(size_of::<u32>() * 24)
                     as u64,
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
-            self.queue
-                .write_buffer(&vertex_buffer, 0, bytemuck::cast_slice(&all_vertex_data));
-            renderpass.set_vertex_buffer(1, vertex_buffer.slice(..));
+            self.queue.write_buffer(
+                &self.vertex_buffer,
+                0,
+                bytemuck::cast_slice(&all_vertex_data),
+            );
         }
 
         // Write all MVP matrices to the GPU buffer
@@ -620,11 +606,87 @@ impl RenderState {
                     bytemuck::cast_slice(&all_instance_data),
                 );
             }
-
-            renderpass.set_vertex_buffer(0, self.instance_buffer.slice(..));
         }
 
         gpu_upload_span.exit();
+    }
+
+    fn enqueue_main_pass(
+        &mut self,
+        texture_view: TextureView,
+        draw_count: u32,
+    ) -> wgpu::CommandBuffer {
+        let mut encoder = self.device.create_command_encoder(&Default::default());
+        let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: None,
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &texture_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.depth_texture_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(0.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        renderpass.set_vertex_buffer(1, self.vertex_buffer.slice(..));
+        renderpass.set_vertex_buffer(0, self.instance_buffer.slice(..));
+        renderpass.set_pipeline(&self.render_pipeline);
+
+        // Create and set bind group with the updated MVP buffer
+        {
+            self.bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Bind Group"),
+                layout: &self
+                    .device
+                    .create_bind_group_layout(BIND_GROUP_LAYOUT_DESCRIPTOR),
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: self.mvp_buffer.as_entire_binding(),
+                }],
+            });
+            renderpass.set_bind_group(0, &self.bind_group, &[]);
+        }
+
+        // Single multi_draw_indirect call for all entities
+        renderpass.multi_draw_indirect(
+            &self.indirect_buffer,
+            0, // Start at beginning of buffer
+            draw_count,
+        );
+        drop(renderpass);
+        encoder.finish()
+    }
+
+    fn enqueue_shadow_pass(
+        &mut self,
+        total_draws: u32,
+    ) -> wgpu::CommandBuffer {
+        let mut encoder = self.device.create_command_encoder(&Default::default());
+        let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: None,
+            color_attachments: &[None],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.shadow_map_texture_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(0.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
 
         renderpass.set_pipeline(&self.render_pipeline);
 
@@ -644,37 +706,29 @@ impl RenderState {
         }
 
         let draw_span = info_span!("Draw Commands").entered();
-        if voxel_object_count > 0 {
-            // Calculate total number of draw commands (6 faces per entity)
-            let total_draws = voxel_object_count * 6;
 
-            // Single multi_draw_indirect call for all entities
-            renderpass.multi_draw_indirect(
-                &self.indirect_buffer,
-                0, // Start at beginning of buffer
-                total_draws as u32,
-            );
-        }
+        // Single multi_draw_indirect call for all entities
+        renderpass.multi_draw_indirect(
+            &self.indirect_buffer,
+            0, // Start at beginning of buffer
+            total_draws as u32,
+        );
+
         drop(renderpass);
         draw_span.exit();
         encoder.finish()
     }
 
-    fn render(
-        &mut self,
-        view_proj: Mat4,
-        voxel_planes: Vec<(
-            MeshedVoxelsFace,
-            InstanceMaterialData,
-            GlobalTransform,
-            ViewVisibility,
-        )>,
-    ) {
+    fn render(&mut self, view_proj: Mat4, voxel_planes: VoxelPlanesData) {
         let render_span = info_span!("Voxel render").entered();
         let surface_texture = self.get_surface_texture();
         let texture_view = self.get_texture_view(&surface_texture);
-        let main_pass_command_buffer =
-            self.enqueue_main_pass(texture_view, voxel_planes, view_proj);
+        let draw_count = voxel_planes.len() as u32;
+
+        // Prepare buffers for the main pass
+        self.prepare_buffers(voxel_planes, view_proj);
+
+        let main_pass_command_buffer = self.enqueue_main_pass(texture_view, draw_count);
 
         let texture_view = self.get_texture_view(&surface_texture);
         let depth_debug_command_buffer = self.enqueue_depth_debug_pass(texture_view);
@@ -696,15 +750,7 @@ fn get_view_projection_matrix(projection: &Projection, transform: &GlobalTransfo
 }
 
 struct VoxelExtractApp {
-    world_message_sender: Sender<(
-        Mat4,
-        Vec<(
-            MeshedVoxelsFace,
-            InstanceMaterialData,
-            GlobalTransform,
-            ViewVisibility,
-        )>,
-    )>,
+    world_message_sender: Sender<WorldMessage>,
     app: App,
     window: Arc<Window>,
     render_finished_receiver: Receiver<()>,
@@ -712,15 +758,7 @@ struct VoxelExtractApp {
 
 impl VoxelExtractApp {
     fn new(
-        world_message_sender: Sender<(
-            Mat4,
-            Vec<(
-                MeshedVoxelsFace,
-                InstanceMaterialData,
-                GlobalTransform,
-                ViewVisibility,
-            )>,
-        )>,
+        world_message_sender: Sender<WorldMessage>,
         app: App,
         window: Arc<Window>,
         render_finished_receiver: Receiver<()>,
@@ -760,7 +798,6 @@ impl ApplicationHandler for VoxelExtractApp {
                 info!("Resizing to {:?}", size);
             }
             WindowEvent::RedrawRequested => {
-                // self.render_finished_receiver.recv();
                 match self.render_finished_receiver.try_recv() {
                     Ok(message) => {
                         self.app.update();
@@ -791,8 +828,18 @@ impl ApplicationHandler for VoxelExtractApp {
                             })
                             .collect::<Vec<_>>();
 
+                        // Get directional light data (sun)
+                        let sun_data = world
+                            .query::<(&GlobalTransform, &DirectionalLight)>()
+                            .iter(world)
+                            .next()
+                            .map(|(transform, light)| (transform.clone(), light.clone()))
+                            .unwrap_or_else(|| {
+                                panic!("No directional light found in the world");
+                            });
+
                         self.world_message_sender
-                            .send((view_proj, voxel_entities))
+                            .send((view_proj, voxel_entities, sun_data))
                             .expect("Error sending voxel data to render thread");
 
                         let size = self.window.inner_size();
@@ -827,15 +874,7 @@ pub fn winit_runner(
     mut app: App,
     window: Arc<Window>,
     event_loop: EventLoop<()>,
-    world_message_sender: Sender<(
-        Mat4,
-        Vec<(
-            MeshedVoxelsFace,
-            InstanceMaterialData,
-            GlobalTransform,
-            ViewVisibility,
-        )>,
-    )>,
+    world_message_sender: Sender<WorldMessage>,
     render_finished_receiver: Receiver<()>,
 ) -> AppExit {
     if app.plugins_state() == PluginsState::Ready {
@@ -862,18 +901,22 @@ pub fn winit_runner(
 
 pub struct VoxelRenderPlugin;
 
+pub type VoxelPlanesData = Vec<(
+    MeshedVoxelsFace,
+    InstanceMaterialData,
+    GlobalTransform,
+    ViewVisibility,
+)>;
+
+pub type SunData = (GlobalTransform, DirectionalLight);
+
+pub type WorldMessage = (Mat4, VoxelPlanesData, SunData);
+
 impl Plugin for VoxelRenderPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(MainThreadExecutor::new());
-        let (world_message_sender, world_message_receiver) = std::sync::mpsc::channel::<(
-            Mat4,
-            Vec<(
-                MeshedVoxelsFace,
-                InstanceMaterialData,
-                GlobalTransform,
-                ViewVisibility,
-            )>,
-        )>();
+        let (world_message_sender, world_message_receiver) =
+            std::sync::mpsc::channel::<WorldMessage>();
         let (render_finished_sender, render_finished_receiver) = std::sync::mpsc::channel::<()>();
         render_finished_sender
             .send(())
@@ -916,7 +959,7 @@ impl Plugin for VoxelRenderPlugin {
             let mut render_state = RenderState::new(render_window, render_surface, render_adapter);
             loop {
                 // Block until a message is received
-                if let Ok((view_proj, voxel_planes)) = world_message_receiver.recv() {
+                if let Ok((view_proj, voxel_planes, _)) = world_message_receiver.recv() {
                     // Send a signal that the next update can begin
                     render_finished_sender
                         .send(())
