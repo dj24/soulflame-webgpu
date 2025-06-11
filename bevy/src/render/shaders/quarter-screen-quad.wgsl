@@ -32,7 +32,7 @@ fn vertex(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
 fn fragment(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
     let tex_size = textureDimensions(depth_texture);
     let coords = vec2<f32>(uv.x * f32(tex_size.x), uv.y * f32(tex_size.y));
-    let depth_value = textureLoad(depth_texture, vec2<i32>(i32(coords.x), i32(coords.y)), 0) * 100.0;
+    let depth_value = textureLoad(depth_texture, vec2<i32>(i32(coords.x), i32(coords.y)), 0) % 1.0;
     let color = vec4<f32>(depth_value, depth_value, depth_value, 1.0);
 
     return color;

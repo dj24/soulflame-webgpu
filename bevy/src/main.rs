@@ -99,7 +99,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             illuminance: lux::RAW_SUNLIGHT,
             ..default()
         },
-        Transform::from_xyz(1.0, -0.4, 0.0).looking_at(Vec3::new(0.25, -0.75, 0.0), Vec3::Y),
+        Transform::from_xyz(0.0, 1000.0, 0.0).looking_at(Vec3::new(0.25, -0.5, 0.25), Vec3::Y),
     ));
 
     commands.spawn((

@@ -41,6 +41,7 @@ struct RenderState {
     surface_format: TextureFormat,
     render_pipeline: RenderPipeline,
     debug_quad_render_pipeline: RenderPipeline,
+    shadow_render_pipeline: RenderPipeline,
     mvp_buffer: Buffer,
     instance_buffer: Buffer,
     bind_group: BindGroup,
@@ -150,6 +151,81 @@ impl RenderState {
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        });
+        render_pipeline
+    }
+
+    fn get_shadow_render_pipeline(
+        device: &Device,
+        surface: &Surface,
+        adapter: &wgpu::Adapter,
+        bind_group_layout: &wgpu::BindGroupLayout,
+    ) -> RenderPipeline {
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: None,
+            bind_group_layouts: &[&bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Vertex Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
+        });
+
+        let swapchain_capabilities = surface.get_capabilities(&adapter);
+
+        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                compilation_options: Default::default(),
+                buffers: &[
+                    wgpu::VertexBufferLayout {
+                        array_stride: size_of::<InstanceData>() as u64,
+                        step_mode: VertexStepMode::Instance,
+                        attributes: &[
+                            VertexAttribute {
+                                format: wgpu::VertexFormat::Uint32,
+                                offset: 0,
+                                shader_location: 0,
+                            },
+                            VertexAttribute {
+                                format: wgpu::VertexFormat::Uint32,
+                                offset: wgpu::VertexFormat::Uint32.size(),
+                                shader_location: 1,
+                            },
+                        ],
+                    },
+                    wgpu::VertexBufferLayout {
+                        array_stride: std::mem::size_of::<u32>() as u64, // vec3<f32>
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &[wgpu::VertexAttribute {
+                            format: wgpu::VertexFormat::Uint32,
+                            offset: 0,
+                            shader_location: 2, // position in shader
+                        }],
+                    },
+                ],
+            },
+            primitive: wgpu::PrimitiveState {
+                cull_mode: None,
+                topology: wgpu::PrimitiveTopology::TriangleStrip,
+                front_face: wgpu::FrontFace::Ccw,
+                ..default()
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: TextureFormat::Depth24Plus,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Greater,
+                stencil: wgpu::StencilState::default(), // 2.
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState::default(),
+            fragment: None,
             multiview: None,
             cache: None,
         });
@@ -359,6 +435,9 @@ impl RenderState {
         let render_pipeline =
             Self::get_render_pipeline(&device, &surface, &adapter, &bind_group_layout);
 
+        let shadow_quad_render_pipeline =
+            Self::get_shadow_render_pipeline(&device, &surface, &adapter, &bind_group_layout);
+
         let debug_quad_render_pipeline = Self::get_debug_quad_render_pipeline(
             &device,
             &surface,
@@ -391,6 +470,7 @@ impl RenderState {
             shadow_map_texture_view,
             vertex_buffer,
             view_projection_buffer,
+            shadow_render_pipeline: shadow_quad_render_pipeline,
         };
 
         // Configure surface for the first time
@@ -704,7 +784,7 @@ impl RenderState {
         let mut encoder = self.device.create_command_encoder(&Default::default());
         let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
-            color_attachments: &[None],
+            color_attachments: &[],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.shadow_map_texture_view,
                 depth_ops: Some(wgpu::Operations {
@@ -717,7 +797,9 @@ impl RenderState {
             occlusion_query_set: None,
         });
 
-        renderpass.set_pipeline(&self.render_pipeline);
+        renderpass.set_pipeline(&self.shadow_render_pipeline);
+        renderpass.set_vertex_buffer(1, self.vertex_buffer.slice(..));
+        renderpass.set_vertex_buffer(0, self.instance_buffer.slice(..));
         renderpass.set_bind_group(0, &self.bind_group, &[]);
 
         let draw_span = info_span!("Draw Commands").entered();
@@ -754,8 +836,7 @@ impl RenderState {
         let depth_debug_command_buffer = self.enqueue_depth_debug_pass(texture_view);
 
         let submit_span = info_span!("Submit Commands").entered();
-        self.queue
-            .submit([main_pass_command_buffer]);
+        self.queue.submit([main_pass_command_buffer]);
 
         self.queue.write_buffer(
             &self.view_projection_buffer,
@@ -763,7 +844,8 @@ impl RenderState {
             bytemuck::cast_slice(&[shadow_view_proj]),
         );
         let shadow_pass_command_buffer = self.enqueue_shadow_pass(draw_count);
-        self.queue.submit([shadow_pass_command_buffer, depth_debug_command_buffer]);
+        self.queue
+            .submit([shadow_pass_command_buffer, depth_debug_command_buffer]);
 
         self.window.pre_present_notify();
         surface_texture.present();
@@ -997,8 +1079,11 @@ impl Plugin for VoxelRenderPlugin {
                             far: 1000.0,
                             viewport_origin: Default::default(),
                             scaling_mode: Default::default(),
-                            scale: 5.0,
-                            area: Default::default(),
+                            scale: 1.0,
+                            area: Rect {
+                                min: Vec2::new(-200.0, -200.0),
+                                max: Vec2::new(200.0, 200.0),
+                            },
                         }),
                         &shadow_transform,
                     );
