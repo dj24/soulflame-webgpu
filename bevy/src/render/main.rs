@@ -47,6 +47,7 @@ struct RenderState {
     debug_quad_bind_group: BindGroup,
     depth_texture_view: wgpu::TextureView,
     indirect_buffer: Buffer,
+    view_projection_buffer: Buffer,
     shadow_map_texture_view: wgpu::TextureView,
     vertex_buffer: Buffer,
 }
@@ -54,16 +55,28 @@ struct RenderState {
 const BIND_GROUP_LAYOUT_DESCRIPTOR: &wgpu::BindGroupLayoutDescriptor =
     &wgpu::BindGroupLayoutDescriptor {
         label: Some("Bind Group Layout"),
-        entries: &[wgpu::BindGroupLayoutEntry {
-            binding: 0,
-            visibility: wgpu::ShaderStages::VERTEX,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Storage { read_only: true },
-                has_dynamic_offset: false,
-                min_binding_size: None,
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
             },
-            count: None,
-        }],
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+        ],
     };
 
 const DEBUG_DEPTH_BIND_GROUP_LAYOUT_DESCRIPTOR: &wgpu::BindGroupLayoutDescriptor =
@@ -266,13 +279,26 @@ impl RenderState {
 
         let bind_group_layout = device.create_bind_group_layout(BIND_GROUP_LAYOUT_DESCRIPTOR);
 
+        let view_projection_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("View Projection Buffer"),
+            size: size_of::<Mat4>() as u64, // 1 matrix for view projection
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Bind Group"),
             layout: &bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: mvp_buffer.as_entire_binding(),
-            }],
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: mvp_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: view_projection_buffer.as_entire_binding(),
+                },
+            ],
         });
 
         let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -364,6 +390,7 @@ impl RenderState {
             indirect_buffer,
             shadow_map_texture_view,
             vertex_buffer,
+            view_projection_buffer,
         };
 
         // Configure surface for the first time
@@ -463,7 +490,7 @@ impl RenderState {
         depth_debug_encoder.finish()
     }
 
-    fn prepare_buffers(&mut self, voxel_planes: VoxelPlanesData, view_proj: Mat4) {
+    fn prepare_buffers(&mut self, voxel_planes: VoxelPlanesData) {
         let voxel_object_count = voxel_planes.len() / 6;
         let new_buffer_size = (voxel_object_count * size_of::<Mat4>()) as u64;
         let mut total_instances = 0;
@@ -494,34 +521,37 @@ impl RenderState {
         let mut first_vertex = 0;
 
         let populate_buffers_span = info_span!("Populate buffers").entered();
-        for (index, (face, instance_data, transform, visibility)) in
-            voxel_planes.into_iter().enumerate()
-        {
-            // if !visibility.get() {
-            //     // Skip invisible entities
-            //     continue;
-            // }
-            // Each voxel entity has 6 faces, so we store one transform for each 6
-            if (index % 6) == 0 {
-                let mvp_index = index / 6;
-                all_mvp_data.push(view_proj * transform.compute_matrix());
-                for _ in 0..24 {
-                    all_vertex_data.push(mvp_index as u32);
-                }
-                first_vertex = mvp_index as u32 * 24;
-            }
 
-            let face_index = face as u32;
-            let instance_count = instance_data.len() as u32;
-            all_indirect_data.push(wgpu::util::DrawIndirectArgs {
-                vertex_count: 4, // Each face has 4 vertices
-                instance_count,
-                first_vertex: first_vertex + face_index * 4,
-                first_instance: total_instances,
-            });
-            all_instance_data.extend_from_slice(&instance_data);
-            total_instances += instance_count;
+        {
+            for (index, (face, instance_data, transform, _)) in voxel_planes.into_iter().enumerate()
+            {
+                // if !visibility.get() {
+                //     // Skip invisible entities
+                //     continue;
+                // }
+                // Each voxel entity has 6 faces, so we store one transform for each 6
+                if (index % 6) == 0 {
+                    let mvp_index = index / 6;
+                    all_mvp_data.push(transform.compute_matrix());
+                    for _ in 0..24 {
+                        all_vertex_data.push(mvp_index as u32);
+                    }
+                    first_vertex = mvp_index as u32 * 24;
+                }
+
+                let face_index = face as u32;
+                let instance_count = instance_data.len() as u32;
+                all_indirect_data.push(wgpu::util::DrawIndirectArgs {
+                    vertex_count: 4, // Each face has 4 vertices
+                    instance_count,
+                    first_vertex: first_vertex + face_index * 4,
+                    first_instance: total_instances,
+                });
+                all_instance_data.extend_from_slice(&instance_data);
+                total_instances += instance_count;
+            }
         }
+
         populate_buffers_span.exit();
 
         let gpu_upload_span = info_span!("GPU Upload").entered();
@@ -581,6 +611,22 @@ impl RenderState {
             }
             self.queue
                 .write_buffer(&self.mvp_buffer, 0, bytemuck::cast_slice(&all_mvp_data));
+            self.bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Bind Group"),
+                layout: &self
+                    .device
+                    .create_bind_group_layout(BIND_GROUP_LAYOUT_DESCRIPTOR),
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: self.mvp_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: self.view_projection_buffer.as_entire_binding(),
+                    },
+                ],
+            });
         }
 
         // Collect all instance data from the children of each voxel entity
@@ -642,21 +688,7 @@ impl RenderState {
         renderpass.set_vertex_buffer(1, self.vertex_buffer.slice(..));
         renderpass.set_vertex_buffer(0, self.instance_buffer.slice(..));
         renderpass.set_pipeline(&self.render_pipeline);
-
-        // Create and set bind group with the updated MVP buffer
-        {
-            self.bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Bind Group"),
-                layout: &self
-                    .device
-                    .create_bind_group_layout(BIND_GROUP_LAYOUT_DESCRIPTOR),
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: self.mvp_buffer.as_entire_binding(),
-                }],
-            });
-            renderpass.set_bind_group(0, &self.bind_group, &[]);
-        }
+        renderpass.set_bind_group(0, &self.bind_group, &[]);
 
         // Single multi_draw_indirect call for all entities
         renderpass.multi_draw_indirect(
@@ -668,10 +700,7 @@ impl RenderState {
         encoder.finish()
     }
 
-    fn enqueue_shadow_pass(
-        &mut self,
-        total_draws: u32,
-    ) -> wgpu::CommandBuffer {
+    fn enqueue_shadow_pass(&mut self, total_draws: u32) -> wgpu::CommandBuffer {
         let mut encoder = self.device.create_command_encoder(&Default::default());
         let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
@@ -689,21 +718,7 @@ impl RenderState {
         });
 
         renderpass.set_pipeline(&self.render_pipeline);
-
-        // Create and set bind group with the updated MVP buffer
-        {
-            self.bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Bind Group"),
-                layout: &self
-                    .device
-                    .create_bind_group_layout(BIND_GROUP_LAYOUT_DESCRIPTOR),
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: self.mvp_buffer.as_entire_binding(),
-                }],
-            });
-            renderpass.set_bind_group(0, &self.bind_group, &[]);
-        }
+        renderpass.set_bind_group(0, &self.bind_group, &[]);
 
         let draw_span = info_span!("Draw Commands").entered();
 
@@ -719,15 +734,20 @@ impl RenderState {
         encoder.finish()
     }
 
-    fn render(&mut self, view_proj: Mat4, voxel_planes: VoxelPlanesData) {
+    fn render(&mut self, view_proj: Mat4, shadow_view_proj: Mat4, voxel_planes: VoxelPlanesData) {
         let render_span = info_span!("Voxel render").entered();
         let surface_texture = self.get_surface_texture();
         let texture_view = self.get_texture_view(&surface_texture);
         let draw_count = voxel_planes.len() as u32;
 
         // Prepare buffers for the main pass
-        self.prepare_buffers(voxel_planes, view_proj);
+        self.prepare_buffers(voxel_planes);
 
+        self.queue.write_buffer(
+            &self.view_projection_buffer,
+            0,
+            bytemuck::cast_slice(&[view_proj]),
+        );
         let main_pass_command_buffer = self.enqueue_main_pass(texture_view, draw_count);
 
         let texture_view = self.get_texture_view(&surface_texture);
@@ -735,7 +755,16 @@ impl RenderState {
 
         let submit_span = info_span!("Submit Commands").entered();
         self.queue
-            .submit([main_pass_command_buffer, depth_debug_command_buffer]);
+            .submit([main_pass_command_buffer]);
+
+        self.queue.write_buffer(
+            &self.view_projection_buffer,
+            0,
+            bytemuck::cast_slice(&[shadow_view_proj]),
+        );
+        let shadow_pass_command_buffer = self.enqueue_shadow_pass(draw_count);
+        self.queue.submit([shadow_pass_command_buffer, depth_debug_command_buffer]);
+
         self.window.pre_present_notify();
         surface_texture.present();
         submit_span.exit();
@@ -959,12 +988,26 @@ impl Plugin for VoxelRenderPlugin {
             let mut render_state = RenderState::new(render_window, render_surface, render_adapter);
             loop {
                 // Block until a message is received
-                if let Ok((view_proj, voxel_planes, _)) = world_message_receiver.recv() {
+                if let Ok((view_proj, voxel_planes, sun_data)) = world_message_receiver.recv() {
+                    let (shadow_transform, _) = sun_data;
+
+                    let shadow_view_proj = get_view_projection_matrix(
+                        &Projection::Orthographic(OrthographicProjection {
+                            near: 0.1,
+                            far: 1000.0,
+                            viewport_origin: Default::default(),
+                            scaling_mode: Default::default(),
+                            scale: 5.0,
+                            area: Default::default(),
+                        }),
+                        &shadow_transform,
+                    );
+
                     // Send a signal that the next update can begin
                     render_finished_sender
                         .send(())
                         .expect("Failed to send render finished signal");
-                    render_state.render(view_proj, voxel_planes);
+                    render_state.render(view_proj, shadow_view_proj, voxel_planes);
                 } else {
                     // Channel closed, exit thread
                     break;

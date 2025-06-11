@@ -1,4 +1,5 @@
-@group(0) @binding(0) var<storage, read> mvp_buffer: array<mat4x4<f32>>;
+@group(0) @binding(0) var<storage, read> model_matrices: array<mat4x4<f32>>;
+@group(0) @binding(1) var<uniform> view_projection: mat4x4<f32>;
 
 
 struct VertexOutput {
@@ -143,7 +144,7 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
 
     let local_pos = positions[local_vertex_index];
     let pos = local_pos * scale + vec3<f32>(x_pos, y_pos, z_pos);
-    let model_view_proj = mvp_buffer[instance.model_index];
+    let model_view_proj = view_projection * model_matrices[instance.model_index];
     var projected_pos = model_view_proj * vec4<f32>(pos, 1.0);
 
     let albedo = convert_hsl_to_rgb(unpacked_h,unpacked_s, unpacked_l);
