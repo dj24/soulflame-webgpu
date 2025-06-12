@@ -443,8 +443,8 @@ impl RenderState {
         let shadow_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Shadow Map Texture"),
             size: wgpu::Extent3d {
-                width: 1024,
-                height: 1024,
+                width: 2048,
+                height: 2048,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -1177,9 +1177,9 @@ impl Plugin for VoxelRenderPlugin {
                 if let Ok((view_proj, voxel_planes, sun_data)) = world_message_receiver.recv() {
                     let (shadow_transform, _) = sun_data;
 
-                    let size = 64.0;
+                    let size = 128.0;
 
-                    let position = Vec2::new(0.0, 64.0);
+                    let position = Vec2::new(0.0, 16.0);
 
                     let shadow_view_proj = get_view_projection_matrix(
                         &Projection::Orthographic(OrthographicProjection {

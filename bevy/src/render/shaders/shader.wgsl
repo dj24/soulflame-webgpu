@@ -1,4 +1,4 @@
-override shadow_map_size: f32 = 1024.0;
+override shadow_map_size: f32 = 2048.0;
 
 @group(0) @binding(0) var<storage, read> model_matrices: array<mat4x4<f32>>;
 @group(0) @binding(1) var<uniform> view_projection: mat4x4<f32>;
@@ -163,27 +163,9 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
     output.color = vec4(albedo, 1.0);
     output.world_position = model_matrices[instance.model_index] * vec4<f32>(pos, 1.0);
     output.normal = normal;
+
     return output;
 }
-
-const POISSON_SAMPLES = array<vec2<f32>, 16>(
-    vec2(0.0, 0.0),          // 0.0 - origin
-    vec2<f32>(2.0, -2.0),      // 2.83
-    vec2<f32>(-3.0, 2.0),      // 3.61 - better early sample
-    vec2<f32>(5.0, 5.0),       // 7.07
-    vec2<f32>(-6.0, 4.0),      // 7.21
-    vec2<f32>(-4.0, -7.0),     // 8.06
-    vec2<f32>(8.0, -7.0),      // 10.63
-    vec2<f32>(3.0, 12.0),      // 12.37
-    vec2<f32>(12.0, 3.0),      // 12.37
-    vec2<f32>(-1.0, -15.0),    // 15.03
-    vec2<f32>(-14.0, 7.0),     // 15.65
-    vec2<f32>(-15.0, -6.0),    // 16.16
-    vec2<f32>(-4.0, 16.0),     // 16.49
-    vec2<f32>(7.0, -15.0),     // 16.55
-    vec2<f32>(-13.0, 14.0),    // 19.10
-    vec2<f32>(15.0, -12.0),    // 19.21
-);
 
 @fragment
 fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
@@ -199,17 +181,21 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
 
     let depth_reference = shadow_coords.z / shadow_coords.w;
 
+
     var visibility = 0.0;
     var total_weight = 0.0;
-    for(var i = 0; i < 16; i++) {
-        let offset = POISSON_SAMPLES[i] * one_pixel * 0.5;
+    for(var x = -3; x <= 3; x++) {
+      for(var y = -3; y <= 3; y++) {
+        let offset = vec2(f32(x), f32(y)) * one_pixel;
         let sample_coords = shadow_coords_uv + offset;
 
         let d = length(offset);
-        let weight = max(1.0 - d * 2.0, 0.1); // Linear falloff with minimum weight
+        let weight = 1.0; // Linear falloff with minimum weight
+        let bias = 0.0003 * (d + 1.0); // Small bias to avoid shadow acne
 
-        visibility += textureSampleCompare(shadow_texture, shadow_sampler, sample_coords, depth_reference + 0.001) * weight;
+        visibility += textureSampleCompare(shadow_texture, shadow_sampler, sample_coords, depth_reference + bias) * weight;
         total_weight += weight;
+      }
     }
     visibility /= total_weight; // Average the visibility from the 9 samples
 
@@ -218,7 +204,7 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
     let color = vec4<f32>(vertex.color.rgb * n_dot_l, 1.0);
 
     return mix(
-       color * 0.01, // Shadow color
+       color * 0.02, // Shadow color
         color, // Light color
         visibility // Already contains comparison result (0.0 = shadow, 1.0 = lit)
     );

@@ -49,7 +49,7 @@ fn camera_oribit_target_over_time(
 
     let t = time.elapsed_secs();
     let radius = 150.0;
-    let angle = t * 0.5; // radians per second
+    let angle = t * 0.1; // radians per second
     let x = radius * angle.cos();
     let z = radius * angle.sin();
     camera_transform.translation = target_position + Vec3::new(x, 0.0, z);
@@ -108,7 +108,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Frustum::default(),
         Transform::from_xyz(32.0 / 2.0, 32.0 / 2.0, 200.0).looking_at(Vec3::NEG_Z, Vec3::Y),
         Projection::Perspective(PerspectiveProjection {
-            fov: 60.0_f32.to_radians(),
+            fov: 50.0_f32.to_radians(),
             near: 0.1,
             far: 1000.0,
             aspect_ratio: 1.0,
@@ -121,6 +121,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         Name::new("Dragon 0,0"),
         PendingVxm(asset_server.load("street-scene.vxm")),
-        Transform::default().with_translation(Vec3::new(0.0, 150.0, 0.0)),
+        Transform::default().with_translation(Vec3::new(0.0, 1.0, 0.0)),
     ));
 }
