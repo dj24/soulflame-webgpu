@@ -1,6 +1,11 @@
 @group(0) @binding(0) var<storage, read> model_matrices: array<mat4x4<f32>>;
 @group(0) @binding(1) var<uniform> view_projection: mat4x4<f32>;
 
+// Shadow texture and sampler
+@group(1) @binding(0) var shadow_texture: texture_depth_2d;
+@group(1) @binding(1) var shadow_sampler: sampler;
+@group(1) @binding(2) var<uniform> shadow_view_projection: mat4x4<f32>;
+
 
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,

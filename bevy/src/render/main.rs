@@ -46,9 +46,11 @@ struct RenderState {
     instance_buffer: Buffer,
     bind_group: BindGroup,
     debug_quad_bind_group: BindGroup,
+    shadow_bind_group: BindGroup,
     depth_texture_view: wgpu::TextureView,
     indirect_buffer: Buffer,
     view_projection_buffer: Buffer,
+    shadow_projection_buffer: Buffer,
     shadow_map_texture_view: wgpu::TextureView,
     vertex_buffer: Buffer,
 }
@@ -70,6 +72,40 @@ const BIND_GROUP_LAYOUT_DESCRIPTOR: &wgpu::BindGroupLayoutDescriptor =
             wgpu::BindGroupLayoutEntry {
                 binding: 1,
                 visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+        ],
+    };
+
+// Shadow map view, sampler, and light view projection matrix
+const SHADOW_BIND_GROUP_LAYOUT_DESCRIPTOR: &wgpu::BindGroupLayoutDescriptor =
+    &wgpu::BindGroupLayoutDescriptor {
+        label: Some("Shadow Bind Group Layout"),
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Depth,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 2,
+                visibility: wgpu::ShaderStages::FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
@@ -355,11 +391,21 @@ impl RenderState {
 
         let bind_group_layout = device.create_bind_group_layout(BIND_GROUP_LAYOUT_DESCRIPTOR);
 
-        let view_projection_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("View Projection Buffer"),
+        let matrix_init_descriptor = wgpu::BufferDescriptor {
+            label: Some("Matrix Initialization Buffer"),
             size: size_of::<Mat4>() as u64, // 1 matrix for view projection
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
+        };
+
+        let view_projection_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("View Projection Buffer"),
+            ..matrix_init_descriptor
+        });
+
+        let shadow_projection_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Shadow Projection Buffer"),
+            ..matrix_init_descriptor
         });
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -415,6 +461,40 @@ impl RenderState {
             ..Default::default()
         });
 
+        let shadow_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("Shadow Map Sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            lod_min_clamp: 0.0,
+            lod_max_clamp: 1.0,
+            compare: Some(wgpu::CompareFunction::Greater),
+            anisotropy_clamp: 1,
+            border_color: None,
+        });
+
+        let shadow_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Shadow Bind Group"),
+            layout: &device.create_bind_group_layout(SHADOW_BIND_GROUP_LAYOUT_DESCRIPTOR),
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&shadow_map_texture_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&shadow_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: shadow_projection_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
         let depth_texture_view = depth_texture.create_view(&wgpu::TextureViewDescriptor {
             label: Some("Depth Texture View"),
             format: Some(wgpu::TextureFormat::Depth24Plus),
@@ -435,7 +515,7 @@ impl RenderState {
         let render_pipeline =
             Self::get_render_pipeline(&device, &surface, &adapter, &bind_group_layout);
 
-        let shadow_quad_render_pipeline =
+        let shadow_render_pipeline =
             Self::get_shadow_render_pipeline(&device, &surface, &adapter, &bind_group_layout);
 
         let debug_quad_render_pipeline = Self::get_debug_quad_render_pipeline(
@@ -470,7 +550,9 @@ impl RenderState {
             shadow_map_texture_view,
             vertex_buffer,
             view_projection_buffer,
-            shadow_render_pipeline: shadow_quad_render_pipeline,
+            shadow_projection_buffer,
+            shadow_render_pipeline,
+            shadow_bind_group,
         };
 
         // Configure surface for the first time
@@ -825,31 +907,42 @@ impl RenderState {
         // Prepare buffers for the main pass
         self.prepare_buffers(voxel_planes);
 
-        self.queue.write_buffer(
-            &self.view_projection_buffer,
-            0,
-            bytemuck::cast_slice(&[shadow_view_proj]),
-        );
-        let main_pass_command_buffer = self.enqueue_main_pass(texture_view, draw_count);
+        // Shadow
+        {
+            self.queue.write_buffer(
+                &self.shadow_projection_buffer,
+                0,
+                bytemuck::cast_slice(&[shadow_view_proj]),
+            );
+            self.queue.write_buffer(
+                &self.view_projection_buffer,
+                0,
+                bytemuck::cast_slice(&[shadow_view_proj]),
+            );
+            let shadow_pass_command_buffer = self.enqueue_shadow_pass(draw_count);
+            self.queue.submit([shadow_pass_command_buffer]);
+        }
 
-        let texture_view = self.get_texture_view(&surface_texture);
-        let depth_debug_command_buffer = self.enqueue_depth_debug_pass(texture_view);
+        // Main pass
+        {
+            self.queue.write_buffer(
+                &self.view_projection_buffer,
+                0,
+                bytemuck::cast_slice(&[view_proj]),
+            );
+            let main_pass_command_buffer = self.enqueue_main_pass(texture_view, draw_count);
 
-        let submit_span = info_span!("Submit Commands").entered();
-        self.queue.submit([main_pass_command_buffer]);
+            let texture_view = self.get_texture_view(&surface_texture);
+            let depth_debug_command_buffer = self.enqueue_depth_debug_pass(texture_view);
 
-        self.queue.write_buffer(
-            &self.view_projection_buffer,
-            0,
-            bytemuck::cast_slice(&[shadow_view_proj]),
-        );
-        let shadow_pass_command_buffer = self.enqueue_shadow_pass(draw_count);
-        self.queue
-            .submit([shadow_pass_command_buffer, depth_debug_command_buffer]);
+            let submit_span = info_span!("Submit Commands").entered();
+            self.queue
+                .submit([main_pass_command_buffer, depth_debug_command_buffer]);
+            submit_span.exit();
+        }
 
         self.window.pre_present_notify();
         surface_texture.present();
-        submit_span.exit();
         render_span.exit();
     }
 }
