@@ -273,10 +273,11 @@ impl RenderState {
         surface: &Surface,
         adapter: &wgpu::Adapter,
         bind_group_layout: &wgpu::BindGroupLayout,
+        shadow_bind_group_layout: &wgpu::BindGroupLayout,
     ) -> RenderPipeline {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[&bind_group_layout],
+            bind_group_layouts: &[&bind_group_layout, shadow_bind_group_layout],
             push_constant_ranges: &[],
         });
 
@@ -466,8 +467,8 @@ impl RenderState {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
             mipmap_filter: wgpu::FilterMode::Nearest,
             lod_min_clamp: 0.0,
             lod_max_clamp: 1.0,
@@ -476,9 +477,12 @@ impl RenderState {
             border_color: None,
         });
 
+        let shadow_bind_group_layout =
+            device.create_bind_group_layout(SHADOW_BIND_GROUP_LAYOUT_DESCRIPTOR);
+
         let shadow_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Shadow Bind Group"),
-            layout: &device.create_bind_group_layout(SHADOW_BIND_GROUP_LAYOUT_DESCRIPTOR),
+            layout: &shadow_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -512,8 +516,13 @@ impl RenderState {
             }],
         });
 
-        let render_pipeline =
-            Self::get_render_pipeline(&device, &surface, &adapter, &bind_group_layout);
+        let render_pipeline = Self::get_render_pipeline(
+            &device,
+            &surface,
+            &adapter,
+            &bind_group_layout,
+            &shadow_bind_group_layout,
+        );
 
         let shadow_render_pipeline =
             Self::get_shadow_render_pipeline(&device, &surface, &adapter, &bind_group_layout);
@@ -851,6 +860,7 @@ impl RenderState {
         renderpass.set_vertex_buffer(0, self.instance_buffer.slice(..));
         renderpass.set_pipeline(&self.render_pipeline);
         renderpass.set_bind_group(0, &self.bind_group, &[]);
+        renderpass.set_bind_group(1, &self.shadow_bind_group, &[]);
 
         // Single multi_draw_indirect call for all entities
         renderpass.multi_draw_indirect(

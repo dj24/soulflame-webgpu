@@ -3,13 +3,14 @@
 
 // Shadow texture and sampler
 @group(1) @binding(0) var shadow_texture: texture_depth_2d;
-@group(1) @binding(1) var shadow_sampler: sampler;
+@group(1) @binding(1) var shadow_sampler: sampler_comparison;
 @group(1) @binding(2) var<uniform> shadow_view_projection: mat4x4<f32>;
 
 
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) color: vec4<f32>,
+    @location(1) world_position: vec4<f32>, // World position for shadow mapping
 };
 
 struct Instance {
@@ -160,10 +161,27 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
     var output: VertexOutput;
     output.position = projected_pos;  // Transform to clip space
     output.color = vec4(mix(albedo * n_dot_l, albedo, 0.1), 1.0);
+
+    output.world_position = model_matrices[instance.model_index] * vec4<f32>(pos, 1.0);
     return output;
 }
 
 @fragment
 fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
-    return vertex.color;
+  // TODO: get world position from vertex shader, and project into shadow space
+    let shadow_coords = shadow_view_projection * vertex.world_position;
+
+    let shadow_coords_uv = shadow_coords.xy / shadow_coords.w * 0.5 + 0.5; // Convert to [0, 1] range
+
+    let depth_reference = shadow_coords.z / shadow_coords.w;
+
+    let shadow_depth = textureSampleCompare(shadow_texture, shadow_sampler, shadow_coords_uv, depth_reference);
+
+    return vec4(depth_reference);
+
+//    return mix(
+//        vertex.color, // Light color
+//        vec4(0.0, 0.0, 0.0, 1.0), // Shadow color
+//        step(shadow_depth, shadow_coords.z) // Compare depth
+//    );
 }
