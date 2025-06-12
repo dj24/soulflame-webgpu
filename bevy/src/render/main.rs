@@ -828,7 +828,7 @@ impl RenderState {
         self.queue.write_buffer(
             &self.view_projection_buffer,
             0,
-            bytemuck::cast_slice(&[view_proj]),
+            bytemuck::cast_slice(&[shadow_view_proj]),
         );
         let main_pass_command_buffer = self.enqueue_main_pass(texture_view, draw_count);
 
@@ -1073,16 +1073,18 @@ impl Plugin for VoxelRenderPlugin {
                 if let Ok((view_proj, voxel_planes, sun_data)) = world_message_receiver.recv() {
                     let (shadow_transform, _) = sun_data;
 
+                    let size = 512.0;
+
                     let shadow_view_proj = get_view_projection_matrix(
                         &Projection::Orthographic(OrthographicProjection {
-                            near: 0.1,
+                            near: -1000.0,
                             far: 1000.0,
                             viewport_origin: Default::default(),
                             scaling_mode: Default::default(),
                             scale: 1.0,
                             area: Rect {
-                                min: Vec2::new(-200.0, -200.0),
-                                max: Vec2::new(200.0, 200.0),
+                                min: Vec2::new(-size, -size),
+                                max: Vec2::new(size, size),
                             },
                         }),
                         &shadow_transform,
