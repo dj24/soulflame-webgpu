@@ -1,3 +1,5 @@
+override shadow_map_size: f32 = 1024.0;
+
 @group(0) @binding(0) var<storage, read> model_matrices: array<mat4x4<f32>>;
 @group(0) @binding(1) var<uniform> view_projection: mat4x4<f32>;
 
@@ -11,6 +13,7 @@ struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) color: vec4<f32>,
     @location(1) world_position: vec4<f32>, // World position for shadow mapping
+    @location(2) normal: vec3<f32>, // Uncomment if normals are needed
 };
 
 struct Instance {
@@ -155,33 +158,68 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
 
     let albedo = convert_hsl_to_rgb(unpacked_h,unpacked_s, unpacked_l);
 
-    let light_dir = vec3<f32>(0.577, -0.577, 0.577); // Example light direction
-    let n_dot_l = max(dot(normal, light_dir), 0.0);
-
     var output: VertexOutput;
     output.position = projected_pos;  // Transform to clip space
-    output.color = vec4(mix(albedo * n_dot_l, albedo, 0.1), 1.0);
-
+    output.color = vec4(albedo, 1.0);
     output.world_position = model_matrices[instance.model_index] * vec4<f32>(pos, 1.0);
+    output.normal = normal;
     return output;
 }
+
+const POISSON_SAMPLES = array<vec2<f32>, 16>(
+    vec2(0.0, 0.0),          // 0.0 - origin
+    vec2<f32>(2.0, -2.0),      // 2.83
+    vec2<f32>(-3.0, 2.0),      // 3.61 - better early sample
+    vec2<f32>(5.0, 5.0),       // 7.07
+    vec2<f32>(-6.0, 4.0),      // 7.21
+    vec2<f32>(-4.0, -7.0),     // 8.06
+    vec2<f32>(8.0, -7.0),      // 10.63
+    vec2<f32>(3.0, 12.0),      // 12.37
+    vec2<f32>(12.0, 3.0),      // 12.37
+    vec2<f32>(-1.0, -15.0),    // 15.03
+    vec2<f32>(-14.0, 7.0),     // 15.65
+    vec2<f32>(-15.0, -6.0),    // 16.16
+    vec2<f32>(-4.0, 16.0),     // 16.49
+    vec2<f32>(7.0, -15.0),     // 16.55
+    vec2<f32>(-13.0, 14.0),    // 19.10
+    vec2<f32>(15.0, -12.0),    // 19.21
+);
 
 @fragment
 fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
   // TODO: get world position from vertex shader, and project into shadow space
     let shadow_coords = shadow_view_projection * vertex.world_position;
 
-    let shadow_coords_uv = shadow_coords.xy / shadow_coords.w * 0.5 + 0.5; // Convert to [0, 1] range
+    let one_pixel = 1.0 / shadow_map_size;
+
+    let shadow_coords_uv = vec2<f32>(
+        shadow_coords.x / shadow_coords.w * 0.5 + 0.5,
+        0.5 - shadow_coords.y / shadow_coords.w * 0.5
+    );
 
     let depth_reference = shadow_coords.z / shadow_coords.w;
 
-    let shadow_depth = textureSampleCompare(shadow_texture, shadow_sampler, shadow_coords_uv, depth_reference);
+    var visibility = 0.0;
+    var total_weight = 0.0;
+    for(var i = 0; i < 16; i++) {
+        let offset = POISSON_SAMPLES[i] * one_pixel * 0.5;
+        let sample_coords = shadow_coords_uv + offset;
 
-    return vec4(depth_reference);
+        let d = length(offset);
+        let weight = max(1.0 - d * 2.0, 0.1); // Linear falloff with minimum weight
 
-//    return mix(
-//        vertex.color, // Light color
-//        vec4(0.0, 0.0, 0.0, 1.0), // Shadow color
-//        step(shadow_depth, shadow_coords.z) // Compare depth
-//    );
+        visibility += textureSampleCompare(shadow_texture, shadow_sampler, sample_coords, depth_reference + 0.001) * weight;
+        total_weight += weight;
+    }
+    visibility /= total_weight; // Average the visibility from the 9 samples
+
+    let light_dir = vec3<f32>(-0.33, -0.33, -0.33); // Example light direction
+    let n_dot_l = max(dot(vertex.normal, light_dir), 0.0);
+    let color = vec4<f32>(vertex.color.rgb * n_dot_l, 1.0);
+
+    return mix(
+       color * 0.01, // Shadow color
+        color, // Light color
+        visibility // Already contains comparison result (0.0 = shadow, 1.0 = lit)
+    );
 }

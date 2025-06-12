@@ -14,7 +14,7 @@ pub struct ChunkQueue(VecDeque<(i32, i32, i32)>);
 impl Default for ChunkQueue {
     fn default() -> Self {
         let mut queue = VecDeque::new();
-        for r in 0..4 {
+        for r in 0..10 {
             for x in (-r)..(r + 1) {
                 for z in (-r)..(r + 1) {
                     if !queue.contains(&(x, 0, z)) {
