@@ -49,7 +49,7 @@ fn camera_oribit_target_over_time(
 
     let t = time.elapsed_secs();
     let radius = 150.0;
-    let angle = t * 0.1; // radians per second
+    let angle = t * 0.4; // radians per second
     let x = radius * angle.cos();
     let z = radius * angle.sin();
     camera_transform.translation = target_position + Vec3::new(x, 0.0, z);

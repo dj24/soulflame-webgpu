@@ -49,38 +49,11 @@ struct RenderState {
     shadow_bind_group: BindGroup,
     depth_texture_view: wgpu::TextureView,
     indirect_buffer: Buffer,
-    view_projection_buffer: Buffer,
+    uniform_buffer: Buffer,
     shadow_projection_buffer: Buffer,
     shadow_map_texture_view: wgpu::TextureView,
     vertex_buffer: Buffer,
 }
-
-const BIND_GROUP_LAYOUT_DESCRIPTOR: &wgpu::BindGroupLayoutDescriptor =
-    &wgpu::BindGroupLayoutDescriptor {
-        label: Some("Bind Group Layout"),
-        entries: &[
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Storage { read_only: true },
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-        ],
-    };
 
 // Shadow map view, sampler, and light view projection matrix
 const SHADOW_BIND_GROUP_LAYOUT_DESCRIPTOR: &wgpu::BindGroupLayoutDescriptor =
@@ -238,6 +211,13 @@ fn get_shadow_cascades(
             (projection, light_transform)
         })
         .collect()
+}
+
+#[derive(Pod, Zeroable, Clone, Copy)]
+#[repr(C)]
+struct Uniforms {
+    view_proj: Mat4,
+    camera_position: Vec4,
 }
 
 impl RenderState {
@@ -500,16 +480,40 @@ impl RenderState {
             mapped_at_creation: false,
         });
 
-        let bind_group_layout = device.create_bind_group_layout(BIND_GROUP_LAYOUT_DESCRIPTOR);
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Bind Group Layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
 
         let matrix_init_descriptor = wgpu::BufferDescriptor {
             label: Some("Matrix Initialization Buffer"),
-            size: size_of::<Mat4>() as u64, // 1 matrix for view projection
+            size: size_of::<Uniforms>() as u64, // 1 matrix for view projection
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         };
 
-        let view_projection_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("View Projection Buffer"),
             ..matrix_init_descriptor
         });
@@ -529,7 +533,7 @@ impl RenderState {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: view_projection_buffer.as_entire_binding(),
+                    resource: uniform_buffer.as_entire_binding(),
                 },
             ],
         });
@@ -668,7 +672,7 @@ impl RenderState {
             indirect_buffer,
             shadow_map_texture_view,
             vertex_buffer,
-            view_projection_buffer,
+            uniform_buffer,
             shadow_projection_buffer,
             shadow_render_pipeline,
             shadow_bind_group,
@@ -896,7 +900,32 @@ impl RenderState {
                 label: Some("Bind Group"),
                 layout: &self
                     .device
-                    .create_bind_group_layout(BIND_GROUP_LAYOUT_DESCRIPTOR),
+                    .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                        label: Some("Bind Group Layout"),
+                        entries: &[
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 0,
+                                visibility: wgpu::ShaderStages::VERTEX,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 1,
+                                visibility: wgpu::ShaderStages::VERTEX
+                                    | wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Uniform,
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
+                        ],
+                    }),
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
@@ -904,7 +933,7 @@ impl RenderState {
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: self.view_projection_buffer.as_entire_binding(),
+                        resource: self.uniform_buffer.as_entire_binding(),
                     },
                 ],
             });
@@ -1018,7 +1047,13 @@ impl RenderState {
         encoder.finish()
     }
 
-    fn render(&mut self, view_proj: Mat4, shadow_model: Mat4, voxel_planes: VoxelPlanesData) {
+    fn render(
+        &mut self,
+        view_proj: Mat4,
+        shadow_model: Mat4,
+        voxel_planes: VoxelPlanesData,
+        camera_position: Vec3,
+    ) {
         let render_span = info_span!("Voxel render").entered();
         let surface_texture = self.get_surface_texture();
         let texture_view = self.get_texture_view(&surface_texture);
@@ -1035,27 +1070,39 @@ impl RenderState {
 
         // Shadow
         {
+            let uniforms = Uniforms {
+                view_proj: shadow_view_proj,
+                camera_position: Vec4::new(
+                    camera_position.x,
+                    camera_position.y,
+                    camera_position.z,
+                    1.0,
+                ),
+            };
             self.queue.write_buffer(
                 &self.shadow_projection_buffer,
                 0,
                 bytemuck::cast_slice(&[shadow_view_proj]),
             );
-            self.queue.write_buffer(
-                &self.view_projection_buffer,
-                0,
-                bytemuck::cast_slice(&[shadow_view_proj]),
-            );
+            self.queue
+                .write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
             let shadow_pass_command_buffer = self.enqueue_shadow_pass(draw_count);
             self.queue.submit([shadow_pass_command_buffer]);
         }
 
         // Main pass
         {
-            self.queue.write_buffer(
-                &self.view_projection_buffer,
-                0,
-                bytemuck::cast_slice(&[view_proj]),
-            );
+            let uniforms = Uniforms {
+                view_proj,
+                camera_position: Vec4::new(
+                    camera_position.x,
+                    camera_position.y,
+                    camera_position.z,
+                    1.0,
+                ),
+            };
+            self.queue
+                .write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
             let main_pass_command_buffer = self.enqueue_main_pass(texture_view, draw_count);
 
             let texture_view = self.get_texture_view(&surface_texture);
@@ -1141,6 +1188,8 @@ impl ApplicationHandler for VoxelExtractApp {
                             &global_transform.compute_matrix(),
                         );
 
+                        let camera_position = global_transform.translation();
+
                         // Get each voxel entity, cloning to avoid borrowing issues
                         let voxel_entities = world
                             .query::<(
@@ -1172,7 +1221,7 @@ impl ApplicationHandler for VoxelExtractApp {
                             });
 
                         self.world_message_sender
-                            .send((view_proj, voxel_entities, sun_data))
+                            .send((view_proj, voxel_entities, sun_data, camera_position))
                             .expect("Error sending voxel data to render thread");
 
                         let size = self.window.inner_size();
@@ -1243,7 +1292,7 @@ pub type VoxelPlanesData = Vec<(
 
 pub type SunData = (GlobalTransform, DirectionalLight);
 
-pub type WorldMessage = (Mat4, VoxelPlanesData, SunData);
+pub type WorldMessage = (Mat4, VoxelPlanesData, SunData, Vec3);
 
 impl Plugin for VoxelRenderPlugin {
     fn build(&self, app: &mut App) {
@@ -1292,7 +1341,9 @@ impl Plugin for VoxelRenderPlugin {
             let mut render_state = RenderState::new(render_window, render_surface, render_adapter);
             loop {
                 // Block until a message is received
-                if let Ok((view_proj, voxel_planes, sun_data)) = world_message_receiver.recv() {
+                if let Ok((view_proj, voxel_planes, sun_data, camera_position)) =
+                    world_message_receiver.recv()
+                {
                     let (shadow_transform, _) = sun_data;
                     let shadow_model = shadow_transform.compute_matrix();
 
@@ -1300,7 +1351,7 @@ impl Plugin for VoxelRenderPlugin {
                     render_finished_sender
                         .send(())
                         .expect("Failed to send render finished signal");
-                    render_state.render(view_proj, shadow_model, voxel_planes);
+                    render_state.render(view_proj, shadow_model, voxel_planes, camera_position);
                 } else {
                     // Channel closed, exit thread
                     break;

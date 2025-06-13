@@ -1,7 +1,12 @@
 override shadow_map_size: f32 = 2048.0;
 
+struct Uniforms {
+  view_projection: mat4x4<f32>,
+  camera_position: vec4<f32>,
+}
+
 @group(0) @binding(0) var<storage, read> model_matrices: array<mat4x4<f32>>;
-@group(0) @binding(1) var<uniform> view_projection: mat4x4<f32>;
+@group(0) @binding(1) var<uniform> uniforms: Uniforms;
 
 // Shadow texture and sampler
 @group(1) @binding(0) var shadow_texture: texture_depth_2d;
@@ -12,8 +17,8 @@ override shadow_map_size: f32 = 2048.0;
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) color: vec4<f32>,
-    @location(1) world_position: vec4<f32>, // World position for shadow mapping
-    @location(2) normal: vec3<f32>, // Uncomment if normals are needed
+    @location(1) world_position: vec4<f32>,
+    @location(2) normal: vec3<f32>,
 };
 
 struct Instance {
@@ -153,7 +158,7 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
 
     let local_pos = positions[local_vertex_index];
     let pos = local_pos * scale + vec3<f32>(x_pos, y_pos, z_pos);
-    let model_view_proj = view_projection * model_matrices[instance.model_index];
+    let model_view_proj = uniforms.view_projection * model_matrices[instance.model_index];
     var projected_pos = model_view_proj * vec4<f32>(pos, 1.0);
 
     let albedo = convert_hsl_to_rgb(unpacked_h,unpacked_s, unpacked_l);
@@ -165,6 +170,23 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
     output.normal = normal;
 
     return output;
+}
+
+fn phong_lighting(
+    normal: vec3<f32>,
+    light_dir: vec3<f32>,
+    view_dir: vec3<f32>,
+    ambient_color: vec4<f32>,
+    diffuse_color: vec4<f32>
+) -> vec4<f32> {
+    let n_dot_l = max(dot(normal, light_dir), 0.0);
+    let specular_strength = 0.5; // Adjust as needed
+    let shininess = 3.0; // Adjust as needed
+
+    let reflect_dir = reflect(-light_dir, normal);
+    let specular = pow(max(dot(view_dir, reflect_dir), 0.0), shininess) * specular_strength;
+
+    return ambient_color + diffuse_color * n_dot_l + vec4(specular, specular, specular, 1.0);
 }
 
 @fragment
@@ -180,7 +202,6 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
     );
 
     let depth_reference = shadow_coords.z / shadow_coords.w;
-
 
     var visibility = 0.0;
     var total_weight = 0.0;
@@ -199,13 +220,21 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
     }
     visibility /= total_weight; // Average the visibility from the 9 samples
 
-    let light_dir = vec3<f32>(-0.33, -0.33, -0.33); // Example light direction
-    let n_dot_l = max(dot(vertex.normal, light_dir), 0.0);
-    let color = vec4<f32>(vertex.color.rgb * n_dot_l, 1.0);
+    let light_dir = vec3(-0.3);
+    var view_dir = normalize(uniforms.camera_position.xyz - vertex.world_position.xyz);
+//    view_dir.z = -view_dir.z; // Adjust view direction to match the shadow map's coordinate system
+    let ambient = vertex.color * 0.02; // Ambient light color
+    let color = phong_lighting(
+        vertex.normal,
+        light_dir,
+        view_dir,
+        ambient,
+        vertex.color
+    );
 
     return mix(
-       color * 0.02, // Shadow color
-        color, // Light color
+       ambient, // Shadow color
+        color,
         visibility // Already contains comparison result (0.0 = shadow, 1.0 = lit)
     );
 }
