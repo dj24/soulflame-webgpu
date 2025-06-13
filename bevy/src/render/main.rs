@@ -131,6 +131,115 @@ const DEBUG_DEPTH_BIND_GROUP_LAYOUT_DESCRIPTOR: &wgpu::BindGroupLayoutDescriptor
         }],
     };
 
+type Cascade = (Projection, Mat4);
+fn get_shadow_cascades(
+    view_proj: Mat4,
+    near_plane: f32,
+    far_plane: f32,
+    light_transform: Mat4,
+) -> Vec<Cascade> {
+    // Get inverse view-projection to transform corners
+    let inv_view_proj = view_proj.inverse();
+
+    // Correctly compute light's view matrix from its transform
+    let light_view = light_transform.inverse();
+
+    // Define NDC corners for the frustum (both near and far)
+    let corners_ndc = [
+        // Near corners
+        Vec4::new(-1.0, -1.0, 0.0, 1.0),
+        Vec4::new(1.0, -1.0, 0.0, 1.0),
+        Vec4::new(1.0, 1.0, 0.0, 1.0),
+        Vec4::new(-1.0, 1.0, 0.0, 1.0),
+        // Far corners
+        Vec4::new(-1.0, -1.0, 1.0, 1.0),
+        Vec4::new(1.0, -1.0, 1.0, 1.0),
+        Vec4::new(1.0, 1.0, 1.0, 1.0),
+        Vec4::new(-1.0, 1.0, 1.0, 1.0),
+    ];
+
+    let plane_distance = far_plane - near_plane;
+
+    (0..4)
+        .map(|i| {
+            let cascade_near = near_plane + (plane_distance * (i as f32 / 4.0));
+            let cascade_far = near_plane + (plane_distance * ((i + 1) as f32 / 4.0));
+
+            // Convert to normalized depth values for interpolation
+            let near_factor = cascade_near / far_plane;
+            let far_factor = cascade_far / far_plane;
+
+            // Calculate frustum corners in world space for this cascade
+            let cascade_corners: Vec<Vec3> = corners_ndc
+                .iter()
+                .map(|ndc| {
+                    // Determine if this is a near or far corner
+                    let depth = if ndc.z < 0.5 {
+                        // Convert from [0,1] NDC to [-1,1] and scale by depth
+                        near_factor * 2.0 - 1.0
+                    } else {
+                        far_factor * 2.0 - 1.0
+                    };
+
+                    // Transform from NDC to world space
+                    let world_pos = inv_view_proj * Vec4::new(ndc.x, ndc.y, depth, 1.0);
+                    Vec3::new(world_pos.x, world_pos.y, world_pos.z) / world_pos.w
+                })
+                .collect();
+
+            // Transform corners to light view space
+            let corners_light_view: Vec<Vec3> = cascade_corners
+                .iter()
+                .map(|world_pos| {
+                    let light_view_pos =
+                        light_view * Vec4::new(world_pos.x, world_pos.y, world_pos.z, 1.0);
+                    Vec3::new(light_view_pos.x, light_view_pos.y, light_view_pos.z)
+                })
+                .collect();
+
+            // Find min/max bounds in light view space
+            let mut min_x = f32::MAX;
+            let mut min_y = f32::MAX;
+            let mut min_z = f32::MAX;
+            let mut max_x = f32::MIN;
+            let mut max_y = f32::MIN;
+            let mut max_z = f32::MIN;
+
+            for corner in &corners_light_view {
+                min_x = min_x.min(corner.x);
+                min_y = min_y.min(corner.y);
+                min_z = min_z.min(corner.z);
+                max_x = max_x.max(corner.x);
+                max_y = max_y.max(corner.y);
+                max_z = max_z.max(corner.z);
+            }
+
+            // Add debug logging for the first cascade
+            // if i == 0 {
+            //     println!(
+            //         "Cascade {} bounds: min=({}, {}, {}), max=({}, {}, {})",
+            //         i, min_x, min_y, min_z, max_x, max_y, max_z
+            //     );
+            // }
+
+            let projection = Projection::Orthographic(OrthographicProjection {
+                near: min_z,
+                far: max_z,
+                viewport_origin: Default::default(),
+                scaling_mode: Default::default(),
+                scale: 1.0,
+                area: Rect {
+                    min: Vec2::new(min_x, min_y),
+                    max: Vec2::new(max_x, max_y),
+                },
+            });
+
+            // Use the original light transform for all cascades
+            (projection, light_transform)
+        })
+        .collect()
+}
+
 impl RenderState {
     fn get_debug_quad_render_pipeline(
         device: &Device,
@@ -841,7 +950,7 @@ impl RenderState {
                 view: &texture_view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLUE),
                     store: wgpu::StoreOp::Store,
                 },
             })],
@@ -909,7 +1018,7 @@ impl RenderState {
         encoder.finish()
     }
 
-    fn render(&mut self, view_proj: Mat4, shadow_view_proj: Mat4, voxel_planes: VoxelPlanesData) {
+    fn render(&mut self, view_proj: Mat4, shadow_model: Mat4, voxel_planes: VoxelPlanesData) {
         let render_span = info_span!("Voxel render").entered();
         let surface_texture = self.get_surface_texture();
         let texture_view = self.get_texture_view(&surface_texture);
@@ -917,6 +1026,12 @@ impl RenderState {
 
         // Prepare buffers for the main pass
         self.prepare_buffers(voxel_planes);
+
+        let cascades = get_shadow_cascades(view_proj, 0.1, 1000.0, shadow_model);
+        let (p, m) = &cascades[0];
+        let shadow_view_proj = get_view_projection_matrix(p, m);
+
+        info!("Cascade 1: {:?}", cascades[0]);
 
         // Shadow
         {
@@ -958,8 +1073,8 @@ impl RenderState {
     }
 }
 
-fn get_view_projection_matrix(projection: &Projection, transform: &GlobalTransform) -> Mat4 {
-    let view_matrix = transform.compute_matrix().inverse();
+fn get_view_projection_matrix(projection: &Projection, transform: &Mat4) -> Mat4 {
+    let view_matrix = transform.inverse();
     let projection_matrix = projection.get_clip_from_view();
     projection_matrix * view_matrix
 }
@@ -1021,7 +1136,10 @@ impl ApplicationHandler for VoxelExtractApp {
                         let world = self.app.world_mut();
                         let mut camera = world.query::<(&mut Projection, &GlobalTransform)>();
                         let (projection, global_transform) = camera.iter_mut(world).next().unwrap();
-                        let view_proj = get_view_projection_matrix(&projection, global_transform);
+                        let view_proj = get_view_projection_matrix(
+                            &projection,
+                            &global_transform.compute_matrix(),
+                        );
 
                         // Get each voxel entity, cloning to avoid borrowing issues
                         let voxel_entities = world
@@ -1176,31 +1294,13 @@ impl Plugin for VoxelRenderPlugin {
                 // Block until a message is received
                 if let Ok((view_proj, voxel_planes, sun_data)) = world_message_receiver.recv() {
                     let (shadow_transform, _) = sun_data;
-
-                    let size = 128.0;
-
-                    let position = Vec2::new(0.0, 16.0);
-
-                    let shadow_view_proj = get_view_projection_matrix(
-                        &Projection::Orthographic(OrthographicProjection {
-                            near: -1000.0,
-                            far: 1000.0,
-                            viewport_origin: Default::default(),
-                            scaling_mode: Default::default(),
-                            scale: 1.0,
-                            area: Rect {
-                                min: position + Vec2::new(-size, -size),
-                                max: position + Vec2::new(size, size),
-                            },
-                        }),
-                        &shadow_transform,
-                    );
+                    let shadow_model = shadow_transform.compute_matrix();
 
                     // Send a signal that the next update can begin
                     render_finished_sender
                         .send(())
                         .expect("Failed to send render finished signal");
-                    render_state.render(view_proj, shadow_view_proj, voxel_planes);
+                    render_state.render(view_proj, shadow_model, voxel_planes);
                 } else {
                     // Channel closed, exit thread
                     break;
