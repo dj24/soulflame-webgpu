@@ -170,40 +170,15 @@ fn get_shadow_cascades(
                 })
                 .collect();
 
-            // Find min/max bounds in light view space
-            let mut min_x = f32::MAX;
-            let mut min_y = f32::MAX;
-            let mut min_z = f32::MAX;
-            let mut max_x = f32::MIN;
-            let mut max_y = f32::MIN;
-            let mut max_z = f32::MIN;
-
-            for corner in &corners_light_view {
-                min_x = min_x.min(corner.x);
-                min_y = min_y.min(corner.y);
-                min_z = min_z.min(corner.z);
-                max_x = max_x.max(corner.x);
-                max_y = max_y.max(corner.y);
-                max_z = max_z.max(corner.z);
-            }
-
-            // Add debug logging for the first cascade
-            // if i == 0 {
-            //     println!(
-            //         "Cascade {} bounds: min=({}, {}, {}), max=({}, {}, {})",
-            //         i, min_x, min_y, min_z, max_x, max_y, max_z
-            //     );
-            // }
-
             let projection = Projection::Orthographic(OrthographicProjection {
-                near: min_z,
-                far: max_z,
+                near: -500.0,
+                far: 500.0,
                 viewport_origin: Default::default(),
                 scaling_mode: Default::default(),
                 scale: 1.0,
                 area: Rect {
-                    min: Vec2::new(min_x, min_y),
-                    max: Vec2::new(max_x, max_y),
+                    min: Vec2::new(-60.0, -60.0),
+                    max: Vec2::new(60.0, 60.0),
                 },
             });
 
@@ -1062,11 +1037,10 @@ impl RenderState {
         // Prepare buffers for the main pass
         self.prepare_buffers(voxel_planes);
 
-        let cascades = get_shadow_cascades(view_proj, 0.1, 1000.0, shadow_model);
+        let light_view = create_light_view_matrix(camera_position, shadow_model);
+        let cascades = get_shadow_cascades(view_proj, 0.1, 1000.0, light_view);
         let (p, m) = &cascades[0];
         let shadow_view_proj = get_view_projection_matrix(p, m);
-
-        info!("Cascade 1: {:?}", cascades[0]);
 
         // Shadow
         {
@@ -1124,6 +1098,13 @@ fn get_view_projection_matrix(projection: &Projection, transform: &Mat4) -> Mat4
     let view_matrix = transform.inverse();
     let projection_matrix = projection.get_clip_from_view();
     projection_matrix * view_matrix
+}
+
+fn create_light_view_matrix(camera_position: Vec3, light_transform: Mat4) -> Mat4 {
+    // Position the light's "camera" relative to the player camera
+    let translation = Mat4::from_translation(-camera_position);
+
+    light_transform * translation
 }
 
 struct VoxelExtractApp {

@@ -212,7 +212,7 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
 
         let d = length(offset);
         let weight = 1.0; // Linear falloff with minimum weight
-        let bias = 0.0003 * (d + 1.0); // Small bias to avoid shadow acne
+        let bias = 0.0005 * (d + 1.0); // Small bias to avoid shadow acne
 
         visibility += textureSampleCompare(shadow_texture, shadow_sampler, sample_coords, depth_reference + bias) * weight;
         total_weight += weight;
@@ -220,7 +220,7 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
     }
     visibility /= total_weight; // Average the visibility from the 9 samples
 
-    let light_dir = vec3(-0.3);
+    let light_dir = vec3(-0.33,-0.33,-0.33);
     var view_dir = normalize(uniforms.camera_position.xyz - vertex.world_position.xyz);
 //    view_dir.z = -view_dir.z; // Adjust view direction to match the shadow map's coordinate system
     let ambient = vertex.color * 0.02; // Ambient light color
@@ -232,9 +232,15 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
         vertex.color
     );
 
-    return mix(
-       ambient, // Shadow color
-        color,
-        visibility // Already contains comparison result (0.0 = shadow, 1.0 = lit)
-    );
+    if(any(shadow_coords_uv > vec2(1.0)) || any(shadow_coords_uv < vec2(0.0))){
+      return vertex.color; // Return the original color if outside the shadow map bounds
+    }
+
+    return vec4(shadow_coords_uv * visibility, 0.0, 1.0);
+
+//    return mix(
+//       ambient, // Shadow color
+//        color,
+//        visibility // Already contains comparison result (0.0 = shadow, 1.0 = lit)
+//    );
 }
