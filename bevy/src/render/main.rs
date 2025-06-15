@@ -104,71 +104,48 @@ const DEBUG_DEPTH_BIND_GROUP_LAYOUT_DESCRIPTOR: &wgpu::BindGroupLayoutDescriptor
         }],
     };
 
+// Define NDC corners for the frustum (both near and far)
+const NEAR_CORNERS_NDC: [Vec4; 4] = [
+    // Near corners
+    Vec4::new(-1.0, -1.0, 0.0, 1.0),
+    Vec4::new(1.0, -1.0, 0.0, 1.0),
+    Vec4::new(1.0, 1.0, 0.0, 1.0),
+    Vec4::new(-1.0, 1.0, 0.0, 1.0),
+];
+
+const FAR_CORNERS_NDC: [Vec4; 4] = [
+    // Far corners
+    Vec4::new(-1.0, -1.0, 1.0, 1.0),
+    Vec4::new(1.0, -1.0, 1.0, 1.0),
+    Vec4::new(1.0, 1.0, 1.0, 1.0),
+    Vec4::new(-1.0, 1.0, 1.0, 1.0),
+];
+
 type Cascade = (Projection, Mat4);
 fn get_shadow_cascades(
     view_proj: Mat4,
     near_plane: f32,
     far_plane: f32,
-    light_transform: Mat4,
+    light_view_proj: Mat4,
 ) -> Vec<Cascade> {
     // Get inverse view-projection to transform corners
     let inv_view_proj = view_proj.inverse();
 
     // Correctly compute light's view matrix from its transform
-    let light_view = light_transform.inverse();
+    let inv_light_view_proj = light_view_proj.inverse();
 
-    // Define NDC corners for the frustum (both near and far)
-    let corners_ndc = [
-        // Near corners
-        Vec4::new(-1.0, -1.0, 0.0, 1.0),
-        Vec4::new(1.0, -1.0, 0.0, 1.0),
-        Vec4::new(1.0, 1.0, 0.0, 1.0),
-        Vec4::new(-1.0, 1.0, 0.0, 1.0),
-        // Far corners
-        Vec4::new(-1.0, -1.0, 1.0, 1.0),
-        Vec4::new(1.0, -1.0, 1.0, 1.0),
-        Vec4::new(1.0, 1.0, 1.0, 1.0),
-        Vec4::new(-1.0, 1.0, 1.0, 1.0),
-    ];
 
     let plane_distance = far_plane - near_plane;
 
     (0..4)
         .map(|i| {
-            let cascade_near = near_plane + (plane_distance * (i as f32 / 4.0));
-            let cascade_far = near_plane + (plane_distance * ((i + 1) as f32 / 4.0));
+            let cascade_t_far = (((i + 1) as f32) / 4.0).powf(2.0);
+            let cascade_t_near = ((i as f32) / 4.0).powf(2.0);
 
-            // Convert to normalized depth values for interpolation
-            let near_factor = cascade_near / far_plane;
-            let far_factor = cascade_far / far_plane;
+            let cascade_near = (near_plane + (plane_distance * cascade_t_near)).floor();
+            let cascade_far = (near_plane + (plane_distance * cascade_t_far)).ceil();
 
-            // Calculate frustum corners in world space for this cascade
-            let cascade_corners: Vec<Vec3> = corners_ndc
-                .iter()
-                .map(|ndc| {
-                    // Determine if this is a near or far corner
-                    let depth = if ndc.z < 0.5 {
-                        // Convert from [0,1] NDC to [-1,1] and scale by depth
-                        near_factor * 2.0 - 1.0
-                    } else {
-                        far_factor * 2.0 - 1.0
-                    };
-
-                    // Transform from NDC to world space
-                    let world_pos = inv_view_proj * Vec4::new(ndc.x, ndc.y, depth, 1.0);
-                    Vec3::new(world_pos.x, world_pos.y, world_pos.z) / world_pos.w
-                })
-                .collect();
-
-            // Transform corners to light view space
-            let corners_light_view: Vec<Vec3> = cascade_corners
-                .iter()
-                .map(|world_pos| {
-                    let light_view_pos =
-                        light_view * Vec4::new(world_pos.x, world_pos.y, world_pos.z, 1.0);
-                    Vec3::new(light_view_pos.x, light_view_pos.y, light_view_pos.z)
-                })
-                .collect();
+            info!("Cascade {}: t: {} near = {}, far = {}", i, cascade_t_far, cascade_near, cascade_far);
 
             let projection = Projection::Orthographic(OrthographicProjection {
                 near: -500.0,
@@ -183,7 +160,7 @@ fn get_shadow_cascades(
             });
 
             // Use the original light transform for all cascades
-            (projection, light_transform)
+            (projection, light_view_proj)
         })
         .collect()
 }
@@ -425,7 +402,7 @@ impl RenderState {
                 | wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER,
             ..default()
         }))
-        .unwrap();
+            .unwrap();
 
         let size = window.inner_size();
         let cap = surface.get_capabilities(&adapter);
@@ -1025,7 +1002,7 @@ impl RenderState {
     fn render(
         &mut self,
         view_proj: Mat4,
-        shadow_model: Mat4,
+        shadow_view_proj: Mat4,
         voxel_planes: VoxelPlanesData,
         camera_position: Vec3,
     ) {
@@ -1037,15 +1014,14 @@ impl RenderState {
         // Prepare buffers for the main pass
         self.prepare_buffers(voxel_planes);
 
-        let light_view = create_light_view_matrix(camera_position, shadow_model);
-        let cascades = get_shadow_cascades(view_proj, 0.1, 1000.0, light_view);
+        let cascades = get_shadow_cascades(view_proj, 0.1, 1000.0, shadow_view_proj);
         let (p, m) = &cascades[0];
-        let shadow_view_proj = get_view_projection_matrix(p, m);
+        let cascade_view_proj = get_view_projection_matrix(p, m);
 
         // Shadow
         {
             let uniforms = Uniforms {
-                view_proj: shadow_view_proj,
+                view_proj: cascade_view_proj,
                 camera_position: Vec4::new(
                     camera_position.x,
                     camera_position.y,
@@ -1056,7 +1032,7 @@ impl RenderState {
             self.queue.write_buffer(
                 &self.shadow_projection_buffer,
                 0,
-                bytemuck::cast_slice(&[shadow_view_proj]),
+                bytemuck::cast_slice(&[cascade_view_proj]),
             );
             self.queue
                 .write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
@@ -1098,13 +1074,6 @@ fn get_view_projection_matrix(projection: &Projection, transform: &Mat4) -> Mat4
     let view_matrix = transform.inverse();
     let projection_matrix = projection.get_clip_from_view();
     projection_matrix * view_matrix
-}
-
-fn create_light_view_matrix(camera_position: Vec3, light_transform: Mat4) -> Mat4 {
-    // Position the light's "camera" relative to the player camera
-    let translation = Mat4::from_translation(-camera_position);
-
-    light_transform * translation
 }
 
 struct VoxelExtractApp {
