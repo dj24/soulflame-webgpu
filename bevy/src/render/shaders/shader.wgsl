@@ -1,4 +1,4 @@
-override shadow_map_size: f32 = 2048.0;
+override shadow_map_size: f32 = 1024.0;
 
 struct Uniforms {
   view_projection: mat4x4<f32>,
@@ -191,56 +191,95 @@ fn phong_lighting(
 
 @fragment
 fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
-  // TODO: get world position from vertex shader, and project into shadow space
-    let shadow_coords = shadow_view_projection * vertex.world_position;
+  let shadow_coords = shadow_view_projection * vertex.world_position;
 
-    let one_pixel = 1.0 / shadow_map_size;
+      let shadow_coords_uv = vec2<f32>(
+          shadow_coords.x / shadow_coords.w * 0.5 + 0.5,
+          0.5 - shadow_coords.y / shadow_coords.w * 0.5
+      );
 
-    let shadow_coords_uv = vec2<f32>(
-        shadow_coords.x / shadow_coords.w * 0.5 + 0.5,
-        0.5 - shadow_coords.y / shadow_coords.w * 0.5
-    );
+      let depth_reference = shadow_coords.z / shadow_coords.w;
 
-    let depth_reference = shadow_coords.z / shadow_coords.w;
+      // Calculate texel size
+      let texel_size = 1.0 / shadow_map_size;
 
-    var visibility = 0.0;
-    var total_weight = 0.0;
-    for(var x = -3; x <= 3; x++) {
-      for(var y = -3; y <= 3; y++) {
-        let offset = vec2(f32(x), f32(y)) * one_pixel;
-        let sample_coords = shadow_coords_uv + offset;
+      // Add a small bias to avoid shadow acne
+      let bias = 0.005;
 
-        let d = length(offset);
-        let weight = 1.0; // Linear falloff with minimum weight
-        let bias = 0.0005 * (d + 1.0); // Small bias to avoid shadow acne
+      var visibility = 0.0;
+      var total_weight = 0.0;
 
-        visibility += textureSampleCompare(shadow_texture, shadow_sampler, sample_coords, depth_reference + bias) * weight;
-        total_weight += weight;
+      // PCF filtering with bilinear sampling
+      for(var x = -1; x <= 1; x++) {
+          for(var y = -1; y <= 1; y++) {
+              let offset = vec2(f32(x), f32(y)) * texel_size;
+              let sample_coords = shadow_coords_uv + offset;
+
+              // Calculate the center of the texel
+              let texel_center = floor(sample_coords * shadow_map_size) / shadow_map_size;
+
+              // Calculate bilinear weights
+              let frac = fract(sample_coords * shadow_map_size);
+
+              // Sample the four neighboring texels
+              let sample00 = textureSampleCompare(
+                  shadow_texture, shadow_sampler,
+                  texel_center,
+                  depth_reference + bias
+              );
+              let sample10 = textureSampleCompare(
+                  shadow_texture, shadow_sampler,
+                  texel_center + vec2(texel_size, 0.0),
+                  depth_reference + bias
+              );
+              let sample01 = textureSampleCompare(
+                  shadow_texture, shadow_sampler,
+                  texel_center + vec2(0.0, texel_size),
+                  depth_reference + bias
+              );
+              let sample11 = textureSampleCompare(
+                  shadow_texture, shadow_sampler,
+                  texel_center + vec2(texel_size, texel_size),
+                  depth_reference + bias
+              );
+
+              // Bilinear interpolation
+              let h0 = mix(sample00, sample10, frac.x);
+              let h1 = mix(sample01, sample11, frac.x);
+              let bilinear_sample = mix(h0, h1, frac.y);
+
+              let d = length(offset);
+              let weight = 1.0;
+
+              visibility += bilinear_sample * weight;
+              total_weight += weight;
+          }
       }
-    }
-    visibility /= total_weight; // Average the visibility from the 9 samples
+      visibility /= total_weight;
 
-    let light_dir = vec3(-0.33,-0.33,-0.33);
-    var view_dir = normalize(uniforms.camera_position.xyz - vertex.world_position.xyz);
-//    view_dir.z = -view_dir.z; // Adjust view direction to match the shadow map's coordinate system
-    let ambient = vertex.color * 0.02; // Ambient light color
-    let color = phong_lighting(
-        vertex.normal,
-        light_dir,
-        view_dir,
-        ambient,
-        vertex.color
-    );
+      // Rest of your lighting code
+      let light_dir = vec3(-0.33,-0.33,-0.33);
+      var view_dir = normalize(uniforms.camera_position.xyz - vertex.world_position.xyz);
+      let ambient = vertex.color * 0.02; // Ambient light color
+      let color = phong_lighting(
+          vertex.normal,
+          light_dir,
+          view_dir,
+          ambient,
+          vertex.color
+      );
 
-    if(any(shadow_coords_uv > vec2(1.0)) || any(shadow_coords_uv < vec2(0.0))){
-      return vertex.color; // Return the original color if outside the shadow map bounds
-    }
+      if(any(shadow_coords_uv > vec2(1.0)) || any(shadow_coords_uv < vec2(0.0))){
+          return vertex.color;
+      }
 
-    return vec4(shadow_coords_uv * visibility, 0.0, 1.0);
+      // For debugging
+       return vec4(shadow_coords_uv * visibility, 0.0, 1.0);
 
-//    return mix(
-//       ambient, // Shadow color
-//        color,
-//        visibility // Already contains comparison result (0.0 = shadow, 1.0 = lit)
-//    );
+      // Final lighting with shadows
+//      return mix(
+//          ambient, // Shadow color
+//          color,
+//          visibility
+//      );
 }

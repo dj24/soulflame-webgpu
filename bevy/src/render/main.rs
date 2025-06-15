@@ -126,41 +126,93 @@ fn get_shadow_cascades(
     view_proj: Mat4,
     near_plane: f32,
     far_plane: f32,
-    light_view_proj: Mat4,
+    light_view: Mat4,
 ) -> Vec<Cascade> {
     // Get inverse view-projection to transform corners
     let inv_view_proj = view_proj.inverse();
 
-    // Correctly compute light's view matrix from its transform
-    let inv_light_view_proj = light_view_proj.inverse();
-
-
     let plane_distance = far_plane - near_plane;
+
+    // Transform NDC corners to world space using the inverse view-projection matrix
+    let near_corners: Vec<Vec4> = NEAR_CORNERS_NDC
+        .iter()
+        .map(|corner| inv_view_proj * *corner)
+        .collect();
+
+    let far_corners: Vec<Vec4> = FAR_CORNERS_NDC
+        .iter()
+        .map(|corner| inv_view_proj * *corner)
+        .collect();
 
     (0..4)
         .map(|i| {
             let cascade_t_far = (((i + 1) as f32) / 4.0).powf(2.0);
             let cascade_t_near = ((i as f32) / 4.0).powf(2.0);
 
-            let cascade_near = (near_plane + (plane_distance * cascade_t_near)).floor();
-            let cascade_far = (near_plane + (plane_distance * cascade_t_far)).ceil();
+            let cascade_near = near_plane + (plane_distance * cascade_t_near);
+            let cascade_far = near_plane + (plane_distance * cascade_t_far);
 
-            info!("Cascade {}: t: {} near = {}, far = {}", i, cascade_t_far, cascade_near, cascade_far);
+            // Transform all corners to light space and find maximum extent
+            let mut min_bounds = Vec3::splat(f32::MAX);
+            let mut max_bounds = Vec3::splat(f32::MIN);
+
+            // Near corners
+            for (idx, near) in near_corners.iter().enumerate() {
+                let t = cascade_t_near;
+                let corner = Vec3::new(
+                    near.x * (1.0 - t) + far_corners[idx].x * t,
+                    near.y * (1.0 - t) + far_corners[idx].y * t,
+                    near.z * (1.0 - t) + far_corners[idx].z * t
+                );
+                let light_space_corner = light_view * Vec4::new(corner.x, corner.y, corner.z, 1.0);
+                // Update bounds
+                min_bounds = min_bounds.min(Vec3::new(light_space_corner.x, light_space_corner.y, light_space_corner.z));
+                max_bounds = max_bounds.max(Vec3::new(light_space_corner.x, light_space_corner.y, light_space_corner.z));
+            }
+
+            // Far corners
+            for (idx, near) in near_corners.iter().enumerate() {
+                let t = cascade_t_far;
+                let corner = Vec3::new(
+                    near.x * (1.0 - t) + far_corners[idx].x * t,
+                    near.y * (1.0 - t) + far_corners[idx].y * t,
+                    near.z * (1.0 - t) + far_corners[idx].z * t
+                );
+                let light_space_corner = light_view * Vec4::new(corner.x, corner.y, corner.z, 1.0);
+                // Update bounds
+                min_bounds = min_bounds.min(Vec3::new(light_space_corner.x, light_space_corner.y, light_space_corner.z));
+                max_bounds = max_bounds.max(Vec3::new(light_space_corner.x, light_space_corner.y, light_space_corner.z));
+
+            }
+
+            // Use center point with appropriate size
+            let cascade_center = (min_bounds + max_bounds) * 0.5;
+
+            info_once!(
+                "Cascade {}: t: {} near = {}, far = {}",
+                i,
+                cascade_t_far,
+                cascade_near,
+                cascade_far
+            );
+            info_once!("cascade_center = {:?}", cascade_center);
+
+            let size = (plane_distance * cascade_t_far) * 1.5;
 
             let projection = Projection::Orthographic(OrthographicProjection {
-                near: -500.0,
-                far: 500.0,
+                near: -1000.0,
+                far: 1000.0,
                 viewport_origin: Default::default(),
                 scaling_mode: Default::default(),
                 scale: 1.0,
                 area: Rect {
-                    min: Vec2::new(-60.0, -60.0),
-                    max: Vec2::new(60.0, 60.0),
+                    min: Vec2::new(cascade_center.x - size, cascade_center.y - size),
+                    max: Vec2::new(cascade_center.x + size, cascade_center.y + size),
                 },
             });
 
             // Use the original light transform for all cascades
-            (projection, light_view_proj)
+            (projection, light_view.inverse())
         })
         .collect()
 }
@@ -402,7 +454,7 @@ impl RenderState {
                 | wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER,
             ..default()
         }))
-            .unwrap();
+        .unwrap();
 
         let size = window.inner_size();
         let cap = surface.get_capabilities(&adapter);
@@ -508,8 +560,8 @@ impl RenderState {
         let shadow_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Shadow Map Texture"),
             size: wgpu::Extent3d {
-                width: 2048,
-                height: 2048,
+                width: 1024,
+                height: 1024,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -1002,7 +1054,7 @@ impl RenderState {
     fn render(
         &mut self,
         view_proj: Mat4,
-        shadow_view_proj: Mat4,
+        shadow_view: Mat4,
         voxel_planes: VoxelPlanesData,
         camera_position: Vec3,
     ) {
@@ -1014,8 +1066,8 @@ impl RenderState {
         // Prepare buffers for the main pass
         self.prepare_buffers(voxel_planes);
 
-        let cascades = get_shadow_cascades(view_proj, 0.1, 1000.0, shadow_view_proj);
-        let (p, m) = &cascades[0];
+        let cascades = get_shadow_cascades(view_proj, 0.1, 1000.0, shadow_view);
+        let (p, m) = &cascades[1];
         let cascade_view_proj = get_view_projection_matrix(p, m);
 
         // Shadow
@@ -1295,13 +1347,13 @@ impl Plugin for VoxelRenderPlugin {
                     world_message_receiver.recv()
                 {
                     let (shadow_transform, _) = sun_data;
-                    let shadow_model = shadow_transform.compute_matrix();
+                    let shadow_view = shadow_transform.compute_matrix().inverse();
 
                     // Send a signal that the next update can begin
                     render_finished_sender
                         .send(())
                         .expect("Failed to send render finished signal");
-                    render_state.render(view_proj, shadow_model, voxel_planes, camera_position);
+                    render_state.render(view_proj, shadow_view, voxel_planes, camera_position);
                 } else {
                     // Channel closed, exit thread
                     break;
