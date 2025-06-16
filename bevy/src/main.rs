@@ -48,7 +48,7 @@ fn camera_oribit_target_over_time(
     let target_position = target_transform.translation + camera_target_offset;
 
     let t = time.elapsed_secs();
-    let radius = 400.0;
+    let radius = 150.0;
     let angle = t * 0.4; // radians per second
     let x = radius * angle.cos();
     let z = radius * angle.sin();

@@ -122,19 +122,38 @@ const FAR_CORNERS_NDC: [Vec4; 4] = [
     Vec4::new(-1.0, 1.0, 1.0, 1.0),
 ];
 
+const NDC_VIEW_SPACE_CORNER_DIRECTIONS: [Vec3; 4] = [
+    Vec3::new(-1.0, -1.0, 1.0), // Near bottom left
+    Vec3::new(1.0, -1.0, 1.0),  // Near bottom right
+    Vec3::new(1.0, 1.0, 1.0),   // Near top right
+    Vec3::new(-1.0, 1.0, 1.0),  // Near top left
+];
+
 const CASCADE_DISTANCES: [f32; 4] = [50.0, 200.0, 500.0, 1000.0];
 
 type Cascade = (Projection, Mat4);
 fn get_shadow_cascades(
-    view_matrix: Mat4,
+    view_proj: Mat4,
     near_plane: f32,
     far_plane: f32,
     light_view: Mat4,
+    camera_position: Vec3,
 ) -> Vec<Cascade> {
     // Get inverse view-projection to transform corners
-    let inv_view_proj = view_matrix.inverse();
+    let inv_view_proj = view_proj.inverse();
 
-    let plane_distance = far_plane - near_plane;
+    let ray_directions = FAR_CORNERS_NDC
+        .iter()
+        .map(|&far_point_ndc| {
+            let far_point_world = inv_view_proj * far_point_ndc;
+            let far_point_world = Vec3::new(
+                far_point_world.x / far_point_world.w,
+                far_point_world.y / far_point_world.w,
+                far_point_world.z / far_point_world.w,
+            );
+            (far_point_world - camera_position).normalize()
+        })
+        .collect::<Vec<_>>();
 
     (0..4)
         .map(|i| {
@@ -151,21 +170,8 @@ fn get_shadow_cascades(
 
             // Process both near and far corners at once to avoid duplicate code
             for plane in [cascade_near, cascade_far] {
-                // TODO: use ray corner directions instead to get more accurate bounds
-                for near in NEAR_CORNERS_NDC.iter() {
-                    let corner = Vec4::new(
-                        near.x * plane,
-                        near.y * plane,
-                        plane,
-                        1.0,
-                    );
-                    let view_space_corner = inv_view_proj * corner;
-
-                    let corner_world = Vec3::new(
-                        view_space_corner.x / view_space_corner.w,
-                        view_space_corner.y / view_space_corner.w,
-                        view_space_corner.z / view_space_corner.w,
-                    );
+                for ray_direction in ray_directions.iter() {
+                    let corner_world = camera_position + ray_direction * plane;
 
                     let light_space_corner =
                         light_view * Vec4::new(corner_world.x, corner_world.y, corner_world.z, 1.0);
@@ -183,14 +189,7 @@ fn get_shadow_cascades(
                 }
             }
 
-            // Use center point with appropriate size
-            let cascade_center = (min_bounds + max_bounds) * 0.5;
-
-            info!("cascade {} center = {:?}", i, cascade_center);
-            info!(
-                "cascade {} min bounds = {:?}",
-                i, min_bounds
-            );
+            info!("cascade {} min bounds = {:?}", i, min_bounds);
             info!("cascade {} max bounds = {:?}", i, max_bounds);
 
             let size = (cascade_far) * 1.5;
@@ -298,8 +297,6 @@ impl RenderState {
             label: Some("Vertex Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
         });
-
-        let swapchain_capabilities = surface.get_capabilities(&adapter);
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
@@ -1063,7 +1060,7 @@ impl RenderState {
         // Prepare buffers for the main pass
         self.prepare_buffers(voxel_planes);
 
-        let cascades = get_shadow_cascades(view_matrix, 0.1, 1000.0, shadow_view);
+        let cascades = get_shadow_cascades(view_proj, 0.1, 1000.0, shadow_view, camera_position);
         let (p, _) = &cascades[0];
         let cascade_view_proj = get_view_projection_matrix(p, &shadow_view.inverse());
 
