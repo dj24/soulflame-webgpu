@@ -2,6 +2,7 @@ use crate::vxm_mesh::MeshedVoxelsFace;
 use bevy::app::PluginsState;
 use bevy::asset::io::memory::Dir;
 use bevy::ecs::schedule::MainThreadExecutor;
+use bevy::prelude::GamepadButton::C;
 use bevy::prelude::*;
 use bevy::render::camera::CameraProjection;
 use bytemuck::{Pod, Zeroable};
@@ -121,83 +122,71 @@ const FAR_CORNERS_NDC: [Vec4; 4] = [
     Vec4::new(-1.0, 1.0, 1.0, 1.0),
 ];
 
+const CASCADE_DISTANCES: [f32; 4] = [50.0, 200.0, 500.0, 1000.0];
+
 type Cascade = (Projection, Mat4);
 fn get_shadow_cascades(
-    view_proj: Mat4,
+    view_matrix: Mat4,
     near_plane: f32,
     far_plane: f32,
     light_view: Mat4,
 ) -> Vec<Cascade> {
     // Get inverse view-projection to transform corners
-    let inv_view_proj = view_proj.inverse();
+    let inv_view_proj = view_matrix.inverse();
 
     let plane_distance = far_plane - near_plane;
 
-    // Transform NDC corners to world space using the inverse view-projection matrix
-    let near_corners: Vec<Vec4> = NEAR_CORNERS_NDC
-        .iter()
-        .map(|corner| inv_view_proj * *corner)
-        .collect();
-
-    let far_corners: Vec<Vec4> = FAR_CORNERS_NDC
-        .iter()
-        .map(|corner| inv_view_proj * *corner)
-        .collect();
-
     (0..4)
         .map(|i| {
-            let cascade_t_far = (((i + 1) as f32) / 4.0).powf(2.0);
-            let cascade_t_near = ((i as f32) / 4.0).powf(2.0);
+            let cascade_near = if (i == 0) {
+                near_plane
+            } else {
+                CASCADE_DISTANCES[i - 1]
+            };
+            let cascade_far = CASCADE_DISTANCES[i];
 
-            let cascade_near = near_plane + (plane_distance * cascade_t_near);
-            let cascade_far = near_plane + (plane_distance * cascade_t_far);
-
-            // Transform all corners to light space and find maximum extent
+            // Transform all corners to light space and find a maximum extent
             let mut min_bounds = Vec3::splat(f32::MAX);
             let mut max_bounds = Vec3::splat(f32::MIN);
 
-            // Near corners
-            for (idx, near) in near_corners.iter().enumerate() {
-                let t = cascade_t_near;
-                let corner = Vec3::new(
-                    near.x * (1.0 - t) + far_corners[idx].x * t,
-                    near.y * (1.0 - t) + far_corners[idx].y * t,
-                    near.z * (1.0 - t) + far_corners[idx].z * t
-                );
-                let light_space_corner = light_view * Vec4::new(corner.x, corner.y, corner.z, 1.0);
-                // Update bounds
-                min_bounds = min_bounds.min(Vec3::new(light_space_corner.x, light_space_corner.y, light_space_corner.z));
-                max_bounds = max_bounds.max(Vec3::new(light_space_corner.x, light_space_corner.y, light_space_corner.z));
-            }
+            // Process both near and far corners at once to avoid duplicate code
+            for plane in [cascade_near, cascade_far] {
+                for (idx, near) in NEAR_CORNERS_NDC.iter().enumerate() {
+                    let mut view_space_corner = Vec4::new(
+                        near.x * cascade_near * view_matrix.x_axis.x,
+                        near.y * cascade_near * view_matrix.y_axis.y,
+                        -cascade_near,
+                        1.0,
+                    );
 
-            // Far corners
-            for (idx, near) in near_corners.iter().enumerate() {
-                let t = cascade_t_far;
-                let corner = Vec3::new(
-                    near.x * (1.0 - t) + far_corners[idx].x * t,
-                    near.y * (1.0 - t) + far_corners[idx].y * t,
-                    near.z * (1.0 - t) + far_corners[idx].z * t
-                );
-                let light_space_corner = light_view * Vec4::new(corner.x, corner.y, corner.z, 1.0);
-                // Update bounds
-                min_bounds = min_bounds.min(Vec3::new(light_space_corner.x, light_space_corner.y, light_space_corner.z));
-                max_bounds = max_bounds.max(Vec3::new(light_space_corner.x, light_space_corner.y, light_space_corner.z));
+                    let corner_world = Vec3::new(
+                        view_space_corner.x / view_space_corner.w,
+                        view_space_corner.y / view_space_corner.w,
+                        view_space_corner.z / view_space_corner.w,
+                    );
 
+                    let light_space_corner =
+                        light_view * Vec4::new(corner_world.x, corner_world.y, corner_world.z, 1.0);
+
+                    min_bounds = min_bounds.min(Vec3::new(
+                        light_space_corner.x,
+                        light_space_corner.y,
+                        light_space_corner.z,
+                    ));
+                    max_bounds = max_bounds.max(Vec3::new(
+                        light_space_corner.x,
+                        light_space_corner.y,
+                        light_space_corner.z,
+                    ));
+                }
             }
 
             // Use center point with appropriate size
             let cascade_center = (min_bounds + max_bounds) * 0.5;
 
-            info_once!(
-                "Cascade {}: t: {} near = {}, far = {}",
-                i,
-                cascade_t_far,
-                cascade_near,
-                cascade_far
-            );
-            info_once!("cascade_center = {:?}", cascade_center);
+            info!("cascade {} center = {:?}", i, cascade_center);
 
-            let size = (plane_distance * cascade_t_far) * 1.5;
+            let size = (cascade_far) * 1.5;
 
             let projection = Projection::Orthographic(OrthographicProjection {
                 near: -1000.0,
@@ -1057,6 +1046,7 @@ impl RenderState {
         shadow_view: Mat4,
         voxel_planes: VoxelPlanesData,
         camera_position: Vec3,
+        view_matrix: Mat4,
     ) {
         let render_span = info_span!("Voxel render").entered();
         let surface_texture = self.get_surface_texture();
@@ -1066,7 +1056,7 @@ impl RenderState {
         // Prepare buffers for the main pass
         self.prepare_buffers(voxel_planes);
 
-        let cascades = get_shadow_cascades(view_proj, 0.1, 1000.0, shadow_view);
+        let cascades = get_shadow_cascades(view_matrix, 0.1, 1000.0, shadow_view);
         let (p, m) = &cascades[1];
         let cascade_view_proj = get_view_projection_matrix(p, m);
 
@@ -1190,6 +1180,8 @@ impl ApplicationHandler for VoxelExtractApp {
                             &global_transform.compute_matrix(),
                         );
 
+                        let view_matrix = global_transform.compute_matrix();
+
                         let camera_position = global_transform.translation();
 
                         // Get each voxel entity, cloning to avoid borrowing issues
@@ -1223,7 +1215,13 @@ impl ApplicationHandler for VoxelExtractApp {
                             });
 
                         self.world_message_sender
-                            .send((view_proj, voxel_entities, sun_data, camera_position))
+                            .send((
+                                view_proj,
+                                voxel_entities,
+                                sun_data,
+                                camera_position,
+                                view_matrix,
+                            ))
                             .expect("Error sending voxel data to render thread");
 
                         let size = self.window.inner_size();
@@ -1294,7 +1292,7 @@ pub type VoxelPlanesData = Vec<(
 
 pub type SunData = (GlobalTransform, DirectionalLight);
 
-pub type WorldMessage = (Mat4, VoxelPlanesData, SunData, Vec3);
+pub type WorldMessage = (Mat4, VoxelPlanesData, SunData, Vec3, Mat4);
 
 impl Plugin for VoxelRenderPlugin {
     fn build(&self, app: &mut App) {
@@ -1343,7 +1341,7 @@ impl Plugin for VoxelRenderPlugin {
             let mut render_state = RenderState::new(render_window, render_surface, render_adapter);
             loop {
                 // Block until a message is received
-                if let Ok((view_proj, voxel_planes, sun_data, camera_position)) =
+                if let Ok((view_proj, voxel_planes, sun_data, camera_position, view_matrix)) =
                     world_message_receiver.recv()
                 {
                     let (shadow_transform, _) = sun_data;
@@ -1353,7 +1351,13 @@ impl Plugin for VoxelRenderPlugin {
                     render_finished_sender
                         .send(())
                         .expect("Failed to send render finished signal");
-                    render_state.render(view_proj, shadow_view, voxel_planes, camera_position);
+                    render_state.render(
+                        view_proj,
+                        shadow_view,
+                        voxel_planes,
+                        camera_position,
+                        view_matrix,
+                    );
                 } else {
                     // Channel closed, exit thread
                     break;
