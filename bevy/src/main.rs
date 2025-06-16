@@ -33,6 +33,24 @@ fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: Event
     }
 }
 
+const SUN_DIRECTION: Vec3 = Vec3::new(-1.0, -1.0, -1.0);
+
+fn position_sun_to_camera(
+    camera_query: Query<&GlobalTransform, (With<Camera>, Without<DirectionalLight>)>,
+    mut light_query: Query<&mut Transform, (With<DirectionalLight>, Without<Camera>)>,
+) {
+    if let Ok(camera_transform) = camera_query.get_single() {
+        if let Ok(mut light_transform) = light_query.get_single_mut() {
+            // Translate sun away from camera opposite to light direction
+            let camera_position = camera_transform.translation();
+            let light_position = camera_position - SUN_DIRECTION; // Move sun far away
+            *light_transform =
+                Transform::from_translation(light_position).looking_at(camera_position, Vec3::Y);
+            info!("Sun position set to: {:?}", light_position);
+        }
+    }
+}
+
 fn camera_oribit_target_over_time(
     time: Res<Time>,
     mut camera_query: Query<&mut Transform, With<Projection>>,
@@ -79,6 +97,7 @@ fn main() {
             (
                 create_mesh_on_vxm_import_system,
                 camera_oribit_target_over_time,
+                position_sun_to_camera
             ),
         )
         .run();
@@ -92,7 +111,8 @@ fn roll_sun_direction_to_match_camera(
         if let Ok(mut light_transform) = light_query.get_single_mut() {
             let camera_up = camera_transform.forward();
             info!("Camera up: {:?}", camera_up);
-            *light_transform = Transform::from_xyz(0.0, 0.0, 0.0).looking_at(Vec3::new(-1.0, -1.0, -1.0), camera_up);
+            *light_transform = Transform::from_xyz(0.0, 0.0, 0.0)
+                .looking_at(Vec3::new(-1.0, -1.0, -1.0), camera_up);
         }
     }
 }

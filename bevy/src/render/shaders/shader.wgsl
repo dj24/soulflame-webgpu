@@ -1,4 +1,4 @@
-override shadow_map_size: f32 = 1024.0;
+override shadow_map_size: f32 = 2048.0;
 
 struct Uniforms {
   view_projection: mat4x4<f32>,
@@ -189,6 +189,7 @@ fn phong_lighting(
     return ambient_color + diffuse_color * n_dot_l + vec4(specular, specular, specular, 1.0);
 }
 
+// TODO: if outside a shadow map, go to the next cascade
 @fragment
 fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
   let shadow_coords = shadow_view_projection * vertex.world_position;
@@ -204,7 +205,7 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
       let texel_size = 1.0 / shadow_map_size;
 
       // Add a small bias to avoid shadow acne
-      let bias = 0.005;
+      let bias = 0.0003; // TODO: adjust based on the cascade scale
 
       var visibility = 0.0;
       var total_weight = 0.0;

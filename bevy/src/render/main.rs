@@ -106,7 +106,7 @@ const DEBUG_DEPTH_BIND_GROUP_LAYOUT_DESCRIPTOR: &wgpu::BindGroupLayoutDescriptor
     };
 
 // Define NDC corners for the frustum (both near and far)
-const NEAR_CORNERS_NDC: [Vec4; 4] = [
+const NEAR_CORNERS_CLIP: [Vec4; 4] = [
     // Near corners
     Vec4::new(-1.0, -1.0, 0.0, 1.0),
     Vec4::new(1.0, -1.0, 0.0, 1.0),
@@ -114,7 +114,7 @@ const NEAR_CORNERS_NDC: [Vec4; 4] = [
     Vec4::new(-1.0, 1.0, 0.0, 1.0),
 ];
 
-const FAR_CORNERS_NDC: [Vec4; 4] = [
+const FAR_CORNERS_CLIP: [Vec4; 4] = [
     // Far corners
     Vec4::new(-1.0, -1.0, 1.0, 1.0),
     Vec4::new(1.0, -1.0, 1.0, 1.0),
@@ -129,7 +129,7 @@ const NDC_VIEW_SPACE_CORNER_DIRECTIONS: [Vec3; 4] = [
     Vec3::new(-1.0, 1.0, 1.0),  // Near top left
 ];
 
-const CASCADE_DISTANCES: [f32; 4] = [50.0, 200.0, 500.0, 1000.0];
+const CASCADE_DISTANCES: [f32; 4] = [200.0, 400.0, 600.0, 1000.0];
 
 type Cascade = (Projection, Mat4);
 fn get_shadow_cascades(
@@ -139,61 +139,9 @@ fn get_shadow_cascades(
     light_view: Mat4,
     camera_position: Vec3,
 ) -> Vec<Cascade> {
-    // Get inverse view-projection to transform corners
-    let inv_view_proj = view_proj.inverse();
-
-    let ray_directions = FAR_CORNERS_NDC
-        .iter()
-        .map(|&far_point_ndc| {
-            let far_point_world = inv_view_proj * far_point_ndc;
-            let far_point_world = Vec3::new(
-                far_point_world.x / far_point_world.w,
-                far_point_world.y / far_point_world.w,
-                far_point_world.z / far_point_world.w,
-            );
-            (far_point_world - camera_position).normalize()
-        })
-        .collect::<Vec<_>>();
-
     (0..4)
         .map(|i| {
-            let cascade_near = if (i == 0) {
-                near_plane
-            } else {
-                CASCADE_DISTANCES[i - 1]
-            };
-            let cascade_far = CASCADE_DISTANCES[i];
-
-            // Transform all corners to light space and find a maximum extent
-            let mut min_bounds = Vec3::splat(f32::MAX);
-            let mut max_bounds = Vec3::splat(f32::MIN);
-
-            // Process both near and far corners at once to avoid duplicate code
-            for plane in [cascade_near, cascade_far] {
-                for ray_direction in ray_directions.iter() {
-                    let corner_world = camera_position + ray_direction * plane;
-
-                    let light_space_corner =
-                        light_view * Vec4::new(corner_world.x, corner_world.y, corner_world.z, 1.0);
-
-                    min_bounds = min_bounds.min(Vec3::new(
-                        light_space_corner.x,
-                        light_space_corner.y,
-                        light_space_corner.z,
-                    ));
-                    max_bounds = max_bounds.max(Vec3::new(
-                        light_space_corner.x,
-                        light_space_corner.y,
-                        light_space_corner.z,
-                    ));
-                }
-            }
-
-            info!("cascade {} min bounds = {:?}", i, min_bounds);
-            info!("cascade {} max bounds = {:?}", i, max_bounds);
-
-            let size = (cascade_far) * 1.5;
-
+            let size = CASCADE_DISTANCES[i];
             let projection = Projection::Orthographic(OrthographicProjection {
                 near: -1000.0,
                 far: 1000.0,
@@ -201,8 +149,8 @@ fn get_shadow_cascades(
                 scaling_mode: Default::default(),
                 scale: 1.0,
                 area: Rect {
-                    min: Vec2::new(min_bounds.x, min_bounds.y),
-                    max: Vec2::new(max_bounds.x, max_bounds.y),
+                    min: Vec2::new(-size, -size),
+                    max: Vec2::new(size, size),
                 },
             });
 
@@ -553,8 +501,8 @@ impl RenderState {
         let shadow_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Shadow Map Texture"),
             size: wgpu::Extent3d {
-                width: 1024,
-                height: 1024,
+                width: 2048,
+                height: 2048,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -1061,13 +1009,13 @@ impl RenderState {
         self.prepare_buffers(voxel_planes);
 
         let cascades = get_shadow_cascades(view_proj, 0.1, 1000.0, shadow_view, camera_position);
-        let (p, _) = &cascades[0];
-        let cascade_view_proj = get_view_projection_matrix(p, &shadow_view.inverse());
+       
+        let cascade_view_projections = &cascades.iter().map(|(p, _)| get_view_projection_matrix(p, &shadow_view.inverse())).collect::<Vec<_>>();
 
         // Shadow
         {
             let uniforms = Uniforms {
-                view_proj: cascade_view_proj,
+                view_proj: cascade_view_projections[0],
                 camera_position: Vec4::new(
                     camera_position.x,
                     camera_position.y,
@@ -1078,7 +1026,7 @@ impl RenderState {
             self.queue.write_buffer(
                 &self.shadow_projection_buffer,
                 0,
-                bytemuck::cast_slice(&[cascade_view_proj]),
+                bytemuck::cast_slice(&[cascade_view_projections[0]]),
             );
             self.queue
                 .write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
