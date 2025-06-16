@@ -151,13 +151,15 @@ fn get_shadow_cascades(
 
             // Process both near and far corners at once to avoid duplicate code
             for plane in [cascade_near, cascade_far] {
-                for (idx, near) in NEAR_CORNERS_NDC.iter().enumerate() {
-                    let mut view_space_corner = Vec4::new(
-                        near.x * cascade_near * view_matrix.x_axis.x,
-                        near.y * cascade_near * view_matrix.y_axis.y,
-                        -cascade_near,
+                // TODO: use ray corner directions instead to get more accurate bounds
+                for near in NEAR_CORNERS_NDC.iter() {
+                    let corner = Vec4::new(
+                        near.x * plane,
+                        near.y * plane,
+                        plane,
                         1.0,
                     );
+                    let view_space_corner = inv_view_proj * corner;
 
                     let corner_world = Vec3::new(
                         view_space_corner.x / view_space_corner.w,
@@ -185,6 +187,11 @@ fn get_shadow_cascades(
             let cascade_center = (min_bounds + max_bounds) * 0.5;
 
             info!("cascade {} center = {:?}", i, cascade_center);
+            info!(
+                "cascade {} min bounds = {:?}",
+                i, min_bounds
+            );
+            info!("cascade {} max bounds = {:?}", i, max_bounds);
 
             let size = (cascade_far) * 1.5;
 
@@ -195,13 +202,13 @@ fn get_shadow_cascades(
                 scaling_mode: Default::default(),
                 scale: 1.0,
                 area: Rect {
-                    min: Vec2::new(cascade_center.x - size, cascade_center.y - size),
-                    max: Vec2::new(cascade_center.x + size, cascade_center.y + size),
+                    min: Vec2::new(min_bounds.x, min_bounds.y),
+                    max: Vec2::new(max_bounds.x, max_bounds.y),
                 },
             });
 
             // Use the original light transform for all cascades
-            (projection, light_view.inverse())
+            (projection, light_view)
         })
         .collect()
 }
@@ -1057,8 +1064,8 @@ impl RenderState {
         self.prepare_buffers(voxel_planes);
 
         let cascades = get_shadow_cascades(view_matrix, 0.1, 1000.0, shadow_view);
-        let (p, m) = &cascades[1];
-        let cascade_view_proj = get_view_projection_matrix(p, m);
+        let (p, _) = &cascades[0];
+        let cascade_view_proj = get_view_projection_matrix(p, &shadow_view.inverse());
 
         // Shadow
         {
