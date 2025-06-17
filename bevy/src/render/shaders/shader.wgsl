@@ -13,7 +13,6 @@ struct Uniforms {
 @group(1) @binding(1) var shadow_sampler: sampler_comparison;
 @group(1) @binding(2) var<uniform> shadow_view_projections: array<mat4x4<f32>, 4>;
 
-
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) color: vec4<f32>,

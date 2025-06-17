@@ -59,6 +59,7 @@ struct RenderState {
     shadow_pass_target_texture: wgpu::Texture,
     shadow_pass_target_view: TextureView,
     vertex_buffer: Buffer,
+    main_pass_texture_view: wgpu::TextureView,
 }
 
 // Shadow map view, sampler, and light view projection matrix
@@ -138,11 +139,7 @@ const CASCADE_DISTANCES: [f32; 4] = [125.0, 250.0, 500.0, 1000.0];
 
 type Cascade = (Projection, Mat4);
 fn get_shadow_cascades(
-    view_proj: Mat4,
-    near_plane: f32,
-    far_plane: f32,
     light_view: Mat4,
-    camera_position: Vec3,
 ) -> Vec<Cascade> {
     (0..4)
         .map(|i| {
@@ -382,7 +379,11 @@ impl RenderState {
                 stencil: wgpu::StencilState::default(), // 2.
                 bias: wgpu::DepthBiasState::default(),
             }),
-            multisample: wgpu::MultisampleState::default(),
+            multisample: wgpu::MultisampleState{
+                count: 4,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
             multiview: None,
             cache: None,
         });
@@ -497,7 +498,7 @@ impl RenderState {
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
-            sample_count: 1,
+            sample_count: 4,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth24Plus,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
@@ -631,6 +632,29 @@ impl RenderState {
             mapped_at_creation: false,
         });
 
+        let main_pass_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Main Pass Texture"),
+            size: wgpu::Extent3d {
+                width: size.width,
+                height: size.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 4,
+            dimension: wgpu::TextureDimension::D2,
+            format: surface_format.add_srgb_suffix(),
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[surface_format.add_srgb_suffix()],
+        });
+
+        let main_pass_texture_view = main_pass_texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("Main Pass Texture View"),
+            format: Some(surface_format.add_srgb_suffix()),
+            dimension: Some(wgpu::TextureViewDimension::D2),
+            aspect: wgpu::TextureAspect::All,
+            ..Default::default()
+        });
+
         let state = RenderState {
             window,
             device,
@@ -655,6 +679,7 @@ impl RenderState {
             shadow_projection_buffer,
             shadow_render_pipeline,
             shadow_bind_group,
+            main_pass_texture_view,
         };
 
         // Configure surface for the first time
@@ -789,10 +814,6 @@ impl RenderState {
         {
             for (index, (face, instance_data, transform, _)) in voxel_planes.into_iter().enumerate()
             {
-                // if !visibility.get() {
-                //     // Skip invisible entities
-                //     continue;
-                // }
                 // Each voxel entity has 6 faces, so we store one transform for each 6
                 if (index % 6) == 0 {
                     let mvp_index = index / 6;
@@ -955,8 +976,8 @@ impl RenderState {
         let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &texture_view,
-                resolve_target: None,
+                view: &self.main_pass_texture_view,
+                resolve_target: Some(&texture_view),
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLUE),
                     store: wgpu::StoreOp::Store,
@@ -1089,7 +1110,7 @@ impl RenderState {
         // Prepare buffers for the main pass
         self.prepare_buffers(voxel_planes);
 
-        let cascades = get_shadow_cascades(view_proj, 0.1, 1000.0, shadow_view, camera_position);
+        let cascades = get_shadow_cascades(shadow_view);
 
         let cascade_view_projections = &cascades
             .iter()
