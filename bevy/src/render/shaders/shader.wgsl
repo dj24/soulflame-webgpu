@@ -172,8 +172,9 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
     return output;
 }
 
-@fragment
-fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
+fn get_shadow_visibility(
+    vertex: VertexOutput
+) -> f32 {
     var cascade_index = -1;
     var shadow_coords = vec4<f32>(0.0);
     for(var i = 0u; i < 4u; i++) {
@@ -200,83 +201,44 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
       shadow_coords_uv += vec2(0.5, 0.5);
     }
 
-      let depth_reference = shadow_coords.z / shadow_coords.w;
+    let depth_reference = shadow_coords.z / shadow_coords.w;
 
-      // Calculate texel size
-      let texel_size = 1.0 / shadow_map_size;
+    // Calculate texel size
+    let texel_size = 1.0 / shadow_map_size;
 
-      // Add a small bias to avoid shadow acne
-      let normal_bias = max(0.00007, dot(abs(vertex.normal), vec3(1.0)) * 0.00007);
-      let cascade_scale = pow(2.0, f32(cascade_index)); // Estimate of cascade coverage increase
-      let bias = normal_bias * cascade_scale;
+    // Add a small bias to avoid shadow acne
+    let normal_bias = max(0.00007, dot(abs(vertex.normal), vec3(1.0)) * 0.00007);
+    let cascade_scale = pow(2.0, f32(cascade_index)); // Estimate of cascade coverage increase
+    let bias = normal_bias * cascade_scale;
 
-      var visibility = 0.0;
-      var total_weight = 0.0;
+    let sample00 = textureSampleCompare(
+        shadow_texture, shadow_sampler,
+        shadow_coords_uv,
+        depth_reference + bias
+    );
+    let visibility = sample00;
 
-      // PCF filtering with bilinear sampling
-      let radius = 0;
-      for(var x = -radius; x <= radius; x++) {
-          for(var y = -radius; y <= radius; y++) {
-              let offset = vec2(f32(x), f32(y)) * texel_size;
-              let sample_coords = shadow_coords_uv + offset;
+    // TODO: handle other cascades
+    if(any(shadow_coords_uv > vec2(1.0)) || any(shadow_coords_uv < vec2(0.0))){
+      return 1.0;
+    }
 
-              // Calculate the center of the texel
-              let texel_center = floor(sample_coords * shadow_map_size) / shadow_map_size;
+    return visibility;
+}
 
-              // Calculate bilinear weights
-              let frac = fract(sample_coords * shadow_map_size);
+@fragment
+fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
+    let light_dir = vec3(-0.33,-0.33,-0.33);
+    var view_dir = normalize(uniforms.camera_position.xyz - vertex.world_position.xyz);
+    let ambient = vertex.color * 0.02; // Ambient light color
+    let color = vertex.color;
 
-              // Sample the four neighboring texels
-              let sample00 = textureSampleCompare(
-                  shadow_texture, shadow_sampler,
-                  texel_center,
-                  depth_reference + bias
-              );
-              let sample10 = textureSampleCompare(
-                  shadow_texture, shadow_sampler,
-                  texel_center + vec2(texel_size, 0.0),
-                  depth_reference + bias
-              );
-              let sample01 = textureSampleCompare(
-                  shadow_texture, shadow_sampler,
-                  texel_center + vec2(0.0, texel_size),
-                  depth_reference + bias
-              );
-              let sample11 = textureSampleCompare(
-                  shadow_texture, shadow_sampler,
-                  texel_center + vec2(texel_size, texel_size),
-                  depth_reference + bias
-              );
+    let shadow_visibility = get_shadow_visibility(vertex);
 
-              // Bilinear interpolation
-              let h0 = mix(sample00, sample10, frac.x);
-              let h1 = mix(sample01, sample11, frac.x);
-              let bilinear_sample = mix(h0, h1, frac.y);
-
-              let d = length(offset);
-              let weight = 1.0;
-
-              visibility += sample00 * weight;
-              total_weight += weight;
-          }
-      }
-      visibility /= total_weight;
-
-      // Rest of your lighting code
-      let light_dir = vec3(-0.33,-0.33,-0.33);
-      var view_dir = normalize(uniforms.camera_position.xyz - vertex.world_position.xyz);
-      let ambient = vertex.color * 0.02; // Ambient light color
-      let color = vertex.color;
-
-      // TODO: handle other cascades
-      if(any(shadow_coords_uv > vec2(1.0)) || any(shadow_coords_uv < vec2(0.0))){
-          return vertex.color;
-      }
-
-      // Final lighting with shadows
-      return mix(
-          ambient, // Shadow color
-          color,
-          visibility
-      );
+    // Final lighting with shadows
+    return mix(
+      ambient, // Shadow color
+      color,
+      shadow_visibility
+    );
 }
