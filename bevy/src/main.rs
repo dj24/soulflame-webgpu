@@ -153,12 +153,14 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         Name::new("Street 0,0"),
         PendingVxm(asset_server.load("street-scene.vxm")),
-        Transform::default().with_translation(Vec3::new(0.0, 1.0, 0.0)),
+        Transform::default().with_translation(Vec3::new(0.0, 32.0, 0.0)),
     ));
 
     commands.spawn((
         Name::new("Dragon 0,0"),
         PendingVxm(asset_server.load("dragon.vxm")),
-        Transform::default().with_translation(Vec3::new(128.0, 1.0, 0.0)),
+        Transform::default()
+            .with_scale(Vec3::new(1.0,10.0, 1.0))
+            .with_translation(Vec3::new(128.0, 32.0, 0.0)),
     ));
 }

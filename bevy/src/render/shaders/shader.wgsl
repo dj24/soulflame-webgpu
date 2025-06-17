@@ -1,4 +1,4 @@
-override shadow_map_size: f32 = 2048.0;
+override shadow_map_size: f32 = 4096.0;
 
 struct Uniforms {
   view_projection: mat4x4<f32>,
@@ -172,24 +172,6 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
     return output;
 }
 
-fn phong_lighting(
-    normal: vec3<f32>,
-    light_dir: vec3<f32>,
-    view_dir: vec3<f32>,
-    ambient_color: vec4<f32>,
-    diffuse_color: vec4<f32>
-) -> vec4<f32> {
-    let n_dot_l = max(dot(normal, light_dir), 0.0);
-    let specular_strength = 0.5; // Adjust as needed
-    let shininess = 3.0; // Adjust as needed
-
-    let reflect_dir = reflect(-light_dir, normal);
-    let specular = pow(max(dot(view_dir, reflect_dir), 0.0), shininess) * specular_strength;
-
-    return ambient_color + diffuse_color * n_dot_l + vec4(specular, specular, specular, 1.0);
-}
-
-
 @fragment
 fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
     var cascade_index = -1;
@@ -224,14 +206,17 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
       let texel_size = 1.0 / shadow_map_size;
 
       // Add a small bias to avoid shadow acne
-      let bias = 0.0007; // TODO: adjust based on the cascade scale
+      let normal_bias = max(0.00007, dot(abs(vertex.normal), vec3(1.0)) * 0.00007);
+      let cascade_scale = pow(2.0, f32(cascade_index)); // Estimate of cascade coverage increase
+      let bias = normal_bias * cascade_scale;
 
       var visibility = 0.0;
       var total_weight = 0.0;
 
       // PCF filtering with bilinear sampling
-      for(var x = -1; x <= 1; x++) {
-          for(var y = -1; y <= 1; y++) {
+      let radius = 0;
+      for(var x = -radius; x <= radius; x++) {
+          for(var y = -radius; y <= radius; y++) {
               let offset = vec2(f32(x), f32(y)) * texel_size;
               let sample_coords = shadow_coords_uv + offset;
 
@@ -271,7 +256,7 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
               let d = length(offset);
               let weight = 1.0;
 
-              visibility += bilinear_sample * weight;
+              visibility += sample00 * weight;
               total_weight += weight;
           }
       }
@@ -281,13 +266,7 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
       let light_dir = vec3(-0.33,-0.33,-0.33);
       var view_dir = normalize(uniforms.camera_position.xyz - vertex.world_position.xyz);
       let ambient = vertex.color * 0.02; // Ambient light color
-      let color = phong_lighting(
-          vertex.normal,
-          light_dir,
-          view_dir,
-          ambient,
-          vertex.color
-      );
+      let color = vertex.color;
 
       // TODO: handle other cascades
       if(any(shadow_coords_uv > vec2(1.0)) || any(shadow_coords_uv < vec2(0.0))){

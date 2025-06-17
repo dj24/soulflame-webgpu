@@ -2,9 +2,9 @@
 @group(0) @binding(0) var depth_texture : texture_depth_2d;
 
 const QUAD_VERTICES: array<vec4<f32>, 4> = array(
-    vec4<f32>(0.5, 0.5, 0.0, 1.0), // Bottom-left
-    vec4<f32>(1.0, 0.5, 0.0, 1.0),  // Bottom-right
-    vec4<f32>(0.5, 1.0, 0.0, 1.0),  // Top-left
+    vec4<f32>(0.0, 0.0, 0.0, 1.0), // Bottom-left
+    vec4<f32>(1.0, 0.0, 0.0, 1.0),  // Bottom-right
+    vec4<f32>(0.0, 1.0, 0.0, 1.0),  // Top-left
     vec4<f32>(1.0, 1.0, 0.0, 1.0),   // Top-right
 );
 

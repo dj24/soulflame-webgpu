@@ -33,7 +33,7 @@ pub struct InstanceData {
 #[derive(Component, Deref, Clone)]
 pub struct InstanceMaterialData(pub Arc<Vec<InstanceData>>);
 
-const SHADOW_MAP_SIZE: u32 = 2048;
+const SHADOW_MAP_SIZE: u32 = 4096;
 
 struct RenderState {
     window: Arc<Window>,
@@ -134,7 +134,7 @@ const NDC_VIEW_SPACE_CORNER_DIRECTIONS: [Vec3; 4] = [
     Vec3::new(-1.0, 1.0, 1.0),  // Near top left
 ];
 
-const CASCADE_DISTANCES: [f32; 4] = [200.0, 400.0, 600.0, 1000.0];
+const CASCADE_DISTANCES: [f32; 4] = [125.0, 250.0, 500.0, 1000.0];
 
 type Cascade = (Projection, Mat4);
 fn get_shadow_cascades(
