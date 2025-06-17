@@ -15,9 +15,9 @@ struct Uniforms {
 
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
-    @location(0) color: vec4<f32>,
-    @location(1) world_position: vec4<f32>,
-    @location(2) normal: vec3<f32>,
+    @location(0) @interpolate(perspective, centroid) color: vec4<f32>,
+    @location(1) @interpolate(perspective, centroid) world_position: vec4<f32>,
+    @location(2) @interpolate(perspective, centroid) normal: vec3<f32>,
 };
 
 struct Instance {
@@ -120,7 +120,7 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
     let is_y_face = local_vertex_index >= 16u; // Last 8 vertices are for the top and bottom faces
 
     var scale = vec3(0.0);
-    // Use the normal to determine how to apply the scale
+
     if (is_x_face) {
         // For faces pointing in X direction (left/right), scale Y and Z
         scale = vec3(1.0, x_scale, y_scale);
@@ -191,14 +191,16 @@ fn get_shadow_visibility(
          0.5 - shadow_coords.y  * 0.5
      ) * 0.5;
 
+    var uv_offset = vec2<f32>(0.0);
     // Offset the shadow uv to match the quadrant of that cascade
     if cascade_index == 1 {
-      shadow_coords_uv += vec2(0.5, 0.0);
+      uv_offset = vec2(0.5, 0.0);
     } else if cascade_index == 2 {
-       shadow_coords_uv += vec2(0.0, 0.5);
+       uv_offset = vec2(0.0, 0.5);
     } else if cascade_index == 3 {
-      shadow_coords_uv += vec2(0.5, 0.5);
+      uv_offset = vec2(0.5, 0.5);
     }
+    shadow_coords_uv += uv_offset;
 
     let depth_reference = shadow_coords.z / shadow_coords.w;
 
@@ -206,18 +208,66 @@ fn get_shadow_visibility(
     let texel_size = 1.0 / shadow_map_size;
 
     // Add a small bias to avoid shadow acne
-    let normal_bias = max(0.00007, dot(abs(vertex.normal), vec3(1.0)) * 0.00007);
+    let normal_bias = max(0.0002, dot(abs(vertex.normal), vec3(1.0)) * 0.0002);
     let cascade_scale = pow(2.0, f32(cascade_index)); // Estimate of cascade coverage increase
     let bias = normal_bias * cascade_scale;
 
-    let sample00 = textureSampleCompare(
-        shadow_texture, shadow_sampler,
-        shadow_coords_uv,
-        depth_reference + bias
-    );
-    let visibility = sample00;
+    // Calculate bilinear interpolation weights
+    let shadow_texel_pos = shadow_coords_uv * shadow_map_size;
+    let texel_pos = floor(shadow_texel_pos);
+    let frac_part = shadow_texel_pos - texel_pos;
 
-    // TODO: handle other cascades
+    // Calculate weights for bilinear interpolation
+    let w00 = (1.0 - frac_part.x) * (1.0 - frac_part.y);
+    let w10 = frac_part.x * (1.0 - frac_part.y);
+    let w01 = (1.0 - frac_part.x) * frac_part.y;
+    let w11 = frac_part.x * frac_part.y;
+
+    var visibility = 0.0;
+    var total_weight = 0.0;
+    let uv_max = uv_offset + vec2(0.5, 0.5);
+    if(all(shadow_coords_uv < uv_max) && all(shadow_coords_uv > uv_offset)) {
+        let sample00 = textureSampleCompare(
+            shadow_texture, shadow_sampler,
+            shadow_coords_uv,
+            depth_reference + bias
+        );
+        total_weight += w00;
+        visibility += sample00 * w00;
+    }
+    let shadow_coords_uv_10 = shadow_coords_uv + vec2(texel_size, 0.0);
+    if( all(shadow_coords_uv_10 < uv_max) && all(shadow_coords_uv_10 > uv_offset)) {
+        let sample01 = textureSampleCompare(
+            shadow_texture, shadow_sampler,
+            shadow_coords_uv_10,
+            depth_reference + bias
+        );
+        total_weight += w10;
+        visibility += sample01 * w10;
+    }
+    let shadow_coords_uv_01 = shadow_coords_uv + vec2(0.0, texel_size);
+    if( all(shadow_coords_uv_01 < uv_max) && all(shadow_coords_uv_01 > uv_offset)) {
+        let sample10 = textureSampleCompare(
+            shadow_texture, shadow_sampler,
+            shadow_coords_uv_01,
+            depth_reference + bias
+        );
+        total_weight += w01;
+        visibility += sample10 * w01;
+    }
+    let shadow_coords_uv_11 = shadow_coords_uv + vec2(texel_size, texel_size);
+    if( all(shadow_coords_uv_11 < uv_max) && all(shadow_coords_uv_11 > uv_offset)) {
+        let sample11 = textureSampleCompare(
+            shadow_texture, shadow_sampler,
+            shadow_coords_uv_11,
+            depth_reference + bias
+        );
+        total_weight += w11;
+        visibility += sample11 * w11;
+    }
+    // Average the samples to get a smoother shadow
+    visibility /= total_weight;
+
     if(any(shadow_coords_uv > vec2(1.0)) || any(shadow_coords_uv < vec2(0.0))){
       return 1.0;
     }
@@ -225,19 +275,39 @@ fn get_shadow_visibility(
     return visibility;
 }
 
+fn simple_lighting(
+    vertex: VertexOutput,
+    light_dir: vec3<f32>,
+    view_dir: vec3<f32>
+) -> vec4<f32> {
+    let color = vertex.color;
+
+    // Calculate diffuse lighting
+    let n_dot_l = max(dot(vertex.normal, light_dir), 0.0);
+    let reflect_dir = reflect(vertex.normal, -light_dir);
+    let spec = pow(max(dot(view_dir, reflect_dir), 0.0), 8.0);
+    let spec_strength = 1.0; // Specular strength
+    let ambient_strength = 0.02; // Ambient strength
+
+    return (ambient_strength + n_dot_l + (spec_strength * spec)) * color;
+}
+
 @fragment
 fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
-    let light_dir = vec3(-0.33,-0.33,-0.33);
+    let light_dir = normalize(vec3(-1.0)); // Direction of the light source
     var view_dir = normalize(uniforms.camera_position.xyz - vertex.world_position.xyz);
-    let ambient = vertex.color * 0.02; // Ambient light color
     let color = vertex.color;
 
     let shadow_visibility = get_shadow_visibility(vertex);
 
+    let diffuse_color = simple_lighting(vertex, light_dir, view_dir);
+
+    let ambient = diffuse_color * 0.02; // Ambient light color
+
     // Final lighting with shadows
     return mix(
       ambient, // Shadow color
-      color,
+      diffuse_color,
       shadow_visibility
     );
 }

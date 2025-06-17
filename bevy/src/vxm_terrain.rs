@@ -41,7 +41,7 @@ fn lerp(from: f32, to: f32, t: f32) -> f32 {
 pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
     let start_time = std::time::Instant::now();
 
-    let (x_size, y_size, z_size) = (TERRAIN_SIZE, 64, TERRAIN_SIZE);
+    let (x_size, y_size, z_size) = (TERRAIN_SIZE, 255, TERRAIN_SIZE);
     let node = create_node();
     let terrain_colour_node =
         SafeNode::from_encoded_node_tree("DwAEAAAAAAAAQAcAAAAAAD8AAAAAAA==").unwrap();
@@ -157,7 +157,7 @@ fn terrain_system(
             )),
             CameraTarget(Vec3::new(
                 TERRAIN_SIZE as f32 * 0.5,
-                80.0,
+                200.0,
                 TERRAIN_SIZE as f32 * 0.5,
             )),
         ));
