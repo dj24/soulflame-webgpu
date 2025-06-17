@@ -10,8 +10,8 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc};
 use std::thread;
 use wgpu::{
-    BindGroup, Buffer, Device, Queue, RenderPipeline, Surface, SurfaceTexture, TextureFormat,
-    TextureView, VertexAttribute, VertexStepMode,
+    BindGroup, Buffer, Device, Queue, RenderPipeline, Surface, SurfaceTexture,
+    TexelCopyTextureInfo, TextureFormat, TextureView, VertexAttribute, VertexStepMode,
 };
 use winit::keyboard::Key;
 use winit::{
@@ -33,6 +33,8 @@ pub struct InstanceData {
 #[derive(Component, Deref, Clone)]
 pub struct InstanceMaterialData(pub Arc<Vec<InstanceData>>);
 
+const SHADOW_MAP_SIZE: u32 = 2048;
+
 struct RenderState {
     window: Arc<Window>,
     device: Device,
@@ -52,7 +54,10 @@ struct RenderState {
     indirect_buffer: Buffer,
     uniform_buffer: Buffer,
     shadow_projection_buffer: Buffer,
-    shadow_map_texture_view: wgpu::TextureView,
+    shadow_map_texture: wgpu::Texture,
+    shadow_map_texture_view: TextureView,
+    shadow_pass_target_texture: wgpu::Texture,
+    shadow_pass_target_view: TextureView,
     vertex_buffer: Buffer,
 }
 
@@ -465,6 +470,7 @@ impl RenderState {
 
         let shadow_projection_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Shadow Projection Buffer"),
+            size: (size_of::<Mat4>() * 4) as u64,
             ..matrix_init_descriptor
         });
 
@@ -498,18 +504,34 @@ impl RenderState {
             view_formats: &[],
         });
 
+        // Texture holding 4 cascades
         let shadow_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Shadow Map Texture"),
             size: wgpu::Extent3d {
-                width: 2048,
-                height: 2048,
+                width: SHADOW_MAP_SIZE,
+                height: SHADOW_MAP_SIZE,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth24Plus,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+
+        let shadow_pass_target_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Shadow Map Texture"),
+            size: wgpu::Extent3d {
+                width: SHADOW_MAP_SIZE / 2,
+                height: SHADOW_MAP_SIZE / 2,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth24Plus,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
         });
 
@@ -520,6 +542,15 @@ impl RenderState {
             aspect: wgpu::TextureAspect::All,
             ..Default::default()
         });
+
+        let shadow_pass_target_view =
+            shadow_pass_target_texture.create_view(&wgpu::TextureViewDescriptor {
+                label: Some("Shadow Pass Target View"),
+                format: Some(wgpu::TextureFormat::Depth24Plus),
+                dimension: Some(wgpu::TextureViewDimension::D2),
+                aspect: wgpu::TextureAspect::All,
+                ..Default::default()
+            });
 
         let shadow_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("Shadow Map Sampler"),
@@ -616,6 +647,9 @@ impl RenderState {
             depth_texture_view,
             indirect_buffer,
             shadow_map_texture_view,
+            shadow_pass_target_view,
+            shadow_map_texture: shadow_texture,
+            shadow_pass_target_texture,
             vertex_buffer,
             uniform_buffer,
             shadow_projection_buffer,
@@ -962,7 +996,7 @@ impl RenderState {
             label: None,
             color_attachments: &[],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.shadow_map_texture_view,
+                view: &self.shadow_pass_target_view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(0.0),
                     store: wgpu::StoreOp::Store,
@@ -992,6 +1026,53 @@ impl RenderState {
         encoder.finish()
     }
 
+    fn copy_cascade(&mut self, cascade_index: usize) -> wgpu::CommandBuffer {
+        if cascade_index < 0 || cascade_index >= 4 {
+            panic!("Invalid cascade index: {}", cascade_index);
+        }
+        let mut copy_encoder = self.device.create_command_encoder(&Default::default());
+
+        let origin = match cascade_index {
+            0 => wgpu::Origin3d::ZERO,
+            1 => wgpu::Origin3d {
+                x: SHADOW_MAP_SIZE / 2,
+                y: 0,
+                z: 0,
+            },
+            2 => wgpu::Origin3d {
+                x: 0,
+                y: SHADOW_MAP_SIZE / 2,
+                z: 0,
+            },
+            3 => wgpu::Origin3d {
+                x: SHADOW_MAP_SIZE / 2,
+                y: SHADOW_MAP_SIZE / 2,
+                z: 0,
+            },
+            _ => unreachable!(),
+        };
+
+        let copy_source = TexelCopyTextureInfo {
+            texture: &self.shadow_pass_target_texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        };
+        let copy_destination = TexelCopyTextureInfo {
+            texture: &self.shadow_map_texture,
+            mip_level: 0,
+            origin,
+            aspect: wgpu::TextureAspect::All,
+        };
+        let copy_size = wgpu::Extent3d {
+            width: SHADOW_MAP_SIZE / 2,
+            height: SHADOW_MAP_SIZE / 2,
+            depth_or_array_layers: 1,
+        };
+        copy_encoder.copy_texture_to_texture(copy_source, copy_destination, copy_size);
+        copy_encoder.finish()
+    }
+
     fn render(
         &mut self,
         view_proj: Mat4,
@@ -1009,29 +1090,31 @@ impl RenderState {
         self.prepare_buffers(voxel_planes);
 
         let cascades = get_shadow_cascades(view_proj, 0.1, 1000.0, shadow_view, camera_position);
-       
-        let cascade_view_projections = &cascades.iter().map(|(p, _)| get_view_projection_matrix(p, &shadow_view.inverse())).collect::<Vec<_>>();
+
+        let cascade_view_projections = &cascades
+            .iter()
+            .map(|(p, _)| get_view_projection_matrix(p, &shadow_view.inverse()))
+            .collect::<Vec<_>>();
 
         // Shadow
         {
-            let uniforms = Uniforms {
-                view_proj: cascade_view_projections[0],
-                camera_position: Vec4::new(
-                    camera_position.x,
-                    camera_position.y,
-                    camera_position.z,
-                    1.0,
-                ),
-            };
-            self.queue.write_buffer(
-                &self.shadow_projection_buffer,
-                0,
-                bytemuck::cast_slice(&[cascade_view_projections[0]]),
-            );
-            self.queue
-                .write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
-            let shadow_pass_command_buffer = self.enqueue_shadow_pass(draw_count);
-            self.queue.submit([shadow_pass_command_buffer]);
+            for i in 0..4 {
+                let uniforms = Uniforms {
+                    view_proj: cascade_view_projections[i],
+                    camera_position: Vec4::new(
+                        camera_position.x,
+                        camera_position.y,
+                        camera_position.z,
+                        1.0,
+                    ),
+                };
+                self.queue
+                    .write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
+                let shadow_pass_command_buffer = self.enqueue_shadow_pass(draw_count);
+                let copy_shadow_command_buffer = self.copy_cascade(i);
+                self.queue
+                    .submit([shadow_pass_command_buffer, copy_shadow_command_buffer]);
+            }
         }
 
         // Main pass
@@ -1045,6 +1128,11 @@ impl RenderState {
                     1.0,
                 ),
             };
+            self.queue.write_buffer(
+                &self.shadow_projection_buffer,
+                0,
+                bytemuck::cast_slice(&cascade_view_projections),
+            );
             self.queue
                 .write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
             let main_pass_command_buffer = self.enqueue_main_pass(texture_view, draw_count);

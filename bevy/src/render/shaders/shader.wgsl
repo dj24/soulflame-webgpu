@@ -11,7 +11,7 @@ struct Uniforms {
 // Shadow texture and sampler
 @group(1) @binding(0) var shadow_texture: texture_depth_2d;
 @group(1) @binding(1) var shadow_sampler: sampler_comparison;
-@group(1) @binding(2) var<uniform> shadow_view_projection: mat4x4<f32>;
+@group(1) @binding(2) var<uniform> shadow_view_projections: array<mat4x4<f32>, 4>;
 
 
 struct VertexOutput {
@@ -189,15 +189,34 @@ fn phong_lighting(
     return ambient_color + diffuse_color * n_dot_l + vec4(specular, specular, specular, 1.0);
 }
 
-// TODO: if outside a shadow map, go to the next cascade
+
 @fragment
 fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
-  let shadow_coords = shadow_view_projection * vertex.world_position;
+    var cascade_index = -1;
+    var shadow_coords = vec4<f32>(0.0);
+    for(var i = 0u; i < 4u; i++) {
+      shadow_coords = shadow_view_projections[i] * vertex.world_position;
+      if (all(shadow_coords.xy >= vec2(-1.0)) && all(shadow_coords.xy <= vec2(1.0))) {
+          // If the shadow coordinates are within the range, we can use this cascade
+          cascade_index = i32(i);
+          break;
+      }
+    }
 
-      let shadow_coords_uv = vec2<f32>(
-          shadow_coords.x / shadow_coords.w * 0.5 + 0.5,
-          0.5 - shadow_coords.y / shadow_coords.w * 0.5
-      );
+    // cascade 0 is the top left
+     var shadow_coords_uv = vec2<f32>(
+         shadow_coords.x  * 0.5 + 0.5,
+         0.5 - shadow_coords.y  * 0.5
+     ) * 0.5;
+
+    // Offset the shadow uv to match the quadrant of that cascade
+    if cascade_index == 1 {
+      shadow_coords_uv += vec2(0.5, 0.0);
+    } else if cascade_index == 2 {
+       shadow_coords_uv += vec2(0.0, 0.5);
+    } else if cascade_index == 3 {
+      shadow_coords_uv += vec2(0.5, 0.5);
+    }
 
       let depth_reference = shadow_coords.z / shadow_coords.w;
 
@@ -205,7 +224,7 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
       let texel_size = 1.0 / shadow_map_size;
 
       // Add a small bias to avoid shadow acne
-      let bias = 0.0003; // TODO: adjust based on the cascade scale
+      let bias = 0.0007; // TODO: adjust based on the cascade scale
 
       var visibility = 0.0;
       var total_weight = 0.0;
@@ -270,17 +289,15 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
           vertex.color
       );
 
+      // TODO: handle other cascades
       if(any(shadow_coords_uv > vec2(1.0)) || any(shadow_coords_uv < vec2(0.0))){
           return vertex.color;
       }
 
-      // For debugging
-       return vec4(shadow_coords_uv * visibility, 0.0, 1.0);
-
       // Final lighting with shadows
-//      return mix(
-//          ambient, // Shadow color
-//          color,
-//          visibility
-//      );
+      return mix(
+          ambient, // Shadow color
+          color,
+          visibility
+      );
 }

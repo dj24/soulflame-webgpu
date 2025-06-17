@@ -46,7 +46,6 @@ fn position_sun_to_camera(
             let light_position = camera_position - SUN_DIRECTION; // Move sun far away
             *light_transform =
                 Transform::from_translation(light_position).looking_at(camera_position, Vec3::Y);
-            info!("Sun position set to: {:?}", light_position);
         }
     }
 }
@@ -97,7 +96,7 @@ fn main() {
             (
                 create_mesh_on_vxm_import_system,
                 camera_oribit_target_over_time,
-                position_sun_to_camera
+                position_sun_to_camera,
             ),
         )
         .run();
