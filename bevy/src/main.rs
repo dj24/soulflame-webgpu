@@ -97,6 +97,7 @@ fn main() {
                 create_mesh_on_vxm_import_system,
                 camera_oribit_target_over_time,
                 position_sun_to_camera,
+                squish_stretch_and_rotate_object_over_time,
             ),
         )
         .run();
@@ -113,6 +114,23 @@ fn roll_sun_direction_to_match_camera(
             *light_transform = Transform::from_xyz(0.0, 0.0, 0.0)
                 .looking_at(Vec3::new(-1.0, -1.0, -1.0), camera_up);
         }
+    }
+}
+
+#[derive(Component)]
+struct SquishStretchAndRotateObjectOverTime {
+    time: f32,
+}
+
+fn squish_stretch_and_rotate_object_over_time(
+    time: Res<Time>,
+    mut query: Query<(&mut Transform, &mut SquishStretchAndRotateObjectOverTime)>,
+) {
+    for (mut transform, mut squish_stretch) in query.iter_mut() {
+        squish_stretch.time += time.delta_secs();
+        let t = squish_stretch.time;
+        let scale = 1.0 + 0.5 * (t * 2.0).sin();
+        transform.scale = Vec3::new(scale, scale, scale);
     }
 }
 
@@ -158,6 +176,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     commands.spawn((
         Name::new("Dragon 0,0"),
+        SquishStretchAndRotateObjectOverTime { time: 20.0 },
         PendingVxm(asset_server.load("dragon.vxm")),
         Transform::default()
             .with_scale(Vec3::new(1.0, 10.0, 1.0))
