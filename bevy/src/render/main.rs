@@ -1454,7 +1454,8 @@ impl Plugin for VoxelRenderPlugin {
             event_loop
                 .create_window(
                     Window::default_attributes()
-                        .with_inner_size(winit::dpi::LogicalSize::new(1920, 1080)),
+                        .with_inner_size(winit::dpi::LogicalSize::new(1920, 1080))
+                        .with_title("Soulflame"),
                 )
                 .unwrap(),
         );
