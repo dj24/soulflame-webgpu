@@ -163,4 +163,12 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             .with_scale(Vec3::new(1.0, 10.0, 1.0))
             .with_translation(Vec3::new(128.0, 160.0, 0.0)),
     ));
+
+    commands.spawn((
+        PointLight {
+            color: Color::srgb(1.0, 0.0, 0.0),
+            ..default()
+        },
+        Transform::from_xyz(0.0, 170.0, 0.0)
+    ));
 }
