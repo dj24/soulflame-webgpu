@@ -6,6 +6,7 @@ use bevy::prelude::GamepadButton::C;
 use bevy::prelude::*;
 use bevy::render::camera::CameraProjection;
 use bytemuck::{Pod, Zeroable};
+use std::num::NonZeroU32;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc};
 use std::thread;
@@ -35,6 +36,8 @@ pub struct InstanceMaterialData(pub Arc<Vec<InstanceData>>);
 
 const SHADOW_MAP_SIZE: u32 = 4096;
 
+const LIGHT_COUNT: usize = 32;
+
 struct RenderState {
     window: Arc<Window>,
     device: Device,
@@ -53,6 +56,7 @@ struct RenderState {
     depth_texture_view: wgpu::TextureView,
     indirect_buffer: Buffer,
     uniform_buffer: Buffer,
+    lights_uniform_buffer: Buffer,
     shadow_projection_buffer: Buffer,
     shadow_map_texture: wgpu::Texture,
     shadow_map_texture_view: TextureView,
@@ -138,9 +142,7 @@ const NDC_VIEW_SPACE_CORNER_DIRECTIONS: [Vec3; 4] = [
 const CASCADE_DISTANCES: [f32; 4] = [125.0, 250.0, 500.0, 1000.0];
 
 type Cascade = (Projection, Mat4);
-fn get_shadow_cascades(
-    light_view: Mat4,
-) -> Vec<Cascade> {
+fn get_shadow_cascades(light_view: Mat4) -> Vec<Cascade> {
     (0..4)
         .map(|i| {
             let size = CASCADE_DISTANCES[i];
@@ -169,6 +171,44 @@ struct Uniforms {
     camera_position: Vec4,
 }
 
+#[derive(Pod, Zeroable, Clone, Copy)]
+#[repr(C)]
+struct GPUPointLight {
+    color: Vec3,
+    range: f32,
+    position: Vec3,
+    intensity: f32,
+}
+
+#[derive(Pod, Zeroable, Clone, Copy)]
+#[repr(C)]
+struct LightsUniform([GPUPointLight; LIGHT_COUNT]);
+
+// Create GPU compatible uniform for lights from ECS data
+fn get_lights_uniform(lights: Vec<(GlobalTransform, PointLight)>) -> LightsUniform {
+    let mut gpu_lights = [GPUPointLight {
+        color: Vec3::ZERO,
+        range: 0.0,
+        position: Vec3::ZERO,
+        intensity: 0.0,
+    }; LIGHT_COUNT];
+
+    for (i, (transform, light)) in lights.into_iter().enumerate() {
+        if i >= gpu_lights.len() {
+            break;
+        }
+        let color_srgb = light.color.to_srgba();
+        gpu_lights[i] = GPUPointLight {
+            color: Vec3::new(color_srgb.red, color_srgb.green, color_srgb.blue),
+            range: light.range,
+            position: transform.translation(),
+            intensity: light.intensity,
+        };
+    }
+
+    LightsUniform(gpu_lights)
+}
+
 impl RenderState {
     fn get_debug_quad_render_pipeline(
         device: &Device,
@@ -190,16 +230,6 @@ impl RenderState {
         });
 
         let swapchain_capabilities = surface.get_capabilities(&adapter);
-        let supports_ray_query = adapter
-            .features()
-            .contains(wgpu::Features::EXPERIMENTAL_RAY_QUERY);
-        println!("Ray Query Support: {}", supports_ray_query);
-
-        let supports_multi_draw = adapter
-            .features()
-            .contains(wgpu::Features::MULTI_DRAW_INDIRECT);
-
-        println!("Multi Draw Support: {}", supports_multi_draw);
         let swapchain_format = swapchain_capabilities.formats[0];
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -233,8 +263,6 @@ impl RenderState {
 
     fn get_shadow_render_pipeline(
         device: &Device,
-        surface: &Surface,
-        adapter: &wgpu::Adapter,
         bind_group_layout: &wgpu::BindGroupLayout,
     ) -> RenderPipeline {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -379,7 +407,7 @@ impl RenderState {
                 stencil: wgpu::StencilState::default(), // 2.
                 bias: wgpu::DepthBiasState::default(),
             }),
-            multisample: wgpu::MultisampleState{
+            multisample: wgpu::MultisampleState {
                 count: 4,
                 mask: !0,
                 alpha_to_coverage_enabled: false,
@@ -454,6 +482,16 @@ impl RenderState {
                     },
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         });
 
@@ -467,6 +505,13 @@ impl RenderState {
         let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("View Projection Buffer"),
             ..matrix_init_descriptor
+        });
+
+        let lights_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Lights Uniform Buffer"),
+            size: (size_of::<LightsUniform>() * LIGHT_COUNT) as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
         });
 
         let shadow_projection_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -486,6 +531,10 @@ impl RenderState {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: uniform_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: lights_uniform_buffer.as_entire_binding(),
                 },
             ],
         });
@@ -615,8 +664,7 @@ impl RenderState {
             &shadow_bind_group_layout,
         );
 
-        let shadow_render_pipeline =
-            Self::get_shadow_render_pipeline(&device, &surface, &adapter, &bind_group_layout);
+        let shadow_render_pipeline = Self::get_shadow_render_pipeline(&device, &bind_group_layout);
 
         let debug_quad_render_pipeline = Self::get_debug_quad_render_pipeline(
             &device,
@@ -642,14 +690,14 @@ impl RenderState {
             mip_level_count: 1,
             sample_count: 4,
             dimension: wgpu::TextureDimension::D2,
-            format: surface_format.add_srgb_suffix(),
+            format: surface_format,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[surface_format.add_srgb_suffix()],
+            view_formats: &[surface_format],
         });
 
         let main_pass_texture_view = main_pass_texture.create_view(&wgpu::TextureViewDescriptor {
             label: Some("Main Pass Texture View"),
-            format: Some(surface_format.add_srgb_suffix()),
+            format: Some(surface_format),
             dimension: Some(wgpu::TextureViewDimension::D2),
             aspect: wgpu::TextureAspect::All,
             ..Default::default()
@@ -676,6 +724,7 @@ impl RenderState {
             shadow_pass_target_texture,
             vertex_buffer,
             uniform_buffer,
+            lights_uniform_buffer,
             shadow_projection_buffer,
             shadow_render_pipeline,
             shadow_bind_group,
@@ -696,8 +745,7 @@ impl RenderState {
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: self.surface_format,
-            // Request compatibility with the sRGB-format texture view we‘re going to create later.
-            view_formats: vec![self.surface_format.add_srgb_suffix()],
+            view_formats: vec![self.surface_format],
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
             width: self.size.width,
             height: self.size.height,
@@ -924,6 +972,16 @@ impl RenderState {
                                 },
                                 count: None,
                             },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 2,
+                                visibility: wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Uniform,
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
                         ],
                     }),
                 entries: &[
@@ -934,6 +992,10 @@ impl RenderState {
                     wgpu::BindGroupEntry {
                         binding: 1,
                         resource: self.uniform_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: self.lights_uniform_buffer.as_entire_binding(),
                     },
                 ],
             });
@@ -979,7 +1041,12 @@ impl RenderState {
                 view: &self.main_pass_texture_view,
                 resolve_target: Some(&texture_view),
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLUE),
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.56,
+                        g: 0.8,
+                        b: 1.0,
+                        a: 1.0,
+                    }),
                     store: wgpu::StoreOp::Store,
                 },
             })],
@@ -1100,7 +1167,7 @@ impl RenderState {
         shadow_view: Mat4,
         voxel_planes: VoxelPlanesData,
         camera_position: Vec3,
-        view_matrix: Mat4,
+        lights_data: LightsData,
     ) {
         let render_span = info_span!("Voxel render").entered();
         let surface_texture = self.get_surface_texture();
@@ -1156,6 +1223,11 @@ impl RenderState {
             );
             self.queue
                 .write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
+            self.queue.write_buffer(
+                &self.lights_uniform_buffer,
+                0,
+                bytemuck::cast_slice(&get_lights_uniform(lights_data).0),
+            );
             let main_pass_command_buffer = self.enqueue_main_pass(texture_view, draw_count);
 
             let texture_view = self.get_texture_view(&surface_texture);
@@ -1241,8 +1313,6 @@ impl ApplicationHandler for VoxelExtractApp {
                             &global_transform.compute_matrix(),
                         );
 
-                        let view_matrix = global_transform.compute_matrix();
-
                         let camera_position = global_transform.translation();
 
                         // Get each voxel entity, cloning to avoid borrowing issues
@@ -1275,13 +1345,20 @@ impl ApplicationHandler for VoxelExtractApp {
                                 panic!("No directional light found in the world");
                             });
 
+                        // Get point lights data
+                        let lights_data = world
+                            .query::<(&GlobalTransform, &PointLight)>()
+                            .iter(world)
+                            .map(|(transform, light)| (transform.clone(), light.clone()))
+                            .collect::<Vec<_>>();
+
                         self.world_message_sender
                             .send((
                                 view_proj,
                                 voxel_entities,
                                 sun_data,
                                 camera_position,
-                                view_matrix,
+                                lights_data,
                             ))
                             .expect("Error sending voxel data to render thread");
 
@@ -1353,7 +1430,9 @@ pub type VoxelPlanesData = Vec<(
 
 pub type SunData = (GlobalTransform, DirectionalLight);
 
-pub type WorldMessage = (Mat4, VoxelPlanesData, SunData, Vec3, Mat4);
+pub type LightsData = Vec<(GlobalTransform, PointLight)>;
+
+pub type WorldMessage = (Mat4, VoxelPlanesData, SunData, Vec3, LightsData);
 
 impl Plugin for VoxelRenderPlugin {
     fn build(&self, app: &mut App) {
@@ -1402,7 +1481,7 @@ impl Plugin for VoxelRenderPlugin {
             let mut render_state = RenderState::new(render_window, render_surface, render_adapter);
             loop {
                 // Block until a message is received
-                if let Ok((view_proj, voxel_planes, sun_data, camera_position, view_matrix)) =
+                if let Ok((view_proj, voxel_planes, sun_data, camera_position, lights)) =
                     world_message_receiver.recv()
                 {
                     let (shadow_transform, _) = sun_data;
@@ -1417,7 +1496,7 @@ impl Plugin for VoxelRenderPlugin {
                         shadow_view,
                         voxel_planes,
                         camera_position,
-                        view_matrix,
+                        lights,
                     );
                 } else {
                     // Channel closed, exit thread

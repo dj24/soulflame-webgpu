@@ -166,9 +166,29 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     commands.spawn((
         PointLight {
-            color: Color::srgb(1.0, 0.0, 0.0),
+            color: Color::srgb(1.0, 0.0, 0.),
+            range: 10.0,
+            intensity: lux::LIVING_ROOM,
             ..default()
         },
-        Transform::from_xyz(0.0, 170.0, 0.0)
+        Transform::from_xyz(50.0, 190.0, 50.0),
+    ));
+    commands.spawn((
+        PointLight {
+            color: Color::srgb(0.0, 0.0, 1.0),
+            range: 10.0,
+            intensity: lux::LIVING_ROOM,
+            ..default()
+        },
+        Transform::from_xyz(00.0, 190.0, 50.0),
+    ));
+    commands.spawn((
+        PointLight {
+            color: Color::srgb(0.0, 1.0, 0.0),
+            range: 10.0,
+            intensity: lux::LIVING_ROOM,
+            ..default()
+        },
+        Transform::from_xyz(100.0, 190.0, 50.0),
     ));
 }

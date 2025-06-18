@@ -5,8 +5,16 @@ struct Uniforms {
   camera_position: vec4<f32>,
 }
 
+struct Light {
+  color: vec3<f32>,
+  range: f32,
+  position: vec3<f32>,
+  intensity: f32,
+}
+
 @group(0) @binding(0) var<storage, read> model_matrices: array<mat4x4<f32>>;
 @group(0) @binding(1) var<uniform> uniforms: Uniforms;
+@group(0) @binding(2) var<uniform> lights: array<Light, 32>;
 
 // Shadow texture and sampler
 @group(1) @binding(0) var shadow_texture: texture_depth_2d;
@@ -280,21 +288,45 @@ fn simple_lighting(
     light_dir: vec3<f32>,
     view_dir: vec3<f32>
 ) -> vec4<f32> {
-    let color = vertex.color;
-
-    // Calculate diffuse lighting
-    let n_dot_l = max(dot(vertex.normal, light_dir), 0.0);
-    let reflect_dir = reflect(vertex.normal, -light_dir);
+    let n_dot_l = max(dot(-vertex.normal, light_dir), 0.0);
+    let reflect_dir = reflect(-light_dir, -vertex.normal);
     let spec = pow(max(dot(view_dir, reflect_dir), 0.0), 8.0);
-    let spec_strength = 1.0; // Specular strength
+    let spec_strength = 0.5; // Specular strength
     let ambient_strength = 0.02; // Ambient strength
-
-    return (ambient_strength + n_dot_l + (spec_strength * spec)) * color;
+    return (ambient_strength + n_dot_l + (spec_strength * spec)) * vertex.color;
 }
+
+fn apply_point_lights(
+    vertex: VertexOutput,
+    view_dir: vec3<f32>
+) -> vec4<f32> {
+    var color = vec4<f32>(0.0);
+    for (var i = 0u; i < 32; i++) {
+        let light = lights[i];
+        let light_dir = normalize(light.position - vertex.world_position.xyz);
+        let distance = distance(light.position,vertex.world_position.xyz);
+        let attenuation = light.range / (distance * distance);
+        let intensity_color = vec4(light.color, 1.0) * light.intensity;
+        color += simple_lighting(vertex, light_dir, view_dir) * intensity_color * attenuation;
+    }
+    return color;
+}
+
+fn apply_fog(
+    vertex: VertexOutput,
+    view_dir: vec3<f32>
+) -> vec3<f32> {
+    let fog_start = 30.0; // Distance at which fog starts
+    let fog_end = 1000.0; // Distance at which fog reaches full density
+    let distance = length(vertex.world_position.xyz - uniforms.camera_position.xyz);
+    let fog_factor = clamp((distance - fog_start) / (fog_end - fog_start), 0.0, 1.0);
+    return fog_factor * vec3(0.56, 0.8, 1.0);
+}
+
 
 @fragment
 fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
-    let light_dir = normalize(vec3(-1.0)); // Direction of the light source
+    let light_dir = normalize(vec3(1.0)); // Direction of the light source
     var view_dir = normalize(uniforms.camera_position.xyz - vertex.world_position.xyz);
     let color = vertex.color;
 
@@ -304,10 +336,16 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
 
     let ambient = diffuse_color * 0.02; // Ambient light color
 
-    // Final lighting with shadows
-    return mix(
-      ambient, // Shadow color
-      diffuse_color,
-      shadow_visibility
-    );
+    let shadowed = mix(
+     ambient,
+     diffuse_color,
+     shadow_visibility
+   );
+
+   let fog_factor = apply_fog(vertex, view_dir);
+
+   var output_color = shadowed + apply_point_lights(vertex, view_dir);
+    output_color = mix(output_color, vec4(0.5, 0.5, 0.5, 1.0), vec4(fog_factor, 1.0)); // Apply fog effect
+
+    return output_color;
 }
