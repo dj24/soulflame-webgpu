@@ -18,6 +18,13 @@ pub struct VxmAsset {
 #[derive(Default)]
 pub struct VxmAssetLoader;
 
+struct VxmLight {
+    pub min_pos: [f32; 3],
+    pub max_pos: [f32; 3],
+    pub color: [f32; 3],
+    pub intensity: f32,
+}
+
 /// Possible errors that can be produced by [`VxmAssetLoader`]
 #[non_exhaustive]
 #[derive(Debug, Error)]
@@ -120,13 +127,13 @@ impl AssetLoader for VxmAssetLoader {
             let blue = reader.read_u8();
             let green = reader.read_u8();
             let red = reader.read_u8();
-            let alpha = reader.read_u8();
-            let _emissive = reader.read_u8();
+            let _alpha = reader.read_u8();
+            let emissive = reader.read_u8();
             palette.push(PaletteColor {
                 r: red,
                 g: green,
                 b: blue,
-                a: alpha,
+                emissive: emissive > 0,
             });
         }
 
@@ -201,6 +208,9 @@ impl AssetLoader for VxmAssetLoader {
 
         let mut voxel_array = vec![vec![vec![0u16; z_dim]; y_dim]; x_dim];
 
+        // Create groups of lights based on neighboring emissive voxels
+        let mut lights: Vec<VxmLight> = Vec::new();
+
         voxels.iter_mut().for_each(|voxel| {
             voxel.x -= bounds_min[0];
             voxel.y -= bounds_min[1];
@@ -210,7 +220,55 @@ impl AssetLoader for VxmAssetLoader {
             let g = colour.g as f32 / 255.0;
             let b = colour.b as f32 / 255.0;
 
-            voxel_array[voxel.x as usize][voxel.y as usize][voxel.z as usize] = create_hsl_voxel(r, g, b);
+            if colour.emissive {
+                // Check the existing lights to see if this voxel is close enough to an existing light
+                let mut found_light = false;
+                for light in &mut lights {
+                    let is_adajacent_x = (light.min_pos[0] - voxel.x as f32).abs() < 1.0
+                        || (light.max_pos[0] - voxel.x as f32).abs() < 1.0;
+                    let is_adajacent_y = (light.min_pos[1] - voxel.y as f32).abs() < 1.0
+                        || (light.max_pos[1] - voxel.y as f32).abs() < 1.0;
+                    let is_adajacent_z = (light.min_pos[2] - voxel.z as f32).abs() < 1.0
+                        || (light.max_pos[2] - voxel.z as f32).abs() < 1.0;
+
+                    if is_adajacent_x || is_adajacent_y || is_adajacent_z {
+                        // Update the existing light's bounds and intensity
+                        light.min_pos[0] = light.min_pos[0].min(voxel.x as f32);
+                        light.min_pos[1] = light.min_pos[1].min(voxel.y as f32);
+                        light.min_pos[2] = light.min_pos[2].min(voxel.z as f32);
+                        light.max_pos[0] = light.max_pos[0].max(voxel.x as f32);
+                        light.max_pos[1] = light.max_pos[1].max(voxel.y as f32);
+                        light.max_pos[2] = light.max_pos[2].max(voxel.z as f32);
+                        light.intensity += 1.0; // Increase intensity for each emissive voxel
+                        found_light = true;
+                        break;
+                    }
+                }
+                if !found_light {
+                    // Create a new light
+                    lights.push(VxmLight {
+                        min_pos: [voxel.x as f32, voxel.y as f32, voxel.z as f32],
+                        max_pos: [voxel.x as f32, voxel.y as f32, voxel.z as f32],
+                        color: [r, g, b],
+                        intensity: 1.0,
+                    });
+                }
+            }
+
+            voxel_array[voxel.x as usize][voxel.y as usize][voxel.z as usize] =
+                create_hsl_voxel(r, g, b);
+        });
+
+        info!("Found {} lights", lights.len());
+
+        lights.iter().for_each(|light| {
+            info!(
+                "Light at min: ({:.2}, {:.2}, {:.2}), max: ({:.2}, {:.2}, {:.2}), color: ({:.2}, {:.2}, {:.2}), intensity: {:.2}",
+                light.min_pos[0], light.min_pos[1], light.min_pos[2],
+                light.max_pos[0], light.max_pos[1], light.max_pos[2],
+                light.color[0], light.color[1], light.color[2],
+                light.intensity
+            );
         });
 
         let size_bytes = size.iter().map(|&s| s as usize).product::<usize>() * 2; // 2 bytes per voxel
@@ -218,7 +276,9 @@ impl AssetLoader for VxmAssetLoader {
 
         info!(
             "imported {:?}x{:?}x{:?} {:?}mb vxm asset in {:?}ms",
-            size[0],size[1],size[2],
+            size[0],
+            size[1],
+            size[2],
             size_mb,
             start_time.elapsed().as_millis()
         );
@@ -244,14 +304,14 @@ pub struct PaletteColor {
     pub r: u8,
     pub g: u8,
     pub b: u8,
-    pub a: u8,
+    pub emissive: bool,
 }
 
 struct CustomByteReader {
     bytes: Vec<u8>,
     index: usize,
 }
-                                                            
+
 #[derive(Component)]
 pub struct PendingVxm(pub Handle<VxmAsset>);
 

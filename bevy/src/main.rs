@@ -56,7 +56,6 @@ fn camera_oribit_target_over_time(
     target: Query<(&CameraTarget, &Transform), Without<Projection>>,
 ) {
     if target.is_empty() {
-        info!("No target found for camera orbiting.");
         return;
     }
     let (target, target_transform) = target.single().unwrap();
@@ -84,7 +83,7 @@ fn main() {
             StatesPlugin::default(),
             AssetPlugin::default(),
             VoxelRenderPlugin,
-            VoxelTerrainPlugin,
+            // VoxelTerrainPlugin,
             VisibilityPlugin,
         ))
         .init_asset::<VxmAsset>()
