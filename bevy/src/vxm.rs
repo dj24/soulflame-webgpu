@@ -19,8 +19,8 @@ pub struct VxmAsset {
 pub struct VxmAssetLoader;
 
 struct VxmLight {
-    pub min_pos: [f32; 3],
-    pub max_pos: [f32; 3],
+    pub min_pos: [u32; 3],
+    pub max_pos: [u32; 3],
     pub color: [f32; 3],
     pub intensity: f32,
 }
@@ -224,21 +224,19 @@ impl AssetLoader for VxmAssetLoader {
                 // Check the existing lights to see if this voxel is close enough to an existing light
                 let mut found_light = false;
                 for light in &mut lights {
-                    let is_adajacent_x = (light.min_pos[0] - voxel.x as f32).abs() < 1.0
-                        || (light.max_pos[0] - voxel.x as f32).abs() < 1.0;
-                    let is_adajacent_y = (light.min_pos[1] - voxel.y as f32).abs() < 1.0
-                        || (light.max_pos[1] - voxel.y as f32).abs() < 1.0;
-                    let is_adajacent_z = (light.min_pos[2] - voxel.z as f32).abs() < 1.0
-                        || (light.max_pos[2] - voxel.z as f32).abs() < 1.0;
+                    let is_within_or_adjacent = (voxel.x >= light.min_pos[0] - 1
+                        && voxel.x <= light.max_pos[0] + 1)
+                        && (voxel.y >= light.min_pos[1] - 1 && voxel.y <= light.max_pos[1] + 1)
+                        && (voxel.z >= light.min_pos[2] - 1 && voxel.z <= light.max_pos[2] + 1);
 
-                    if is_adajacent_x || is_adajacent_y || is_adajacent_z {
+                    if is_within_or_adjacent {
                         // Update the existing light's bounds and intensity
-                        light.min_pos[0] = light.min_pos[0].min(voxel.x as f32);
-                        light.min_pos[1] = light.min_pos[1].min(voxel.y as f32);
-                        light.min_pos[2] = light.min_pos[2].min(voxel.z as f32);
-                        light.max_pos[0] = light.max_pos[0].max(voxel.x as f32);
-                        light.max_pos[1] = light.max_pos[1].max(voxel.y as f32);
-                        light.max_pos[2] = light.max_pos[2].max(voxel.z as f32);
+                        light.min_pos[0] = light.min_pos[0].min(voxel.x);
+                        light.min_pos[1] = light.min_pos[1].min(voxel.y);
+                        light.min_pos[2] = light.min_pos[2].min(voxel.z);
+                        light.max_pos[0] = light.max_pos[0].max(voxel.x);
+                        light.max_pos[1] = light.max_pos[1].max(voxel.y);
+                        light.max_pos[2] = light.max_pos[2].max(voxel.z);
                         light.intensity += 1.0; // Increase intensity for each emissive voxel
                         found_light = true;
                         break;
@@ -247,8 +245,8 @@ impl AssetLoader for VxmAssetLoader {
                 if !found_light {
                     // Create a new light
                     lights.push(VxmLight {
-                        min_pos: [voxel.x as f32, voxel.y as f32, voxel.z as f32],
-                        max_pos: [voxel.x as f32, voxel.y as f32, voxel.z as f32],
+                        min_pos: [voxel.x, voxel.y, voxel.z],
+                        max_pos: [voxel.x, voxel.y, voxel.z],
                         color: [r, g, b],
                         intensity: 1.0,
                     });

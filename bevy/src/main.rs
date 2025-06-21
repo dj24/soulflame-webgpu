@@ -169,8 +169,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     commands.spawn((
         Name::new("Street 0,0"),
+        CameraTarget(Vec3::new(50.0, 30.0, 50.0)),
         PendingVxm(asset_server.load("street-scene.vxm")),
-        Transform::default().with_translation(Vec3::new(0.0, 160.0, 0.0)),
+        Transform::default().with_translation(Vec3::new(0.0, 0.0, 0.0)),
     ));
 
     commands.spawn((
@@ -179,7 +180,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         PendingVxm(asset_server.load("dragon.vxm")),
         Transform::default()
             .with_scale(Vec3::new(1.0, 10.0, 1.0))
-            .with_translation(Vec3::new(128.0, 160.0, 0.0)),
+            .with_translation(Vec3::new(128.0, 0.0, 0.0)),
     ));
 
     commands.spawn((
@@ -189,7 +190,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             intensity: lux::LIVING_ROOM,
             ..default()
         },
-        Transform::from_xyz(50.0, 190.0, 50.0),
+        Transform::from_xyz(50.0, 30.0, 50.0),
     ));
     commands.spawn((
         PointLight {
@@ -198,7 +199,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             intensity: lux::LIVING_ROOM,
             ..default()
         },
-        Transform::from_xyz(00.0, 190.0, 50.0),
+        Transform::from_xyz(00.0, 30.0, 50.0),
     ));
     commands.spawn((
         PointLight {
@@ -207,6 +208,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             intensity: lux::LIVING_ROOM,
             ..default()
         },
-        Transform::from_xyz(100.0, 190.0, 50.0),
+        Transform::from_xyz(100.0, 30.0, 50.0),
     ));
 }

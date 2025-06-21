@@ -2,14 +2,18 @@ use crate::vxm_mesh::MeshedVoxelsFace;
 use bevy::app::PluginsState;
 use bevy::asset::io::memory::Dir;
 use bevy::ecs::schedule::MainThreadExecutor;
+use bevy::math::primitives::Cuboid;
 use bevy::prelude::GamepadButton::C;
 use bevy::prelude::*;
 use bevy::render::camera::CameraProjection;
 use bytemuck::{Pod, Zeroable};
+use std::mem::size_of;
 use std::num::NonZeroU32;
+use std::ops::Range;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc};
 use std::thread;
+use wgpu::util::DeviceExt;
 use wgpu::{
     BindGroup, Buffer, Device, Queue, RenderPipeline, Surface, SurfaceTexture,
     TexelCopyTextureInfo, TextureFormat, TextureView, VertexAttribute, VertexStepMode,
@@ -31,6 +35,13 @@ pub struct InstanceData {
     pub(crate) height: u8,
 }
 
+#[derive(Pod, Zeroable, Clone, Copy)]
+#[repr(C)]
+struct WireframeVertex {
+    position: [f32; 3],
+    color: [f32; 4],
+}
+
 #[derive(Component, Deref, Clone)]
 pub struct InstanceMaterialData(pub Arc<Vec<InstanceData>>);
 
@@ -48,6 +59,7 @@ struct RenderState {
     render_pipeline: RenderPipeline,
     debug_quad_render_pipeline: RenderPipeline,
     shadow_render_pipeline: RenderPipeline,
+    wireframe_pipeline: RenderPipeline,
     mvp_buffer: Buffer,
     instance_buffer: Buffer,
     bind_group: BindGroup,
@@ -207,6 +219,47 @@ fn get_lights_uniform(lights: Vec<(GlobalTransform, PointLight)>) -> LightsUnifo
     }
 
     LightsUniform(gpu_lights)
+}
+
+// Create wireframe vertices for a cuboid
+fn create_wireframe_cuboid_vertices(cuboid: &Cuboid, color: [f32; 4]) -> Vec<WireframeVertex> {
+    let half_size = cuboid.half_size;
+    let min_x = -half_size.x;
+    let max_x = half_size.x;
+    let min_y = -half_size.y;
+    let max_y = half_size.y;
+    let min_z = -half_size.z;
+    let max_z = half_size.z;
+
+    let corners = [
+        // Bottom face corners
+        [min_x, min_y, min_z],
+        [max_x, min_y, min_z],
+        [max_x, min_y, max_z],
+        [min_x, min_y, max_z],
+        // Top face corners
+        [min_x, max_y, min_z],
+        [max_x, max_y, min_z],
+        [max_x, max_y, max_z],
+        [min_x, max_y, max_z],
+    ];
+
+    // Lines connecting corners
+    let indices = [
+        // Bottom face
+        0, 1, 1, 2, 2, 3, 3, 0, // Top face
+        4, 5, 5, 6, 6, 7, 7, 4, // Connecting edges
+        0, 4, 1, 5, 2, 6, 3, 7,
+    ];
+
+    // Create vertices for each line
+    indices
+        .iter()
+        .map(|&i| WireframeVertex {
+            position: corners[i],
+            color,
+        })
+        .collect()
 }
 
 impl RenderState {
@@ -405,6 +458,81 @@ impl RenderState {
                 depth_write_enabled: true,
                 depth_compare: wgpu::CompareFunction::Greater,
                 stencil: wgpu::StencilState::default(), // 2.
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState {
+                count: 4,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+            cache: None,
+        });
+        render_pipeline
+    }
+
+    fn get_wireframe_pipeline(
+        device: &Device,
+        surface: &Surface,
+        adapter: &wgpu::Adapter,
+        bind_group_layout: &wgpu::BindGroupLayout,
+    ) -> RenderPipeline {
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Wireframe Pipeline Layout"),
+            bind_group_layouts: &[&bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Wireframe Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/wireframe.wgsl").into()),
+        });
+
+        let swapchain_capabilities = surface.get_capabilities(&adapter);
+        let swapchain_format = swapchain_capabilities.formats[0];
+
+        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Wireframe Render Pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                compilation_options: Default::default(),
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: std::mem::size_of::<WireframeVertex>() as u64,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &[
+                        wgpu::VertexAttribute {
+                            format: wgpu::VertexFormat::Float32x3,
+                            offset: 0,
+                            shader_location: 0,
+                        },
+                        wgpu::VertexAttribute {
+                            format: wgpu::VertexFormat::Float32x4,
+                            offset: (3 * std::mem::size_of::<f32>()) as u64,
+                            shader_location: 1,
+                        },
+                    ],
+                }],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                compilation_options: Default::default(),
+                targets: &[Some(swapchain_format.into())],
+            }),
+            primitive: wgpu::PrimitiveState {
+                cull_mode: None,
+                // Use line list for wireframe rendering
+                topology: wgpu::PrimitiveTopology::LineList,
+                front_face: wgpu::FrontFace::Ccw,
+                ..default()
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: TextureFormat::Depth24Plus,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Greater,
+                stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             }),
             multisample: wgpu::MultisampleState {
@@ -673,6 +801,9 @@ impl RenderState {
             &debug_quad_bind_group_layout,
         );
 
+        let wireframe_pipeline =
+            Self::get_wireframe_pipeline(&device, &surface, &adapter, &bind_group_layout);
+
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Vertex Buffer"),
             size: (size_of::<u32>() * 24) as u64, // 6 faces * 4 vertices per face
@@ -729,6 +860,7 @@ impl RenderState {
             shadow_render_pipeline,
             shadow_bind_group,
             main_pass_texture_view,
+            wireframe_pipeline,
         };
 
         // Configure surface for the first time
@@ -825,6 +957,85 @@ impl RenderState {
         drop(renderpass);
         depth_span.exit();
         depth_debug_encoder.finish()
+    }
+
+    fn enqueue_wireframe_cuboid(
+        &self,
+        texture_view: &TextureView,
+        cuboid: Cuboid,
+        transform: Mat4,
+        color: [f32; 4],
+    ) -> wgpu::CommandBuffer {
+        // Create wireframe vertices for the cuboid with given transform
+        let mut vertices = create_wireframe_cuboid_vertices(&cuboid, color);
+
+        // Apply the transform to each vertex
+        for vertex in &mut vertices {
+            let pos = Vec4::new(
+                vertex.position[0],
+                vertex.position[1],
+                vertex.position[2],
+                1.0,
+            );
+
+            let transformed = transform * pos;
+            vertex.position = [
+                transformed.x / transformed.w,
+                transformed.y / transformed.w,
+                transformed.z / transformed.w,
+            ];
+        }
+
+        // Create vertex buffer
+        let vertex_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Wireframe Vertex Buffer"),
+                contents: bytemuck::cast_slice(&vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+
+        // Create command encoder
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Wireframe Render Encoder"),
+            });
+
+        // Begin render pass
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Wireframe Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &self.main_pass_texture_view,
+                    resolve_target: Some(&texture_view),
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load, // Load the existing content
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load, // Load the existing depth content
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            // Set pipeline and vertex buffer
+            render_pass.set_pipeline(&self.wireframe_pipeline);
+            render_pass.set_bind_group(0, &self.bind_group, &[]);
+            render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+
+            // Draw the wireframe (12 lines with 2 vertices each = 24 vertices total)
+            render_pass.draw(0..24, 0..1);
+        }
+
+        encoder.finish()
     }
 
     fn prepare_buffers(&mut self, voxel_planes: VoxelPlanesData) {
@@ -1234,9 +1445,22 @@ impl RenderState {
             let depth_debug_command_buffer = self.enqueue_depth_debug_pass(texture_view);
 
             let submit_span = info_span!("Submit Commands").entered();
+
             self.queue
                 .submit([main_pass_command_buffer, depth_debug_command_buffer]);
             submit_span.exit();
+        }
+
+        // Wireframe
+        {
+            let texture_view = self.get_texture_view(&surface_texture);
+            let wireframe_command_buffer = self.enqueue_wireframe_cuboid(
+                &texture_view,
+                Cuboid::new(50.0, 50.0, 50.0),
+                Mat4::from_translation(Vec3::new(25.0, 25.0, 25.0)),
+                [1.0, 0.0, 0.0, 1.0],
+            );
+            self.queue.submit([wireframe_command_buffer]);
         }
 
         self.window.pre_present_notify();
