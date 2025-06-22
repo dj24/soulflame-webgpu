@@ -1278,7 +1278,7 @@ impl RenderState {
         renderpass.set_pipeline(&self.render_pipeline);
         renderpass.set_bind_group(0, &self.bind_group, &[]);
         renderpass.set_bind_group(1, &self.shadow_bind_group, &[]);
-
+        
         // Single multi_draw_indirect call for all entities
         renderpass.multi_draw_indirect(
             &self.indirect_buffer,
@@ -1709,6 +1709,12 @@ impl Plugin for VoxelRenderPlugin {
                 if let Ok((view_proj, voxel_planes, sun_data, camera_position, lights)) =
                     world_message_receiver.recv()
                 {
+                    if voxel_planes.is_empty() {
+                        render_finished_sender
+                            .send(())
+                            .expect("Failed to send render finished signal");
+                        continue; // Skip rendering if no voxel planes are available
+                    }
                     let (shadow_transform, _) = sun_data;
                     let shadow_view = shadow_transform.compute_matrix().inverse();
 
