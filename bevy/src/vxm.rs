@@ -211,6 +211,9 @@ impl AssetLoader for VxmAssetLoader {
         // Create groups of lights based on neighboring emissive voxels
         let mut lights: Vec<VxmLight> = Vec::new();
 
+        let mut voxel_array = vec![vec![vec![0u16; z_dim]; y_dim]; x_dim];
+        let mut visited_light_voxels = vec![vec![vec![false; z_dim]; y_dim]; x_dim];
+
         voxels.iter_mut().for_each(|voxel| {
             voxel.x -= bounds_min[0];
             voxel.y -= bounds_min[1];
@@ -220,41 +223,25 @@ impl AssetLoader for VxmAssetLoader {
             let g = colour.g as f32 / 255.0;
             let b = colour.b as f32 / 255.0;
 
-            if colour.emissive {
-                // Check the existing lights to see if this voxel is close enough to an existing light
-                let mut found_light = false;
-                for light in &mut lights {
-                    let is_within_or_adjacent = (voxel.x >= light.min_pos[0] - 1
-                        && voxel.x <= light.max_pos[0] + 1)
-                        && (voxel.y >= light.min_pos[1] - 1 && voxel.y <= light.max_pos[1] + 1)
-                        && (voxel.z >= light.min_pos[2] - 1 && voxel.z <= light.max_pos[2] + 1);
-
-                    if is_within_or_adjacent {
-                        // Update the existing light's bounds and intensity
-                        light.min_pos[0] = light.min_pos[0].min(voxel.x);
-                        light.min_pos[1] = light.min_pos[1].min(voxel.y);
-                        light.min_pos[2] = light.min_pos[2].min(voxel.z);
-                        light.max_pos[0] = light.max_pos[0].max(voxel.x);
-                        light.max_pos[1] = light.max_pos[1].max(voxel.y);
-                        light.max_pos[2] = light.max_pos[2].max(voxel.z);
-                        light.intensity += 1.0; // Increase intensity for each emissive voxel
-                        found_light = true;
-                        break;
-                    }
-                }
-                if !found_light {
-                    // Create a new light
-                    lights.push(VxmLight {
-                        min_pos: [voxel.x, voxel.y, voxel.z],
-                        max_pos: [voxel.x, voxel.y, voxel.z],
-                        color: [r, g, b],
-                        intensity: 1.0,
-                    });
-                }
-            }
-
             voxel_array[voxel.x as usize][voxel.y as usize][voxel.z as usize] =
                 create_hsl_voxel(r, g, b);
+        });
+
+        voxels.iter_mut().for_each(|voxel| {
+            let colour = &palette[voxel.c as usize];
+            // TODO: check if light colour matches when grouping
+            if colour.emissive {
+                // iterate over voxels
+                for x in 0..x_dim {
+                    for y in 0..y_dim {
+                        for z in 0..z_dim {
+                            if visited_light_voxels[x][y][z] {
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
         });
 
         info!("Found {} lights", lights.len());
