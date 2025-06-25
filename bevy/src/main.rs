@@ -65,7 +65,7 @@ fn camera_oribit_target_over_time(
 
     let t = time.elapsed_secs();
     let radius = 150.0;
-    let angle = t * 0.4; // radians per second
+    let angle = t * 0.2; // radians per second
     let x = radius * angle.cos();
     let z = radius * angle.sin();
     camera_transform.translation = target_position + Vec3::new(x, 0.0, z);
@@ -83,7 +83,7 @@ fn main() {
             StatesPlugin::default(),
             AssetPlugin::default(),
             VoxelRenderPlugin,
-            // VoxelTerrainPlugin,
+            VoxelTerrainPlugin,
             VisibilityPlugin,
         ))
         .init_asset::<VxmAsset>()
@@ -169,9 +169,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     commands.spawn((
         Name::new("Street 0,0"),
-        CameraTarget(Vec3::new(50.0, 30.0, 50.0)),
+        // CameraTarget(Vec3::new(50.0, 30.0, 50.0)),
         PendingVxm(asset_server.load("street-scene.vxm")),
-        Transform::default().with_translation(Vec3::new(0.0, 0.0, 0.0)),
+        Transform::default().with_translation(Vec3::new(0.0, 160.0, 0.0)),
     ));
 
     commands.spawn((
@@ -180,34 +180,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         PendingVxm(asset_server.load("dragon.vxm")),
         Transform::default()
             .with_scale(Vec3::new(1.0, 10.0, 1.0))
-            .with_translation(Vec3::new(128.0, 0.0, 0.0)),
-    ));
-
-    commands.spawn((
-        PointLight {
-            color: Color::srgb(1.0, 0.0, 0.),
-            range: 10.0,
-            intensity: lux::LIVING_ROOM,
-            ..default()
-        },
-        Transform::from_xyz(50.0, 30.0, 50.0),
-    ));
-    commands.spawn((
-        PointLight {
-            color: Color::srgb(0.0, 0.0, 1.0),
-            range: 10.0,
-            intensity: lux::LIVING_ROOM,
-            ..default()
-        },
-        Transform::from_xyz(00.0, 30.0, 50.0),
-    ));
-    commands.spawn((
-        PointLight {
-            color: Color::srgb(0.0, 1.0, 0.0),
-            range: 10.0,
-            intensity: lux::LIVING_ROOM,
-            ..default()
-        },
-        Transform::from_xyz(100.0, 30.0, 50.0),
+            .with_translation(Vec3::new(128.0, 160.0, 0.0)),
     ));
 }

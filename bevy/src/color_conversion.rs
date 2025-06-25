@@ -1,4 +1,6 @@
-pub fn convert_rgb_to_hsl(r:f32, g:f32, b:f32) -> (f32, f32, f32) {
+use crate::vxm::VxmVoxel;
+
+pub fn convert_rgb_to_hsl(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
     // Find max and min RGB values
     let max = r.max(g).max(b);
     let min = r.min(g).min(b);
@@ -30,11 +32,7 @@ pub fn convert_rgb_to_hsl(r:f32, g:f32, b:f32) -> (f32, f32, f32) {
     let h = if h < 0.0 { h + 360.0 } else { h };
 
     // Convert HSL values to the range [0, 255]
-    (
-        h / 360.0,
-        s,
-        l,
-    )
+    (h / 360.0, s, l)
 }
 
 pub fn convert_rgb_to_hsl_u8(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
@@ -43,7 +41,7 @@ pub fn convert_rgb_to_hsl_u8(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
     let g = g as f32 / 255.0;
     let b = b as f32 / 255.0;
 
-    let (h,s,l) = convert_rgb_to_hsl(r,g,b);
+    let (h, s, l) = convert_rgb_to_hsl(r, g, b);
 
     // Convert HSL values to the range [0, 255]
     (
@@ -55,7 +53,7 @@ pub fn convert_rgb_to_hsl_u8(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
 
 // Convert from linear to gamma space (gamma = 2.2)
 pub fn linear_to_gamma(linear: f32) -> f32 {
-    linear.powf(1.0/2.2)
+    linear.powf(1.0 / 2.2)
 }
 
 // Convert from gamma to linear space (gamma = 2.2)
@@ -74,10 +72,10 @@ pub fn create_hsl_voxel(r: f32, g: f32, b: f32) -> u16 {
     (1 << 15) | (h5 << 9) | (s5 << 6) | (l5)
 }
 
-pub fn get_hsl_voxel(voxel: u16) -> (u16, u16, u16) {
-    let h = (voxel & 0b0111_1110_0000_0000) >> 9;
-    let s = (voxel & 0b0000_0001_1100_0000) >> 6;
-    let l = voxel & 0b0000_0000_0011_1111;
+pub fn get_hsl_voxel(voxel: &VxmVoxel) -> (u16, u16, u16) {
+    let h = (voxel.hsl & 0b0111_1110_0000_0000) >> 9;
+    let s = (voxel.hsl & 0b0000_0001_1100_0000) >> 6;
+    let l = voxel.hsl & 0b0000_0000_0011_1111;
 
     (h, s, l)
 }

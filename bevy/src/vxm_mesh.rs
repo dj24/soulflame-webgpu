@@ -1,6 +1,6 @@
 use crate::color_conversion::get_hsl_voxel;
 use crate::render::main::{InstanceData, InstanceMaterialData};
-use crate::vxm::{PendingVxm, VxmAsset};
+use crate::vxm::{PendingVxm, VxmAsset, VxmVoxel};
 use bevy::asset::{Assets, RenderAssetUsages};
 use bevy::log::info;
 use bevy::prelude::*;
@@ -38,16 +38,16 @@ fn generate_instance_data_z(vxm: &VxmAsset, is_front_face: bool) -> Vec<Instance
                     // Check if face is hidden (different logic for front vs back)
                     let is_face_hidden = if is_front_face {
                         z < (vxm.size[2] - 1) as usize
-                            && is_solid_voxel(vxm.voxel_array[x][y][z + 1])
+                            && is_solid_voxel(&vxm.voxel_array[x][y][z + 1])
                     } else {
-                        z > 0 && is_solid_voxel(vxm.voxel_array[x][y][z - 1])
+                        z > 0 && is_solid_voxel(&vxm.voxel_array[x][y][z - 1])
                     };
 
                     if is_face_hidden {
                         continue;
                     }
 
-                    let voxel = vxm.voxel_array[x][y][z];
+                    let voxel = &vxm.voxel_array[x][y][z];
                     if !is_solid_voxel(voxel) {
                         continue;
                     }
@@ -61,13 +61,13 @@ fn generate_instance_data_z(vxm: &VxmAsset, is_front_face: bool) -> Vec<Instance
                     let check_voxel = |x: usize, y: usize| {
                         let is_face_hidden = if is_front_face {
                             z < (vxm.size[2] - 1) as usize
-                                && is_solid_voxel(vxm.voxel_array[x][y][z + 1])
+                                && is_solid_voxel(&vxm.voxel_array[x][y][z + 1])
                         } else {
-                            z > 0 && is_solid_voxel(vxm.voxel_array[x][y][z - 1])
+                            z > 0 && is_solid_voxel(&vxm.voxel_array[x][y][z - 1])
                         };
 
-                        !is_solid_voxel(vxm.voxel_array[x][y][z])
-                            || vxm.voxel_array[x][y][z] != voxel
+                        !is_solid_voxel(&vxm.voxel_array[x][y][z])
+                            || vxm.voxel_array[x][y][z].hsl != voxel.hsl
                             || visited_voxels[x][y]
                             || is_face_hidden
                     };
@@ -113,8 +113,8 @@ fn generate_instance_data_z(vxm: &VxmAsset, is_front_face: bool) -> Vec<Instance
 }
 
 // Checks if 1st bit of 16 bit value is 1
-fn is_solid_voxel(voxel: u16) -> bool {
-    (voxel >> 15) & 0x01 == 1
+fn is_solid_voxel(voxel: &VxmVoxel) -> bool {
+    (voxel.hsl >> 15) & 0x01 == 1
 }
 
 fn generate_instance_data_x(vxm: &VxmAsset, is_right_face: bool) -> Vec<InstanceData> {
@@ -134,16 +134,16 @@ fn generate_instance_data_x(vxm: &VxmAsset, is_right_face: bool) -> Vec<Instance
                     // Check if face is hidden (different logic for front vs back)
                     let is_face_hidden = if is_right_face {
                         x < (vxm.size[0] - 1) as usize
-                            && is_solid_voxel(vxm.voxel_array[x + 1][y][z])
+                            && is_solid_voxel(&vxm.voxel_array[x + 1][y][z])
                     } else {
-                        x > 0 && is_solid_voxel(vxm.voxel_array[x - 1][y][z])
+                        x > 0 && is_solid_voxel(&vxm.voxel_array[x - 1][y][z])
                     };
 
                     if is_face_hidden {
                         continue;
                     }
 
-                    let voxel = vxm.voxel_array[x][y][z];
+                    let voxel = &vxm.voxel_array[x][y][z];
                     if !is_solid_voxel(voxel) {
                         continue;
                     }
@@ -157,13 +157,13 @@ fn generate_instance_data_x(vxm: &VxmAsset, is_right_face: bool) -> Vec<Instance
                     let check_voxel = |z: usize, y: usize| {
                         let is_face_hidden = if is_right_face {
                             x < (vxm.size[0] - 1) as usize
-                                && is_solid_voxel(vxm.voxel_array[x + 1][y][z])
+                                && is_solid_voxel(&vxm.voxel_array[x + 1][y][z])
                         } else {
-                            x > 0 && is_solid_voxel(vxm.voxel_array[x - 1][y][z])
+                            x > 0 && is_solid_voxel(&vxm.voxel_array[x - 1][y][z])
                         };
 
-                        !is_solid_voxel(vxm.voxel_array[x][y][z])
-                            || vxm.voxel_array[x][y][z] != voxel
+                        !is_solid_voxel(&vxm.voxel_array[x][y][z])
+                            || vxm.voxel_array[x][y][z].hsl != voxel.hsl
                             || visited_voxels[z][y]
                             || is_face_hidden
                     };
@@ -225,16 +225,16 @@ fn generate_instance_data_y(vxm: &VxmAsset, is_top_face: bool) -> Vec<InstanceDa
                     // Check if face is hidden (different logic for front vs back)
                     let is_face_hidden = if is_top_face {
                         y < (vxm.size[1] - 1) as usize
-                            && is_solid_voxel(vxm.voxel_array[x][y + 1][z])
+                            && is_solid_voxel(&vxm.voxel_array[x][y + 1][z])
                     } else {
-                        y > 0 && is_solid_voxel(vxm.voxel_array[x][y - 1][z])
+                        y > 0 && is_solid_voxel(&vxm.voxel_array[x][y - 1][z])
                     };
 
                     if is_face_hidden {
                         continue;
                     }
 
-                    let voxel = vxm.voxel_array[x][y][z];
+                    let voxel = &vxm.voxel_array[x][y][z];
                     if !is_solid_voxel(voxel) {
                         continue;
                     }
@@ -248,13 +248,13 @@ fn generate_instance_data_y(vxm: &VxmAsset, is_top_face: bool) -> Vec<InstanceDa
                     let check_voxel = |x: usize, z: usize| {
                         let is_face_hidden = if is_top_face {
                             y < (vxm.size[1] - 1) as usize
-                                && is_solid_voxel(vxm.voxel_array[x][y + 1][z])
+                                && is_solid_voxel(&vxm.voxel_array[x][y + 1][z])
                         } else {
-                            y > 0 && is_solid_voxel(vxm.voxel_array[x][y - 1][z])
+                            y > 0 && is_solid_voxel(&vxm.voxel_array[x][y - 1][z])
                         };
 
-                        !is_solid_voxel(vxm.voxel_array[x][y][z])
-                            || vxm.voxel_array[x][y][z] != voxel
+                        !is_solid_voxel(&vxm.voxel_array[x][y][z])
+                            || vxm.voxel_array[x][y][z].hsl != voxel.hsl
                             || visited_voxels[x][z]
                             || is_face_hidden
                     };
@@ -348,6 +348,40 @@ pub fn create_mesh_on_vxm_import_system(
                 );
 
                 info!("AABB: {:?}", aabb);
+
+                for light in &vxm.lights {
+                    let light_size = Vec3::new(
+                        light.max_pos[0] as f32,
+                        light.max_pos[1] as f32,
+                        light.max_pos[2] as f32,
+                    ) - Vec3::new(
+                        light.min_pos[0] as f32,
+                        light.min_pos[1] as f32,
+                        light.min_pos[2] as f32,
+                    );
+
+                    let light_center = Vec3::new(
+                        light.min_pos[0] as f32,
+                        light.min_pos[1] as f32,
+                        light.min_pos[2] as f32,
+                    ) + light_size / 2.0;
+
+                    info!("Light: {:?}", light_center);
+
+                    let child = commands
+                        .spawn((
+                            PointLight {
+                                color: Color::srgb(light.color[0], light.color[1], light.color[2]),
+                                intensity: light.intensity * 0.4,
+                                range: light.intensity,
+                                ..default()
+                            },
+                            Transform::from_xyz(light_center.x, light_center.y, light_center.z),
+                        ))
+                        .id();
+
+                    commands.entity(entity).add_child(child);
+                }
 
                 commands.entity(entity).remove::<PendingVxm>();
                 commands

@@ -8,17 +8,24 @@ use bevy::{
 use std::convert::TryInto;
 use thiserror::Error;
 
-#[derive(Asset, TypePath, Debug)]
+#[derive(Debug, Default, Clone)]
+pub struct VxmVoxel {
+    pub hsl: u16,
+    pub emissive: bool,
+}
+
+#[derive(Asset, TypePath)]
 pub struct VxmAsset {
     pub size: [u8; 3],
     /// first bit air/solid, r, g, b, 5 bits
-    pub voxel_array: Vec<Vec<Vec<u16>>>,
+    pub voxel_array: Vec<Vec<Vec<VxmVoxel>>>,
+    pub lights: Vec<VxmLight>,
 }
 
 #[derive(Default)]
 pub struct VxmAssetLoader;
 
-struct VxmLight {
+pub struct VxmLight {
     pub min_pos: [u32; 3],
     pub max_pos: [u32; 3],
     pub color: [f32; 3],
@@ -206,13 +213,13 @@ impl AssetLoader for VxmAssetLoader {
         let y_dim = size[1] as usize;
         let z_dim = size[2] as usize;
 
-        let mut voxel_array = vec![vec![vec![0u16; z_dim]; y_dim]; x_dim];
-
         // Create groups of lights based on neighboring emissive voxels
         let mut lights: Vec<VxmLight> = Vec::new();
 
-        let mut voxel_array = vec![vec![vec![0u16; z_dim]; y_dim]; x_dim];
+        let mut voxel_array = vec![vec![vec![VxmVoxel::default(); z_dim]; y_dim]; x_dim];
         let mut visited_light_voxels = vec![vec![vec![false; z_dim]; y_dim]; x_dim];
+
+        let mut emissive_voxels = Vec::new();
 
         voxels.iter_mut().for_each(|voxel| {
             voxel.x -= bounds_min[0];
@@ -223,25 +230,88 @@ impl AssetLoader for VxmAssetLoader {
             let g = colour.g as f32 / 255.0;
             let b = colour.b as f32 / 255.0;
 
-            voxel_array[voxel.x as usize][voxel.y as usize][voxel.z as usize] =
-                create_hsl_voxel(r, g, b);
+            voxel_array[voxel.x as usize][voxel.y as usize][voxel.z as usize] = VxmVoxel {
+                hsl: create_hsl_voxel(r, g, b),
+                emissive: colour.emissive,
+            };
+
+            if colour.emissive {
+                emissive_voxels.push(voxel.clone());
+            }
         });
 
-        voxels.iter_mut().for_each(|voxel| {
+        emissive_voxels.iter_mut().for_each(|voxel| {
             let colour = &palette[voxel.c as usize];
+            let (x, y, z) = (voxel.x as usize, voxel.y as usize, voxel.z as usize);
+            if visited_light_voxels[x][y][z] {
+                return; // Already processed this voxel
+            }
+            visited_light_voxels[x][y][z] = true;
+            let r = colour.r as f32 / 255.0;
+            let g = colour.g as f32 / 255.0;
+            let b = colour.b as f32 / 255.0;
+            let mut light = VxmLight {
+                min_pos: [voxel.x, voxel.y, voxel.z],
+                max_pos: [voxel.x, voxel.y, voxel.z],
+                color: [r, g, b],
+                intensity: 1.0,
+            };
+
+            let largest_side = *size.iter().max().unwrap_or(&1) as i32;
+
             // TODO: check if light colour matches when grouping
-            if colour.emissive {
-                // iterate over voxels
-                for x in 0..x_dim {
-                    for y in 0..y_dim {
-                        for z in 0..z_dim {
-                            if visited_light_voxels[x][y][z] {
-                                continue;
+            // Iterate in cude around the voxel, stopping when an entire surrounding cube of voxels is not emissive
+            for r in 1..largest_side {
+                let mut found_emissive = false;
+                for dx in -r..=r {
+                    for dy in -r..=r {
+                        for dz in -r..=r {
+                            let nx = voxel.x as i32 + dx;
+                            let ny = voxel.y as i32 + dy;
+                            let nz = voxel.z as i32 + dz;
+
+                            if nx < 0
+                                || ny < 0
+                                || nz < 0
+                                || nx >= x_dim as i32
+                                || ny >= y_dim as i32
+                                || nz >= z_dim as i32
+                            {
+                                continue; // Out of bounds
                             }
+
+                            if visited_light_voxels[nx as usize][ny as usize][nz as usize] {
+                                continue; // Already processed this voxel
+                            }
+
+                            let voxel_value = &voxel_array[nx as usize][ny as usize][nz as usize];
+                            if !voxel_value.emissive {
+                                continue; // Not an emissive voxel
+                            }
+
+                            info!(
+                                "Found emissive voxel at ({}, {}, {}) with color ({}, {}, {})",
+                                nx, ny, nz, colour.r, colour.g, colour.b
+                            );
+
+                            found_emissive = true;
+                            visited_light_voxels[nx as usize][ny as usize][nz as usize] = true;
+                            light.intensity += 1.0;
+                            light.min_pos[0] = light.min_pos[0].min(nx as u32);
+                            light.min_pos[1] = light.min_pos[1].min(ny as u32);
+                            light.min_pos[2] = light.min_pos[2].min(nz as u32);
+                            light.max_pos[0] = light.max_pos[0].max(nx as u32);
+                            light.max_pos[1] = light.max_pos[1].max(ny as u32);
+                            light.max_pos[2] = light.max_pos[2].max(nz as u32);
                         }
                     }
                 }
+                if !found_emissive {
+                    break; // Stop expanding if no more emissive voxels found
+                }
             }
+
+            lights.push(light);
         });
 
         info!("Found {} lights", lights.len());
@@ -268,7 +338,11 @@ impl AssetLoader for VxmAssetLoader {
             start_time.elapsed().as_millis()
         );
 
-        Ok(VxmAsset { size, voxel_array })
+        Ok(VxmAsset {
+            size,
+            voxel_array,
+            lights,
+        })
     }
 
     fn extensions(&self) -> &[&str] {
@@ -276,7 +350,7 @@ impl AssetLoader for VxmAssetLoader {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Voxel {
     pub x: u32,
     pub y: u32,

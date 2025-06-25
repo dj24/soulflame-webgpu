@@ -1278,7 +1278,7 @@ impl RenderState {
         renderpass.set_pipeline(&self.render_pipeline);
         renderpass.set_bind_group(0, &self.bind_group, &[]);
         renderpass.set_bind_group(1, &self.shadow_bind_group, &[]);
-        
+
         // Single multi_draw_indirect call for all entities
         renderpass.multi_draw_indirect(
             &self.indirect_buffer,
@@ -1449,18 +1449,6 @@ impl RenderState {
             self.queue
                 .submit([main_pass_command_buffer, depth_debug_command_buffer]);
             submit_span.exit();
-        }
-
-        // Wireframe
-        {
-            let texture_view = self.get_texture_view(&surface_texture);
-            let wireframe_command_buffer = self.enqueue_wireframe_cuboid(
-                &texture_view,
-                Cuboid::new(50.0, 50.0, 50.0),
-                Mat4::from_translation(Vec3::new(25.0, 25.0, 25.0)),
-                [1.0, 0.0, 0.0, 1.0],
-            );
-            self.queue.submit([wireframe_command_buffer]);
         }
 
         self.window.pre_present_notify();

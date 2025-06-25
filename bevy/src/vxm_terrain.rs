@@ -1,6 +1,6 @@
 use crate::camera::CameraTarget;
 use crate::color_conversion::create_hsl_voxel;
-use crate::vxm::{PendingVxm, VxmAsset};
+use crate::vxm::{PendingVxm, VxmAsset, VxmVoxel};
 use bevy::app::{App, Plugin, Update};
 use bevy::asset::Assets;
 use bevy::math::Vec3;
@@ -50,7 +50,8 @@ pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
 
     let mut colour_noise_out = vec![0.0; (x_size * z_size) as usize];
 
-    let mut voxel_array = vec![vec![vec![0u16; z_size as usize]; y_size as usize]; x_size as usize];
+    let mut voxel_array =
+        vec![vec![vec![VxmVoxel::default(); z_size as usize]; y_size as usize]; x_size as usize];
 
     for x in 0..x_size {
         for z in 0..z_size {
@@ -121,7 +122,10 @@ pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
                         ),
                     };
 
-                    voxel_array[x as usize][y as usize][z as usize] = create_hsl_voxel(r, g, b);
+                    voxel_array[x as usize][y as usize][z as usize] = VxmVoxel {
+                        hsl: create_hsl_voxel(r, g, b),
+                        emissive: false,
+                    }
                 }
             }
         }
@@ -132,6 +136,7 @@ pub fn create_vxm_from_noise(x_pos: i32, y_pos: i32, z_pos: i32) -> VxmAsset {
     VxmAsset {
         size: [x_size as u8, y_size as u8, z_size as u8],
         voxel_array,
+        lights: Vec::new(),
     }
 }
 
