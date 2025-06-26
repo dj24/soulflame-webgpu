@@ -26,6 +26,7 @@ struct VertexOutput {
     @location(0) @interpolate(perspective, centroid) color: vec4<f32>,
     @location(1) @interpolate(perspective, centroid) world_position: vec4<f32>,
     @location(2) @interpolate(perspective, centroid) normal: vec3<f32>,
+    @location(3) @interpolate(perspective, centroid) uv: vec2<f32>,
 };
 
 struct Instance {
@@ -175,6 +176,7 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
     output.color = vec4(albedo, 1.0);
     output.world_position = model_matrices[instance.model_index] * vec4<f32>(pos, 1.0);
     output.normal = normal;
+    output.uv = (projected_pos.xy / projected_pos.w) * 0.5 + 0.5;
 
     return output;
 }
@@ -323,18 +325,82 @@ fn apply_fog(
     return fog_factor * vec3(0.56, 0.8, 1.0);
 }
 
+// Uncharted 2 tone curve helper function
+fn uncharted2ToneCurve(x: vec3<f32>) -> vec3<f32> {
+    let a = 0.15; // Shoulder strength
+    let b = 0.50; // Linear strength
+    let c = 0.10; // Linear angle
+    let d = 0.20; // Toe strength
+    let e = 0.02; // Toe numerator
+    let f = 0.30; // Toe denominator
+
+    return ((x * (a * x + c * b) + d * e) / (x * (a * x + b) + d * f)) - e / f;
+}
+
+// Uncharted 2 style tone mapping for HDR
+fn uncharted2HDR(color: vec3<f32>) -> vec3<f32> {
+    // Scale input for HDR range
+    let scaledColor = color * 2.0;
+    let toneMapped = uncharted2ToneCurve(scaledColor);
+
+    // White point calculation
+    let whitePoint = vec3<f32>(MAX_INPUT);
+    let whiteScale = 1.0 / uncharted2ToneCurve(whitePoint);
+
+    return toneMapped * whiteScale * (MAX_NITS / 100.0);
+}
+
+fn reinhardHDR(color: vec3<f32>) -> vec3<f32> {
+    // Luminance calculation
+    let lum = dot(color, vec3<f32>(0.2126, 0.7152, 0.0722));
+
+    // Reinhard tone mapping on luminance
+    let toneMappedLum = lum / (1.0 + lum / (MAX_NITS / PAPER_WHITE));
+
+    // Apply tone mapping while preserving color ratios
+    let toneMapped = color * (toneMappedLum / max(lum, 0.001));
+
+    return toneMapped;
+}
+
+fn linearToPQ(linearColor: vec3<f32>) -> vec3<f32> {
+    // Normalize to 0-1 range for 10000 nits reference
+    let normalizedColor = linearColor / 10000.0;
+
+    // PQ constants
+    let m1 = 0.1593017578125;     // 2610/4096 * 1/4
+    let m2 = 78.84375;            // 2523/4096 * 128
+    let c1 = 0.8359375;           // 3424/4096
+    let c2 = 18.8515625;          // 2413/4096 * 32
+    let c3 = 18.6875;             // 2392/4096 * 32
+
+    let y = pow(max(normalizedColor, vec3<f32>(0.0)), vec3<f32>(m1));
+    return pow((c1 + c2 * y) / (1.0 + c3 * y), vec3<f32>(m2));
+}
+
+const MAX_NITS: f32 = 400.0; // Maximum nits for HDR10
+const PAPER_WHITE: f32 = 100.0; // Paper white luminance in nits
+const MAX_INPUT: f32 = 16.0;    // Expected max input luminance multiplier
+
+fn toneMapForHDR1000(hdrColor: vec3<f32>) -> vec3<f32> {
+    var toneMapped = uncharted2HDR(hdrColor);
+
+    toneMapped = min(toneMapped, vec3<f32>(MAX_NITS));
+
+    return toneMapped;
+  }
+
 
 @fragment
 fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
     let light_dir = normalize(vec3(1.0)); // Direction of the light source
     var view_dir = normalize(uniforms.camera_position.xyz - vertex.world_position.xyz);
-    let color = vertex.color;
 
     let shadow_visibility = get_shadow_visibility(vertex);
 
-    let diffuse_color = simple_lighting(vertex, light_dir, view_dir);
+    let diffuse_color = simple_lighting(vertex, light_dir, view_dir) * 16.0;
 
-    let ambient = diffuse_color * 0.02; // Ambient light color
+    let ambient = vertex.color * 0.02; // Ambient light color
 
     let shadowed = mix(
      ambient,
@@ -344,8 +410,12 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
 
    let fog_factor = apply_fog(vertex, view_dir);
 
-   var output_color = shadowed + apply_point_lights(vertex, view_dir);
+    var output_color = shadowed + apply_point_lights(vertex, view_dir);
     output_color = mix(output_color, vec4(0.5, 0.5, 0.5, 1.0), vec4(fog_factor, 1.0)); // Apply fog effect
+
+    if(vertex.uv.x > 0.5){
+      output_color = vec4(toneMapForHDR1000(output_color.rgb), output_color.a);
+    }
 
     return output_color;
 }

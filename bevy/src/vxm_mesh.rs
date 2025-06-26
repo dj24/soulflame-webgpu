@@ -372,7 +372,7 @@ pub fn create_mesh_on_vxm_import_system(
                         .spawn((
                             PointLight {
                                 color: Color::srgb(light.color[0], light.color[1], light.color[2]),
-                                intensity: light.intensity * 0.4,
+                                intensity: light.intensity,
                                 range: light.intensity,
                                 ..default()
                             },

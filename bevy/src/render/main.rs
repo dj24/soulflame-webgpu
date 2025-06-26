@@ -282,8 +282,7 @@ impl RenderState {
             ),
         });
 
-        let swapchain_capabilities = surface.get_capabilities(&adapter);
-        let swapchain_format = swapchain_capabilities.formats[0];
+        let swapchain_format = TextureFormat::Rgba16Float;
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Debug Quad Render Pipeline"),
@@ -403,8 +402,7 @@ impl RenderState {
             source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
         });
 
-        let swapchain_capabilities = surface.get_capabilities(&adapter);
-        let swapchain_format = swapchain_capabilities.formats[0];
+        let swapchain_format = TextureFormat::Rgba16Float;
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
@@ -561,7 +559,11 @@ impl RenderState {
 
         let size = window.inner_size();
         let cap = surface.get_capabilities(&adapter);
-        let surface_format = cap.formats[0];
+        let surface_format = TextureFormat::Rgba16Float;
+
+        for format in cap.formats {
+            info!("Supported format: {:?}", format);
+        }
 
         let debug_quad_bind_group_layout =
             device.create_bind_group_layout(DEBUG_DEPTH_BIND_GROUP_LAYOUT_DESCRIPTOR);
