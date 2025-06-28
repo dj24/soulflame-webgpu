@@ -15,9 +15,10 @@ use std::sync::{mpsc, Arc};
 use std::thread;
 use wgpu::util::DeviceExt;
 use wgpu::{
-    BindGroup, Buffer, Device, Queue, RenderPipeline, Surface, SurfaceTexture,
+    BindGroup, BindGroupLayout, Buffer, Device, Queue, RenderPipeline, Surface, SurfaceTexture,
     TexelCopyTextureInfo, TextureFormat, TextureView, VertexAttribute, VertexStepMode,
 };
+use winit::dpi::PhysicalSize;
 use winit::keyboard::Key;
 use winit::{
     application::ApplicationHandler,
@@ -53,29 +54,22 @@ struct RenderState {
     window: Arc<Window>,
     device: Device,
     queue: Queue,
-    size: winit::dpi::PhysicalSize<u32>,
+    size: PhysicalSize<u32>,
     surface: Arc<Surface<'static>>,
     surface_format: TextureFormat,
     render_pipeline: RenderPipeline,
     debug_quad_render_pipeline: RenderPipeline,
-    shadow_render_pipeline: RenderPipeline,
-    wireframe_pipeline: RenderPipeline,
-    mvp_buffer: Buffer,
-    instance_buffer: Buffer,
-    bind_group: BindGroup,
     debug_quad_bind_group: BindGroup,
-    shadow_bind_group: BindGroup,
-    depth_texture_view: wgpu::TextureView,
-    indirect_buffer: Buffer,
-    uniform_buffer: Buffer,
-    lights_uniform_buffer: Buffer,
-    shadow_projection_buffer: Buffer,
-    shadow_map_texture: wgpu::Texture,
     shadow_map_texture_view: TextureView,
-    shadow_pass_target_texture: wgpu::Texture,
     shadow_pass_target_view: TextureView,
-    vertex_buffer: Buffer,
-    main_pass_texture_view: wgpu::TextureView,
+    shadow_map_texture: wgpu::Texture,
+    shadow_pass_target_texture: wgpu::Texture,
+    shadow_projection_buffer: Buffer,
+    shadow_render_pipeline: RenderPipeline,
+    shadow_bind_group: BindGroup,
+    main_pass_texture_view: TextureView,
+    wireframe_pipeline: RenderPipeline,
+    main_pass: MainRenderPass,
 }
 
 // Shadow map view, sampler, and light view projection matrix
@@ -262,11 +256,512 @@ fn create_wireframe_cuboid_vertices(cuboid: &Cuboid, color: [f32; 4]) -> Vec<Wir
         .collect()
 }
 
+struct MainRenderPass {
+    render_pipeline: RenderPipeline,
+    instance_buffer: Buffer,
+    indirect_buffer: Buffer,
+    mvp_buffer: Buffer,
+    uniform_buffer: Buffer,
+    lights_uniform_buffer: Buffer,
+    vertex_buffer: Buffer,
+    bind_group: BindGroup,
+    depth_texture_view: TextureView,
+}
+
+impl MainRenderPass {
+    fn new(
+        device: &Device,
+        window_size: PhysicalSize<u32>,
+        shadow_bind_group_layout: &BindGroupLayout,
+        shadow_bind_group: &BindGroup,
+    ) -> Self {
+        let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Depth Texture"),
+            size: wgpu::Extent3d {
+                width: window_size.width,
+                height: window_size.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 4,
+            dimension: wgpu::TextureDimension::D2,
+            format: TextureFormat::Depth24Plus,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+
+        let mvp_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("MVP Buffer"),
+            size: size_of::<Mat4>() as u64, // 2 matrices for model and view projection
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("View Projection Buffer"),
+            size: size_of::<Uniforms>() as u64, // 1 matrix for view projection
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let lights_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Lights Uniform Buffer"),
+            size: (size_of::<LightsUniform>() * LIGHT_COUNT) as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        Self {
+            render_pipeline: Self::get_pipeline(device, shadow_bind_group_layout),
+            bind_group: device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Bind Group"),
+                layout: &Self::get_bind_group_layout(device),
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: mvp_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: uniform_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: lights_uniform_buffer.as_entire_binding(),
+                    },
+                ],
+            }),
+            instance_buffer: device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("instance data buffer"),
+                size: (size_of::<InstanceData>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }),
+            indirect_buffer: device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Indirect Draw Buffer"),
+                size: (size_of::<wgpu::util::DrawIndirectArgs>() * 6) as u64, // 6 faces per voxel
+                usage: wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }),
+            mvp_buffer,
+            uniform_buffer,
+            lights_uniform_buffer,
+            depth_texture_view: depth_texture.create_view(&wgpu::TextureViewDescriptor {
+                label: Some("Depth Texture View"),
+                format: Some(TextureFormat::Depth24Plus),
+                dimension: Some(wgpu::TextureViewDimension::D2),
+                aspect: wgpu::TextureAspect::All,
+                ..Default::default()
+            }),
+
+            vertex_buffer: device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Vertex Buffer"),
+                size: (size_of::<u32>() * 24) as u64, // 6 faces * 4 vertices per face
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }),
+        }
+    }
+
+    fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Bind Group Layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        })
+    }
+
+    fn get_bind_group(&mut self, device: &Device) -> BindGroup {
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Bind Group"),
+            layout: &Self::get_bind_group_layout(device),
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: self.mvp_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: self.uniform_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: self.lights_uniform_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+        bind_group
+    }
+
+    fn get_pipeline(
+        device: &Device,
+        shadow_bind_group_layout: &wgpu::BindGroupLayout,
+    ) -> RenderPipeline {
+        let bind_group_layout = Self::get_bind_group_layout(device);
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: None,
+            bind_group_layouts: &[&bind_group_layout, shadow_bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Vertex Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
+        });
+
+        let swapchain_format = TextureFormat::Rgba16Float;
+
+        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                compilation_options: Default::default(),
+                buffers: &[
+                    wgpu::VertexBufferLayout {
+                        array_stride: size_of::<InstanceData>() as u64,
+                        step_mode: VertexStepMode::Instance,
+                        attributes: &[
+                            VertexAttribute {
+                                format: wgpu::VertexFormat::Uint32,
+                                offset: 0,
+                                shader_location: 0,
+                            },
+                            VertexAttribute {
+                                format: wgpu::VertexFormat::Uint32,
+                                offset: wgpu::VertexFormat::Uint32.size(),
+                                shader_location: 1,
+                            },
+                        ],
+                    },
+                    wgpu::VertexBufferLayout {
+                        array_stride: size_of::<u32>() as u64, // vec3<f32>
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &[wgpu::VertexAttribute {
+                            format: wgpu::VertexFormat::Uint32,
+                            offset: 0,
+                            shader_location: 2, // position in shader
+                        }],
+                    },
+                ],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                compilation_options: Default::default(),
+                targets: &[Some(swapchain_format.into())],
+            }),
+            primitive: wgpu::PrimitiveState {
+                cull_mode: None,
+                topology: wgpu::PrimitiveTopology::TriangleStrip,
+                front_face: wgpu::FrontFace::Ccw,
+                ..default()
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: TextureFormat::Depth24Plus,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Greater,
+                stencil: wgpu::StencilState::default(), // 2.
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState {
+                count: 4,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+            cache: None,
+        });
+        render_pipeline
+    }
+
+    fn prepare_buffers(&mut self, device: &Device, queue: &Queue, voxel_planes: VoxelPlanesData) {
+        let voxel_object_count = voxel_planes.len() / 6;
+        let new_buffer_size = (voxel_object_count * size_of::<Mat4>()) as u64;
+        let mut total_instances = 0;
+
+        let mut all_vertex_data: Vec<u32> = Vec::with_capacity(24 * voxel_object_count);
+        let mut all_mvp_data: Vec<Mat4> = Vec::with_capacity(voxel_object_count);
+        let mut all_indirect_data: Vec<wgpu::util::DrawIndirectArgs> =
+            Vec::with_capacity(total_instances as usize);
+        let mut all_instance_data: Vec<InstanceData> = Vec::new();
+
+        // Pre-allocate memory based on input size
+        let face_count = voxel_planes.len();
+        let voxel_count = (face_count + 5) / 6; // Ceiling division by 6
+
+        // Pre-allocate all vectors with appropriate capacity
+        all_mvp_data.reserve(voxel_count);
+        all_vertex_data.reserve(voxel_count * 24);
+        all_indirect_data.reserve(face_count);
+
+        // Estimate total instance count to avoid reallocations
+        let est_total_instances = voxel_planes
+            .iter()
+            .map(|(_, data, _, _)| data.len())
+            .sum::<usize>();
+        all_instance_data.reserve(est_total_instances);
+
+        // Populate MVP matrices and vertex data for each voxel entity, and count total instances
+        let mut first_vertex = 0;
+
+        let populate_buffers_span = info_span!("Populate buffers").entered();
+
+        {
+            for (index, (face, instance_data, transform, _)) in voxel_planes.into_iter().enumerate()
+            {
+                // Each voxel entity has 6 faces, so we store one transform for each 6
+                if (index % 6) == 0 {
+                    let mvp_index = index / 6;
+                    all_mvp_data.push(transform.compute_matrix());
+                    for _ in 0..24 {
+                        all_vertex_data.push(mvp_index as u32);
+                    }
+                    first_vertex = mvp_index as u32 * 24;
+                }
+
+                let face_index = face as u32;
+                let instance_count = instance_data.len() as u32;
+                all_indirect_data.push(wgpu::util::DrawIndirectArgs {
+                    vertex_count: 4, // Each face has 4 vertices
+                    instance_count,
+                    first_vertex: first_vertex + face_index * 4,
+                    first_instance: total_instances,
+                });
+                all_instance_data.extend_from_slice(&instance_data);
+                total_instances += instance_count;
+            }
+        }
+
+        populate_buffers_span.exit();
+
+        let gpu_upload_span = info_span!("GPU Upload").entered();
+
+        // Write all indirect data to the GPU buffer
+        {
+            let indirect_buffer_size =
+                (size_of::<wgpu::util::DrawIndirectArgs>() * 6 * voxel_object_count) as u64;
+            // If indirect buffer is too small, resize it
+            if self.indirect_buffer.size() != indirect_buffer_size {
+                self.indirect_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("Indirect Draw Buffer"),
+                    size: indirect_buffer_size,
+                    usage: wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+            }
+            queue.write_buffer(
+                &self.indirect_buffer,
+                0,
+                bytemuck::cast_slice(&all_indirect_data),
+            );
+        }
+
+        // Write all vertex data to the GPU buffer
+        {
+            // Vertex buffer used to store model indices
+            self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Vertex Buffer"),
+                size: (size_of::<u32>() * 24 * voxel_object_count).max(size_of::<u32>() * 24)
+                    as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            queue.write_buffer(
+                &self.vertex_buffer,
+                0,
+                bytemuck::cast_slice(&all_vertex_data),
+            );
+        }
+
+        // Write all MVP matrices to the GPU buffer
+        {
+            // If storage buffer is too small, resize it
+            if self.mvp_buffer.size() < new_buffer_size {
+                info!(
+                    "Resizing MVP buffer from {} to {}",
+                    self.mvp_buffer.size(),
+                    new_buffer_size
+                );
+                self.mvp_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("MVP Buffer"),
+                    size: new_buffer_size,
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+            }
+            queue.write_buffer(&self.mvp_buffer, 0, bytemuck::cast_slice(&all_mvp_data));
+            self.bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Bind Group"),
+                layout: &device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("Bind Group Layout"),
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::VERTEX,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                    ],
+                }),
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: self.mvp_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: self.uniform_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: self.lights_uniform_buffer.as_entire_binding(),
+                    },
+                ],
+            });
+        }
+
+        // Collect all instance data from the children of each voxel entity
+        {
+            let total_instance_buffer_size =
+                (all_instance_data.len() * size_of::<InstanceData>()) as u64;
+
+            // Only update the instance buffer if its size has changed
+            if self.instance_buffer.size() != total_instance_buffer_size {
+                self.instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("instance data buffer"),
+                    size: total_instance_buffer_size.max(size_of::<InstanceData>() as u64),
+                    usage: wgpu::BufferUsages::VERTEX
+                        | wgpu::BufferUsages::COPY_DST
+                        | wgpu::BufferUsages::COPY_SRC,
+                    mapped_at_creation: false,
+                });
+
+                // Write all instance data to the GPU buffer
+                queue.write_buffer(
+                    &self.instance_buffer,
+                    0,
+                    bytemuck::cast_slice(&all_instance_data),
+                );
+            }
+        }
+
+        gpu_upload_span.exit();
+    }
+
+    fn enqueue(
+        &mut self,
+        device: &Device,
+        texture_view: &TextureView,
+        msaa_resolve_texture_view: &TextureView,
+        shadow_bind_group: &BindGroup,
+        draw_count: u32,
+    ) -> wgpu::CommandBuffer {
+        let mut encoder = device.create_command_encoder(&Default::default());
+        let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: None,
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: msaa_resolve_texture_view,
+                resolve_target: Some(texture_view),
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.56,
+                        g: 0.8,
+                        b: 1.0,
+                        a: 1.0,
+                    }),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.depth_texture_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(0.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        renderpass.set_vertex_buffer(1, self.vertex_buffer.slice(..));
+        renderpass.set_vertex_buffer(0, self.instance_buffer.slice(..));
+        renderpass.set_pipeline(&self.render_pipeline);
+        renderpass.set_bind_group(0, &self.bind_group, &[]);
+        renderpass.set_bind_group(1, shadow_bind_group, &[]);
+
+        // Single multi_draw_indirect call for all entities
+        renderpass.multi_draw_indirect(
+            &self.indirect_buffer,
+            0, // Start at beginning of buffer
+            draw_count,
+        );
+        drop(renderpass);
+        encoder.finish()
+    }
+}
+
 impl RenderState {
     fn get_debug_quad_render_pipeline(
         device: &Device,
-        surface: &Surface,
-        adapter: &wgpu::Adapter,
         bind_group_layout: &wgpu::BindGroupLayout,
     ) -> RenderPipeline {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -353,9 +848,9 @@ impl RenderState {
                         ],
                     },
                     wgpu::VertexBufferLayout {
-                        array_stride: std::mem::size_of::<u32>() as u64, // vec3<f32>
+                        array_stride: size_of::<u32>() as u64, // vec3<f32>
                         step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &[wgpu::VertexAttribute {
+                        attributes: &[VertexAttribute {
                             format: wgpu::VertexFormat::Uint32,
                             offset: 0,
                             shader_location: 2, // position in shader
@@ -384,95 +879,8 @@ impl RenderState {
         render_pipeline
     }
 
-    fn get_render_pipeline(
-        device: &Device,
-        surface: &Surface,
-        adapter: &wgpu::Adapter,
-        bind_group_layout: &wgpu::BindGroupLayout,
-        shadow_bind_group_layout: &wgpu::BindGroupLayout,
-    ) -> RenderPipeline {
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: None,
-            bind_group_layouts: &[&bind_group_layout, shadow_bind_group_layout],
-            push_constant_ranges: &[],
-        });
-
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Vertex Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
-        });
-
-        let swapchain_format = TextureFormat::Rgba16Float;
-
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                compilation_options: Default::default(),
-                buffers: &[
-                    wgpu::VertexBufferLayout {
-                        array_stride: size_of::<InstanceData>() as u64,
-                        step_mode: VertexStepMode::Instance,
-                        attributes: &[
-                            VertexAttribute {
-                                format: wgpu::VertexFormat::Uint32,
-                                offset: 0,
-                                shader_location: 0,
-                            },
-                            VertexAttribute {
-                                format: wgpu::VertexFormat::Uint32,
-                                offset: wgpu::VertexFormat::Uint32.size(),
-                                shader_location: 1,
-                            },
-                        ],
-                    },
-                    wgpu::VertexBufferLayout {
-                        array_stride: std::mem::size_of::<u32>() as u64, // vec3<f32>
-                        step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &[wgpu::VertexAttribute {
-                            format: wgpu::VertexFormat::Uint32,
-                            offset: 0,
-                            shader_location: 2, // position in shader
-                        }],
-                    },
-                ],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                compilation_options: Default::default(),
-                targets: &[Some(swapchain_format.into())],
-            }),
-            primitive: wgpu::PrimitiveState {
-                cull_mode: None,
-                topology: wgpu::PrimitiveTopology::TriangleStrip,
-                front_face: wgpu::FrontFace::Ccw,
-                ..default()
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: TextureFormat::Depth24Plus,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Greater,
-                stencil: wgpu::StencilState::default(), // 2.
-                bias: wgpu::DepthBiasState::default(),
-            }),
-            multisample: wgpu::MultisampleState {
-                count: 4,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-            cache: None,
-        });
-        render_pipeline
-    }
-
     fn get_wireframe_pipeline(
         device: &Device,
-        surface: &Surface,
-        adapter: &wgpu::Adapter,
         bind_group_layout: &wgpu::BindGroupLayout,
     ) -> RenderPipeline {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -486,8 +894,7 @@ impl RenderState {
             source: wgpu::ShaderSource::Wgsl(include_str!("shaders/wireframe.wgsl").into()),
         });
 
-        let swapchain_capabilities = surface.get_capabilities(&adapter);
-        let swapchain_format = swapchain_capabilities.formats[0];
+        let swapchain_format = TextureFormat::Rgba16Float;
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Wireframe Render Pipeline"),
@@ -558,133 +965,18 @@ impl RenderState {
         .unwrap();
 
         let size = window.inner_size();
-        let cap = surface.get_capabilities(&adapter);
         let surface_format = TextureFormat::Rgba16Float;
-
-        for format in cap.formats {
-            info!("Supported format: {:?}", format);
-        }
 
         let debug_quad_bind_group_layout =
             device.create_bind_group_layout(DEBUG_DEPTH_BIND_GROUP_LAYOUT_DESCRIPTOR);
 
-        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("instance data buffer"),
-            size: (size_of::<InstanceData>()) as u64,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        let indirect_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Indirect Draw Buffer"),
-            size: (size_of::<wgpu::util::DrawIndirectArgs>() * 6) as u64, // 6 faces per voxel
-            usage: wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        let mvp_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("MVP Buffer"),
-            size: size_of::<Mat4>() as u64, // 2 matrices for model and view projection
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("Bind Group Layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            ],
-        });
-
-        let matrix_init_descriptor = wgpu::BufferDescriptor {
-            label: Some("Matrix Initialization Buffer"),
-            size: size_of::<Uniforms>() as u64, // 1 matrix for view projection
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        };
-
-        let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("View Projection Buffer"),
-            ..matrix_init_descriptor
-        });
-
-        let lights_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Lights Uniform Buffer"),
-            size: (size_of::<LightsUniform>() * LIGHT_COUNT) as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
         let shadow_projection_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Shadow Projection Buffer"),
             size: (size_of::<Mat4>() * 4) as u64,
-            ..matrix_init_descriptor
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
         });
 
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Bind Group"),
-            layout: &bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: mvp_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: uniform_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: lights_uniform_buffer.as_entire_binding(),
-                },
-            ],
-        });
-
-        let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("Depth Texture"),
-            size: wgpu::Extent3d {
-                width: size.width,
-                height: size.height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 4,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth24Plus,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-
-        // Texture holding 4 cascades
         let shadow_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Shadow Map Texture"),
             size: wgpu::Extent3d {
@@ -695,7 +987,7 @@ impl RenderState {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth24Plus,
+            format: TextureFormat::Depth24Plus,
             usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
@@ -769,14 +1061,6 @@ impl RenderState {
             ],
         });
 
-        let depth_texture_view = depth_texture.create_view(&wgpu::TextureViewDescriptor {
-            label: Some("Depth Texture View"),
-            format: Some(wgpu::TextureFormat::Depth24Plus),
-            dimension: Some(wgpu::TextureViewDimension::D2),
-            aspect: wgpu::TextureAspect::All,
-            ..Default::default()
-        });
-
         let debug_quad_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Debug Quad Bind Group"),
             layout: &debug_quad_bind_group_layout,
@@ -786,32 +1070,17 @@ impl RenderState {
             }],
         });
 
-        let render_pipeline = Self::get_render_pipeline(
-            &device,
-            &surface,
-            &adapter,
-            &bind_group_layout,
-            &shadow_bind_group_layout,
-        );
+        let main_pass =
+            MainRenderPass::new(&device, size, &shadow_bind_group_layout, &shadow_bind_group);
+        let bind_group_layout = MainRenderPass::get_bind_group_layout(&device);
+        let render_pipeline = MainRenderPass::get_pipeline(&device, &shadow_bind_group_layout);
 
         let shadow_render_pipeline = Self::get_shadow_render_pipeline(&device, &bind_group_layout);
 
-        let debug_quad_render_pipeline = Self::get_debug_quad_render_pipeline(
-            &device,
-            &surface,
-            &adapter,
-            &debug_quad_bind_group_layout,
-        );
+        let debug_quad_render_pipeline =
+            Self::get_debug_quad_render_pipeline(&device, &debug_quad_bind_group_layout);
 
-        let wireframe_pipeline =
-            Self::get_wireframe_pipeline(&device, &surface, &adapter, &bind_group_layout);
-
-        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Vertex Buffer"),
-            size: (size_of::<u32>() * 24) as u64, // 6 faces * 4 vertices per face
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
+        let wireframe_pipeline = Self::get_wireframe_pipeline(&device, &bind_group_layout);
 
         let main_pass_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Main Pass Texture"),
@@ -846,23 +1115,16 @@ impl RenderState {
             render_pipeline,
             debug_quad_render_pipeline,
             debug_quad_bind_group,
-            bind_group,
-            instance_buffer,
-            mvp_buffer,
-            depth_texture_view,
-            indirect_buffer,
             shadow_map_texture_view,
             shadow_pass_target_view,
             shadow_map_texture: shadow_texture,
             shadow_pass_target_texture,
-            vertex_buffer,
-            uniform_buffer,
-            lights_uniform_buffer,
             shadow_projection_buffer,
             shadow_render_pipeline,
             shadow_bind_group,
             main_pass_texture_view,
             wireframe_pipeline,
+            main_pass,
         };
 
         // Configure surface for the first time
@@ -889,34 +1151,8 @@ impl RenderState {
         self.surface.configure(&self.device, &surface_config);
     }
 
-    fn configure_depth_texture(&mut self) {
-        let depth_texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("Depth Texture"),
-            size: wgpu::Extent3d {
-                width: self.size.width,
-                height: self.size.height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth24Plus,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-
-        self.depth_texture_view = depth_texture.create_view(&wgpu::TextureViewDescriptor {
-            label: Some("Depth Texture View"),
-            format: Some(wgpu::TextureFormat::Depth24Plus),
-            dimension: Some(wgpu::TextureViewDimension::D2),
-            aspect: wgpu::TextureAspect::All,
-            ..Default::default()
-        });
-    }
-
-    fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
+    fn resize(&mut self, new_size: PhysicalSize<u32>) {
         self.size = new_size;
-        self.configure_depth_texture();
         self.configure_surface();
     }
 
@@ -930,7 +1166,7 @@ impl RenderState {
         surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor {
-                format: Some(self.surface_format.add_srgb_suffix()),
+                format: Some(self.surface_format),
                 ..Default::default()
             })
     }
@@ -961,12 +1197,14 @@ impl RenderState {
         depth_debug_encoder.finish()
     }
 
+    // TODO: move to a separate utility module
     fn enqueue_wireframe_cuboid(
         &self,
         texture_view: &TextureView,
         cuboid: Cuboid,
         transform: Mat4,
         color: [f32; 4],
+        bind_group: &BindGroup,
     ) -> wgpu::CommandBuffer {
         // Create wireframe vertices for the cuboid with given transform
         let mut vertices = create_wireframe_cuboid_vertices(&cuboid, color);
@@ -988,390 +1226,51 @@ impl RenderState {
             ];
         }
 
-        // Create vertex buffer
-        let vertex_buffer = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Wireframe Vertex Buffer"),
-                contents: bytemuck::cast_slice(&vertices),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
-
-        // Create command encoder
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Wireframe Render Encoder"),
-            });
-
-        // Begin render pass
+        // Wireframe render pass
         {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Wireframe Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &self.main_pass_texture_view,
-                    resolve_target: Some(&texture_view),
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load, // Load the existing content
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_texture_view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Load, // Load the existing depth content
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
+            // Create command encoder
+            let mut encoder = self
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Wireframe Render Encoder"),
+                });
 
-            // Set pipeline and vertex buffer
-            render_pass.set_pipeline(&self.wireframe_pipeline);
-            render_pass.set_bind_group(0, &self.bind_group, &[]);
-            render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-
-            // Draw the wireframe (12 lines with 2 vertices each = 24 vertices total)
-            render_pass.draw(0..24, 0..1);
-        }
-
-        encoder.finish()
-    }
-
-    fn prepare_buffers(&mut self, voxel_planes: VoxelPlanesData) {
-        let voxel_object_count = voxel_planes.len() / 6;
-        let new_buffer_size = (voxel_object_count * size_of::<Mat4>()) as u64;
-        let mut total_instances = 0;
-
-        let mut all_vertex_data: Vec<u32> = Vec::with_capacity(24 * voxel_object_count);
-        let mut all_mvp_data: Vec<Mat4> = Vec::with_capacity(voxel_object_count);
-        let mut all_indirect_data: Vec<wgpu::util::DrawIndirectArgs> =
-            Vec::with_capacity(total_instances as usize);
-        let mut all_instance_data: Vec<InstanceData> = Vec::new();
-
-        // Pre-allocate memory based on input size
-        let face_count = voxel_planes.len();
-        let voxel_count = (face_count + 5) / 6; // Ceiling division by 6
-
-        // Pre-allocate all vectors with appropriate capacity
-        all_mvp_data.reserve(voxel_count);
-        all_vertex_data.reserve(voxel_count * 24);
-        all_indirect_data.reserve(face_count);
-
-        // Estimate total instance count to avoid reallocations
-        let est_total_instances = voxel_planes
-            .iter()
-            .map(|(_, data, _, _)| data.len())
-            .sum::<usize>();
-        all_instance_data.reserve(est_total_instances);
-
-        // Populate MVP matrices and vertex data for each voxel entity, and count total instances
-        let mut first_vertex = 0;
-
-        let populate_buffers_span = info_span!("Populate buffers").entered();
-
-        {
-            for (index, (face, instance_data, transform, _)) in voxel_planes.into_iter().enumerate()
             {
-                // Each voxel entity has 6 faces, so we store one transform for each 6
-                if (index % 6) == 0 {
-                    let mvp_index = index / 6;
-                    all_mvp_data.push(transform.compute_matrix());
-                    for _ in 0..24 {
-                        all_vertex_data.push(mvp_index as u32);
-                    }
-                    first_vertex = mvp_index as u32 * 24;
-                }
+                // Create vertex buffer
+                let vertex_buffer =
+                    self.device
+                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: Some("Wireframe Vertex Buffer"),
+                            contents: bytemuck::cast_slice(&vertices),
+                            usage: wgpu::BufferUsages::VERTEX,
+                        });
 
-                let face_index = face as u32;
-                let instance_count = instance_data.len() as u32;
-                all_indirect_data.push(wgpu::util::DrawIndirectArgs {
-                    vertex_count: 4, // Each face has 4 vertices
-                    instance_count,
-                    first_vertex: first_vertex + face_index * 4,
-                    first_instance: total_instances,
-                });
-                all_instance_data.extend_from_slice(&instance_data);
-                total_instances += instance_count;
-            }
-        }
-
-        populate_buffers_span.exit();
-
-        let gpu_upload_span = info_span!("GPU Upload").entered();
-
-        // Write all indirect data to the GPU buffer
-        {
-            let indirect_buffer_size =
-                (size_of::<wgpu::util::DrawIndirectArgs>() * 6 * voxel_object_count) as u64;
-            // If indirect buffer is too small, resize it
-            if self.indirect_buffer.size() != indirect_buffer_size {
-                self.indirect_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("Indirect Draw Buffer"),
-                    size: indirect_buffer_size,
-                    usage: wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::COPY_DST,
-                    mapped_at_creation: false,
-                });
-            }
-            self.queue.write_buffer(
-                &self.indirect_buffer,
-                0,
-                bytemuck::cast_slice(&all_indirect_data),
-            );
-        }
-
-        // Write all vertex data to the GPU buffer
-        {
-            // Vertex buffer used to store model indices
-            self.vertex_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("Vertex Buffer"),
-                size: (size_of::<u32>() * 24 * voxel_object_count).max(size_of::<u32>() * 24)
-                    as u64,
-                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-            self.queue.write_buffer(
-                &self.vertex_buffer,
-                0,
-                bytemuck::cast_slice(&all_vertex_data),
-            );
-        }
-
-        // Write all MVP matrices to the GPU buffer
-        {
-            // If storage buffer is too small, resize it
-            if self.mvp_buffer.size() < new_buffer_size {
-                info!(
-                    "Resizing MVP buffer from {} to {}",
-                    self.mvp_buffer.size(),
-                    new_buffer_size
-                );
-                self.mvp_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("MVP Buffer"),
-                    size: new_buffer_size,
-                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                    mapped_at_creation: false,
-                });
-            }
-            self.queue
-                .write_buffer(&self.mvp_buffer, 0, bytemuck::cast_slice(&all_mvp_data));
-            self.bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Bind Group"),
-                layout: &self
-                    .device
-                    .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                        label: Some("Bind Group Layout"),
-                        entries: &[
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 0,
-                                visibility: wgpu::ShaderStages::VERTEX,
-                                ty: wgpu::BindingType::Buffer {
-                                    ty: wgpu::BufferBindingType::Storage { read_only: true },
-                                    has_dynamic_offset: false,
-                                    min_binding_size: None,
-                                },
-                                count: None,
-                            },
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 1,
-                                visibility: wgpu::ShaderStages::VERTEX
-                                    | wgpu::ShaderStages::FRAGMENT,
-                                ty: wgpu::BindingType::Buffer {
-                                    ty: wgpu::BufferBindingType::Uniform,
-                                    has_dynamic_offset: false,
-                                    min_binding_size: None,
-                                },
-                                count: None,
-                            },
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 2,
-                                visibility: wgpu::ShaderStages::FRAGMENT,
-                                ty: wgpu::BindingType::Buffer {
-                                    ty: wgpu::BufferBindingType::Uniform,
-                                    has_dynamic_offset: false,
-                                    min_binding_size: None,
-                                },
-                                count: None,
-                            },
-                        ],
-                    }),
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: self.mvp_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: self.uniform_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: self.lights_uniform_buffer.as_entire_binding(),
-                    },
-                ],
-            });
-        }
-
-        // Collect all instance data from the children of each voxel entity
-        {
-            let total_instance_buffer_size =
-                (all_instance_data.len() * size_of::<InstanceData>()) as u64;
-
-            // Only update the instance buffer if its size has changed
-            if self.instance_buffer.size() != total_instance_buffer_size {
-                self.instance_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("instance data buffer"),
-                    size: total_instance_buffer_size.max(size_of::<InstanceData>() as u64),
-                    usage: wgpu::BufferUsages::VERTEX
-                        | wgpu::BufferUsages::COPY_DST
-                        | wgpu::BufferUsages::COPY_SRC,
-                    mapped_at_creation: false,
+                let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Wireframe Render Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &self.main_pass_texture_view,
+                        resolve_target: Some(&texture_view),
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Load, // Load the existing content
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
                 });
 
-                // Write all instance data to the GPU buffer
-                self.queue.write_buffer(
-                    &self.instance_buffer,
-                    0,
-                    bytemuck::cast_slice(&all_instance_data),
-                );
+                // Set pipeline and vertex buffer
+                render_pass.set_pipeline(&self.wireframe_pipeline);
+                render_pass.set_bind_group(0, bind_group, &[]);
+                render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+
+                // Draw the wireframe (12 lines with 2 vertices each = 24 vertices total)
+                render_pass.draw(0..24, 0..1);
             }
+
+            encoder.finish()
         }
-
-        gpu_upload_span.exit();
-    }
-
-    fn enqueue_main_pass(
-        &mut self,
-        texture_view: TextureView,
-        draw_count: u32,
-    ) -> wgpu::CommandBuffer {
-        let mut encoder = self.device.create_command_encoder(&Default::default());
-        let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: None,
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &self.main_pass_texture_view,
-                resolve_target: Some(&texture_view),
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.56,
-                        g: 0.8,
-                        b: 1.0,
-                        a: 1.0,
-                    }),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.depth_texture_view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(0.0),
-                    store: wgpu::StoreOp::Store,
-                }),
-                stencil_ops: None,
-            }),
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
-
-        renderpass.set_vertex_buffer(1, self.vertex_buffer.slice(..));
-        renderpass.set_vertex_buffer(0, self.instance_buffer.slice(..));
-        renderpass.set_pipeline(&self.render_pipeline);
-        renderpass.set_bind_group(0, &self.bind_group, &[]);
-        renderpass.set_bind_group(1, &self.shadow_bind_group, &[]);
-
-        // Single multi_draw_indirect call for all entities
-        renderpass.multi_draw_indirect(
-            &self.indirect_buffer,
-            0, // Start at beginning of buffer
-            draw_count,
-        );
-        drop(renderpass);
-        encoder.finish()
-    }
-
-    fn enqueue_shadow_pass(&mut self, total_draws: u32) -> wgpu::CommandBuffer {
-        let mut encoder = self.device.create_command_encoder(&Default::default());
-        let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: None,
-            color_attachments: &[],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.shadow_pass_target_view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(0.0),
-                    store: wgpu::StoreOp::Store,
-                }),
-                stencil_ops: None,
-            }),
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
-
-        renderpass.set_pipeline(&self.shadow_render_pipeline);
-        renderpass.set_vertex_buffer(1, self.vertex_buffer.slice(..));
-        renderpass.set_vertex_buffer(0, self.instance_buffer.slice(..));
-        renderpass.set_bind_group(0, &self.bind_group, &[]);
-
-        let draw_span = info_span!("Draw Commands").entered();
-
-        // Single multi_draw_indirect call for all entities
-        renderpass.multi_draw_indirect(
-            &self.indirect_buffer,
-            0, // Start at beginning of buffer
-            total_draws as u32,
-        );
-
-        drop(renderpass);
-        draw_span.exit();
-        encoder.finish()
-    }
-
-    fn copy_cascade(&mut self, cascade_index: usize) -> wgpu::CommandBuffer {
-        if cascade_index < 0 || cascade_index >= 4 {
-            panic!("Invalid cascade index: {}", cascade_index);
-        }
-        let mut copy_encoder = self.device.create_command_encoder(&Default::default());
-
-        let origin = match cascade_index {
-            0 => wgpu::Origin3d::ZERO,
-            1 => wgpu::Origin3d {
-                x: SHADOW_MAP_SIZE / 2,
-                y: 0,
-                z: 0,
-            },
-            2 => wgpu::Origin3d {
-                x: 0,
-                y: SHADOW_MAP_SIZE / 2,
-                z: 0,
-            },
-            3 => wgpu::Origin3d {
-                x: SHADOW_MAP_SIZE / 2,
-                y: SHADOW_MAP_SIZE / 2,
-                z: 0,
-            },
-            _ => unreachable!(),
-        };
-
-        let copy_source = TexelCopyTextureInfo {
-            texture: &self.shadow_pass_target_texture,
-            mip_level: 0,
-            origin: wgpu::Origin3d::ZERO,
-            aspect: wgpu::TextureAspect::All,
-        };
-        let copy_destination = TexelCopyTextureInfo {
-            texture: &self.shadow_map_texture,
-            mip_level: 0,
-            origin,
-            aspect: wgpu::TextureAspect::All,
-        };
-        let copy_size = wgpu::Extent3d {
-            width: SHADOW_MAP_SIZE / 2,
-            height: SHADOW_MAP_SIZE / 2,
-            depth_or_array_layers: 1,
-        };
-        copy_encoder.copy_texture_to_texture(copy_source, copy_destination, copy_size);
-        copy_encoder.finish()
     }
 
     fn render(
@@ -1388,17 +1287,24 @@ impl RenderState {
         let draw_count = voxel_planes.len() as u32;
 
         // Prepare buffers for the main pass
-        self.prepare_buffers(voxel_planes);
-
-        let cascades = get_shadow_cascades(shadow_view);
-
-        let cascade_view_projections = &cascades
-            .iter()
-            .map(|(p, _)| get_view_projection_matrix(p, &shadow_view.inverse()))
-            .collect::<Vec<_>>();
+        self.main_pass
+            .prepare_buffers(&self.device, &self.queue, voxel_planes);
+        
+        let uniform_buffer = &self.main_pass.uniform_buffer;
+        let vertex_buffer = &self.main_pass.vertex_buffer;
+        let instance_buffer = &self.main_pass.instance_buffer;
+        let bind_group = &self.main_pass.bind_group;
+        let indirect_buffer = &self.main_pass.indirect_buffer;
+        let lights_uniform_buffer = &self.main_pass.lights_uniform_buffer;
 
         // Shadow
         {
+            let cascades = get_shadow_cascades(shadow_view);
+            let cascade_view_projections = &cascades
+                .iter()
+                .map(|(p, _)| get_view_projection_matrix(p, &shadow_view.inverse()))
+                .collect::<Vec<_>>();
+
             for i in 0..4 {
                 let uniforms = Uniforms {
                     view_proj: cascade_view_projections[i],
@@ -1410,11 +1316,90 @@ impl RenderState {
                     ),
                 };
                 self.queue
-                    .write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
-                let shadow_pass_command_buffer = self.enqueue_shadow_pass(draw_count);
-                let copy_shadow_command_buffer = self.copy_cascade(i);
+                    .write_buffer(uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
+                let mut encoder = self.device.create_command_encoder(&Default::default());
+
+                // Render pass
+                {
+                    let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: None,
+                        color_attachments: &[],
+                        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                            view: &self.shadow_pass_target_view,
+                            depth_ops: Some(wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(0.0),
+                                store: wgpu::StoreOp::Store,
+                            }),
+                            stencil_ops: None,
+                        }),
+                        timestamp_writes: None,
+                        occlusion_query_set: None,
+                    });
+
+                    renderpass.set_pipeline(&self.shadow_render_pipeline);
+                    renderpass.set_vertex_buffer(1, vertex_buffer.slice(..));
+                    renderpass.set_vertex_buffer(0, instance_buffer.slice(..));
+                    renderpass.set_bind_group(0, bind_group, &[]);
+
+                    // Single multi_draw_indirect call for all entities
+                    renderpass.multi_draw_indirect(
+                        indirect_buffer,
+                        0, // Start at beginning of buffer
+                        draw_count as u32,
+                    );
+                }
+
+                let shadow_pass_command_buffer = encoder.finish();
+                let mut copy_encoder = self.device.create_command_encoder(&Default::default());
+
+                let origin = match i {
+                    0 => wgpu::Origin3d::ZERO,
+                    1 => wgpu::Origin3d {
+                        x: SHADOW_MAP_SIZE / 2,
+                        y: 0,
+                        z: 0,
+                    },
+                    2 => wgpu::Origin3d {
+                        x: 0,
+                        y: SHADOW_MAP_SIZE / 2,
+                        z: 0,
+                    },
+                    3 => wgpu::Origin3d {
+                        x: SHADOW_MAP_SIZE / 2,
+                        y: SHADOW_MAP_SIZE / 2,
+                        z: 0,
+                    },
+                    _ => unreachable!(),
+                };
+
+                let copy_source = TexelCopyTextureInfo {
+                    texture: &self.shadow_pass_target_texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                };
+                let copy_destination = TexelCopyTextureInfo {
+                    texture: &self.shadow_map_texture,
+                    mip_level: 0,
+                    origin,
+                    aspect: wgpu::TextureAspect::All,
+                };
+                let copy_size = wgpu::Extent3d {
+                    width: SHADOW_MAP_SIZE / 2,
+                    height: SHADOW_MAP_SIZE / 2,
+                    depth_or_array_layers: 1,
+                };
+                copy_encoder.copy_texture_to_texture(copy_source, copy_destination, copy_size);
+                let copy_shadow_command_buffer = copy_encoder.finish();
+
                 self.queue
                     .submit([shadow_pass_command_buffer, copy_shadow_command_buffer]);
+
+                self.queue.write_buffer(
+                    &self.shadow_projection_buffer,
+                    0,
+                    bytemuck::cast_slice(&cascade_view_projections),
+                );
             }
         }
 
@@ -1429,28 +1414,26 @@ impl RenderState {
                     1.0,
                 ),
             };
-            self.queue.write_buffer(
-                &self.shadow_projection_buffer,
-                0,
-                bytemuck::cast_slice(&cascade_view_projections),
-            );
             self.queue
-                .write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
+                .write_buffer(uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
             self.queue.write_buffer(
-                &self.lights_uniform_buffer,
+                lights_uniform_buffer,
                 0,
                 bytemuck::cast_slice(&get_lights_uniform(lights_data).0),
             );
-            let main_pass_command_buffer = self.enqueue_main_pass(texture_view, draw_count);
+            let main_pass_command_buffer = self.main_pass.enqueue(
+                &self.device,
+                &texture_view,
+                &self.main_pass_texture_view,
+                &self.shadow_bind_group,
+                draw_count,
+            );
 
             let texture_view = self.get_texture_view(&surface_texture);
             let depth_debug_command_buffer = self.enqueue_depth_debug_pass(texture_view);
-
-            let submit_span = info_span!("Submit Commands").entered();
-
+            
             self.queue
                 .submit([main_pass_command_buffer, depth_debug_command_buffer]);
-            submit_span.exit();
         }
 
         self.window.pre_present_notify();
