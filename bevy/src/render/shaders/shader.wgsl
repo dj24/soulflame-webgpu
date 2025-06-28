@@ -390,6 +390,11 @@ fn toneMapForHDR1000(hdrColor: vec3<f32>) -> vec3<f32> {
     return toneMapped;
   }
 
+fn toneMapSDR(color: vec3<f32>) -> vec3<f32> {
+  // Simple Reinhard tone mapping
+  return color / (vec3(1.0) + color);
+}
+
 
 @fragment
 fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
@@ -414,7 +419,7 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
     output_color = mix(output_color, vec4(0.5, 0.5, 0.5, 1.0), vec4(fog_factor, 1.0)); // Apply fog effect
 
     if(vertex.uv.x > 0.5){
-      output_color = vec4(toneMapForHDR1000(output_color.rgb), output_color.a);
+      output_color = vec4(toneMapSDR(output_color.rgb), output_color.a);
     }
 
     return output_color;
