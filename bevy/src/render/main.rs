@@ -235,6 +235,7 @@ struct DrawBuffers<'a> {
     mvp_buffer: &'a Buffer,
     uniform_buffer: &'a Buffer,
     vertex_buffer: &'a Buffer,
+    lights_uniform_buffer: &'a Buffer,
 }
 
 struct MainRenderPass {
@@ -690,11 +691,36 @@ impl MainRenderPass {
     fn enqueue(
         &mut self,
         device: &Device,
+        queue: &Queue,
         texture_view: &TextureView,
         msaa_resolve_texture_view: &TextureView,
         shadow_bind_group: &BindGroup,
         draw_count: u32,
-    ) -> wgpu::CommandBuffer {
+        draw_buffers: &DrawBuffers,
+        camera_position: Vec3,
+        lights_data: LightsData,
+        view_proj: Mat4,
+    ) -> () {
+        let uniforms = Uniforms {
+            view_proj,
+            camera_position: Vec4::new(
+                camera_position.x,
+                camera_position.y,
+                camera_position.z,
+                1.0,
+            ),
+        };
+        queue.write_buffer(
+            draw_buffers.uniform_buffer,
+            0,
+            bytemuck::cast_slice(&[uniforms]),
+        );
+        queue.write_buffer(
+            draw_buffers.lights_uniform_buffer,
+            0,
+            bytemuck::cast_slice(&get_lights_uniform(lights_data).0),
+        );
+
         let mut encoder = device.create_command_encoder(&Default::default());
         let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
@@ -736,7 +762,8 @@ impl MainRenderPass {
             draw_count,
         );
         drop(renderpass);
-        encoder.finish()
+
+        queue.submit([encoder.finish()]);
     }
 }
 
@@ -865,7 +892,7 @@ impl ShadowRenderPass {
         shadow_view: Mat4,
         camera_position: Vec3,
         draw_count: u32,
-        draw_buffers: DrawBuffers,
+        draw_buffers: &DrawBuffers,
         bind_group: &BindGroup,
     ) -> () {
         // Shadow
@@ -1433,65 +1460,77 @@ impl RenderState {
         let draw_count = voxel_planes.len() as u32;
 
         // Prepare buffers for the main pass
-        self.main_pass
-            .prepare_buffers(&self.device, &self.queue, voxel_planes);
+        // self.main_pass
+        //     .prepare_buffers(&self.device, &self.queue, voxel_planes);
 
-        let uniform_buffer = &self.main_pass.uniform_buffer;
-        let vertex_buffer = &self.main_pass.vertex_buffer;
-        let instance_buffer = &self.main_pass.instance_buffer;
-        let bind_group = &self.main_pass.bind_group;
-        let indirect_buffer = &self.main_pass.indirect_buffer;
-        let lights_uniform_buffer = &self.main_pass.lights_uniform_buffer;
-
-        // Shadow
-        let draw_buffers = DrawBuffers {
-            uniform_buffer,
-            vertex_buffer,
-            instance_buffer,
-            indirect_buffer,
-            mvp_buffer: &self.main_pass.mvp_buffer,
-        };
-        self.shadow_pass.enqueue(
-            &self.device,
-            &self.queue,
-            shadow_view,
-            camera_position,
-            draw_count,
-            draw_buffers,
-            bind_group,
-        );
-
-        // Main pass
         {
-            let uniforms = Uniforms {
-                view_proj,
-                camera_position: Vec4::new(
-                    camera_position.x,
-                    camera_position.y,
-                    camera_position.z,
-                    1.0,
-                ),
-            };
-            self.queue
-                .write_buffer(uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
-            self.queue.write_buffer(
+            let uniform_buffer = &self.main_pass.uniform_buffer;
+            let vertex_buffer = &self.main_pass.vertex_buffer;
+            let instance_buffer = &self.main_pass.instance_buffer;
+            let bind_group = &self.main_pass.bind_group;
+            let indirect_buffer = &self.main_pass.indirect_buffer;
+            let lights_uniform_buffer = &self.main_pass.lights_uniform_buffer;
+            let mvp_buffer = &self.main_pass.mvp_buffer;
+
+            // Shadow
+            let draw_buffers = DrawBuffers {
+                uniform_buffer,
+                vertex_buffer,
+                instance_buffer,
+                indirect_buffer,
+                mvp_buffer,
                 lights_uniform_buffer,
-                0,
-                bytemuck::cast_slice(&get_lights_uniform(lights_data).0),
-            );
-            let main_pass_command_buffer = self.main_pass.enqueue(
+            };
+
+            self.shadow_pass.enqueue(
                 &self.device,
-                &texture_view,
+                &self.queue,
+                shadow_view,
+                camera_position,
+                draw_count,
+                &draw_buffers,
+                bind_group,
+            );
+        }
+
+        {
+            let uniform_buffer = &self.main_pass.uniform_buffer;
+            let vertex_buffer = &self.main_pass.vertex_buffer;
+            let instance_buffer = &self.main_pass.instance_buffer;
+            let bind_group = &self.main_pass.bind_group;
+            let indirect_buffer = &self.main_pass.indirect_buffer;
+            let lights_uniform_buffer = &self.main_pass.lights_uniform_buffer;
+            let mvp_buffer = &self.main_pass.mvp_buffer;
+
+            // Shadow
+            let draw_buffers = DrawBuffers {
+                uniform_buffer,
+                vertex_buffer,
+                instance_buffer,
+                indirect_buffer,
+                mvp_buffer,
+                lights_uniform_buffer,
+            };
+
+            &self.main_pass.enqueue(
+                &self.device,
+                &self.queue,
                 &self.main_pass_texture_view,
+                &texture_view,
                 &self.shadow_pass.shadow_bind_group,
                 draw_count,
+                &draw_buffers,
+                camera_position,
+                lights_data,
+                view_proj,
             );
+        }
 
+        // Debug debug
+        {
             let texture_view = self.get_texture_view(&surface_texture);
             let depth_debug_command_buffer = self.enqueue_depth_debug_pass(texture_view);
-
-            self.queue
-                .submit([main_pass_command_buffer, depth_debug_command_buffer]);
+            self.queue.submit([depth_debug_command_buffer]);
         }
 
         self.window.pre_present_notify();

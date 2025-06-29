@@ -93,6 +93,7 @@ fn main() {
         .add_systems(
             Update,
             (
+                log_fps_every_second,
                 create_mesh_on_vxm_import_system,
                 camera_oribit_target_over_time,
                 position_sun_to_camera,
@@ -119,6 +120,14 @@ fn roll_sun_direction_to_match_camera(
 #[derive(Component)]
 struct SquishStretchAndRotateObjectOverTime {
     time: f32,
+}
+
+fn log_fps_every_second(time: Res<Time>, mut last_logged: Local<f32>) {
+    if time.elapsed_secs() - *last_logged >= 1.0 {
+        let fps = 1.0 / time.delta_secs();
+        info!("FPS: {}", fps);
+        *last_logged = time.elapsed_secs();
+    }
 }
 
 fn squish_stretch_and_rotate_object_over_time(
