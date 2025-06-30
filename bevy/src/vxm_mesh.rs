@@ -31,31 +31,7 @@ fn generate_instance_data_z(vxm: &VxmAsset, is_front_face: bool) -> Vec<Instance
 
             for x in 0..vxm.size[0] as usize {
                 for y in 0..vxm.size[1] as usize {
-                    if visited_voxels[x][y] {
-                        continue;
-                    }
-
-                    // Check if face is hidden (different logic for front vs back)
-                    let is_face_hidden = if is_front_face {
-                        z < (vxm.size[2] - 1) as usize
-                            && is_solid_voxel(&vxm.voxel_array[x][y][z + 1])
-                    } else {
-                        z > 0 && is_solid_voxel(&vxm.voxel_array[x][y][z - 1])
-                    };
-
-                    if is_face_hidden {
-                        continue;
-                    }
-
                     let voxel = &vxm.voxel_array[x][y][z];
-                    if !is_solid_voxel(voxel) {
-                        continue;
-                    }
-
-                    let mut x_extent = 1u8;
-                    let mut y_extent = 1u8;
-                    let max_extent_y = vxm.size[1] as usize - y;
-                    let max_extent_x = vxm.size[0] as usize - x;
 
                     // Create a closure for checking voxels
                     let check_voxel = |x: usize, y: usize| {
@@ -71,6 +47,15 @@ fn generate_instance_data_z(vxm: &VxmAsset, is_front_face: bool) -> Vec<Instance
                             || visited_voxels[x][y]
                             || is_face_hidden
                     };
+
+                    if check_voxel(x, y) {
+                        continue; // Skip air voxels
+                    }
+
+                    let mut x_extent = 1u8;
+                    let mut y_extent = 1u8;
+                    let max_extent_y = vxm.size[1] as usize - y;
+                    let max_extent_x = vxm.size[0] as usize - x;
 
                     let mut is_x_extendable = true;
                     let mut is_y_extendable = true;
@@ -127,31 +112,7 @@ fn generate_instance_data_x(vxm: &VxmAsset, is_right_face: bool) -> Vec<Instance
 
             for z in 0..vxm.size[2] as usize {
                 for y in 0..vxm.size[1] as usize {
-                    if visited_voxels[z][y] {
-                        continue;
-                    }
-
-                    // Check if face is hidden (different logic for front vs back)
-                    let is_face_hidden = if is_right_face {
-                        x < (vxm.size[0] - 1) as usize
-                            && is_solid_voxel(&vxm.voxel_array[x + 1][y][z])
-                    } else {
-                        x > 0 && is_solid_voxel(&vxm.voxel_array[x - 1][y][z])
-                    };
-
-                    if is_face_hidden {
-                        continue;
-                    }
-
                     let voxel = &vxm.voxel_array[x][y][z];
-                    if !is_solid_voxel(voxel) {
-                        continue;
-                    }
-
-                    let mut z_extent = 1u8;
-                    let mut y_extent = 1u8;
-                    let max_extent_y = vxm.size[1] as usize - y;
-                    let max_extent_z = vxm.size[2] as usize - z;
 
                     // Create a closure for checking voxels
                     let check_voxel = |z: usize, y: usize| {
@@ -167,6 +128,16 @@ fn generate_instance_data_x(vxm: &VxmAsset, is_right_face: bool) -> Vec<Instance
                             || visited_voxels[z][y]
                             || is_face_hidden
                     };
+
+                    // Skip air voxels
+                    if check_voxel(z, y) {
+                        continue;
+                    }
+
+                    let mut z_extent = 1u8;
+                    let mut y_extent = 1u8;
+                    let max_extent_y = vxm.size[1] as usize - y;
+                    let max_extent_z = vxm.size[2] as usize - z;
 
                     let mut is_z_extendable = true;
                     let mut is_y_extendable = true;
@@ -218,31 +189,7 @@ fn generate_instance_data_y(vxm: &VxmAsset, is_top_face: bool) -> Vec<InstanceDa
 
             for x in 0..vxm.size[0] as usize {
                 for z in 0..vxm.size[2] as usize {
-                    if visited_voxels[x][z] {
-                        continue;
-                    }
-
-                    // Check if face is hidden (different logic for front vs back)
-                    let is_face_hidden = if is_top_face {
-                        y < (vxm.size[1] - 1) as usize
-                            && is_solid_voxel(&vxm.voxel_array[x][y + 1][z])
-                    } else {
-                        y > 0 && is_solid_voxel(&vxm.voxel_array[x][y - 1][z])
-                    };
-
-                    if is_face_hidden {
-                        continue;
-                    }
-
                     let voxel = &vxm.voxel_array[x][y][z];
-                    if !is_solid_voxel(voxel) {
-                        continue;
-                    }
-
-                    let mut x_extent = 1u8;
-                    let mut z_extent = 1u8;
-                    let max_extent_z = vxm.size[2] as usize - z;
-                    let max_extent_x = vxm.size[0] as usize - x;
 
                     // Create a closure for checking voxels
                     let check_voxel = |x: usize, z: usize| {
@@ -258,6 +205,15 @@ fn generate_instance_data_y(vxm: &VxmAsset, is_top_face: bool) -> Vec<InstanceDa
                             || visited_voxels[x][z]
                             || is_face_hidden
                     };
+
+                    if check_voxel(x, z) {
+                        continue; // Skip air voxels
+                    }
+
+                    let mut x_extent = 1u8;
+                    let mut z_extent = 1u8;
+                    let max_extent_z = vxm.size[2] as usize - z;
+                    let max_extent_x = vxm.size[0] as usize - x;
 
                     let mut is_x_extendable = true;
                     let mut is_z_extendable = true;
