@@ -43,6 +43,12 @@ fn position_sun_to_camera(
         if let Ok(mut light_transform) = light_query.get_single_mut() {
             // Translate sun away from camera opposite to light direction
             let camera_position = camera_transform.translation();
+
+            // Only move the sun if it is has moved far enough away from the camera
+            if Vec2::distance(camera_position.xz(), light_transform.translation.xz()) < 20.0 {
+                return;
+            }
+
             let light_position = camera_position - SUN_DIRECTION; // Move sun far away
             *light_transform =
                 Transform::from_translation(light_position).looking_at(camera_position, Vec3::Y);
