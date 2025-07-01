@@ -1,3 +1,4 @@
+use crate::keyboard_events::{KeyPressedEvent, KeyReleasedEvent};
 use crate::render::shadow::{ShadowRenderPass, SHADOW_BIND_GROUP_LAYOUT_DESCRIPTOR};
 use crate::render::util::get_view_projection_matrix;
 use crate::vxm_mesh::MeshedVoxelsFace;
@@ -15,11 +16,9 @@ use std::ops::Range;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc};
 use std::thread;
+use bevy::ecs::error::info;
 use wgpu::util::DeviceExt;
-use wgpu::{
-    BindGroup, BindGroupLayout, Buffer, Device, Queue, RenderPipeline, Surface, SurfaceTexture,
-    TexelCopyTextureInfo, TextureFormat, TextureView, VertexAttribute, VertexStepMode,
-};
+use wgpu::{BindGroup, BindGroupLayout, Buffer, Device, Face, Queue, RenderPipeline, Surface, SurfaceTexture, TexelCopyTextureInfo, TextureFormat, TextureView, VertexAttribute, VertexStepMode};
 use winit::dpi::PhysicalSize;
 use winit::event::ElementState;
 use winit::keyboard::{Key, SmolStr};
@@ -429,7 +428,7 @@ impl MainRenderPass {
                 targets: &[Some(swapchain_format.into())],
             }),
             primitive: wgpu::PrimitiveState {
-                cull_mode: None,
+                cull_mode: Some(Face::Back),
                 topology: wgpu::PrimitiveTopology::TriangleStrip,
                 front_face: wgpu::FrontFace::Ccw,
                 ..default()
@@ -1140,9 +1139,6 @@ impl RenderState {
     }
 }
 
-#[derive(Event)]
-pub struct KeyboardEvent(pub String);
-
 struct VoxelExtractApp {
     world_message_sender: Sender<WorldMessage>,
     app: App,
@@ -1179,29 +1175,21 @@ impl ApplicationHandler for VoxelExtractApp {
                 event_loop.exit();
             }
             WindowEvent::KeyboardInput { event, .. } => {
-                if event.repeat {
-                    // Ignore repeated key events
-                    return;
-                }
                 match event.logical_key {
                     Key::Named(winit::keyboard::NamedKey::Escape) => {
                         if event.state.is_pressed() {
                             event_loop.exit();
                         }
                     }
-                    Key::Character(c) => match c.as_str() {
-                        "a" | "A" => match event.state {
+                    _ => {
+                        match event.state {
                             ElementState::Pressed => {
-                                println!("Pressed A");
+                                self.app.world_mut().send_event(KeyPressedEvent(event.logical_key));
                             }
                             ElementState::Released => {
-                                println!("Release A");
+                                self.app.world_mut().send_event(KeyReleasedEvent(event.logical_key));
                             }
-                        },
-                        _ => {}
-                    },
-                    _ => {
-                        // Handle other keys if needed
+                        }
                     }
                 }
             }

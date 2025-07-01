@@ -8,6 +8,7 @@ mod spawn_player;
 mod vxm;
 mod vxm_mesh;
 mod vxm_terrain;
+mod keyboard_events;
 
 use crate::camera::{CameraTarget, ThirdPersonCameraPlugin};
 use crate::render::main::VoxelRenderPlugin;
@@ -25,6 +26,8 @@ use bevy::render::primitives::Frustum;
 use bevy::render::view::{VisibilityPlugin, VisibilitySystems, VisibleEntities};
 use bevy::state::app::StatesPlugin;
 use bevy::time::TimePlugin;
+use winit::keyboard::{Key, NamedKey};
+use crate::keyboard_events::{KeyboardEventsPlugin, KeyboardInput};
 
 fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
     info!("Exit on ESC system");
@@ -56,26 +59,64 @@ fn position_sun_to_camera(
     }
 }
 
-fn camera_oribit_target_over_time(
-    time: Res<Time>,
-    mut camera_query: Query<&mut Transform, With<Projection>>,
-    target: Query<(&CameraTarget, &Transform), Without<Projection>>,
+fn log_wasd_pressed(
+    keyboard_input: Res<KeyboardInput>,
 ) {
-    if target.is_empty() {
-        return;
+    if keyboard_input.pressed_keys.contains(&Key::Character("a".into())) {
+        info!("a key pressed");
     }
-    let (target, target_transform) = target.single().unwrap();
-    let mut camera_transform = camera_query.single_mut().unwrap();
-    let camera_target_offset = target.0;
-    let target_position = target_transform.translation + camera_target_offset;
+}
 
-    let t = time.elapsed_secs();
-    let radius = 150.0;
-    let angle = t * 0.2; // radians per second
-    let x = radius * angle.cos();
-    let z = radius * angle.sin();
-    camera_transform.translation = target_position + Vec3::new(x, 0.0, z);
-    camera_transform.look_at(target_position, Vec3::Y);
+// Move camera based on WASD input
+fn no_clip_camera(
+    keyboard_input: Res<KeyboardInput>,
+    mut camera_query: Query<&mut Transform, With<Camera>>,
+    time: Res<Time>,
+) {
+    let rotation_speed = 2.0; // Speed of the camera rotation
+    let speed = 100.0; // Speed of the camera movement
+
+    match camera_query.single_mut(){
+        Ok(mut camera_transform) => {
+            let mut direction = Vec3::ZERO;
+            if keyboard_input.pressed_keys.contains(&Key::Character("w".into())) {
+                direction -= Vec3::Z; // Move forward
+            }
+            if keyboard_input.pressed_keys.contains(&Key::Character("s".into())) {
+                direction += Vec3::Z; // Move backward
+            }
+            if keyboard_input.pressed_keys.contains(&Key::Character("a".into())) {
+                direction -= Vec3::X; // Move left
+            }
+            if keyboard_input.pressed_keys.contains(&Key::Character("d".into())) {
+                direction += Vec3::X; // Move right
+            }
+            if keyboard_input.pressed_keys.contains(&Key::Named(NamedKey::Space)) {
+                direction += Vec3::Y; // Move up
+            }
+            if keyboard_input.pressed_keys.contains(&Key::Named(NamedKey::Shift)) {
+                direction -= Vec3::Y; // Move up
+            }
+            if direction != Vec3::ZERO {
+                let normalized_direction = direction.normalize();
+                let local_delta = normalized_direction * speed * time.delta_secs();
+                let world_delta = camera_transform.rotation * local_delta;
+                camera_transform.translation += world_delta;
+            }
+
+            let mut rotation = Quat::IDENTITY;
+            if keyboard_input.pressed_keys.contains(&Key::Character("e".into())) {
+                rotation *= Quat::from_rotation_y(-time.delta_secs() * rotation_speed); // Rotate left
+            }
+            if keyboard_input.pressed_keys.contains(&Key::Character("q".into())) {
+                rotation *= Quat::from_rotation_y(time.delta_secs() * rotation_speed); // Rotate right
+            }
+            if rotation != Quat::IDENTITY {
+                camera_transform.rotation *= rotation;
+            }
+        },
+        Err(_) => info!("No camera found"),
+    }
 }
 
 fn main() {
@@ -91,6 +132,7 @@ fn main() {
             VoxelRenderPlugin,
             VoxelTerrainPlugin,
             VisibilityPlugin,
+            KeyboardEventsPlugin,
         ))
         .init_asset::<VxmAsset>()
         .init_asset_loader::<VxmAssetLoader>()
@@ -101,9 +143,9 @@ fn main() {
             (
                 log_fps_every_second,
                 create_mesh_on_vxm_import_system,
-                camera_oribit_target_over_time,
                 position_sun_to_camera,
                 squish_stretch_and_rotate_object_over_time,
+                no_clip_camera
             ),
         )
         .run();
@@ -163,16 +205,16 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             illuminance: lux::RAW_SUNLIGHT,
             ..default()
         },
-        Transform::from_xyz(0.0, 0.0, 0.0).looking_at(Vec3::new(-1.0, -1.0, -1.0), Vec3::Y),
+        Transform::from_xyz(0.0, 250.0, 0.0).looking_at(Vec3::new(-1.0, -1.0, -1.0), Vec3::Y),
     ));
 
     commands.spawn((
         Camera::default(),
         VisibleEntities::default(),
         Frustum::default(),
-        Transform::from_xyz(32.0 / 2.0, 32.0 / 2.0, 200.0).looking_at(Vec3::NEG_Z, Vec3::Y),
+        Transform::from_xyz(32.0 / 2.0, 32.0 / 2.0, 200.0),
         Projection::Perspective(PerspectiveProjection {
-            fov: 50.0_f32.to_radians(),
+            fov: 80.0_f32.to_radians(),
             near: 0.1,
             far: 1000.0,
             aspect_ratio: 1.0,
