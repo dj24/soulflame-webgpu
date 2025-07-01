@@ -21,7 +21,8 @@ use wgpu::{
     TexelCopyTextureInfo, TextureFormat, TextureView, VertexAttribute, VertexStepMode,
 };
 use winit::dpi::PhysicalSize;
-use winit::keyboard::Key;
+use winit::event::ElementState;
+use winit::keyboard::{Key, SmolStr};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -1139,11 +1140,15 @@ impl RenderState {
     }
 }
 
+#[derive(Event)]
+pub struct KeyboardEvent(pub String);
+
 struct VoxelExtractApp {
     world_message_sender: Sender<WorldMessage>,
     app: App,
     window: Arc<Window>,
     render_finished_receiver: Receiver<()>,
+    // keyboard_event_writer: EventWriter<KeyboardEvent>,
 }
 
 impl VoxelExtractApp {
@@ -1174,9 +1179,29 @@ impl ApplicationHandler for VoxelExtractApp {
                 event_loop.exit();
             }
             WindowEvent::KeyboardInput { event, .. } => {
-                if let Key::Named(winit::keyboard::NamedKey::Escape) = event.logical_key {
-                    if event.state.is_pressed() {
-                        event_loop.exit();
+                if event.repeat {
+                    // Ignore repeated key events
+                    return;
+                }
+                match event.logical_key {
+                    Key::Named(winit::keyboard::NamedKey::Escape) => {
+                        if event.state.is_pressed() {
+                            event_loop.exit();
+                        }
+                    }
+                    Key::Character(c) => match c.as_str() {
+                        "a" | "A" => match event.state {
+                            ElementState::Pressed => {
+                                println!("Pressed A");
+                            }
+                            ElementState::Released => {
+                                println!("Release A");
+                            }
+                        },
+                        _ => {}
+                    },
+                    _ => {
+                        // Handle other keys if needed
                     }
                 }
             }
