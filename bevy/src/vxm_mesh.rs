@@ -22,79 +22,85 @@ pub enum MeshedVoxelsFace {
 }
 
 fn generate_instance_data_z(vxm: &VxmAsset, is_front_face: bool) -> Vec<InstanceData> {
-    (0..vxm.size[2] as usize)
-        .into_iter()
-        .flat_map(|z| {
-            let mut slice_instance_data =
-                Vec::with_capacity(vxm.size[0] as usize * vxm.size[1] as usize / 4); // Estimate 25% of slice will have visible faces
-            let mut visited_voxels = vec![vec![false; vxm.size[1] as usize]; vxm.size[0] as usize];
+    let size_x = vxm.size[0] as usize;
+    let size_y = vxm.size[1] as usize;
+    let size_z = vxm.size[2] as usize;
 
-            for x in 0..vxm.size[0] as usize {
-                for y in 0..vxm.size[1] as usize {
-                    let voxel = &vxm.voxel_array[x][y][z];
+    let idx = |x, y, z| x * size_y * size_z + y * size_z + z;
 
-                    // Create a closure for checking voxels
-                    let check_voxel = |x: usize, y: usize| {
-                        let is_face_hidden = if is_front_face {
-                            z < (vxm.size[2] - 1) as usize
-                                && is_solid_voxel(&vxm.voxel_array[x][y][z + 1])
-                        } else {
-                            z > 0 && is_solid_voxel(&vxm.voxel_array[x][y][z - 1])
-                        };
+    let mut visited_voxels = vec![false; size_x * size_y * size_z];
 
-                        !is_solid_voxel(&vxm.voxel_array[x][y][z])
-                            || vxm.voxel_array[x][y][z].hsl != voxel.hsl
-                            || visited_voxels[x][y]
-                            || is_face_hidden
-                    };
+    // Create a closure for checking voxels
+    let check_voxel = |visited_voxels: &Vec<bool>, x: usize, y: usize, z: usize, hsl: u16| {
+        let is_face_hidden = if is_front_face {
+            z < (vxm.size[2] - 1) as usize && is_solid_voxel(&vxm.voxel_array[x][y][z + 1])
+        } else {
+            z > 0 && is_solid_voxel(&vxm.voxel_array[x][y][z - 1])
+        };
 
-                    if check_voxel(x, y) {
-                        continue; // Skip air voxels
-                    }
+        let is_visited = visited_voxels[idx(x, y, z)];
 
-                    let mut x_extent = 1u8;
-                    let mut y_extent = 1u8;
-                    let max_extent_y = vxm.size[1] as usize - y;
-                    let max_extent_x = vxm.size[0] as usize - x;
+        !is_solid_voxel(&vxm.voxel_array[x][y][z])
+            || vxm.voxel_array[x][y][z].hsl != hsl
+            || is_visited
+            || is_face_hidden
+    };
 
-                    let mut is_x_extendable = true;
-                    let mut is_y_extendable = true;
+    let mut instance_data =
+        Vec::with_capacity(vxm.size[0] as usize * vxm.size[1] as usize * vxm.size[2] as usize / 4);
 
-                    while (is_x_extendable || is_y_extendable)
-                        && ((x_extent as usize) < max_extent_x)
-                        && ((y_extent as usize) < max_extent_y)
-                    {
-                        is_x_extendable = !(0..y_extent as usize)
-                            .any(|dy| check_voxel(x + x_extent as usize, y + dy));
-                        if is_x_extendable {
-                            x_extent += 1;
-                        }
+    (0..vxm.size[2] as usize).into_iter().for_each(|z| {
+        for x in 0..vxm.size[0] as usize {
+            for y in 0..vxm.size[1] as usize {
+                let voxel = &vxm.voxel_array[x][y][z];
 
-                        is_y_extendable = !(0..x_extent as usize)
-                            .any(|dx| check_voxel(x + dx, y + y_extent as usize));
-                        if is_y_extendable {
-                            y_extent += 1;
-                        }
-                    }
-
-                    for dx in 0..x_extent as usize {
-                        let row = &mut visited_voxels[x + dx];
-                        row[y..y + y_extent as usize].fill(true);
-                    }
-
-                    let (r, g, b) = get_hsl_voxel(voxel);
-
-                    slice_instance_data.push(InstanceData {
-                        position: [x as u8, y as u8, z as u8],
-                        width: x_extent,
-                        height: y_extent,
-                        color: [r as u8, g as u8, b as u8],
-                    });
+                if check_voxel(&visited_voxels, x, y, z, voxel.hsl) {
+                    continue;
                 }
+
+                let mut x_extent = 1u8;
+                let mut y_extent = 1u8;
+                let max_extent_y = vxm.size[1] as usize - y;
+                let max_extent_x = vxm.size[0] as usize - x;
+
+                let mut is_x_extendable = true;
+                let mut is_y_extendable = true;
+
+                while (is_x_extendable || is_y_extendable)
+                    && ((x_extent as usize) < max_extent_x)
+                    && ((y_extent as usize) < max_extent_y)
+                {
+                    is_x_extendable = !(0..y_extent as usize)
+                        .any(|dy| check_voxel(&visited_voxels, x + x_extent as usize, y + dy, z, voxel.hsl));
+                    if is_x_extendable {
+                        x_extent += 1;
+                    }
+
+                    is_y_extendable = !(0..x_extent as usize)
+                        .any(|dx| check_voxel(&visited_voxels, x + dx, y + y_extent as usize, z, voxel.hsl));
+                    if is_y_extendable {
+                        y_extent += 1;
+                    }
+                }
+
+                for dx in 0..x_extent as usize {
+                    for dy in 0..y_extent as usize {
+                        visited_voxels[idx(x + dx, y + dy, z)] = true;
+                    }
+                }
+
+                let (r, g, b) = get_hsl_voxel(voxel);
+
+                instance_data.push(InstanceData {
+                    position: [x as u8, y as u8, z as u8],
+                    width: x_extent,
+                    height: y_extent,
+                    color: [r as u8, g as u8, b as u8],
+                });
             }
-            slice_instance_data
-        })
-        .collect()
+        }
+    });
+    instance_data
 }
 
 // Checks if 1st bit of 16 bit value is 1
@@ -185,79 +191,85 @@ fn generate_instance_data_x(vxm: &VxmAsset, is_right_face: bool) -> Vec<Instance
 }
 
 fn generate_instance_data_y(vxm: &VxmAsset, is_top_face: bool) -> Vec<InstanceData> {
-    (0..vxm.size[1] as usize)
-        .into_iter()
-        .flat_map(|y| {
-            let mut slice_instance_data =
-                Vec::with_capacity(vxm.size[2] as usize * vxm.size[0] as usize / 4); // Estimate 25% of slice will have visible faces
-            let mut visited_voxels = vec![vec![false; vxm.size[2] as usize]; vxm.size[0] as usize];
+    let size_x = vxm.size[0] as usize;
+    let size_y = vxm.size[1] as usize;
+    let size_z = vxm.size[2] as usize;
 
-            for x in 0..vxm.size[0] as usize {
-                for z in 0..vxm.size[2] as usize {
-                    let voxel = &vxm.voxel_array[x][y][z];
+    let idx = |x, y, z| x * size_y * size_z + y * size_z + z;
 
-                    // Create a closure for checking voxels
-                    let check_voxel = |x: usize, z: usize| {
-                        let is_face_hidden = if is_top_face {
-                            y < (vxm.size[1] - 1) as usize
-                                && is_solid_voxel(&vxm.voxel_array[x][y + 1][z])
-                        } else {
-                            y > 0 && is_solid_voxel(&vxm.voxel_array[x][y - 1][z])
-                        };
+    let mut visited_voxels = vec![false; size_x * size_y * size_z];
 
-                        !is_solid_voxel(&vxm.voxel_array[x][y][z])
-                            || vxm.voxel_array[x][y][z].hsl != voxel.hsl
-                            || visited_voxels[x][z]
-                            || is_face_hidden
-                    };
+    // Create a closure for checking voxels
+    let check_voxel = |visited_voxels: &Vec<bool>, x: usize, y: usize, z: usize, hsl: u16| {
+        let is_face_hidden = if is_top_face {
+            y < (vxm.size[1] - 1) as usize && is_solid_voxel(&vxm.voxel_array[x][y + 1][z])
+        } else {
+            y > 0 && is_solid_voxel(&vxm.voxel_array[x][y - 1][z])
+        };
 
-                    if check_voxel(x, z) {
-                        continue; // Skip air voxels
-                    }
+        let is_visited = visited_voxels[idx(x, y, z)];
 
-                    let mut x_extent = 1u8;
-                    let mut z_extent = 1u8;
-                    let max_extent_z = vxm.size[2] as usize - z;
-                    let max_extent_x = vxm.size[0] as usize - x;
+        !is_solid_voxel(&vxm.voxel_array[x][y][z])
+            || vxm.voxel_array[x][y][z].hsl != hsl
+            || is_visited
+            || is_face_hidden
+    };
 
-                    let mut is_x_extendable = true;
-                    let mut is_z_extendable = true;
+    let mut instance_data =
+        Vec::with_capacity(vxm.size[0] as usize * vxm.size[1] as usize * vxm.size[2] as usize / 4);
 
-                    while (is_x_extendable || is_z_extendable)
-                        && ((x_extent as usize) < max_extent_x)
-                        && ((z_extent as usize) < max_extent_z)
-                    {
-                        is_x_extendable = !(0..z_extent as usize)
-                            .any(|dz| check_voxel(x + x_extent as usize, z + dz));
-                        if is_x_extendable {
-                            x_extent += 1;
-                        }
+    (0..vxm.size[1] as usize).into_iter().for_each(|y| {
+        for x in 0..vxm.size[0] as usize {
+            for z in 0..vxm.size[2] as usize {
+                let voxel = &vxm.voxel_array[x][y][z];
 
-                        is_z_extendable = !(0..x_extent as usize)
-                            .any(|dx| check_voxel(x + dx, z + z_extent as usize));
-                        if is_z_extendable {
-                            z_extent += 1;
-                        }
-                    }
-
-                    for dx in 0..x_extent as usize {
-                        let row = &mut visited_voxels[x + dx];
-                        row[z..z + z_extent as usize].fill(true);
-                    }
-
-                    let (r, g, b) = get_hsl_voxel(voxel);
-
-                    slice_instance_data.push(InstanceData {
-                        position: [x as u8, y as u8, z as u8],
-                        width: x_extent,
-                        height: z_extent,
-                        color: [r as u8, g as u8, b as u8],
-                    });
+                if check_voxel(&visited_voxels, x, y, z, voxel.hsl) {
+                    continue;
                 }
+
+                let mut x_extent = 1u8;
+                let mut z_extent = 1u8;
+                let max_extent_z = vxm.size[2] as usize - z;
+                let max_extent_x = vxm.size[0] as usize - x;
+
+                let mut is_x_extendable = true;
+                let mut is_z_extendable = true;
+
+                while (is_x_extendable || is_z_extendable)
+                    && ((x_extent as usize) < max_extent_x)
+                    && ((z_extent as usize) < max_extent_z)
+                {
+                    is_x_extendable = !(0..z_extent as usize)
+                        .any(|dz| check_voxel(&visited_voxels, x + x_extent as usize, y, z + dz, voxel.hsl));
+                    if is_x_extendable {
+                        x_extent += 1;
+                    }
+
+                    is_z_extendable = !(0..x_extent as usize)
+                        .any(|dx| check_voxel(&visited_voxels, x + dx, y, z + z_extent as usize, voxel.hsl));
+                    if is_z_extendable {
+                        z_extent += 1;
+                    }
+                }
+
+                for dx in 0..x_extent as usize {
+                    for dz in 0..z_extent as usize {
+                        visited_voxels[idx(x + dx, y, z + dz)] = true;
+                    }
+                }
+
+                let (r, g, b) = get_hsl_voxel(voxel);
+
+                instance_data.push(InstanceData {
+                    position: [x as u8, y as u8, z as u8],
+                    width: x_extent,
+                    height: z_extent,
+                    color: [r as u8, g as u8, b as u8],
+                });
             }
-            slice_instance_data
-        })
-        .collect()
+        }
+    });
+    instance_data
 }
 
 #[derive(Component)]
