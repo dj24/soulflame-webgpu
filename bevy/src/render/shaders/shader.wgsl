@@ -69,6 +69,18 @@ const positions = array<vec3<f32>, 24>(
      vec3<f32>(0.0, 1.0, 1.0),
 );
 
+fn get_hsl_voxel(hsl:u32) -> vec3<f32> {
+    let h = (hsl & 0x7E00u) >> 9;
+    let s = (hsl & 0x01C0u) >> 6;
+    let l = hsl & 0x003Fu;
+
+    return vec3(
+      f32(h) / 63.0,
+      f32(s) / 7.0,
+      f32(l) / 63.0
+    );
+}
+
 fn hue_to_rgb(p: f32, q: f32, t: f32) -> f32 {
     var t_mod = t;
     if (t_mod < 0.0) {
@@ -118,9 +130,13 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
     let x_scale = f32(unpacked_pos_x_extent.w);
     let y_scale = f32(unpacked_color_y_extent.w);
 
-    let unpacked_h = f32(unpacked_color_y_extent.r) / 63.0;
-    let unpacked_s = f32(unpacked_color_y_extent.g) / 7.0;
-    let unpacked_l = f32(unpacked_color_y_extent.b) / 63.0;
+    let hsl = unpacked_color_y_extent.rg;
+    let ao = unpacked_color_y_extent.b;
+
+    let unpacked_hsl = get_hsl_voxel(instance.color_y_extent);
+    let unpacked_h = unpacked_hsl.x;
+    let unpacked_s = unpacked_hsl.y;
+    let unpacked_l = unpacked_hsl.z;
 
     let local_vertex_index = in_vertex_index % 24u; // Ensure the index is within the bounds of the positions array
 
@@ -218,7 +234,7 @@ fn get_shadow_visibility(
     let texel_size = 1.0 / shadow_map_size;
 
     // Add a small bias to avoid shadow acne
-    let bias = 0.00007 * pow(4.0, f32(cascade_index));
+    let bias = 0.00007 * pow(3.0, f32(cascade_index));
 
     // Calculate bilinear interpolation weights
     let shadow_texel_pos = shadow_coords_uv * shadow_map_size;

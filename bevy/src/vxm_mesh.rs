@@ -70,14 +70,16 @@ fn generate_instance_data_z(vxm: &VxmAsset, is_front_face: bool) -> Vec<Instance
                     && ((x_extent as usize) < max_extent_x)
                     && ((y_extent as usize) < max_extent_y)
                 {
-                    is_x_extendable = !(0..y_extent as usize)
-                        .any(|dy| check_voxel(&visited_voxels, x + x_extent as usize, y + dy, z, voxel.hsl));
+                    is_x_extendable = !(0..y_extent as usize).any(|dy| {
+                        check_voxel(&visited_voxels, x + x_extent as usize, y + dy, z, voxel.hsl)
+                    });
                     if is_x_extendable {
                         x_extent += 1;
                     }
 
-                    is_y_extendable = !(0..x_extent as usize)
-                        .any(|dx| check_voxel(&visited_voxels, x + dx, y + y_extent as usize, z, voxel.hsl));
+                    is_y_extendable = !(0..x_extent as usize).any(|dx| {
+                        check_voxel(&visited_voxels, x + dx, y + y_extent as usize, z, voxel.hsl)
+                    });
                     if is_y_extendable {
                         y_extent += 1;
                     }
@@ -89,13 +91,12 @@ fn generate_instance_data_z(vxm: &VxmAsset, is_front_face: bool) -> Vec<Instance
                     }
                 }
 
-                let (r, g, b) = get_hsl_voxel(voxel);
-
                 instance_data.push(InstanceData {
                     position: [x as u8, y as u8, z as u8],
                     width: x_extent,
                     height: y_extent,
-                    color: [r as u8, g as u8, b as u8],
+                    hsl: voxel.hsl,
+                    ambient_occlusion: 0,
                 });
             }
         }
@@ -157,14 +158,16 @@ fn generate_instance_data_x(vxm: &VxmAsset, is_right_face: bool) -> Vec<Instance
                     && ((z_extent as usize) < max_extent_z)
                     && ((y_extent as usize) < max_extent_y)
                 {
-                    is_z_extendable = !(0..y_extent as usize)
-                        .any(|dy| check_voxel(&visited_voxels, x, y + dy, z + z_extent as usize, voxel.hsl));
+                    is_z_extendable = !(0..y_extent as usize).any(|dy| {
+                        check_voxel(&visited_voxels, x, y + dy, z + z_extent as usize, voxel.hsl)
+                    });
                     if is_z_extendable {
                         z_extent += 1;
                     }
 
-                    is_y_extendable = !(0..z_extent as usize)
-                        .any(|dz| check_voxel(&visited_voxels, x, y + y_extent as usize, z + dz, voxel.hsl));
+                    is_y_extendable = !(0..z_extent as usize).any(|dz| {
+                        check_voxel(&visited_voxels, x, y + y_extent as usize, z + dz, voxel.hsl)
+                    });
                     if is_y_extendable {
                         y_extent += 1;
                     }
@@ -176,13 +179,12 @@ fn generate_instance_data_x(vxm: &VxmAsset, is_right_face: bool) -> Vec<Instance
                     }
                 }
 
-                let (r, g, b) = get_hsl_voxel(voxel);
-
                 instance_data.push(InstanceData {
                     position: [x as u8, y as u8, z as u8],
                     width: y_extent,
                     height: z_extent,
-                    color: [r as u8, g as u8, b as u8],
+                    hsl: voxel.hsl,
+                    ambient_occlusion: 0,
                 });
             }
         }
@@ -239,14 +241,16 @@ fn generate_instance_data_y(vxm: &VxmAsset, is_top_face: bool) -> Vec<InstanceDa
                     && ((x_extent as usize) < max_extent_x)
                     && ((z_extent as usize) < max_extent_z)
                 {
-                    is_x_extendable = !(0..z_extent as usize)
-                        .any(|dz| check_voxel(&visited_voxels, x + x_extent as usize, y, z + dz, voxel.hsl));
+                    is_x_extendable = !(0..z_extent as usize).any(|dz| {
+                        check_voxel(&visited_voxels, x + x_extent as usize, y, z + dz, voxel.hsl)
+                    });
                     if is_x_extendable {
                         x_extent += 1;
                     }
 
-                    is_z_extendable = !(0..x_extent as usize)
-                        .any(|dx| check_voxel(&visited_voxels, x + dx, y, z + z_extent as usize, voxel.hsl));
+                    is_z_extendable = !(0..x_extent as usize).any(|dx| {
+                        check_voxel(&visited_voxels, x + dx, y, z + z_extent as usize, voxel.hsl)
+                    });
                     if is_z_extendable {
                         z_extent += 1;
                     }
@@ -257,14 +261,13 @@ fn generate_instance_data_y(vxm: &VxmAsset, is_top_face: bool) -> Vec<InstanceDa
                         visited_voxels[idx(x + dx, y, z + dz)] = true;
                     }
                 }
-
-                let (r, g, b) = get_hsl_voxel(voxel);
-
+                
                 instance_data.push(InstanceData {
                     position: [x as u8, y as u8, z as u8],
                     width: x_extent,
                     height: z_extent,
-                    color: [r as u8, g as u8, b as u8],
+                    hsl: voxel.hsl,
+                    ambient_occlusion: 0,
                 });
             }
         }

@@ -4,6 +4,7 @@ use crate::render::util::get_view_projection_matrix;
 use crate::vxm_mesh::MeshedVoxelsFace;
 use bevy::app::PluginsState;
 use bevy::asset::io::memory::Dir;
+use bevy::ecs::error::info;
 use bevy::ecs::schedule::MainThreadExecutor;
 use bevy::math::primitives::Cuboid;
 use bevy::prelude::GamepadButton::C;
@@ -16,9 +17,12 @@ use std::ops::Range;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc};
 use std::thread;
-use bevy::ecs::error::info;
 use wgpu::util::DeviceExt;
-use wgpu::{BindGroup, BindGroupLayout, Buffer, Device, Face, Queue, RenderPipeline, Surface, SurfaceTexture, TexelCopyTextureInfo, TextureFormat, TextureView, VertexAttribute, VertexStepMode};
+use wgpu::{
+    BindGroup, BindGroupLayout, Buffer, Device, Face, Queue, RenderPipeline, Surface,
+    SurfaceTexture, TexelCopyTextureInfo, TextureFormat, TextureView, VertexAttribute,
+    VertexStepMode,
+};
 use winit::dpi::PhysicalSize;
 use winit::event::ElementState;
 use winit::keyboard::{Key, SmolStr};
@@ -34,7 +38,8 @@ use winit::{
 pub struct InstanceData {
     pub(crate) position: [u8; 3],
     pub(crate) width: u8,
-    pub(crate) color: [u8; 3],
+    pub(crate) hsl: u16,
+    pub(crate) ambient_occlusion: u8,
     pub(crate) height: u8,
 }
 
@@ -1174,25 +1179,25 @@ impl ApplicationHandler for VoxelExtractApp {
                 println!("Window destroyed; stopping");
                 event_loop.exit();
             }
-            WindowEvent::KeyboardInput { event, .. } => {
-                match event.logical_key {
-                    Key::Named(winit::keyboard::NamedKey::Escape) => {
-                        if event.state.is_pressed() {
-                            event_loop.exit();
-                        }
-                    }
-                    _ => {
-                        match event.state {
-                            ElementState::Pressed => {
-                                self.app.world_mut().send_event(KeyPressedEvent(event.logical_key));
-                            }
-                            ElementState::Released => {
-                                self.app.world_mut().send_event(KeyReleasedEvent(event.logical_key));
-                            }
-                        }
+            WindowEvent::KeyboardInput { event, .. } => match event.logical_key {
+                Key::Named(winit::keyboard::NamedKey::Escape) => {
+                    if event.state.is_pressed() {
+                        event_loop.exit();
                     }
                 }
-            }
+                _ => match event.state {
+                    ElementState::Pressed => {
+                        self.app
+                            .world_mut()
+                            .send_event(KeyPressedEvent(event.logical_key));
+                    }
+                    ElementState::Released => {
+                        self.app
+                            .world_mut()
+                            .send_event(KeyReleasedEvent(event.logical_key));
+                    }
+                },
+            },
             WindowEvent::CloseRequested => {
                 println!("The close button was pressed; stopping");
                 event_loop.exit();
