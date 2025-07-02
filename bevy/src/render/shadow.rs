@@ -11,7 +11,7 @@ type Cascade = (Projection, Mat4);
 
 pub const SHADOW_MAP_SIZE: u32 = 4096;
 
-const CASCADE_DISTANCES: [f32; 4] = [150.0, 300.0, 600.0, 1200.0];
+const CASCADE_DISTANCES: [f32; 4] = [50.0, 200.0, 800.0, 3200.0];
 
 // Shadow map view, sampler, and light view projection matrix
 pub const SHADOW_BIND_GROUP_LAYOUT_DESCRIPTOR: &wgpu::BindGroupLayoutDescriptor =

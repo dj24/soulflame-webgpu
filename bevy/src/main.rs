@@ -1,6 +1,7 @@
 mod camera;
 mod color_conversion;
 mod dnd;
+mod keyboard_events;
 mod render;
 mod replace_body_part_meshes;
 mod set_animation_clip_keyboard;
@@ -8,9 +9,9 @@ mod spawn_player;
 mod vxm;
 mod vxm_mesh;
 mod vxm_terrain;
-mod keyboard_events;
 
 use crate::camera::{CameraTarget, ThirdPersonCameraPlugin};
+use crate::keyboard_events::{KeyboardEventsPlugin, KeyboardInput};
 use crate::render::main::VoxelRenderPlugin;
 use crate::vxm::{PendingVxm, VxmAsset, VxmAssetLoader};
 use crate::vxm_mesh::{create_mesh_on_vxm_import_system, MeshedVoxels};
@@ -27,7 +28,6 @@ use bevy::render::view::{VisibilityPlugin, VisibilitySystems, VisibleEntities};
 use bevy::state::app::StatesPlugin;
 use bevy::time::TimePlugin;
 use winit::keyboard::{Key, NamedKey};
-use crate::keyboard_events::{KeyboardEventsPlugin, KeyboardInput};
 
 fn exit_on_esc_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
     info!("Exit on ESC system");
@@ -45,24 +45,26 @@ fn position_sun_to_camera(
     if let Ok(camera_transform) = camera_query.get_single() {
         if let Ok(mut light_transform) = light_query.get_single_mut() {
             // Translate sun away from camera opposite to light direction
-            let camera_position = camera_transform.translation();
+            let target_position =
+                camera_transform.translation() + camera_transform.forward() * 50.0; // Move sun far away in the direction of the camera
 
             // Only move the sun if it is has moved far enough away from the camera
-            if Vec2::distance(camera_position.xz(), light_transform.translation.xz()) < 20.0 {
+            if Vec2::distance(target_position.xz(), light_transform.translation.xz()) < 20.0 {
                 return;
             }
 
-            let light_position = camera_position - SUN_DIRECTION; // Move sun far away
+            let light_position = target_position - SUN_DIRECTION; // Move sun far away
             *light_transform =
-                Transform::from_translation(light_position).looking_at(camera_position, Vec3::Y);
+                Transform::from_translation(light_position).looking_at(target_position, Vec3::Y);
         }
     }
 }
 
-fn log_wasd_pressed(
-    keyboard_input: Res<KeyboardInput>,
-) {
-    if keyboard_input.pressed_keys.contains(&Key::Character("a".into())) {
+fn log_wasd_pressed(keyboard_input: Res<KeyboardInput>) {
+    if keyboard_input
+        .pressed_keys
+        .contains(&Key::Character("a".into()))
+    {
         info!("a key pressed");
     }
 }
@@ -76,25 +78,43 @@ fn no_clip_camera(
     let rotation_speed = 2.0; // Speed of the camera rotation
     let speed = 100.0; // Speed of the camera movement
 
-    match camera_query.single_mut(){
+    match camera_query.single_mut() {
         Ok(mut camera_transform) => {
             let mut direction = Vec3::ZERO;
-            if keyboard_input.pressed_keys.contains(&Key::Character("w".into())) {
+            if keyboard_input
+                .pressed_keys
+                .contains(&Key::Character("w".into()))
+            {
                 direction -= Vec3::Z; // Move forward
             }
-            if keyboard_input.pressed_keys.contains(&Key::Character("s".into())) {
+            if keyboard_input
+                .pressed_keys
+                .contains(&Key::Character("s".into()))
+            {
                 direction += Vec3::Z; // Move backward
             }
-            if keyboard_input.pressed_keys.contains(&Key::Character("a".into())) {
+            if keyboard_input
+                .pressed_keys
+                .contains(&Key::Character("a".into()))
+            {
                 direction -= Vec3::X; // Move left
             }
-            if keyboard_input.pressed_keys.contains(&Key::Character("d".into())) {
+            if keyboard_input
+                .pressed_keys
+                .contains(&Key::Character("d".into()))
+            {
                 direction += Vec3::X; // Move right
             }
-            if keyboard_input.pressed_keys.contains(&Key::Named(NamedKey::Space)) {
+            if keyboard_input
+                .pressed_keys
+                .contains(&Key::Named(NamedKey::Space))
+            {
                 direction += Vec3::Y; // Move up
             }
-            if keyboard_input.pressed_keys.contains(&Key::Named(NamedKey::Shift)) {
+            if keyboard_input
+                .pressed_keys
+                .contains(&Key::Named(NamedKey::Shift))
+            {
                 direction -= Vec3::Y; // Move up
             }
             if direction != Vec3::ZERO {
@@ -105,16 +125,24 @@ fn no_clip_camera(
             }
 
             let mut rotation = Quat::IDENTITY;
-            if keyboard_input.pressed_keys.contains(&Key::Character("e".into())) {
-                rotation *= Quat::from_rotation_y(-time.delta_secs() * rotation_speed); // Rotate left
+            if keyboard_input
+                .pressed_keys
+                .contains(&Key::Character("e".into()))
+            {
+                rotation *= Quat::from_rotation_y(-time.delta_secs() * rotation_speed);
+                // Rotate left
             }
-            if keyboard_input.pressed_keys.contains(&Key::Character("q".into())) {
-                rotation *= Quat::from_rotation_y(time.delta_secs() * rotation_speed); // Rotate right
+            if keyboard_input
+                .pressed_keys
+                .contains(&Key::Character("q".into()))
+            {
+                rotation *= Quat::from_rotation_y(time.delta_secs() * rotation_speed);
+                // Rotate right
             }
             if rotation != Quat::IDENTITY {
                 camera_transform.rotation *= rotation;
             }
-        },
+        }
         Err(_) => info!("No camera found"),
     }
 }
@@ -145,24 +173,10 @@ fn main() {
                 create_mesh_on_vxm_import_system,
                 position_sun_to_camera,
                 squish_stretch_and_rotate_object_over_time,
-                no_clip_camera
+                no_clip_camera,
             ),
         )
         .run();
-}
-
-fn roll_sun_direction_to_match_camera(
-    camera_query: Query<&GlobalTransform, (With<Camera>, Without<DirectionalLight>)>,
-    mut light_query: Query<&mut Transform, (With<DirectionalLight>, Without<Camera>)>,
-) {
-    if let Ok(camera_transform) = camera_query.get_single() {
-        if let Ok(mut light_transform) = light_query.get_single_mut() {
-            let camera_up = camera_transform.forward();
-            info!("Camera up: {:?}", camera_up);
-            *light_transform = Transform::from_xyz(0.0, 0.0, 0.0)
-                .looking_at(Vec3::new(-1.0, -1.0, -1.0), camera_up);
-        }
-    }
 }
 
 #[derive(Component)]
@@ -212,7 +226,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Camera::default(),
         VisibleEntities::default(),
         Frustum::default(),
-        Transform::from_xyz(32.0 / 2.0, 32.0 / 2.0, 200.0),
+        Transform::from_xyz(0.0, 200.0, 0.0),
         Projection::Perspective(PerspectiveProjection {
             fov: 80.0_f32.to_radians(),
             near: 0.1,

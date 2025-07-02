@@ -218,9 +218,7 @@ fn get_shadow_visibility(
     let texel_size = 1.0 / shadow_map_size;
 
     // Add a small bias to avoid shadow acne
-    let normal_bias = max(0.0002, dot(abs(vertex.normal), vec3(1.0)) * 0.0002);
-    let cascade_scale = pow(2.0, f32(cascade_index)); // Estimate of cascade coverage increase
-    let bias = normal_bias * cascade_scale;
+    let bias = 0.00007 * pow(4.0, f32(cascade_index));
 
     // Calculate bilinear interpolation weights
     let shadow_texel_pos = shadow_coords_uv * shadow_map_size;
@@ -236,6 +234,7 @@ fn get_shadow_visibility(
     var visibility = 0.0;
     var total_weight = 0.0;
     let uv_max = uv_offset + vec2(0.5, 0.5);
+
     if(all(shadow_coords_uv < uv_max) && all(shadow_coords_uv > uv_offset)) {
         let sample00 = textureSampleCompare(
             shadow_texture, shadow_sampler,
