@@ -3,31 +3,22 @@ use crate::render::shadow::{ShadowRenderPass, SHADOW_BIND_GROUP_LAYOUT_DESCRIPTO
 use crate::render::util::get_view_projection_matrix;
 use crate::vxm_mesh::MeshedVoxelsFace;
 use bevy::app::PluginsState;
-use bevy::asset::io::memory::Dir;
-use bevy::ecs::error::info;
 use bevy::ecs::schedule::MainThreadExecutor;
 use bevy::math::primitives::Cuboid;
-use bevy::prelude::GamepadButton::C;
 use bevy::prelude::*;
 use bevy::render::camera::CameraProjection;
 use bytemuck::{Pod, Zeroable};
 use std::mem::size_of;
-use std::num::NonZeroU32;
-use std::ops::Range;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc};
 use std::thread;
-use wgpu::hal::DynSurface;
 use wgpu::util::DeviceExt;
 use wgpu::{
     BindGroup, BindGroupLayout, Buffer, Device, Face, Queue, RenderPipeline, Surface,
-    SurfaceTexture, TexelCopyTextureInfo, TextureFormat, TextureView, VertexAttribute,
-    VertexStepMode,
+    SurfaceTexture, TextureFormat, TextureView, VertexAttribute, VertexStepMode,
 };
-use winit::dpi::PhysicalSize;
 use winit::event::ElementState;
-use winit::keyboard::{Key, SmolStr};
-use winit::window::Fullscreen;
+use winit::keyboard::Key;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -57,7 +48,7 @@ pub struct InstanceMaterialData(pub Arc<Vec<InstanceData>>);
 
 const LIGHT_COUNT: usize = 32;
 
-struct RenderState {
+struct RenderApp {
     window: Option<Window>,
     surface: Option<Surface<'static>>,
     instance: wgpu::Instance,
@@ -87,30 +78,6 @@ const DEBUG_DEPTH_BIND_GROUP_LAYOUT_DESCRIPTOR: &wgpu::BindGroupLayoutDescriptor
             count: None,
         }],
     };
-
-// Define NDC corners for the frustum (both near and far)
-const NEAR_CORNERS_CLIP: [Vec4; 4] = [
-    // Near corners
-    Vec4::new(-1.0, -1.0, 0.0, 1.0),
-    Vec4::new(1.0, -1.0, 0.0, 1.0),
-    Vec4::new(1.0, 1.0, 0.0, 1.0),
-    Vec4::new(-1.0, 1.0, 0.0, 1.0),
-];
-
-const FAR_CORNERS_CLIP: [Vec4; 4] = [
-    // Far corners
-    Vec4::new(-1.0, -1.0, 1.0, 1.0),
-    Vec4::new(1.0, -1.0, 1.0, 1.0),
-    Vec4::new(1.0, 1.0, 1.0, 1.0),
-    Vec4::new(-1.0, 1.0, 1.0, 1.0),
-];
-
-const NDC_VIEW_SPACE_CORNER_DIRECTIONS: [Vec3; 4] = [
-    Vec3::new(-1.0, -1.0, 1.0), // Near bottom left
-    Vec3::new(1.0, -1.0, 1.0),  // Near bottom right
-    Vec3::new(1.0, 1.0, 1.0),   // Near top right
-    Vec3::new(-1.0, 1.0, 1.0),  // Near top left
-];
 
 #[derive(Pod, Zeroable, Clone, Copy)]
 #[repr(C)]
@@ -726,7 +693,7 @@ impl MainRenderPass {
     }
 }
 
-impl RenderState {
+impl RenderApp {
     fn get_debug_quad_render_pipeline(
         device: &Device,
         bind_group_layout: &wgpu::BindGroupLayout,
@@ -847,7 +814,7 @@ impl RenderState {
         render_pipeline
     }
 
-    fn new(adapter: Arc<wgpu::Adapter>, instance: wgpu::Instance) -> RenderState {
+    fn new(adapter: Arc<wgpu::Adapter>, instance: wgpu::Instance) -> RenderApp {
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             required_features: wgpu::Features::INDIRECT_FIRST_INSTANCE
                 | wgpu::Features::MULTI_DRAW_INDIRECT
@@ -905,7 +872,7 @@ impl RenderState {
             ..Default::default()
         });
 
-        let state = RenderState {
+        let state = RenderApp {
             device,
             queue,
             instance,
@@ -920,9 +887,6 @@ impl RenderState {
             main_pass,
             shadow_pass,
         };
-
-        // Configure surface for the first time
-        state.configure_surface();
 
         state
     }
@@ -1073,76 +1037,74 @@ impl RenderState {
         camera_position: Vec3,
         lights_data: LightsData,
     ) {
-        let render_span = info_span!("Voxel render").entered();
+        match (&self.surface, &self.window) {
+            (Some(surface), Some(window)) => {
+                let render_span = info_span!("Voxel render").entered();
 
-        if let Some(surface) = &self.surface {
-            let surface_texture = surface
-                .get_current_texture()
-                .expect("failed to acquire next swapchain texture");
-            let texture_view = self.get_texture_view(&surface_texture);
-            let draw_count = voxel_planes.len() as u32;
-
-            // Prepare buffers for the main pass
-            self.main_pass
-                .prepare_buffers(&self.device, &self.queue, voxel_planes);
-
-            let uniform_buffer = &self.main_pass.uniform_buffer;
-            let vertex_buffer = &self.main_pass.vertex_buffer;
-            let instance_buffer = &self.main_pass.instance_buffer;
-            let bind_group = &self.main_pass.bind_group;
-            let indirect_buffer = &self.main_pass.indirect_buffer;
-            let lights_uniform_buffer = &self.main_pass.lights_uniform_buffer;
-            let mvp_buffer = &self.main_pass.mvp_buffer;
-
-            // Shadow
-            let draw_buffers = DrawBuffers {
-                uniform_buffer,
-                vertex_buffer,
-                instance_buffer,
-                indirect_buffer,
-                mvp_buffer,
-                lights_uniform_buffer,
-            };
-
-            self.shadow_pass.enqueue(
-                &self.device,
-                &self.queue,
-                shadow_view,
-                camera_position,
-                draw_count,
-                &draw_buffers,
-                bind_group,
-            );
-
-            self.main_pass.enqueue(
-                &self.device,
-                &self.queue,
-                &texture_view,
-                &self.main_pass_texture_view,
-                &self.shadow_pass.shadow_bind_group,
-                draw_count,
-                camera_position,
-                lights_data,
-                view_proj,
-            );
-
-            // Debug debug
-            {
+                let surface_texture = surface
+                    .get_current_texture()
+                    .expect("failed to acquire next swapchain texture");
                 let texture_view = self.get_texture_view(&surface_texture);
-                let depth_debug_command_buffer = self.enqueue_depth_debug_pass(texture_view);
-                self.queue.submit([depth_debug_command_buffer]);
-            }
+                let draw_count = voxel_planes.len() as u32;
 
-            if let Some(window) = &self.window {
+                // Prepare buffers for the main pass
+                self.main_pass
+                    .prepare_buffers(&self.device, &self.queue, voxel_planes);
+
+                let uniform_buffer = &self.main_pass.uniform_buffer;
+                let vertex_buffer = &self.main_pass.vertex_buffer;
+                let instance_buffer = &self.main_pass.instance_buffer;
+                let bind_group = &self.main_pass.bind_group;
+                let indirect_buffer = &self.main_pass.indirect_buffer;
+                let lights_uniform_buffer = &self.main_pass.lights_uniform_buffer;
+                let mvp_buffer = &self.main_pass.mvp_buffer;
+
+                // Shadow
+                let draw_buffers = DrawBuffers {
+                    uniform_buffer,
+                    vertex_buffer,
+                    instance_buffer,
+                    indirect_buffer,
+                    mvp_buffer,
+                    lights_uniform_buffer,
+                };
+
+                self.shadow_pass.enqueue(
+                    &self.device,
+                    &self.queue,
+                    shadow_view,
+                    camera_position,
+                    draw_count,
+                    &draw_buffers,
+                    bind_group,
+                );
+
+                self.main_pass.enqueue(
+                    &self.device,
+                    &self.queue,
+                    &texture_view,
+                    &self.main_pass_texture_view,
+                    &self.shadow_pass.shadow_bind_group,
+                    draw_count,
+                    camera_position,
+                    lights_data,
+                    view_proj,
+                );
+
                 window.pre_present_notify();
                 surface_texture.present();
-            } else {
-                info!("Window not ready for rendering")
-            }
 
-            render_span.exit();
-        } else {
-            info!("Surface not ready for rendering")
+                render_span.exit();
+            }
+            (Some(surface), None) => {
+                warn!("Window is not set for rendering");
+            }
+            (None, Some(window)) => {
+                warn!("Surface is not set for rendering");
+            }
+            (None, None) => {
+                warn!("Neither surface nor window is set for rendering");
+            }
         }
     }
 }
@@ -1175,6 +1137,8 @@ impl ApplicationHandler for VoxelExtractApp {
             .with_title("Soulflame")
             .with_min_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0));
         self.window = Some(event_loop.create_window(window_attributes).unwrap());
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+
         // TODO: setup surface
         // if let Some(instance) = &self.instance {
         //     self.surface = instance.create_surface(self.window).unwrap();
@@ -1215,7 +1179,7 @@ impl ApplicationHandler for VoxelExtractApp {
             }
             WindowEvent::RedrawRequested => {
                 match self.render_finished_receiver.try_recv() {
-                    Ok(message) => {
+                    Ok(()) => {
                         self.app.update();
 
                         // Get camera view projection matrix
@@ -1346,6 +1310,8 @@ pub type LightsData = Vec<(GlobalTransform, PointLight)>;
 
 pub type WorldMessage = (Mat4, VoxelPlanesData, SunData, Vec3, LightsData);
 
+
+// TODO: add messaging for window creation and resize
 impl Plugin for VoxelRenderPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(MainThreadExecutor::new());
@@ -1376,18 +1342,12 @@ impl Plugin for VoxelRenderPlugin {
         let render_instance = instance.clone();
 
         let render_loop = move || {
-            let mut render_state = RenderState::new(render_adapter, render_instance);
+            let mut render_app = RenderApp::new(render_adapter, render_instance);
             loop {
                 // Block until a message is received
                 if let Ok((view_proj, voxel_planes, sun_data, camera_position, lights)) =
                     world_message_receiver.recv()
                 {
-                    if voxel_planes.is_empty() {
-                        render_finished_sender
-                            .send(())
-                            .expect("Failed to send render finished signal");
-                        continue; // Skip rendering if no voxel planes are available
-                    }
                     let (shadow_transform, _) = sun_data;
                     let shadow_view = shadow_transform.compute_matrix().inverse();
 
@@ -1395,7 +1355,9 @@ impl Plugin for VoxelRenderPlugin {
                     render_finished_sender
                         .send(())
                         .expect("Failed to send render finished signal");
-                    render_state.render(
+
+                    // Render the scene
+                    render_app.render(
                         view_proj,
                         shadow_view,
                         voxel_planes,
