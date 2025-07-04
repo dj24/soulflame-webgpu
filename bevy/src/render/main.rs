@@ -1048,21 +1048,19 @@ impl RenderApp {
         if self.window.is_none() {
             match self.window_creation_receiver.recv() {
                 Ok(window) => {
-                    self.window = Some(window);
-                    if let Some(window) = &self.window {
-                        match self.instance.create_surface(window.clone()) {
-                            Ok(surface) => {
-                                self.surface = Some(surface);
-                                info!("Surface created successfully");
-                            }
-                            Err(e) => {
-                                error!("Failed to create surface: {}", e);
-                                return;
-                            }
+                    match self.instance.create_surface(window) {
+                        Ok(surface) => {
+                            self.window = Some(window.clone());
+                            self.surface = Some(surface);
+                            info!("Surface created successfully");
                         }
-                        info!("Window created successfully");
-                        self.configure_surface();
+                        Err(e) => {
+                            error!("Failed to create surface: {}", e);
+                            return;
+                        }
                     }
+                    info!("Window created successfully");
+                    self.configure_surface();
                 }
                 Err(e) => {
                     warn!("Failed to receive window creation: {}", e);
