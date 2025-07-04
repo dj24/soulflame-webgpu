@@ -49,7 +49,7 @@ pub struct InstanceMaterialData(pub Arc<Vec<InstanceData>>);
 const LIGHT_COUNT: usize = 32;
 
 struct RenderApp {
-    window: Option<Window>,
+    window: Option<Arc<Window>>,
     surface: Option<Surface<'static>>,
     instance: wgpu::Instance,
     device: Device,
@@ -62,6 +62,7 @@ struct RenderApp {
     wireframe_pipeline: RenderPipeline,
     main_pass: MainRenderPass,
     shadow_pass: ShadowRenderPass,
+    window_creation_receiver: Receiver<Arc<Window>>,
 }
 
 const DEBUG_DEPTH_BIND_GROUP_LAYOUT_DESCRIPTOR: &wgpu::BindGroupLayoutDescriptor =
@@ -814,7 +815,11 @@ impl RenderApp {
         render_pipeline
     }
 
-    fn new(adapter: Arc<wgpu::Adapter>, instance: wgpu::Instance) -> RenderApp {
+    fn new(
+        adapter: Arc<wgpu::Adapter>,
+        instance: wgpu::Instance,
+        window_creation_receiver: Receiver<Arc<Window>>,
+    ) -> RenderApp {
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             required_features: wgpu::Features::INDIRECT_FIRST_INSTANCE
                 | wgpu::Features::MULTI_DRAW_INDIRECT
@@ -886,13 +891,15 @@ impl RenderApp {
             wireframe_pipeline,
             main_pass,
             shadow_pass,
+            window_creation_receiver,
         };
 
         state
     }
 
-    fn configure_surface(&self) {
+    fn configure_surface(&mut self) {
         if let Some(window) = &self.window {
+            // Configure the surface with the current window size
             let size = window.inner_size();
             let surface_config = wgpu::SurfaceConfiguration {
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -1037,6 +1044,32 @@ impl RenderApp {
         camera_position: Vec3,
         lights_data: LightsData,
     ) {
+        // If we don't have a window, block rendering until received
+        if self.window.is_none() {
+            match self.window_creation_receiver.recv() {
+                Ok(window) => {
+                    self.window = Some(window);
+                    if let Some(window) = &self.window {
+                        match self.instance.create_surface(window.clone()) {
+                            Ok(surface) => {
+                                self.surface = Some(surface);
+                                info!("Surface created successfully");
+                            }
+                            Err(e) => {
+                                error!("Failed to create surface: {}", e);
+                                return;
+                            }
+                        }
+                        info!("Window created successfully");
+                        self.configure_surface();
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to receive window creation: {}", e);
+                }
+            }
+        }
+
         match (&self.surface, &self.window) {
             (Some(surface), Some(window)) => {
                 let render_span = info_span!("Voxel render").entered();
@@ -1114,6 +1147,7 @@ struct VoxelExtractApp {
     app: App,
     window: Option<Window>,
     render_finished_receiver: Receiver<()>,
+    window_creation_sender: Sender<Arc<Window>>,
 }
 
 impl VoxelExtractApp {
@@ -1121,34 +1155,36 @@ impl VoxelExtractApp {
         world_message_sender: Sender<WorldMessage>,
         app: App,
         render_finished_receiver: Receiver<()>,
+        window_creation_sender: Sender<Arc<Window>>,
     ) -> Self {
         Self {
             world_message_sender,
             app,
             window: None,
             render_finished_receiver,
+            window_creation_sender,
         }
     }
 }
 
 impl ApplicationHandler for VoxelExtractApp {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        if self.window.is_some() {
+            info!("Window already created; skipping creation");
+            return;
+        }
         let window_attributes = Window::default_attributes()
             .with_title("Soulflame")
             .with_min_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0));
-        self.window = Some(event_loop.create_window(window_attributes).unwrap());
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
-
-        // TODO: setup surface
-        // if let Some(instance) = &self.instance {
-        //     self.surface = instance.create_surface(self.window).unwrap();
-        // }
+        let window = event_loop.create_window(window_attributes).unwrap();
+        // self.window = Some(window);
+        self.window_creation_sender.send(Arc::new(window));
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::Destroyed => {
-                println!("Window destroyed; stopping");
+                info!("Window destroyed; stopping");
                 event_loop.exit();
             }
             WindowEvent::KeyboardInput { event, .. } => match event.logical_key {
@@ -1171,7 +1207,7 @@ impl ApplicationHandler for VoxelExtractApp {
                 },
             },
             WindowEvent::CloseRequested => {
-                println!("The close button was pressed; stopping");
+                info!("The close button was pressed; stopping");
                 event_loop.exit();
             }
             WindowEvent::Resized(size) => {
@@ -1277,6 +1313,7 @@ pub fn winit_runner(
     event_loop: EventLoop<()>,
     world_message_sender: Sender<WorldMessage>,
     render_finished_receiver: Receiver<()>,
+    window_created_sender: Sender<Arc<Window>>,
 ) -> AppExit {
     if app.plugins_state() == PluginsState::Ready {
         app.finish();
@@ -1286,7 +1323,12 @@ pub fn winit_runner(
     // Update must be called once before the event loop starts
     app.update();
 
-    let mut extract_app = VoxelExtractApp::new(world_message_sender, app, render_finished_receiver);
+    let mut extract_app = VoxelExtractApp::new(
+        world_message_sender,
+        app,
+        render_finished_receiver,
+        window_created_sender,
+    );
 
     event_loop
         .run_app(&mut extract_app)
@@ -1310,14 +1352,15 @@ pub type LightsData = Vec<(GlobalTransform, PointLight)>;
 
 pub type WorldMessage = (Mat4, VoxelPlanesData, SunData, Vec3, LightsData);
 
-
 // TODO: add messaging for window creation and resize
 impl Plugin for VoxelRenderPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(MainThreadExecutor::new());
-        let (world_message_sender, world_message_receiver) =
-            std::sync::mpsc::channel::<WorldMessage>();
-        let (render_finished_sender, render_finished_receiver) = std::sync::mpsc::channel::<()>();
+        let (world_message_sender, world_message_receiver) = mpsc::channel::<WorldMessage>();
+        let (render_finished_sender, render_finished_receiver) = mpsc::channel::<()>();
+        let (window_creation_sender, window_creation_receiver) = mpsc::channel::<Arc<Window>>();
+
+        // Kicks off render cycle TODO: check if it causes race at app startup
         render_finished_sender
             .send(())
             .expect("Error sending initial render finished signal");
@@ -1335,6 +1378,7 @@ impl Plugin for VoxelRenderPlugin {
                 event_loop,
                 world_message_sender,
                 render_finished_receiver,
+                window_creation_sender,
             )
         });
 
@@ -1342,7 +1386,8 @@ impl Plugin for VoxelRenderPlugin {
         let render_instance = instance.clone();
 
         let render_loop = move || {
-            let mut render_app = RenderApp::new(render_adapter, render_instance);
+            let mut render_app =
+                RenderApp::new(render_adapter, render_instance, window_creation_receiver);
             loop {
                 // Block until a message is received
                 if let Ok((view_proj, voxel_planes, sun_data, camera_position, lights)) =
