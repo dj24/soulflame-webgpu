@@ -412,9 +412,8 @@ impl RenderApp {
             })
     }
 
-    fn enqueue_depth_debug_pass(&mut self, texture_view: TextureView) -> wgpu::CommandBuffer {
+    fn enqueue_depth_debug_pass(&mut self, texture_view: TextureView) {
         let depth_span = info_span!("Depth Debug").entered();
-        // Debug depth
         let mut depth_debug_encoder = self.device.create_command_encoder(&Default::default());
         let mut renderpass = depth_debug_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
@@ -434,8 +433,8 @@ impl RenderApp {
         renderpass.set_bind_group(0, &self.debug_quad_bind_group, &[]);
         renderpass.draw(0..4, 0..1); // Draw the debug quad
         drop(renderpass);
+        self.queue.submit([depth_debug_encoder.finish()]);
         depth_span.exit();
-        depth_debug_encoder.finish()
     }
 
     // TODO: move to a separate utility module
@@ -579,6 +578,10 @@ impl RenderApp {
                     camera_position,
                     lights_data,
                     view_proj,
+                );
+
+                self.enqueue_depth_debug_pass(
+                    texture_view.clone(),
                 );
 
                 surface_texture.present();
