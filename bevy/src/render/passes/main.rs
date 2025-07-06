@@ -499,8 +499,7 @@ impl MainRenderPass {
         &mut self,
         device: &Device,
         queue: &Queue,
-        texture_view: &TextureView,
-        msaa_resolve_texture_view: &TextureView,
+        msaa_texture_view: &TextureView,
         shadow_bind_group: &BindGroup,
         draw_count: u32,
         camera_position: Vec3,
@@ -527,8 +526,8 @@ impl MainRenderPass {
         let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: msaa_resolve_texture_view,
-                resolve_target: Some(texture_view),
+                view: msaa_texture_view,
+                resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color {
                         r: 0.56,

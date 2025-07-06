@@ -29,6 +29,7 @@ use winit::{
 };
 use crate::render::passes::main::MainRenderPass;
 use crate::render::passes::shadow::{ShadowRenderPass, SHADOW_BIND_GROUP_LAYOUT_DESCRIPTOR};
+use crate::render::passes::tonemap_resolve::TonemapResolvePass;
 
 #[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
@@ -60,7 +61,7 @@ struct WindowHandles {
 unsafe impl Send for WindowHandles {}
 unsafe impl Sync for WindowHandles {}
 
-const SURFACE_FORMAT: TextureFormat = TextureFormat::Rgba16Float;
+pub const SURFACE_FORMAT: TextureFormat = TextureFormat::Rgba16Float;
 
 struct RenderApp {
     pub(crate) surface: Option<Surface<'static>>,
@@ -71,9 +72,11 @@ struct RenderApp {
     pub(crate) debug_quad_render_pipeline: RenderPipeline,
     pub(crate) debug_quad_bind_group: BindGroup,
     pub(crate) main_pass_texture_view: TextureView,
+    pub(crate) main_pass_texture: wgpu::Texture,
     pub(crate) wireframe_pipeline: RenderPipeline,
     pub(crate) main_pass: MainRenderPass,
     pub(crate) shadow_pass: ShadowRenderPass,
+    pub(crate) tonemap_resolve_pass: TonemapResolvePass,
     pub(crate) window_creation_receiver: Receiver<WindowHandles>,
     pub(crate) window_resize_receiver: Receiver<(u32, u32)>,
 }
@@ -168,8 +171,6 @@ impl RenderApp {
             ),
         });
 
-        let swapchain_format = TextureFormat::Rgba16Float;
-
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Debug Quad Render Pipeline"),
             layout: Some(&pipeline_layout),
@@ -183,7 +184,7 @@ impl RenderApp {
                 module: &shader,
                 entry_point: Some("fragment"),
                 compilation_options: Default::default(),
-                targets: &[Some(swapchain_format.into())],
+                targets: &[Some(SURFACE_FORMAT.into())],
             }),
             primitive: wgpu::PrimitiveState {
                 cull_mode: None,
@@ -214,8 +215,6 @@ impl RenderApp {
             source: wgpu::ShaderSource::Wgsl(include_str!("shaders/wireframe.wgsl").into()),
         });
 
-        let swapchain_format = TextureFormat::Rgba16Float;
-
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Wireframe Render Pipeline"),
             layout: Some(&pipeline_layout),
@@ -244,7 +243,7 @@ impl RenderApp {
                 module: &shader,
                 entry_point: Some("fs_main"),
                 compilation_options: Default::default(),
-                targets: &[Some(swapchain_format.into())],
+                targets: &[Some(SURFACE_FORMAT.into())],
             }),
             primitive: wgpu::PrimitiveState {
                 cull_mode: None,
@@ -319,6 +318,8 @@ impl RenderApp {
             view_formats: &[SURFACE_FORMAT],
         });
 
+        let tonemap_resolve_pass = TonemapResolvePass::new(&device);
+
         let main_pass_texture_view = main_pass_texture.create_view(&wgpu::TextureViewDescriptor {
             label: Some("Main Pass Texture View"),
             format: Some(SURFACE_FORMAT),
@@ -336,11 +337,13 @@ impl RenderApp {
             debug_quad_render_pipeline,
             debug_quad_bind_group,
             main_pass_texture_view,
+            main_pass_texture,
             wireframe_pipeline,
             main_pass,
             shadow_pass,
             window_creation_receiver,
-            window_resize_receiver
+            window_resize_receiver,
+            tonemap_resolve_pass
         };
 
         state
@@ -365,7 +368,7 @@ impl RenderApp {
     }
 
     fn update_render_targets(&mut self, size: (u32, u32)) {
-        let main_pass_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+        self.main_pass_texture = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Main Pass Texture"),
             size: wgpu::Extent3d {
                 width: size.0,
@@ -389,7 +392,7 @@ impl RenderApp {
             size,
         );
 
-        self.main_pass_texture_view = main_pass_texture.create_view(&wgpu::TextureViewDescriptor {
+        self.main_pass_texture_view = self.main_pass_texture.create_view(&wgpu::TextureViewDescriptor {
             label: Some("Main Pass Texture View"),
             format: Some(SURFACE_FORMAT),
             dimension: Some(wgpu::TextureViewDimension::D2),
@@ -571,13 +574,19 @@ impl RenderApp {
                 self.main_pass.enqueue(
                     &self.device,
                     &self.queue,
-                    &texture_view,
                     &self.main_pass_texture_view,
                     &self.shadow_pass.shadow_bind_group,
                     draw_count,
                     camera_position,
                     lights_data,
                     view_proj,
+                );
+
+                self.tonemap_resolve_pass.enqueue(
+                    &self.device,
+                    &self.queue,
+                    (&self.main_pass_texture, &self.main_pass_texture_view),
+                    (&surface_texture.texture, &texture_view),
                 );
 
                 self.enqueue_depth_debug_pass(
