@@ -150,7 +150,7 @@ impl ShadowRenderPass {
             ],
         });
 
-        let bind_group_layout = crate::render::main::MainRenderPass::get_bind_group_layout(&device);
+        let bind_group_layout = crate::render::passes::main::MainRenderPass::get_bind_group_layout(&device);
 
         let shadow_render_pipeline = Self::get_shadow_render_pipeline(&device, &bind_group_layout);
 
@@ -315,7 +315,7 @@ impl ShadowRenderPass {
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Vertex Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/shader.wgsl").into()),
         });
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
