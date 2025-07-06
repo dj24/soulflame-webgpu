@@ -55,6 +55,7 @@ const LIGHT_COUNT: usize = 32;
 struct WindowHandles {
     raw_window_handle: RawWindowHandle,
     raw_display_handle: RawDisplayHandle,
+    initial_size: (u32, u32),
 }
 
 unsafe impl Send for WindowHandles {}
@@ -74,6 +75,7 @@ struct RenderApp {
     main_pass: MainRenderPass,
     shadow_pass: ShadowRenderPass,
     window_creation_receiver: Receiver<WindowHandles>,
+    window_resize_receiver: Receiver<(u32, u32)>,
 }
 
 const DEBUG_DEPTH_BIND_GROUP_LAYOUT_DESCRIPTOR: &wgpu::BindGroupLayoutDescriptor =
@@ -199,12 +201,16 @@ pub(crate) struct MainRenderPass {
 }
 
 impl MainRenderPass {
-    fn new(device: &Device, shadow_bind_group_layout: &BindGroupLayout) -> Self {
+    fn new(
+        device: &Device,
+        shadow_bind_group_layout: &BindGroupLayout,
+        initial_size: (u32, u32),
+    ) -> Self {
         let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Depth Texture"),
             size: wgpu::Extent3d {
-                width: 800,
-                height: 600,
+                width: initial_size.0,
+                height: initial_size.1,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -830,6 +836,8 @@ impl RenderApp {
         adapter: Arc<wgpu::Adapter>,
         instance: wgpu::Instance,
         window_creation_receiver: Receiver<WindowHandles>,
+        initial_size: (u32, u32),
+        window_resize_receiver: Receiver<(u32, u32)>,
     ) -> RenderApp {
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             required_features: wgpu::Features::INDIRECT_FIRST_INSTANCE
@@ -846,7 +854,7 @@ impl RenderApp {
         let shadow_bind_group_layout =
             device.create_bind_group_layout(SHADOW_BIND_GROUP_LAYOUT_DESCRIPTOR);
 
-        let main_pass = MainRenderPass::new(&device, &shadow_bind_group_layout);
+        let main_pass = MainRenderPass::new(&device, &shadow_bind_group_layout, initial_size);
         let bind_group_layout = MainRenderPass::get_bind_group_layout(&device);
         let render_pipeline = MainRenderPass::get_pipeline(&device, &shadow_bind_group_layout);
 
@@ -868,8 +876,8 @@ impl RenderApp {
         let main_pass_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Main Pass Texture"),
             size: wgpu::Extent3d {
-                width: 800,
-                height: 600,
+                width: initial_size.0,
+                height: initial_size.1,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -902,19 +910,20 @@ impl RenderApp {
             main_pass,
             shadow_pass,
             window_creation_receiver,
+            window_resize_receiver
         };
 
         state
     }
 
-    fn configure_surface(&mut self) {
+    fn configure_surface(&mut self, size: (u32, u32)) {
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: self.surface_format,
             view_formats: vec![self.surface_format],
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
-            width: 800,
-            height: 600,
+            width: size.0,
+            height: size.1,
             desired_maximum_frame_latency: 2,
             present_mode: wgpu::PresentMode::Immediate,
         };
@@ -925,8 +934,43 @@ impl RenderApp {
         }
     }
 
-    fn resize(&mut self) {
-        self.configure_surface();
+    fn update_render_targets(&mut self, size: (u32, u32)) {
+        let main_pass_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Main Pass Texture"),
+            size: wgpu::Extent3d {
+                width: size.0,
+                height: size.1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 4,
+            dimension: wgpu::TextureDimension::D2,
+            format: self.surface_format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[self.surface_format],
+        });
+
+        let shadow_bind_group_layout =
+            self.device.create_bind_group_layout(SHADOW_BIND_GROUP_LAYOUT_DESCRIPTOR);
+
+        self.main_pass = MainRenderPass::new(
+            &self.device,
+            &shadow_bind_group_layout,
+            size,
+        );
+
+        self.main_pass_texture_view = main_pass_texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("Main Pass Texture View"),
+            format: Some(self.surface_format),
+            dimension: Some(wgpu::TextureViewDimension::D2),
+            aspect: wgpu::TextureAspect::All,
+            ..Default::default()
+        });
+    }
+
+    fn resize(&mut self, size: (u32, u32)) {
+        self.configure_surface(size);
+        self.update_render_targets(size);
     }
 
     fn get_texture_view(&self, surface_texture: &SurfaceTexture) -> wgpu::TextureView {
@@ -1048,6 +1092,10 @@ impl RenderApp {
         camera_position: Vec3,
         lights_data: LightsData,
     ) {
+        if let Ok(resize_message) = self.window_resize_receiver.try_recv() {
+            self.resize(resize_message);
+        }
+
         match &self.surface {
             Some(surface) => {
                 let render_span = info_span!("Voxel render").entered();
@@ -1055,6 +1103,7 @@ impl RenderApp {
                 let surface_texture = surface
                     .get_current_texture()
                     .expect("failed to acquire next swapchain texture");
+
                 let texture_view = self.get_texture_view(&surface_texture);
                 let draw_count = voxel_planes.len() as u32;
 
@@ -1117,7 +1166,7 @@ impl RenderApp {
                         match unsafe { self.instance.create_surface_unsafe(surface_target) } {
                             Ok(surface) => {
                                 self.surface = Some(surface);
-                                self.configure_surface();
+                                self.configure_surface(handles.initial_size);
                                 info!("Surface created successfully");
                             }
                             Err(e) => {
@@ -1142,6 +1191,7 @@ struct VoxelExtractApp {
     window: Option<Window>,
     render_finished_receiver: Receiver<()>,
     window_creation_sender: Sender<WindowHandles>,
+    window_resized_sender: Sender<(u32, u32)>,
 }
 
 impl VoxelExtractApp {
@@ -1150,6 +1200,7 @@ impl VoxelExtractApp {
         app: App,
         render_finished_receiver: Receiver<()>,
         window_creation_sender: Sender<WindowHandles>,
+        window_resized_sender: Sender<(u32, u32)>,
     ) -> Self {
         Self {
             world_message_sender,
@@ -1157,6 +1208,7 @@ impl VoxelExtractApp {
             window: None,
             render_finished_receiver,
             window_creation_sender,
+            window_resized_sender,
         }
     }
 }
@@ -1167,27 +1219,26 @@ impl ApplicationHandler for VoxelExtractApp {
             info!("Window already created; skipping creation");
             return;
         }
-        let window_attributes = Window::default_attributes()
-            .with_title("Soulflame")
-            .with_min_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0));
+        let primary_monitor = event_loop.primary_monitor().unwrap();
+        let video_mode = primary_monitor.video_modes().next().unwrap();
+        let window_attributes = Window::default_attributes().with_title("Soulflame")
+        .with_fullscreen(Some(winit::window::Fullscreen::Exclusive(video_mode.clone())));
         let window = event_loop.create_window(window_attributes).unwrap();
         let raw_window_handle = window.raw_window_handle();
         let raw_display_handle = window.raw_display_handle();
+        let initial_size = video_mode.clone().size();
         self.window = Some(window);
 
         // Extract handles on main thread
         match (raw_window_handle, raw_display_handle) {
             (Ok(raw_window_handle), Ok(raw_display_handle)) => {
-                info!(
-                    "Window created with handles: {:?}, {:?}",
-                    raw_window_handle, raw_display_handle
-                );
+                info!("Window created with size: {:?}", initial_size);
                 let handles = WindowHandles {
                     raw_window_handle,
                     raw_display_handle,
+                    initial_size: (initial_size.width, initial_size.height),
                 };
-                self.window_creation_sender
-                    .send(handles);
+                self.window_creation_sender.send(handles);
             }
             _ => {
                 error!("Failed to get raw window or display handle");
@@ -1226,6 +1277,9 @@ impl ApplicationHandler for VoxelExtractApp {
             }
             WindowEvent::Resized(size) => {
                 info!("Resizing to {:?}", size);
+                self.window_resized_sender
+                    .send((size.width, size.height))
+                    .expect("Failed to send window resize event");
             }
             WindowEvent::RedrawRequested => {
                 match self.render_finished_receiver.try_recv() {
@@ -1329,6 +1383,7 @@ pub fn winit_runner(
     world_message_sender: Sender<WorldMessage>,
     render_finished_receiver: Receiver<()>,
     window_created_sender: Sender<WindowHandles>,
+    window_resize_sender: Sender<(u32, u32)>,
 ) -> AppExit {
     if app.plugins_state() == PluginsState::Ready {
         app.finish();
@@ -1343,6 +1398,7 @@ pub fn winit_runner(
         app,
         render_finished_receiver,
         window_created_sender,
+        window_resize_sender
     );
 
     event_loop
@@ -1374,6 +1430,7 @@ impl Plugin for VoxelRenderPlugin {
         let (world_message_sender, world_message_receiver) = mpsc::channel::<WorldMessage>();
         let (render_finished_sender, render_finished_receiver) = mpsc::channel::<()>();
         let (window_creation_sender, window_creation_receiver) = mpsc::channel::<WindowHandles>();
+        let (window_resized_sender, window_resized_receiver) = mpsc::channel::<(u32, u32)>();
 
         // Kicks off render cycle TODO: check if it causes race at app startup
         render_finished_sender
@@ -1394,6 +1451,7 @@ impl Plugin for VoxelRenderPlugin {
                 world_message_sender,
                 render_finished_receiver,
                 window_creation_sender,
+                window_resized_sender
             )
         });
 
@@ -1401,8 +1459,14 @@ impl Plugin for VoxelRenderPlugin {
         let render_instance = instance.clone();
 
         let render_loop = move || {
-            let mut render_app =
-                RenderApp::new(render_adapter, render_instance, window_creation_receiver);
+            let mut render_app = RenderApp::new(
+                render_adapter,
+                render_instance,
+                window_creation_receiver,
+                (800, 600),
+                window_resized_receiver
+            );
+
             loop {
                 // Block until a message is received
                 if let Ok((view_proj, voxel_planes, sun_data, camera_position, lights)) =
