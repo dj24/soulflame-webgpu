@@ -19,6 +19,9 @@ use wgpu::{
 };
 use winit::event::ElementState;
 use winit::keyboard::Key;
+use winit::raw_window_handle::{
+    HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
+};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -48,8 +51,16 @@ pub struct InstanceMaterialData(pub Arc<Vec<InstanceData>>);
 
 const LIGHT_COUNT: usize = 32;
 
+#[derive(Debug)]
+struct WindowHandles {
+    raw_window_handle: RawWindowHandle,
+    raw_display_handle: RawDisplayHandle,
+}
+
+unsafe impl Send for WindowHandles {}
+unsafe impl Sync for WindowHandles {}
+
 struct RenderApp {
-    window: Option<Arc<Window>>,
     surface: Option<Surface<'static>>,
     instance: wgpu::Instance,
     device: Device,
@@ -62,7 +73,7 @@ struct RenderApp {
     wireframe_pipeline: RenderPipeline,
     main_pass: MainRenderPass,
     shadow_pass: ShadowRenderPass,
-    window_creation_receiver: Receiver<Arc<Window>>,
+    window_creation_receiver: Receiver<WindowHandles>,
 }
 
 const DEBUG_DEPTH_BIND_GROUP_LAYOUT_DESCRIPTOR: &wgpu::BindGroupLayoutDescriptor =
@@ -818,7 +829,7 @@ impl RenderApp {
     fn new(
         adapter: Arc<wgpu::Adapter>,
         instance: wgpu::Instance,
-        window_creation_receiver: Receiver<Arc<Window>>,
+        window_creation_receiver: Receiver<WindowHandles>,
     ) -> RenderApp {
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             required_features: wgpu::Features::INDIRECT_FIRST_INSTANCE
@@ -882,7 +893,6 @@ impl RenderApp {
             queue,
             instance,
             surface: None,
-            window: None,
             surface_format,
             render_pipeline,
             debug_quad_render_pipeline,
@@ -898,26 +908,20 @@ impl RenderApp {
     }
 
     fn configure_surface(&mut self) {
-        if let Some(window) = &self.window {
-            // Configure the surface with the current window size
-            let size = window.inner_size();
-            let surface_config = wgpu::SurfaceConfiguration {
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                format: self.surface_format,
-                view_formats: vec![self.surface_format],
-                alpha_mode: wgpu::CompositeAlphaMode::Auto,
-                width: size.width,
-                height: size.height,
-                desired_maximum_frame_latency: 2,
-                present_mode: wgpu::PresentMode::Immediate,
-            };
-            if let Some(surface) = &self.surface {
-                surface.configure(&self.device, &surface_config);
-            } else {
-                info!("Surface is not set for RenderState");
-            }
+        let surface_config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: self.surface_format,
+            view_formats: vec![self.surface_format],
+            alpha_mode: wgpu::CompositeAlphaMode::Auto,
+            width: 800,
+            height: 600,
+            desired_maximum_frame_latency: 2,
+            present_mode: wgpu::PresentMode::Immediate,
+        };
+        if let Some(surface) = &self.surface {
+            surface.configure(&self.device, &surface_config);
         } else {
-            info!("Window is not set for RenderState");
+            info!("Surface is not set for RenderState");
         }
     }
 
@@ -1044,32 +1048,8 @@ impl RenderApp {
         camera_position: Vec3,
         lights_data: LightsData,
     ) {
-        // If we don't have a window, block rendering until received
-        if self.window.is_none() {
-            match self.window_creation_receiver.recv() {
-                Ok(window) => {
-                    match self.instance.create_surface(window) {
-                        Ok(surface) => {
-                            self.window = Some(window.clone());
-                            self.surface = Some(surface);
-                            info!("Surface created successfully");
-                        }
-                        Err(e) => {
-                            error!("Failed to create surface: {}", e);
-                            return;
-                        }
-                    }
-                    info!("Window created successfully");
-                    self.configure_surface();
-                }
-                Err(e) => {
-                    warn!("Failed to receive window creation: {}", e);
-                }
-            }
-        }
-
-        match (&self.surface, &self.window) {
-            (Some(surface), Some(window)) => {
+        match &self.surface {
+            Some(surface) => {
                 let render_span = info_span!("Voxel render").entered();
 
                 let surface_texture = surface
@@ -1122,19 +1102,35 @@ impl RenderApp {
                     view_proj,
                 );
 
-                window.pre_present_notify();
                 surface_texture.present();
 
                 render_span.exit();
             }
-            (Some(surface), None) => {
-                warn!("Window is not set for rendering");
-            }
-            (None, Some(window)) => {
-                warn!("Surface is not set for rendering");
-            }
-            (None, None) => {
-                warn!("Neither surface nor window is set for rendering");
+            None => {
+                info!("Surface not created yet, waiting for window creation");
+                match self.window_creation_receiver.recv() {
+                    Ok(handles) => {
+                        let surface_target = wgpu::SurfaceTargetUnsafe::RawHandle {
+                            raw_display_handle: handles.raw_display_handle,
+                            raw_window_handle: handles.raw_window_handle,
+                        };
+                        match unsafe { self.instance.create_surface_unsafe(surface_target) } {
+                            Ok(surface) => {
+                                self.surface = Some(surface);
+                                self.configure_surface();
+                                info!("Surface created successfully");
+                            }
+                            Err(e) => {
+                                error!("Failed to create surface: {}", e);
+                                return;
+                            }
+                        }
+                        info!("Window created successfully");
+                    }
+                    Err(e) => {
+                        warn!("Failed to receive window creation: {}", e);
+                    }
+                }
             }
         }
     }
@@ -1145,7 +1141,7 @@ struct VoxelExtractApp {
     app: App,
     window: Option<Window>,
     render_finished_receiver: Receiver<()>,
-    window_creation_sender: Sender<Arc<Window>>,
+    window_creation_sender: Sender<WindowHandles>,
 }
 
 impl VoxelExtractApp {
@@ -1153,7 +1149,7 @@ impl VoxelExtractApp {
         world_message_sender: Sender<WorldMessage>,
         app: App,
         render_finished_receiver: Receiver<()>,
-        window_creation_sender: Sender<Arc<Window>>,
+        window_creation_sender: Sender<WindowHandles>,
     ) -> Self {
         Self {
             world_message_sender,
@@ -1175,8 +1171,28 @@ impl ApplicationHandler for VoxelExtractApp {
             .with_title("Soulflame")
             .with_min_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0));
         let window = event_loop.create_window(window_attributes).unwrap();
-        // self.window = Some(window);
-        self.window_creation_sender.send(Arc::new(window));
+        let raw_window_handle = window.raw_window_handle();
+        let raw_display_handle = window.raw_display_handle();
+        self.window = Some(window);
+
+        // Extract handles on main thread
+        match (raw_window_handle, raw_display_handle) {
+            (Ok(raw_window_handle), Ok(raw_display_handle)) => {
+                info!(
+                    "Window created with handles: {:?}, {:?}",
+                    raw_window_handle, raw_display_handle
+                );
+                let handles = WindowHandles {
+                    raw_window_handle,
+                    raw_display_handle,
+                };
+                self.window_creation_sender
+                    .send(handles);
+            }
+            _ => {
+                error!("Failed to get raw window or display handle");
+            }
+        }
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -1288,6 +1304,7 @@ impl ApplicationHandler for VoxelExtractApp {
                                     panic!("Only perspective projection is supported");
                                 }
                             }
+                            window.pre_present_notify();
                         }
                     }
                     Err(mpsc::TryRecvError::Empty) => {}
@@ -1311,7 +1328,7 @@ pub fn winit_runner(
     event_loop: EventLoop<()>,
     world_message_sender: Sender<WorldMessage>,
     render_finished_receiver: Receiver<()>,
-    window_created_sender: Sender<Arc<Window>>,
+    window_created_sender: Sender<WindowHandles>,
 ) -> AppExit {
     if app.plugins_state() == PluginsState::Ready {
         app.finish();
@@ -1356,7 +1373,7 @@ impl Plugin for VoxelRenderPlugin {
         app.insert_resource(MainThreadExecutor::new());
         let (world_message_sender, world_message_receiver) = mpsc::channel::<WorldMessage>();
         let (render_finished_sender, render_finished_receiver) = mpsc::channel::<()>();
-        let (window_creation_sender, window_creation_receiver) = mpsc::channel::<Arc<Window>>();
+        let (window_creation_sender, window_creation_receiver) = mpsc::channel::<WindowHandles>();
 
         // Kicks off render cycle TODO: check if it causes race at app startup
         render_finished_sender

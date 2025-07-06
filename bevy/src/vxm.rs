@@ -289,11 +289,6 @@ impl AssetLoader for VxmAssetLoader {
                                 continue; // Not an emissive voxel
                             }
 
-                            info!(
-                                "Found emissive voxel at ({}, {}, {}) with color ({}, {}, {})",
-                                nx, ny, nz, colour.r, colour.g, colour.b
-                            );
-
                             found_emissive = true;
                             visited_light_voxels[nx as usize][ny as usize][nz as usize] = true;
                             light.intensity += 1.0;

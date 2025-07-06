@@ -1,14 +1,9 @@
 use crate::vxm::{PendingVxm, VxmAsset};
-use crate::vxm_mesh;
 use crate::vxm_mesh::{MeshedVoxels};
 use bevy::asset::{AssetEvent, AssetServer, Assets, Handle};
 use bevy::log::{error, info};
-use bevy::math::Vec3;
-use bevy::pbr::wireframe::Wireframe;
-use bevy::pbr::{ExtendedMaterial, MeshMaterial3d, StandardMaterial};
 use bevy::prelude::{ChildOf, Children, Commands, Component, Entity, EventReader, FromWorld, Gltf, Mesh, Mesh3d, Name, Query, Res, ResMut, Resource, SceneRoot, Transform, With, World};
 use bevy::render::mesh::VertexAttributeValues;
-use bevy::render::storage::ShaderStorageBuffer;
 use std::env::current_dir;
 
 struct VxmMeshSwapTarget {
