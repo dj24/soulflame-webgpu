@@ -627,7 +627,7 @@ impl ApplicationHandler for VoxelExtractApp {
             width: initial_size.width,
             height: initial_size.height,
             desired_maximum_frame_latency: 2,
-            present_mode: wgpu::PresentMode::Immediate,
+            present_mode: wgpu::PresentMode::AutoVsync,
         };
         self.window = Some(window);
         match self.window {
@@ -911,11 +911,6 @@ impl Plugin for VoxelRenderPlugin {
                                 let (shadow_transform, _) = sun_data;
                                 let shadow_view = shadow_transform.compute_matrix().inverse();
 
-                                // Send a signal that the next update can begin
-                                render_finished_sender
-                                    .send(())
-                                    .expect("Failed to send render finished signal");
-
                                 match surface.get_current_texture() {
                                     Ok(surface_texture) => {
                                         // Render the scene
@@ -933,6 +928,10 @@ impl Plugin for VoxelRenderPlugin {
                                         continue;
                                     }
                                 }
+                                // Send a signal that the next update can begin
+                                render_finished_sender
+                                    .send(())
+                                    .expect("Failed to send render finished signal");
                             }
                             Err(_) => {
                                 // Channel closed, exit thread
