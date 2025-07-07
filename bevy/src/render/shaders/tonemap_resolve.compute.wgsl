@@ -4,7 +4,7 @@ fn toneMapSDR(color: vec3<f32>) -> vec3<f32> {
 }
 
 @group(0) @binding(0) var input_texture: texture_multisampled_2d<f32>;
-@group(0) @binding(1) var output_texture: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(1) var output_texture: texture_storage_2d<rgba16float, write>;
 
 
 @compute @workgroup_size(8, 8, 1)

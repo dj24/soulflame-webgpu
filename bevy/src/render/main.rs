@@ -313,7 +313,7 @@ impl RenderApp {
             view_formats: &[SURFACE_FORMAT],
         });
 
-        let tonemap_resolve_pass = TonemapResolvePass::new(&device);
+        let tonemap_resolve_pass = TonemapResolvePass::new(&device, initial_size);
 
         let main_pass_texture_view = main_pass_texture.create_view(&wgpu::TextureViewDescriptor {
             label: Some("Main Pass Texture View"),
@@ -497,7 +497,7 @@ impl RenderApp {
         voxel_planes: VoxelPlanesData,
         camera_position: Vec3,
         lights_data: LightsData,
-        surface_texture: &SurfaceTexture,
+        surface_texture: SurfaceTexture,
     ) {
         if let Ok(resize_message) = self.window_resize_receiver.try_recv() {
             self.resize(resize_message);
@@ -505,7 +505,7 @@ impl RenderApp {
 
         let render_span = info_span!("Voxel render").entered();
 
-        let surface_texture_view = self.get_texture_view(surface_texture);
+        let surface_texture_view = self.get_texture_view(&surface_texture);
         let draw_count = voxel_planes.len() as u32;
 
         // Prepare buffers for the main pass
@@ -560,7 +560,7 @@ impl RenderApp {
 
         self.enqueue_depth_debug_pass(surface_texture_view.clone());
 
-        surface_texture.clone().present();
+        surface_texture.present();
 
         render_span.exit();
     }
@@ -925,7 +925,7 @@ impl Plugin for VoxelRenderPlugin {
                                             voxel_planes,
                                             camera_position,
                                             lights,
-                                            &surface_texture,
+                                            surface_texture,
                                         );
                                     }
                                     Err(e) => {
