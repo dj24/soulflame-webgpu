@@ -1,9 +1,12 @@
 use crate::render::main::SURFACE_FORMAT;
 use wgpu::{ComputePipeline, Device, RenderPipeline, Texture, TextureFormat, TextureView};
+use std::fs;
 
 pub struct TonemapResolvePass {
     render_pipeline: RenderPipeline,
     output_texture: Texture,
+    lut_texture: Texture,
+    lut_texture_view: TextureView,
 }
 
 type TextureWithView<'a> = (&'a Texture, &'a TextureView);
@@ -26,16 +29,123 @@ impl TonemapResolvePass {
                     },
                     count: None,
                 },
+                // LUT 3D texture
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D3,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                // LUT sampler
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
             ],
         })
     }
 
-    pub fn new(device: &Device, initial_size: (u32, u32)) -> Self {
+    fn load_lut_data() -> Result<(Vec<f32>, u32), Box<dyn std::error::Error>> {
+        let lut_path = "src/render/luts/Korben 214.CUBE";
+        let content = fs::read_to_string(lut_path)?;
+
+        let mut lut_size = 0u32;
+        let mut lut_data = Vec::new();
+
+        for line in content.lines() {
+            let line = line.trim();
+            if line.starts_with("LUT_3D_SIZE") {
+                lut_size = line.split_whitespace().nth(1).unwrap().parse()?;
+            } else if !line.starts_with('#') && !line.starts_with("TITLE") && !line.starts_with("DOMAIN_") && !line.is_empty() {
+                // Parse RGB values
+                let values: Vec<f32> = line.split_whitespace()
+                    .take(3)
+                    .map(|s| s.parse().unwrap_or(0.0))
+                    .collect();
+                if values.len() == 3 {
+                    lut_data.extend(values);
+                }
+            }
+        }
+
+        Ok((lut_data, lut_size))
+    }
+
+    fn create_lut_texture(device: &Device, queue: &wgpu::Queue) -> (Texture, TextureView) {
+        let (lut_data, lut_size) = Self::load_lut_data().expect("Failed to load LUT data");
+
+        let lut_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("LUT 3D Texture"),
+            size: wgpu::Extent3d {
+                width: lut_size,
+                height: lut_size,
+                depth_or_array_layers: lut_size,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D3,
+            format: TextureFormat::Rgba8Unorm, // Changed from Rgba32Float to support filtering
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        // Convert RGB data to RGBA8 format
+        let mut rgba_data = Vec::with_capacity(lut_data.len() / 3 * 4); // 4 components, 1 byte each
+        for chunk in lut_data.chunks(3) {
+            // Convert float [0,1] to u8 [0,255]
+            rgba_data.push((chunk[0] * 255.0) as u8); // R
+            rgba_data.push((chunk[1] * 255.0) as u8); // G
+            rgba_data.push((chunk[2] * 255.0) as u8); // B
+            rgba_data.push(255u8); // Alpha = 255
+        }
+
+        queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture: &lut_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &rgba_data,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(lut_size * 4), // 4 components * 1 byte each
+                rows_per_image: Some(lut_size),
+            },
+            wgpu::Extent3d {
+                width: lut_size,
+                height: lut_size,
+                depth_or_array_layers: lut_size,
+            },
+        );
+
+        let lut_texture_view = lut_texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("LUT 3D Texture View"),
+            format: Some(TextureFormat::Rgba8Unorm), // Updated format
+            dimension: Some(wgpu::TextureViewDimension::D3),
+            aspect: wgpu::TextureAspect::All,
+            base_mip_level: 0,
+            mip_level_count: Some(1),
+            base_array_layer: 0,
+            array_layer_count: None,
+            usage: Some(wgpu::TextureUsages::TEXTURE_BINDING),
+        });
+
+        (lut_texture, lut_texture_view)
+    }
+
+    pub fn new(device: &Device, queue: &wgpu::Queue, initial_size: (u32, u32)) -> Self {
 
         let fullscreen_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Tonemap Resolve Fullscreen Shader"),
             source: wgpu::ShaderSource::Wgsl(
-                include_str!("../shaders/fullscreen-quad.wgsl").into(),
+                include_str!("../shaders/tonemap-resolve-fullscreen-quad.wgsl").into(),
             ),
         });
 
@@ -101,9 +211,13 @@ impl TonemapResolvePass {
             cache: None,
         });
 
+        let (lut_texture, lut_texture_view) = Self::create_lut_texture(device, queue);
+
         Self {
             output_texture,
             render_pipeline,
+            lut_texture,
+            lut_texture_view,
         }
     }
 
@@ -117,14 +231,39 @@ impl TonemapResolvePass {
         let (_, input_texture_view) = input_texture_and_view;
         let (_, surface_texture_view) = surface_texture_and_view;
 
+        let lut_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("LUT Sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Linear,
+            compare: None,
+            lod_min_clamp: 0.0,
+            lod_max_clamp: 32.0,
+            border_color: None,
+            anisotropy_clamp: 1,
+        });
+
         let render_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Tonemap Resolve Render Bind Group"),
             layout: &TonemapResolvePass::get_render_bind_group_layout(&device),
             entries: &[
-                // Output texture binding
+                // Input texture binding
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::TextureView(&input_texture_view),
+                },
+                // LUT texture binding
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&self.lut_texture_view),
+                },
+                // LUT sampler binding
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Sampler(&lut_sampler),
                 },
             ],
         });

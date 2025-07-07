@@ -313,7 +313,7 @@ impl RenderApp {
             view_formats: &[SURFACE_FORMAT],
         });
 
-        let tonemap_resolve_pass = TonemapResolvePass::new(&device, initial_size);
+        let tonemap_resolve_pass = TonemapResolvePass::new(&device, &queue, initial_size);
 
         let main_pass_texture_view = main_pass_texture.create_view(&wgpu::TextureViewDescriptor {
             label: Some("Main Pass Texture View"),

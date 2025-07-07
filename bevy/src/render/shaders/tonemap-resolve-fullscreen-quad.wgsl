@@ -1,4 +1,6 @@
 @group(0) @binding(0) var input_texture: texture_multisampled_2d<f32>;
+@group(0) @binding(1) var lut_texture: texture_3d<f32>;
+@group(0) @binding(2) var lut_sampler: sampler;
 
 const QUAD_VERTICES: array<vec4<f32>, 4> = array(
     vec4<f32>(-1.0, -1.0, 0.0, 1.0), // Bottom-left
@@ -32,6 +34,15 @@ fn toneMapSDR(color: vec3<f32>) -> vec3<f32> {
   return color / (vec3(1.0) + color);
 }
 
+fn applyLUT(color: vec3<f32>) -> vec3<f32> {
+    // Clamp color values to [0, 1] range
+    let clamped_color = clamp(color, vec3<f32>(0.0), vec3<f32>(1.0));
+
+    // Sample the LUT using the normalized RGB values as UVW coordinates
+    let lut_color = textureSample(lut_texture, lut_sampler, clamped_color);
+
+    return lut_color.rgb;
+}
 
 @fragment
 fn fragment(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
@@ -55,5 +66,8 @@ fn fragment(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
     // Average the tone-mapped samples
     let tone_mapped = (tonemapped_0 + tonemapped_1 + tonemapped_2 + tonemapped_3) / 4.0;
 
-    return vec4<f32>(tone_mapped, 1.0);
+    // Apply LUT color grading
+    let final_color = applyLUT(tone_mapped);
+
+    return vec4<f32>(final_color, 1.0);
 }
