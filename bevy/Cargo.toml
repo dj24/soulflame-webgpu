@@ -10,10 +10,6 @@ rayon = "1.10.0"
 fastnoise2 = "0.3.1"
 pollster = "0.4"
 wgpu = "25.0.0"
-imgui = "0.12.0"
-imgui-wgpu = "0.25.0"
-imgui-winit-support = "0.12.0"
-
 winit = { version = "0.30.11" }
 bevy = { version = "0.16.0", default-features = false, features = [
     # These are the default features:
@@ -41,8 +37,7 @@ bevy = { version = "0.16.0", default-features = false, features = [
     # Development features
     "asset_processor", # Enable asset processing support
     "bevy_dev_tools", # Extra dev functionality (like FPS overlay)
-    "file_watcher", # Asset hot-reloading
-#    "trace_chrome",
+    #    "trace_chrome",
 ] }
 
 [profile.dev]

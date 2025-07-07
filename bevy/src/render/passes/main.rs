@@ -1,9 +1,12 @@
+use crate::render::main::{InstanceData, LightsData, Uniforms, VoxelPlanesData, SURFACE_FORMAT};
 use bevy::math::Vec3;
 use bevy::pbr::PointLight;
 use bevy::prelude::*;
 use bytemuck::{Pod, Zeroable};
-use wgpu::{BindGroup, BindGroupLayout, Device, Face, Queue, RenderPipeline, TextureFormat, TextureView, VertexAttribute, VertexStepMode};
-use crate::render::main::{InstanceData, LightsData, Uniforms, VoxelPlanesData};
+use wgpu::{
+    BindGroup, BindGroupLayout, Device, Face, Queue, RenderPipeline, TextureFormat, TextureView,
+    VertexAttribute, VertexStepMode,
+};
 
 #[derive(Pod, Zeroable, Clone, Copy)]
 #[repr(C)]
@@ -98,7 +101,6 @@ impl MainRenderPass {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-
 
         Self {
             render_pipeline: Self::get_pipeline(device, shadow_bind_group_layout),
@@ -230,8 +232,6 @@ impl MainRenderPass {
             source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/shader.wgsl").into()),
         });
 
-        let swapchain_format = TextureFormat::Rgba16Float;
-
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&pipeline_layout),
@@ -271,7 +271,7 @@ impl MainRenderPass {
                 module: &shader,
                 entry_point: Some("fs_main"),
                 compilation_options: Default::default(),
-                targets: &[Some(swapchain_format.into())],
+                targets: &[Some(SURFACE_FORMAT.into())],
             }),
             primitive: wgpu::PrimitiveState {
                 cull_mode: Some(Face::Back),
@@ -297,7 +297,12 @@ impl MainRenderPass {
         render_pipeline
     }
 
-    pub(crate) fn prepare_buffers(&mut self, device: &Device, queue: &Queue, voxel_planes: VoxelPlanesData) {
+    pub(crate) fn prepare_buffers(
+        &mut self,
+        device: &Device,
+        queue: &Queue,
+        voxel_planes: VoxelPlanesData,
+    ) {
         let voxel_object_count = voxel_planes.len() / 6;
         let new_buffer_size = (voxel_object_count * size_of::<Mat4>()) as u64;
         let mut total_instances = 0;
