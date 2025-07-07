@@ -1,4 +1,7 @@
 use crate::keyboard_events::{KeyPressedEvent, KeyReleasedEvent};
+use crate::render::passes::main::MainRenderPass;
+use crate::render::passes::shadow::{ShadowRenderPass, SHADOW_BIND_GROUP_LAYOUT_DESCRIPTOR};
+use crate::render::passes::tonemap_resolve::TonemapResolvePass;
 use crate::render::util::get_view_projection_matrix;
 use crate::vxm_mesh::MeshedVoxelsFace;
 use bevy::app::PluginsState;
@@ -11,10 +14,11 @@ use std::mem::size_of;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc};
 use std::thread;
+use wgpu::hal::DynSurface;
 use wgpu::util::DeviceExt;
 use wgpu::{
-    BindGroup,Buffer, Device, Face, Queue, RenderPipeline, Surface,
-    SurfaceTexture, TextureFormat, TextureView, VertexAttribute, VertexStepMode,
+    BindGroup, Buffer, Device, Face, Queue, RenderPipeline, Surface, SurfaceTexture, TextureFormat,
+    TextureView, VertexAttribute, VertexStepMode,
 };
 use winit::event::ElementState;
 use winit::keyboard::Key;
@@ -27,9 +31,6 @@ use winit::{
     event_loop::{ActiveEventLoop, EventLoop},
     window::{Window, WindowId},
 };
-use crate::render::passes::main::MainRenderPass;
-use crate::render::passes::shadow::{ShadowRenderPass, SHADOW_BIND_GROUP_LAYOUT_DESCRIPTOR};
-use crate::render::passes::tonemap_resolve::TonemapResolvePass;
 
 #[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
@@ -52,21 +53,16 @@ struct WireframeVertex {
 pub struct InstanceMaterialData(pub Arc<Vec<InstanceData>>);
 
 #[derive(Debug)]
-struct WindowHandles {
-    raw_window_handle: RawWindowHandle,
-    raw_display_handle: RawDisplayHandle,
+struct WindowCreationData {
+    surface: Surface<'static>,
     initial_size: (u32, u32),
 }
-
-unsafe impl Send for WindowHandles {}
-unsafe impl Sync for WindowHandles {}
 
 pub const SURFACE_FORMAT: TextureFormat = TextureFormat::Rgba16Float;
 
 struct RenderApp {
-    pub(crate) surface: Option<Surface<'static>>,
     pub(crate) instance: wgpu::Instance,
-    pub(crate) device: Device,
+    pub(crate) device: Arc<Device>,
     pub(crate) queue: Queue,
     pub(crate) render_pipeline: RenderPipeline,
     pub(crate) debug_quad_render_pipeline: RenderPipeline,
@@ -77,7 +73,7 @@ struct RenderApp {
     pub(crate) main_pass: MainRenderPass,
     pub(crate) shadow_pass: ShadowRenderPass,
     pub(crate) tonemap_resolve_pass: TonemapResolvePass,
-    pub(crate) window_creation_receiver: Receiver<WindowHandles>,
+    pub(crate) window_creation_receiver: Receiver<WindowCreationData>,
     pub(crate) window_resize_receiver: Receiver<(u32, u32)>,
 }
 
@@ -271,14 +267,13 @@ impl RenderApp {
     }
 
     fn new(
-        device: Device,
+        device: Arc<Device>,
         queue: Queue,
         instance: wgpu::Instance,
-        window_creation_receiver: Receiver<WindowHandles>,
+        window_creation_receiver: Receiver<WindowCreationData>,
         initial_size: (u32, u32),
         window_resize_receiver: Receiver<(u32, u32)>,
     ) -> RenderApp {
-
         let shadow_pass = ShadowRenderPass::new(&device);
 
         let shadow_bind_group_layout =
@@ -332,7 +327,6 @@ impl RenderApp {
             device,
             queue,
             instance,
-            surface: None,
             render_pipeline,
             debug_quad_render_pipeline,
             debug_quad_bind_group,
@@ -343,28 +337,10 @@ impl RenderApp {
             shadow_pass,
             window_creation_receiver,
             window_resize_receiver,
-            tonemap_resolve_pass
+            tonemap_resolve_pass,
         };
 
         state
-    }
-
-    fn configure_surface(&mut self, size: (u32, u32)) {
-        let surface_config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: SURFACE_FORMAT,
-            view_formats: vec![SURFACE_FORMAT],
-            alpha_mode: wgpu::CompositeAlphaMode::Auto,
-            width: size.0,
-            height: size.1,
-            desired_maximum_frame_latency: 2,
-            present_mode: wgpu::PresentMode::Immediate,
-        };
-        if let Some(surface) = &self.surface {
-            surface.configure(&self.device, &surface_config);
-        } else {
-            info!("Surface is not set for RenderState");
-        }
     }
 
     fn update_render_targets(&mut self, size: (u32, u32)) {
@@ -383,26 +359,24 @@ impl RenderApp {
             view_formats: &[SURFACE_FORMAT],
         });
 
-        let shadow_bind_group_layout =
-            self.device.create_bind_group_layout(SHADOW_BIND_GROUP_LAYOUT_DESCRIPTOR);
+        let shadow_bind_group_layout = self
+            .device
+            .create_bind_group_layout(SHADOW_BIND_GROUP_LAYOUT_DESCRIPTOR);
 
-        self.main_pass = MainRenderPass::new(
-            &self.device,
-            &shadow_bind_group_layout,
-            size,
-        );
+        self.main_pass = MainRenderPass::new(&self.device, &shadow_bind_group_layout, size);
 
-        self.main_pass_texture_view = self.main_pass_texture.create_view(&wgpu::TextureViewDescriptor {
-            label: Some("Main Pass Texture View"),
-            format: Some(SURFACE_FORMAT),
-            dimension: Some(wgpu::TextureViewDimension::D2),
-            aspect: wgpu::TextureAspect::All,
-            ..Default::default()
-        });
+        self.main_pass_texture_view =
+            self.main_pass_texture
+                .create_view(&wgpu::TextureViewDescriptor {
+                    label: Some("Main Pass Texture View"),
+                    format: Some(SURFACE_FORMAT),
+                    dimension: Some(wgpu::TextureViewDimension::D2),
+                    aspect: wgpu::TextureAspect::All,
+                    ..Default::default()
+                });
     }
 
     fn resize(&mut self, size: (u32, u32)) {
-        self.configure_surface(size);
         self.update_render_targets(size);
     }
 
@@ -523,107 +497,72 @@ impl RenderApp {
         voxel_planes: VoxelPlanesData,
         camera_position: Vec3,
         lights_data: LightsData,
+        surface_texture: &SurfaceTexture,
     ) {
         if let Ok(resize_message) = self.window_resize_receiver.try_recv() {
             self.resize(resize_message);
         }
 
-        match &self.surface {
-            Some(surface) => {
-                let render_span = info_span!("Voxel render").entered();
+        let render_span = info_span!("Voxel render").entered();
 
-                let surface_texture = surface
-                    .get_current_texture()
-                    .expect("failed to acquire next swapchain texture");
+        let surface_texture_view = self.get_texture_view(surface_texture);
+        let draw_count = voxel_planes.len() as u32;
 
-                let texture_view = self.get_texture_view(&surface_texture);
-                let draw_count = voxel_planes.len() as u32;
+        // Prepare buffers for the main pass
+        self.main_pass
+            .prepare_buffers(&self.device, &self.queue, voxel_planes);
 
-                // Prepare buffers for the main pass
-                self.main_pass
-                    .prepare_buffers(&self.device, &self.queue, voxel_planes);
+        let uniform_buffer = &self.main_pass.uniform_buffer;
+        let vertex_buffer = &self.main_pass.vertex_buffer;
+        let instance_buffer = &self.main_pass.instance_buffer;
+        let bind_group = &self.main_pass.bind_group;
+        let indirect_buffer = &self.main_pass.indirect_buffer;
+        let lights_uniform_buffer = &self.main_pass.lights_uniform_buffer;
+        let mvp_buffer = &self.main_pass.mvp_buffer;
 
-                let uniform_buffer = &self.main_pass.uniform_buffer;
-                let vertex_buffer = &self.main_pass.vertex_buffer;
-                let instance_buffer = &self.main_pass.instance_buffer;
-                let bind_group = &self.main_pass.bind_group;
-                let indirect_buffer = &self.main_pass.indirect_buffer;
-                let lights_uniform_buffer = &self.main_pass.lights_uniform_buffer;
-                let mvp_buffer = &self.main_pass.mvp_buffer;
+        // Shadow
+        let draw_buffers = DrawBuffers {
+            uniform_buffer,
+            vertex_buffer,
+            instance_buffer,
+            indirect_buffer,
+            mvp_buffer,
+            lights_uniform_buffer,
+        };
 
-                // Shadow
-                let draw_buffers = DrawBuffers {
-                    uniform_buffer,
-                    vertex_buffer,
-                    instance_buffer,
-                    indirect_buffer,
-                    mvp_buffer,
-                    lights_uniform_buffer,
-                };
+        self.shadow_pass.enqueue(
+            &self.device,
+            &self.queue,
+            shadow_view,
+            camera_position,
+            draw_count,
+            &draw_buffers,
+            bind_group,
+        );
 
-                self.shadow_pass.enqueue(
-                    &self.device,
-                    &self.queue,
-                    shadow_view,
-                    camera_position,
-                    draw_count,
-                    &draw_buffers,
-                    bind_group,
-                );
+        self.main_pass.enqueue(
+            &self.device,
+            &self.queue,
+            &self.main_pass_texture_view,
+            &self.shadow_pass.shadow_bind_group,
+            draw_count,
+            camera_position,
+            lights_data,
+            view_proj,
+        );
 
-                self.main_pass.enqueue(
-                    &self.device,
-                    &self.queue,
-                    &self.main_pass_texture_view,
-                    &self.shadow_pass.shadow_bind_group,
-                    draw_count,
-                    camera_position,
-                    lights_data,
-                    view_proj,
-                );
+        self.tonemap_resolve_pass.enqueue(
+            &self.device,
+            &self.queue,
+            (&self.main_pass_texture, &self.main_pass_texture_view),
+            (&surface_texture.texture, &surface_texture_view),
+        );
 
-                self.tonemap_resolve_pass.enqueue(
-                    &self.device,
-                    &self.queue,
-                    (&self.main_pass_texture, &self.main_pass_texture_view),
-                    (&surface_texture.texture, &texture_view),
-                );
+        self.enqueue_depth_debug_pass(surface_texture_view.clone());
 
-                self.enqueue_depth_debug_pass(
-                    texture_view.clone(),
-                );
+        surface_texture.clone().present();
 
-                surface_texture.present();
-
-                render_span.exit();
-            }
-            None => {
-                info!("Surface not created yet, waiting for window creation");
-                match self.window_creation_receiver.recv() {
-                    Ok(handles) => {
-                        let surface_target = wgpu::SurfaceTargetUnsafe::RawHandle {
-                            raw_display_handle: handles.raw_display_handle,
-                            raw_window_handle: handles.raw_window_handle,
-                        };
-                        match unsafe { self.instance.create_surface_unsafe(surface_target) } {
-                            Ok(surface) => {
-                                self.surface = Some(surface);
-                                self.configure_surface(handles.initial_size);
-                                info!("Surface created successfully");
-                            }
-                            Err(e) => {
-                                error!("Failed to create surface: {}", e);
-                                return;
-                            }
-                        }
-                        info!("Window created successfully");
-                    }
-                    Err(e) => {
-                        warn!("Failed to receive window creation: {}", e);
-                    }
-                }
-            }
-        }
+        render_span.exit();
     }
 }
 
@@ -632,8 +571,11 @@ struct VoxelExtractApp {
     app: App,
     window: Option<Window>,
     render_finished_receiver: Receiver<()>,
-    window_creation_sender: Sender<WindowHandles>,
+    window_creation_sender: Sender<WindowCreationData>,
     window_resized_sender: Sender<(u32, u32)>,
+    device: Arc<Device>,
+    surface_texture: Option<SurfaceTexture>,
+    instance: wgpu::Instance,
 }
 
 impl VoxelExtractApp {
@@ -641,16 +583,21 @@ impl VoxelExtractApp {
         world_message_sender: Sender<WorldMessage>,
         app: App,
         render_finished_receiver: Receiver<()>,
-        window_creation_sender: Sender<WindowHandles>,
+        window_creation_sender: Sender<WindowCreationData>,
         window_resized_sender: Sender<(u32, u32)>,
+        device: Arc<Device>,
+        instance: wgpu::Instance,
     ) -> Self {
         Self {
             world_message_sender,
             app,
             window: None,
+            surface_texture: None,
+            device,
             render_finished_receiver,
             window_creation_sender,
             window_resized_sender,
+            instance,
         }
     }
 }
@@ -663,27 +610,51 @@ impl ApplicationHandler for VoxelExtractApp {
         }
         let primary_monitor = event_loop.primary_monitor().unwrap();
         let video_mode = primary_monitor.video_modes().next().unwrap();
-        let window_attributes = Window::default_attributes().with_title("Soulflame")
-        .with_fullscreen(Some(winit::window::Fullscreen::Exclusive(video_mode.clone())));
+        let window_attributes = Window::default_attributes()
+            .with_title("Soulflame")
+            .with_fullscreen(Some(winit::window::Fullscreen::Exclusive(
+                video_mode.clone(),
+            )));
         let window = event_loop.create_window(window_attributes).unwrap();
-        let raw_window_handle = window.raw_window_handle();
-        let raw_display_handle = window.raw_display_handle();
-        let initial_size = video_mode.clone().size();
-        self.window = Some(window);
 
-        // Extract handles on main thread
-        match (raw_window_handle, raw_display_handle) {
-            (Ok(raw_window_handle), Ok(raw_display_handle)) => {
-                info!("Window created with size: {:?}", initial_size);
-                let handles = WindowHandles {
-                    raw_window_handle,
-                    raw_display_handle,
-                    initial_size: (initial_size.width, initial_size.height),
+        let initial_size = video_mode.clone().size();
+
+        let surface_config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: SURFACE_FORMAT,
+            view_formats: vec![SURFACE_FORMAT],
+            alpha_mode: wgpu::CompositeAlphaMode::Auto,
+            width: initial_size.width,
+            height: initial_size.height,
+            desired_maximum_frame_latency: 2,
+            present_mode: wgpu::PresentMode::Immediate,
+        };
+        self.window = Some(window);
+        match self.window {
+            Some(ref window) => {
+                // Use create_surface_unsafe to avoid lifetime issues
+                let surface = unsafe {
+                    let target = wgpu::SurfaceTargetUnsafe::from_window(window).unwrap();
+                    self.instance.create_surface_unsafe(target).unwrap()
                 };
-                self.window_creation_sender.send(handles);
+
+                surface.configure(&self.device, &surface_config);
+                match self.window_creation_sender.send(WindowCreationData {
+                    surface,
+                    initial_size: (initial_size.width, initial_size.height),
+                }) {
+                    Ok(_) => {
+                        info!("Window creation data sent successfully");
+                    }
+                    Err(e) => {
+                        error!("Failed to send window creation data: {:?}", e);
+                        return;
+                    }
+                }
             }
-            _ => {
-                error!("Failed to get raw window or display handle");
+            None => {
+                error!("Failed to create window");
+                return;
             }
         }
     }
@@ -824,8 +795,10 @@ pub fn winit_runner(
     event_loop: EventLoop<()>,
     world_message_sender: Sender<WorldMessage>,
     render_finished_receiver: Receiver<()>,
-    window_created_sender: Sender<WindowHandles>,
+    window_created_sender: Sender<WindowCreationData>,
     window_resize_sender: Sender<(u32, u32)>,
+    device: Arc<Device>,
+    instance: wgpu::Instance,
 ) -> AppExit {
     if app.plugins_state() == PluginsState::Ready {
         app.finish();
@@ -840,7 +813,9 @@ pub fn winit_runner(
         app,
         render_finished_receiver,
         window_created_sender,
-        window_resize_sender
+        window_resize_sender,
+        device,
+        instance,
     );
 
     event_loop
@@ -871,7 +846,8 @@ impl Plugin for VoxelRenderPlugin {
         app.insert_resource(MainThreadExecutor::new());
         let (world_message_sender, world_message_receiver) = mpsc::channel::<WorldMessage>();
         let (render_finished_sender, render_finished_receiver) = mpsc::channel::<()>();
-        let (window_creation_sender, window_creation_receiver) = mpsc::channel::<WindowHandles>();
+        let (window_creation_sender, window_creation_receiver) =
+            mpsc::channel::<WindowCreationData>();
         let (window_resized_sender, window_resized_receiver) = mpsc::channel::<(u32, u32)>();
 
         // Kicks off render cycle TODO: check if it causes race at app startup
@@ -885,62 +861,90 @@ impl Plugin for VoxelRenderPlugin {
             pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
                 .unwrap(),
         );
-
-        app.set_runner(|app| {
-            winit_runner(
-                app,
-                event_loop,
-                world_message_sender,
-                render_finished_receiver,
-                window_creation_sender,
-                window_resized_sender
-            )
-        });
-
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             required_features: wgpu::Features::INDIRECT_FIRST_INSTANCE
                 | wgpu::Features::MULTI_DRAW_INDIRECT
                 | wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER,
             ..default()
         }))
-            .unwrap();
+        .unwrap();
 
+        let device_arc = Arc::new(device);
+        let runner_device_arc = device_arc.clone();
         let render_instance = instance.clone();
+        let render_device_arc = device_arc.clone();
+
+        app.set_runner(move |app| {
+            winit_runner(
+                app,
+                event_loop,
+                world_message_sender,
+                render_finished_receiver,
+                window_creation_sender,
+                window_resized_sender,
+                runner_device_arc,
+                instance,
+            )
+        });
 
         let render_loop = move || {
             let mut render_app = RenderApp::new(
-                device,
+                render_device_arc,
                 queue,
                 render_instance,
                 window_creation_receiver,
                 (800, 600),
-                window_resized_receiver
+                window_resized_receiver,
             );
 
-            loop {
-                // Block until a message is received
-                if let Ok((view_proj, voxel_planes, sun_data, camera_position, lights)) =
-                    world_message_receiver.recv()
-                {
-                    let (shadow_transform, _) = sun_data;
-                    let shadow_view = shadow_transform.compute_matrix().inverse();
+            match render_app.window_creation_receiver.recv() {
+                Ok(WindowCreationData {
+                    surface,
+                    initial_size,
+                }) => {
+                    render_app.update_render_targets(initial_size);
+                    loop {
+                        match world_message_receiver.recv() {
+                            Ok(world_messsage) => {
+                                let (view_proj, voxel_planes, sun_data, camera_position, lights) =
+                                    world_messsage;
+                                let (shadow_transform, _) = sun_data;
+                                let shadow_view = shadow_transform.compute_matrix().inverse();
 
-                    // Send a signal that the next update can begin
-                    render_finished_sender
-                        .send(())
-                        .expect("Failed to send render finished signal");
+                                // Send a signal that the next update can begin
+                                render_finished_sender
+                                    .send(())
+                                    .expect("Failed to send render finished signal");
 
-                    // Render the scene
-                    render_app.render(
-                        view_proj,
-                        shadow_view,
-                        voxel_planes,
-                        camera_position,
-                        lights,
-                    );
-                } else {
-                    // Channel closed, exit thread
-                    break;
+                                match surface.get_current_texture() {
+                                    Ok(surface_texture) => {
+                                        // Render the scene
+                                        render_app.render(
+                                            view_proj,
+                                            shadow_view,
+                                            voxel_planes,
+                                            camera_position,
+                                            lights,
+                                            &surface_texture,
+                                        );
+                                    }
+                                    Err(e) => {
+                                        error!("Failed to get current surface texture: {:?}", e);
+                                        continue;
+                                    }
+                                }
+                            }
+                            Err(_) => {
+                                // Channel closed, exit thread
+                                info!("World creation message channel closed; exiting render loop");
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to receive window creation data: {:?}", e);
+                    return;
                 }
             }
         };
