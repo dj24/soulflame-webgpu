@@ -131,7 +131,13 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
     let y_scale = f32(unpacked_color_y_extent.w);
 
     let hsl = unpacked_color_y_extent.rg;
-    let ao = unpacked_color_y_extent.b;
+    let ao_packed = unpacked_color_y_extent.b;
+
+    // Extract AO values for 4 corners (2 bits each)
+    let ao_corner0 = (ao_packed >> 6u) & 3u;  // Top-left
+    let ao_corner1 = (ao_packed >> 4u) & 3u;  // Top-right
+    let ao_corner2 = (ao_packed >> 2u) & 3u;  // Bottom-left
+    let ao_corner3 = ao_packed & 3u;          // Bottom-right
 
     let unpacked_hsl = get_hsl_voxel(instance.color_y_extent);
     let unpacked_h = unpacked_hsl.x;
@@ -185,7 +191,41 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
     let model_view_proj = uniforms.view_projection * model_matrices[instance.model_index];
     var projected_pos = model_view_proj * vec4<f32>(pos, 1.0);
 
-    let albedo = convert_hsl_to_rgb(unpacked_h,unpacked_s, unpacked_l);
+    // Calculate ambient occlusion for this vertex based on its position within the quad
+    var ao_value = 0.0;
+    let vertex_in_quad = local_vertex_index % 4u;
+
+    // Check if we need to flip the quad for consistent triangle subdivision
+    let should_flip_quad = (ao_corner0 + ao_corner3) > (ao_corner1 + ao_corner2);
+
+    if should_flip_quad {
+        // Flipped quad vertex order
+        if vertex_in_quad == 0u {
+            ao_value = f32(ao_corner1); // bottom-right -> top-right
+        } else if vertex_in_quad == 1u {
+            ao_value = f32(ao_corner0); // top-left -> bottom-left
+        } else if vertex_in_quad == 2u {
+            ao_value = f32(ao_corner3); // bottom-left -> top-left
+        } else if vertex_in_quad == 3u {
+            ao_value = f32(ao_corner2); // top-right -> bottom-right
+        }
+    } else {
+        // Normal quad vertex order
+        if vertex_in_quad == 0u {
+            ao_value = f32(ao_corner2); // bottom-left
+        } else if vertex_in_quad == 1u {
+            ao_value = f32(ao_corner3); // bottom-right
+        } else if vertex_in_quad == 2u {
+            ao_value = f32(ao_corner0); // top-left
+        } else if vertex_in_quad == 3u {
+            ao_value = f32(ao_corner1); // top-right
+        }
+    }
+
+    // Convert AO value to a multiplier (0-3 maps to darker to lighter)
+    let ao_multiplier = (ao_value / 3.0) * 0.7 + 0.3; // Maps 0->0.3, 3->1.0
+
+    let albedo = convert_hsl_to_rgb(unpacked_h, unpacked_s, unpacked_l) * ao_multiplier;
 
     var output: VertexOutput;
     output.position = projected_pos;  // Transform to clip space
@@ -359,8 +399,10 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
 
    let fog_factor = apply_fog(vertex, view_dir);
 
-    var output_color = shadowed + apply_point_lights(vertex, view_dir);
-    output_color = mix(output_color, vec4(0.5, 0.5, 0.5, 1.0), vec4(fog_factor, 1.0)); // Apply fog effect
+    return vertex.color;
 
-    return output_color;
+//    var output_color = shadowed + apply_point_lights(vertex, view_dir);
+//    output_color = mix(output_color, vec4(0.5, 0.5, 0.5, 1.0), vec4(fog_factor, 1.0)); // Apply fog effect
+
+//    return output_color;
 }
