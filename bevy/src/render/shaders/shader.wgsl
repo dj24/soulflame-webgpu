@@ -198,28 +198,15 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
     // Check if we need to flip the quad for consistent triangle subdivision
     let should_flip_quad = (ao_corner0 + ao_corner3) > (ao_corner1 + ao_corner2);
 
-    if should_flip_quad {
-        // Flipped quad vertex order
-        if vertex_in_quad == 0u {
-            ao_value = f32(ao_corner1); // bottom-right -> top-right
-        } else if vertex_in_quad == 1u {
-            ao_value = f32(ao_corner0); // top-left -> bottom-left
-        } else if vertex_in_quad == 2u {
-            ao_value = f32(ao_corner3); // bottom-left -> top-left
-        } else if vertex_in_quad == 3u {
-            ao_value = f32(ao_corner2); // top-right -> bottom-right
-        }
-    } else {
-        // Normal quad vertex order
-        if vertex_in_quad == 0u {
-            ao_value = f32(ao_corner2); // bottom-left
-        } else if vertex_in_quad == 1u {
-            ao_value = f32(ao_corner3); // bottom-right
-        } else if vertex_in_quad == 2u {
-            ao_value = f32(ao_corner0); // top-left
-        } else if vertex_in_quad == 3u {
-            ao_value = f32(ao_corner1); // top-right
-        }
+
+    if vertex_in_quad == 0u {
+        ao_value = f32(ao_corner0); // bottom-right -> top-right
+    } else if vertex_in_quad == 1u {
+        ao_value = f32(ao_corner0); // top-left -> bottom-left
+    } else if vertex_in_quad == 2u {
+        ao_value = f32(ao_corner3); // bottom-left -> top-left
+    } else if vertex_in_quad == 3u {
+        ao_value = f32(ao_corner2); // top-right -> bottom-right
     }
 
     // Convert AO value to a multiplier (0-3 maps to darker to lighter)
