@@ -27,6 +27,9 @@ struct VertexOutput {
     @location(1) @interpolate(perspective, centroid) world_position: vec4<f32>,
     @location(2) @interpolate(perspective, centroid) normal: vec3<f32>,
     @location(3) @interpolate(perspective, centroid) uv: vec2<f32>,
+    @location(4) @interpolate(perspective, centroid) hue: f32,
+    @location(5) @interpolate(perspective, centroid) saturation: f32,
+    @location(6) @interpolate(perspective, centroid) lightness: f32,
 };
 
 struct Instance {
@@ -117,6 +120,21 @@ fn convert_hsl_to_rgb(h: f32, s: f32, l: f32) -> vec3<f32> {
     return vec3<f32>(r, g, b);
 }
 
+fn unpack_ambient_occlusion(ao_packed: u32) -> vec4<f32> {
+    // Extract AO values for 4 corners (2 bits each)
+    let ao_corner0 = (ao_packed >> 6u) & 3u;  // Top-left
+    let ao_corner1 = (ao_packed >> 4u) & 3u;  // Top-right
+    let ao_corner2 = (ao_packed >> 2u) & 3u;  // Bottom-left
+    let ao_corner3 = ao_packed & 3u;          // Bottom-right
+
+    return vec4<f32>(
+        f32(ao_corner0),
+        f32(ao_corner1),
+        f32(ao_corner2),
+        f32(ao_corner3)
+    ) / 3.0;
+}
+
 
 @vertex
 fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> VertexOutput {
@@ -132,12 +150,6 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
 
     let hsl = unpacked_color_y_extent.rg;
     let ao_packed = unpacked_color_y_extent.b;
-
-    // Extract AO values for 4 corners (2 bits each)
-    let ao_corner0 = (ao_packed >> 6u) & 3u;  // Top-left
-    let ao_corner1 = (ao_packed >> 4u) & 3u;  // Top-right
-    let ao_corner2 = (ao_packed >> 2u) & 3u;  // Bottom-left
-    let ao_corner3 = ao_packed & 3u;          // Bottom-right
 
     let unpacked_hsl = get_hsl_voxel(instance.color_y_extent);
     let unpacked_h = unpacked_hsl.x;
@@ -190,36 +202,36 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32, instance: Instance) -> V
     let pos = local_pos * scale + vec3<f32>(x_pos, y_pos, z_pos);
     let model_view_proj = uniforms.view_projection * model_matrices[instance.model_index];
     var projected_pos = model_view_proj * vec4<f32>(pos, 1.0);
+    let screen_uv = (projected_pos.xy / projected_pos.w) * 0.5 + 0.5;
 
     // Calculate ambient occlusion for this vertex based on its position within the quad
     var ao_value = 0.0;
     let vertex_in_quad = local_vertex_index % 4u;
 
-    // Check if we need to flip the quad for consistent triangle subdivision
-    let should_flip_quad = (ao_corner0 + ao_corner3) > (ao_corner1 + ao_corner2);
+    let unpacked_ao = unpack_ambient_occlusion(ao_packed);
+    ao_value = unpacked_ao[vertex_in_quad];
 
+    let l: f32 = unpacked_l * (ao_value * 0.9 + 0.1);
 
-    if vertex_in_quad == 0u {
-        ao_value = f32(ao_corner0); // bottom-right -> top-right
-    } else if vertex_in_quad == 1u {
-        ao_value = f32(ao_corner0); // top-left -> bottom-left
-    } else if vertex_in_quad == 2u {
-        ao_value = f32(ao_corner3); // bottom-left -> top-left
-    } else if vertex_in_quad == 3u {
-        ao_value = f32(ao_corner2); // top-right -> bottom-right
+    // If the saturation is large enough to assume this is a colour, we increase the saturation with ao darkness
+    var s = unpacked_s;
+    if( unpacked_s > 0.2) {
+      let s_factor = (ao_value * 0.8 + 0.2);
+      s = unpacked_s / s_factor;
     }
 
-    // Convert AO value to a multiplier (0-3 maps to darker to lighter)
-    let ao_multiplier = (ao_value / 3.0) * 0.7 + 0.3; // Maps 0->0.3, 3->1.0
-
-    let albedo = convert_hsl_to_rgb(unpacked_h, unpacked_s, unpacked_l) * ao_multiplier;
+    let hsl1 = vec3(unpacked_h, s, l);
+    let albedo = convert_hsl_to_rgb(unpacked_h, s, l);
 
     var output: VertexOutput;
     output.position = projected_pos;  // Transform to clip space
     output.color = vec4(albedo, 1.0);
+    output.hue = hsl1.x;
+    output.saturation = hsl1.y;
+    output.lightness = hsl1.z;
     output.world_position = model_matrices[instance.model_index] * vec4<f32>(pos, 1.0);
     output.normal = normal;
-    output.uv = (projected_pos.xy / projected_pos.w) * 0.5 + 0.5;
+    output.uv = screen_uv;
 
     return output;
 }
@@ -386,7 +398,13 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
 
    let fog_factor = apply_fog(vertex, view_dir);
 
-    return vertex.color;
+
+    // Debug
+    if(vertex.uv.x > 0.5){
+      return vec4(convert_hsl_to_rgb(vertex.hue, vertex.saturation, vertex.lightness), 1.0);
+    } else{
+      return vertex.color;
+    }
 
 //    var output_color = shadowed + apply_point_lights(vertex, view_dir);
 //    output_color = mix(output_color, vec4(0.5, 0.5, 0.5, 1.0), vec4(fog_factor, 1.0)); // Apply fog effect

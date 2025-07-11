@@ -237,37 +237,37 @@ fn generate_instance_data_y(vxm: &VxmAsset, is_top_face: bool) -> Vec<InstanceDa
                 let mut is_z_extendable = true;
 
                 // Get ambient occlusion value for each corner
-                let mut ao_00 = 0u8;
+                let mut ao_00 = 3u8;
                 let mut ao_01 = 3u8;
                 let mut ao_10 = 3u8;
                 let mut ao_11 = 3u8;
 
-                if y < (vxm.size[1] - 1) as usize {
-                    let minus_x_check = x > 0 && is_solid_voxel(&vxm.voxel_array[x - 1][y + 1][z]);
-                    let plus_x_check = x < (vxm.size[0] - 1) as usize
-                        && is_solid_voxel(&vxm.voxel_array[x + 1][y + 1][z]);
-                    let minus_z_check = z > 0 && is_solid_voxel(&vxm.voxel_array[x][y + 1][z - 1]);
-                    let plus_z_check = z < (vxm.size[2] - 1) as usize
-                        && is_solid_voxel(&vxm.voxel_array[x][y + 1][z + 1]);
-                    let corner_00 =
-                        x > 0 && z > 0 && is_solid_voxel(&vxm.voxel_array[x - 1][y + 1][z - 1]);
-                    let corner_01 = x > 0
-                        && z < (vxm.size[2] - 1) as usize
-                        && is_solid_voxel(&vxm.voxel_array[x - 1][y + 1][z + 1]);
-                    let corner_10 = x < (vxm.size[0] - 1) as usize
-                        && z > 0
-                        && is_solid_voxel(&vxm.voxel_array[x + 1][y + 1][z - 1]);
-                    let corner_11 = x < (vxm.size[0] - 1) as usize
-                        && z < (vxm.size[2] - 1) as usize
-                        && is_solid_voxel(&vxm.voxel_array[x + 1][y + 1][z + 1]);
-
-                    if minus_x_check && minus_z_check {
-                        ao_00 = 0;
-                    } else {
-                        ao_00 =
-                            3 - (corner_00 as u8) - (minus_x_check as u8) - (minus_z_check as u8);
-                    }
-                }
+                // if y < (vxm.size[1] - 1) as usize {
+                //     let minus_x_check = x > 0 && is_solid_voxel(&vxm.voxel_array[x - 1][y + 1][z]);
+                //     let plus_x_check = x < (vxm.size[0] - 1) as usize
+                //         && is_solid_voxel(&vxm.voxel_array[x + 1][y + 1][z]);
+                //     let minus_z_check = z > 0 && is_solid_voxel(&vxm.voxel_array[x][y + 1][z - 1]);
+                //     let plus_z_check = z < (vxm.size[2] - 1) as usize
+                //         && is_solid_voxel(&vxm.voxel_array[x][y + 1][z + 1]);
+                //     let corner_00 =
+                //         x > 0 && z > 0 && is_solid_voxel(&vxm.voxel_array[x - 1][y + 1][z - 1]);
+                //     let corner_01 = x > 0
+                //         && z < (vxm.size[2] - 1) as usize
+                //         && is_solid_voxel(&vxm.voxel_array[x - 1][y + 1][z + 1]);
+                //     let corner_10 = x < (vxm.size[0] - 1) as usize
+                //         && z > 0
+                //         && is_solid_voxel(&vxm.voxel_array[x + 1][y + 1][z - 1]);
+                //     let corner_11 = x < (vxm.size[0] - 1) as usize
+                //         && z < (vxm.size[2] - 1) as usize
+                //         && is_solid_voxel(&vxm.voxel_array[x + 1][y + 1][z + 1]);
+                // 
+                //     if minus_x_check && minus_z_check {
+                //         ao_00 = 0;
+                //     } else {
+                //         ao_00 =
+                //             3 - (corner_00 as u8) - (minus_x_check as u8) - (minus_z_check as u8);
+                //     }
+                // }
 
                 // 2 bits for each corner in this order of vertices
                 let ao = (ao_01 << 6) | (ao_11 << 4) | (ao_00 << 2) | ao_10;
